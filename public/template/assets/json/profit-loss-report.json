@@ -1,0 +1,37 @@
+{
+	"data":[
+		{
+			"id" : 1,
+			"si_no" : "1",
+			"date" : "30 Mar 2020",
+			"income" : "Service Rendered",
+			"income_amount" : "$ 90000",
+			"expense" : "Salaries",
+			"expense_amount" : "$20000",
+			"amount" : "$70000"
+		},
+		{
+			"id" : 2,
+			"si_no" : "2",
+			"date" : "15 Mar 2020",
+			"income" : "Service Rendered",
+			"income_amount" : "$ 80000",
+			"expense" : "Salaries",
+			"expense_amount" : "$20000",
+			"amount" : "$60000"
+		},
+		{
+			"id" : 3,
+			"si_no" : "3",
+			"date" : "10 Mar 2020",
+			"income" : "Service Rendered",
+			"income_amount" : "$ 90000",
+			"expense" : "Salaries",
+			"expense_amount" : "$20000",
+			"amount" : "$50000"	
+		}
+
+	]
+	
+}
+

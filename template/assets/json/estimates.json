@@ -1,0 +1,83 @@
+{
+	"data":[
+		{
+			"id" : 1,
+			"estimate_number" : "EST-11KI214  ",
+			"estimate_name" : " Greg Lynch",
+			"estimate_image" : "assets/img/profiles/avatar-10.jpg",
+			"estimate_date" : "1 Nov 2020",
+			"expiry_date" : "5 Nov 2020",
+			"amount" : "$175",
+			"status" : "0",
+			"action" : ""
+		},
+		{
+			"id" : 2,
+			"estimate_number" : "EST-17ER281",
+			"estimate_name" : "  Marie Canales",
+			"estimate_image" : "assets/img/profiles/avatar-03.jpg",
+			"estimate_date" : "16 Nov 2020",
+			"expiry_date" : "25 Nov 2020",
+			"amount" : "$250",
+			"status" : "1",
+			"action" : ""
+		},
+		{
+			"id" : 3,
+			"estimate_number" : "EST-11KI214  ",
+			"estimate_name" : "  Barbara Moore",
+			"estimate_image" : "assets/img/profiles/avatar-04.jpg",
+			"estimate_date" : "5 Nov 2020",
+			"expiry_date" : "15 Nov 2020",
+			"amount" : "$225",
+			"status" : "2",
+			"action" : ""
+		},
+		{
+			"id" : 4,
+			"estimate_number" : "EST-68MN425",
+			"estimate_name" : "   Russell Copeland",
+			"estimate_image" : "assets/img/profiles/avatar-08.jpg",
+			"estimate_date" : "22 Nov 2020",
+			"expiry_date" : "28 Nov 2020",
+			"amount" : "$500",
+			"status" : "0",
+			"action" : ""
+		},
+		{
+			"id" : 5,
+			"estimate_number" : "EST-71DR001",
+			"estimate_name" : "  John Blair ",
+			"estimate_image" : "assets/img/profiles/avatar-07.jpg",
+			"estimate_date" : "12 Nov 2020",
+			"expiry_date" : "15 Nov 2020",
+			"amount" : "$2225",
+			"status" : "2",
+			"action" : ""
+		},
+		{
+			"id" : 6,
+			"estimate_number" : "EST-86YU963",
+			"estimate_name" : "  Leatha Bailey",
+			"estimate_image" : "assets/img/profiles/avatar-09.jpg",
+			"estimate_date" : "23 Nov 2020",
+			"expiry_date" : "28 Nov 2020",
+			"amount" : "$225",
+			"status" : "1",
+			"action" : ""
+		},
+		{
+			"id" : 7,
+			"estimate_number" : "EST-98HJ687 ",
+			"estimate_name" : " Karlene Chaidez",
+			"estimate_image" : "assets/img/profiles/avatar-06.jpg",
+			"estimate_date" : "20 Nov 2020",
+			"expiry_date" : "30 Nov 2020",
+			"amount" : "$220",
+			"status" : "2",
+			"action" : ""
+		}
+	]
+	
+}
+

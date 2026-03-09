@@ -1,0 +1,72 @@
+{
+	"data":[
+		{
+			"id" : 1,
+			"category" : "Advertising",
+			"expenses_image" : "assets/img/profiles/avatar-05.jpg",
+			"expenses_name" : "Greg Lynch ",
+			"amount" : "$582",
+			"expense_date" : "6 Nov 2020",
+			"description" : "Lorem ipsum dollar...",
+			"status" : "0",
+			"action" : ""
+		},
+		{
+			"id" : 2,
+			"category" : "Food",
+			"expenses_image" : "assets/img/profiles/avatar-08.jpg",
+			"expenses_name" : "Russell ",
+			"amount" : "$214",
+			"expense_date" : "19 Sep 2020",
+			"description" : "Lorem ipsum dollar...",
+			"status" : "1",
+			"action" : ""
+		},
+		{
+			"id" : 3,
+			"category" : "Marketing",
+			"expenses_image" : "assets/img/profiles/avatar-02.jpg",
+			"expenses_name" : " Brian Johnson ",
+			"amount" : "$282",
+			"expense_date" : "16 Nov 2020",
+			"description" : "Lorem ipsum dollar...",
+			"status" : "0",
+			"action" : ""
+		},
+		{
+			"id" : 4,
+			"category" : "Repairs",
+			"expenses_image" : "assets/img/profiles/avatar-03.jpg",
+			"expenses_name" : " Marie Canales",
+			"amount" : "$14",
+			"expense_date" : "25 Sep 2020",
+			"description" : "Lorem ipsum dollar...",
+			"status" : "1",
+			"action" : ""
+		},
+		{
+			"id" : 5,
+			"category" : "Software",
+			"expenses_image" : "assets/img/profiles/avatar-12.jpg",
+			"expenses_name" : "  Johnson ",
+			"amount" : "$22",
+			"expense_date" : "16 Nov 2020",
+			"description" : "Lorem ipsum dollar...",
+			"status" : "0",
+			"action" : ""
+		},
+		{
+			"id" : 6,
+			"category" : "Repairs",
+			"expenses_image" : "assets/img/profiles/avatar-05.jpg",
+			"expenses_name" : " Greg Lynch ",
+			"amount" : "$140",
+			"expense_date" : "5 Sep 2020",
+			"description" : "Lorem ipsum dollar...",
+			"status" : "1",
+			"action" : ""
+		}
+	]
+	
+}
+

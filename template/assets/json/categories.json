@@ -1,0 +1,42 @@
+{
+	"data":[
+		{
+			"id" : 1,
+			"si_no" : "1",
+			"category_name" : "Sales",
+			"date" : "10/04/22",
+			"added_by" : "Admin",
+			"Status" : "",
+			"Action" : ""
+		},
+		{
+			"id" : 2,
+			"si_no" : "2",
+			"category_name" : "Expenses",
+			"date" : "10/04/22",
+			"added_by" : "Admin",
+			"Status" : "",
+			"Action" : ""
+		},
+		{
+			"id" : 3,
+			"si_no" : "3",
+			"category_name" : "Tax",
+			"date" : "10/04/22",
+			"added_by" : "Admin",
+			"Status" : "",
+			"Action" : ""
+		},
+		{
+			"id" : 4,
+			"si_no" : "4",
+			"category_name" : "Porfit and Loss",
+			"date" : "10/04/22",
+			"added_by" : "Wegman",
+			"Status" : "",
+			"Action" : ""
+		}
+	]
+	
+}
+

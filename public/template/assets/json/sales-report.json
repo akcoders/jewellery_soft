@@ -1,0 +1,40 @@
+{
+	"data":[
+		{
+			"id" : 1,
+			"si_no" : "1",
+			"date" : "30 Mar 2020",
+			"category" : "Accessories",
+			"sales" : "$42",
+			"refunded" : "$0",
+			"discount" : "$163",
+			"taxes" : "0",
+			"amount" : "$76"
+		},
+		{
+			"id" : 2,
+			"si_no" : "2",
+			"date" : "15 Mar 2020",
+			"category" : "Books",
+			"sales" : "$250",
+			"refunded" : "$10",
+			"discount" : "$13",
+			"taxes" : "0",
+			"amount" : "$70"
+		},
+		{
+			"id" : 3,
+			"si_no" : "3",
+			"date" : "10 Mar 2020",
+			"category" : "Others",
+			"sales" : "$25",
+			"refunded" : "$100",
+			"discount" : "$130",
+			"taxes" : "0",
+			"amount" : "$700"
+		}
+
+	]
+	
+}
+

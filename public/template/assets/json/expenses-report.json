@@ -1,0 +1,52 @@
+{
+	"data":[
+		{
+			"id" : 1,
+			"category" : "Advertising",
+			"report_name" : "John",
+			"report_image" : "assets/img/profiles/avatar-12.jpg",
+			"expense_date" : "30 Mar 2020",
+			"amount" : "$76",
+			"status" : "0"
+		},
+		{
+			"id" : 2,
+			"category" : "Food",
+			"report_name" : " Russell Copeland",
+			"report_image" : "assets/img/profiles/avatar-02.jpg",
+			"expense_date" : "10 Mar 2020",
+			"amount" : "$760",
+			"status" : "1"
+		},
+		{
+			"id" : 3,
+			"category" : "Marketing",
+			"report_name" : "Brian Johnson",
+			"report_image" : "assets/img/profiles/avatar-10.jpg",
+			"expense_date" : "15 Mar 2020",
+			"amount" : "$50",
+			"status" : "1"
+		},
+		{
+			"id" : 4,
+			"category" : "Repairs",
+			"report_name" : " Marie Canales",
+			"report_image" : "assets/img/profiles/avatar-07.jpg",
+			"expense_date" : "16 Mar 2020",
+			"amount" : "$24",
+			"status" : "0"
+		},
+		{
+			"id" : 5,
+			"category" : "Software",
+			"report_name" : " Greg Lynch",
+			"report_image" : "assets/img/profiles/avatar-10.jpg",
+			"expense_date" : "10 Mar 2020",
+			"amount" : "$760",
+			"status" : "0"
+		}
+
+	]
+	
+}
+

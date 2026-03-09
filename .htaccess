@@ -1,0 +1,31 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Deny direct access to internal folders when project root is web root.
+    RewriteRule ^(app|vendor|writable|tests|docs)/ - [F,L,NC]
+
+    # Canonical URL: remove index.php when it appears in browser URL.
+    RewriteCond %{THE_REQUEST} \s/+index\.php(?:/([^\s?]*))? [NC]
+    RewriteRule ^index\.php/?(.*)$ /$1 [R=301,L]
+
+    # Canonical URL: remove /public/index.php from browser URL.
+    RewriteCond %{THE_REQUEST} \s/+public/index\.php(?:/([^\s?]*))? [NC]
+    RewriteRule ^public/index\.php/?(.*)$ /$1 [R=301,L]
+
+    # Canonical URL: avoid exposing /public in browser URL.
+    RewriteCond %{THE_REQUEST} \s/+public/([^\s?]*) [NC]
+    RewriteRule ^public/(.*)$ /$1 [R=301,L]
+
+    # Route all requests into /public when document root cannot be changed.
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# Block direct access to sensitive files/folders from project root.
+<IfModule mod_authz_core.c>
+    <FilesMatch "^(\\.env|env|composer\\.(json|lock)|phpunit\\.xml\\.dist|preload\\.php|spark)$">
+        Require all denied
+    </FilesMatch>
+</IfModule>

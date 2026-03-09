@@ -1,0 +1,40 @@
+{
+	"data":[
+		{
+			"id" : 1,
+			"si_no" : "1",
+			"date" : "30 Mar 2020",
+			"economic_zone" : "Tax Free Customers",
+			"tax" : "Tax Free",
+			"tax_rate" : "5%",
+			"net_revenue" : "$108",
+			"gross_revenue" : "$108",
+			"amount" : "$0"
+		},
+		{
+			"id" : 2,
+			"si_no" : "2",
+			"date" : "15 Mar 2020",
+			"economic_zone" : "Default",
+			"tax" : "General Sales Tax",
+			"tax_rate" : "6%",
+			"net_revenue" : "$3660",
+			"gross_revenue" : "$3898",
+			"amount" : "$238"
+		},
+		{
+			"id" : 3,
+			"si_no" : "3",
+			"date" : "10 Mar 2020",
+			"economic_zone" : "Default",
+			"tax" : "General Sales Tax",
+			"tax_rate" : "7%",
+			"net_revenue" : "$4517",
+			"gross_revenue" : "$4889",
+			"amount" : "$372"	
+		}
+
+	]
+	
+}
+
