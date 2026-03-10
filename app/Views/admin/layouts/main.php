@@ -362,7 +362,7 @@ $isGoldInventoryProducts = $isGoldInventory && $segment3 === 'products';
     </style>
 </head>
 <body>
-    <div id="globalLoaderOverlay" class="global-loader-overlay" aria-hidden="true">
+    <div id="globalLoaderOverlay" class="global-loader-overlay active" aria-hidden="false">
         <div class="global-loader-card">
             <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
             <div class="global-loader-title">Loading...</div>

@@ -127,7 +127,7 @@ class OrderController extends BaseController
             ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
-            ->whereNotIn('orders.status', ['Completed', 'Cancelled'])
+            ->whereNotIn('orders.status', ['Completed', 'Cancelled', 'Ready'])
             ->orderBy('orders.id', 'DESC')
             ->findAll();
 
@@ -616,13 +616,16 @@ class OrderController extends BaseController
             });
         }
 
-        $issueTransactions = db_connect()->table('issue_headers ih')
-            ->select("ih.id as header_id, ih.issue_date as txn_date, ih.issue_to as party_name, ih.purpose, ih.notes, il.id as line_id, il.pcs, il.carat, il.rate_per_carat, il.line_value, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, 'Issue' as txn_type", false)
-            ->join('issue_lines il', 'il.issue_id = ih.id')
-            ->join('items i', 'i.id = il.item_id', 'left')
-            ->where('ih.order_id', $id)
-            ->get()
-            ->getResultArray();
+        $issueTransactions = [];
+        if (db_connect()->tableExists('issue_headers') && db_connect()->tableExists('issue_lines')) {
+            $issueTransactions = db_connect()->table('issue_headers ih')
+                ->select("ih.id as header_id, ih.issue_date as txn_date, ih.issue_to as party_name, ih.purpose, ih.notes, il.id as line_id, il.pcs, il.carat, il.rate_per_carat, il.line_value, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, 'Issue' as txn_type", false)
+                ->join('issue_lines il', 'il.issue_id = ih.id')
+                ->join('items i', 'i.id = il.item_id', 'left')
+                ->where('ih.order_id', $id)
+                ->get()
+                ->getResultArray();
+        }
 
         $returnTransactions = [];
         if (db_connect()->tableExists('return_headers') && db_connect()->tableExists('return_lines')) {

@@ -325,5 +325,9 @@ $routes->group('api', static function ($routes): void {
         $routes->get('gold/issues', 'Api\Mobile\InventoryController::goldIssues');
         $routes->get('gold/returns', 'Api\Mobile\InventoryController::goldReturns');
         $routes->get('gold/purchases', 'Api\Mobile\InventoryController::goldPurchases');
+
+        $routes->get('stone/issues', 'Api\Mobile\InventoryController::stoneIssues');
+        $routes->get('stone/returns', 'Api\Mobile\InventoryController::stoneReturns');
+        $routes->get('stone/purchases', 'Api\Mobile\InventoryController::stonePurchases');
     });
 });

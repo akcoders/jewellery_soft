@@ -22,8 +22,11 @@ class CompanySettingModel extends Model
         'issuement_suffix',
         'delivery_challan_suffix',
         'sale_bill_suffix',
+        'onesignal_enabled',
+        'onesignal_app_id',
+        'onesignal_rest_api_key',
+        'onesignal_sender_id',
     ];
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
 }
-

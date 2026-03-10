@@ -37,6 +37,9 @@ class CompanySettingsController extends BaseController
             'issuement_suffix' => 'permit_empty|max_length[20]',
             'delivery_challan_suffix' => 'permit_empty|max_length[20]',
             'sale_bill_suffix' => 'permit_empty|max_length[20]',
+            'onesignal_app_id' => 'permit_empty|max_length[120]',
+            'onesignal_rest_api_key' => 'permit_empty|max_length[255]',
+            'onesignal_sender_id' => 'permit_empty|max_length[80]',
         ])) {
             $errors = $this->validator ? $this->validator->getErrors() : [];
             $message = $errors === [] ? 'Validation failed.' : (string) array_values($errors)[0];
@@ -57,6 +60,10 @@ class CompanySettingsController extends BaseController
             'issuement_suffix' => strtoupper(trim((string) $this->request->getPost('issuement_suffix'))) ?: null,
             'delivery_challan_suffix' => strtoupper(trim((string) $this->request->getPost('delivery_challan_suffix'))) ?: null,
             'sale_bill_suffix' => strtoupper(trim((string) $this->request->getPost('sale_bill_suffix'))) ?: null,
+            'onesignal_enabled' => $this->request->getPost('onesignal_enabled') ? 1 : 0,
+            'onesignal_app_id' => trim((string) $this->request->getPost('onesignal_app_id')) ?: null,
+            'onesignal_rest_api_key' => trim((string) $this->request->getPost('onesignal_rest_api_key')) ?: null,
+            'onesignal_sender_id' => trim((string) $this->request->getPost('onesignal_sender_id')) ?: null,
         ];
 
         $logo = $this->request->getFile('logo');

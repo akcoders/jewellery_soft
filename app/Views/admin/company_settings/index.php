@@ -71,6 +71,36 @@
                     <button type="submit" class="btn btn-primary">Save Settings</button>
                 </div>
             </div>
+                <div class="col-12">
+                    <div class="border rounded-3 p-3 mt-2">
+                        <h6 class="mb-3">OneSignal Push Settings</h6>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Enable Push</label>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" name="onesignal_enabled" id="onesignal_enabled" value="1" <?= ! empty($setting['onesignal_enabled']) ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="onesignal_enabled">Enable OneSignal</label>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">OneSignal App ID</label>
+                                <input type="text" name="onesignal_app_id" class="form-control" value="<?= esc((string) old('onesignal_app_id', (string) ($setting['onesignal_app_id'] ?? ''))) ?>">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">REST API Key</label>
+                                <input type="text" name="onesignal_rest_api_key" class="form-control" value="<?= esc((string) old('onesignal_rest_api_key', (string) ($setting['onesignal_rest_api_key'] ?? ''))) ?>">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Sender ID</label>
+                                <input type="text" name="onesignal_sender_id" class="form-control" value="<?= esc((string) old('onesignal_sender_id', (string) ($setting['onesignal_sender_id'] ?? ''))) ?>">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                </div>
+            </div>
         </form>
     </div>
 </div>

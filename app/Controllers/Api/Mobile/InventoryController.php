@@ -4,6 +4,11 @@ namespace App\Controllers\Api\Mobile;
 
 class InventoryController extends MobileBaseController
 {
+    public function __construct()
+    {
+        helper('url');
+    }
+
     public function summary()
     {
         $authFail = $this->requireMobileAuth();
@@ -128,10 +133,19 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('issue_headers ih')
-            ->select('ih.id, ih.issue_date, ih.issue_to, ih.purpose, ih.notes, ih.created_at')
+            ->select('ih.id, ih.voucher_no, ih.issue_date, ih.issue_to, ih.purpose, ih.notes, ih.created_at, ih.order_id, ih.karigar_id, k.name as karigar_name')
+            ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->orderBy('ih.id', 'DESC')
             ->get(200)
             ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $voucherNo = trim((string) ($row['voucher_no'] ?? ''));
+            $row['voucher_url'] = $voucherNo !== ''
+                ? base_url('admin/issuements/voucher/' . rawurlencode($voucherNo) . '?download=1')
+                : null;
+        }
+        unset($row);
 
         return $this->ok($rows);
     }
@@ -144,10 +158,16 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('return_headers rh')
-            ->select('rh.id, rh.return_date, rh.return_from, rh.purpose, rh.notes, rh.created_at, rh.order_id, rh.issue_id')
+            ->select('rh.id, rh.voucher_no, rh.return_date, rh.return_from, rh.purpose, rh.notes, rh.created_at, rh.order_id, rh.issue_id, rh.karigar_id, k.name as karigar_name')
+            ->join('karigars k', 'k.id = rh.karigar_id', 'left')
             ->orderBy('rh.id', 'DESC')
             ->get(200)
             ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $row['receipt_url'] = base_url('admin/diamond-inventory/returns/receipt/' . (int) $row['id'] . '?download=1');
+        }
+        unset($row);
 
         return $this->ok($rows);
     }
@@ -176,11 +196,19 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('gold_inventory_issue_headers gih')
-            ->select('gih.id, gih.issue_date, gih.order_id, gih.karigar_id, gih.issue_to, gih.purpose, gih.notes, gih.created_at, k.name as karigar_name')
+            ->select('gih.id, gih.voucher_no, gih.issue_date, gih.order_id, gih.karigar_id, gih.issue_to, gih.purpose, gih.notes, gih.created_at, k.name as karigar_name')
             ->join('karigars k', 'k.id = gih.karigar_id', 'left')
             ->orderBy('gih.id', 'DESC')
             ->get(200)
             ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $voucherNo = trim((string) ($row['voucher_no'] ?? ''));
+            $row['voucher_url'] = $voucherNo !== ''
+                ? base_url('admin/issuements/voucher/' . rawurlencode($voucherNo) . '?download=1')
+                : null;
+        }
+        unset($row);
 
         return $this->ok($rows);
     }
@@ -193,11 +221,16 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('gold_inventory_return_headers grh')
-            ->select('grh.id, grh.return_date, grh.order_id, grh.karigar_id, grh.return_from, grh.purpose, grh.notes, grh.created_at, k.name as karigar_name')
+            ->select('grh.id, grh.voucher_no, grh.return_date, grh.order_id, grh.karigar_id, grh.return_from, grh.purpose, grh.notes, grh.created_at, k.name as karigar_name')
             ->join('karigars k', 'k.id = grh.karigar_id', 'left')
             ->orderBy('grh.id', 'DESC')
             ->get(200)
             ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $row['receipt_url'] = base_url('admin/gold-inventory/returns/receipt/' . (int) $row['id'] . '?download=1');
+        }
+        unset($row);
 
         return $this->ok($rows);
     }
@@ -212,6 +245,69 @@ class InventoryController extends MobileBaseController
         $rows = db_connect()->table('gold_inventory_purchase_headers gph')
             ->select('gph.id, gph.purchase_date, gph.supplier_name, gph.invoice_no, gph.notes, gph.created_at')
             ->orderBy('gph.id', 'DESC')
+            ->get(200)
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+
+    public function stoneIssues()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('stone_inventory_issue_headers sih')
+            ->select('sih.id, sih.voucher_no, sih.issue_date, sih.order_id, sih.karigar_id, sih.issue_to, sih.purpose, sih.notes, sih.created_at, k.name as karigar_name')
+            ->join('karigars k', 'k.id = sih.karigar_id', 'left')
+            ->orderBy('sih.id', 'DESC')
+            ->get(200)
+            ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $voucherNo = trim((string) ($row['voucher_no'] ?? ''));
+            $row['voucher_url'] = $voucherNo !== ''
+                ? base_url('admin/issuements/voucher/' . rawurlencode($voucherNo) . '?download=1')
+                : null;
+        }
+        unset($row);
+
+        return $this->ok($rows);
+    }
+
+    public function stoneReturns()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('stone_inventory_return_headers srh')
+            ->select('srh.id, srh.voucher_no, srh.return_date, srh.order_id, srh.karigar_id, srh.return_from, srh.purpose, srh.notes, srh.created_at, k.name as karigar_name')
+            ->join('karigars k', 'k.id = srh.karigar_id', 'left')
+            ->orderBy('srh.id', 'DESC')
+            ->get(200)
+            ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $row['receipt_url'] = base_url('admin/stone-inventory/returns/receipt/' . (int) $row['id'] . '?download=1');
+        }
+        unset($row);
+
+        return $this->ok($rows);
+    }
+
+    public function stonePurchases()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('stone_inventory_purchase_headers sph')
+            ->select('sph.id, sph.purchase_date, sph.supplier_name, sph.invoice_no, sph.notes, sph.created_at')
+            ->orderBy('sph.id', 'DESC')
             ->get(200)
             ->getResultArray();
 

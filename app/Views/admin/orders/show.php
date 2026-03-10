@@ -372,8 +372,31 @@ $isLockedOrder = $isCancelledOrder || $isCompletedOrder;
                 <a href="<?= site_url('admin/orders/' . $order['id'] . '/edit') ?>" class="btn btn-outline-info"><i class="fe fe-edit me-1"></i>Edit</a>
                 <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#statusModal"><i class="fe fe-refresh-cw me-1"></i>Update Status</button>
                 <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#receiveModal"><i class="fe fe-download me-1"></i>Receive</button>
-                <a href="<?= site_url('admin/diamond-inventory/issues/create?order_id=' . $order['id']) ?>" class="btn btn-outline-success"><i class="fe fe-share me-1"></i>Diamond Issue</a>
-                <a href="<?= site_url('admin/diamond-inventory/returns/create?order_id=' . $order['id']) ?>" class="btn btn-outline-primary"><i class="fe fe-corner-up-left me-1"></i>Diamond Return</a>
+                <div class="dropdown">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fe fe-share-2 me-1"></i>Create Issue/Return
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="<?= site_url('admin/issuements/create?order_id=' . $order['id']) ?>">Common Issuement</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="<?= site_url('admin/diamond-inventory/issues/create?order_id=' . $order['id']) ?>">Diamond Issue</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('admin/diamond-inventory/returns/create?order_id=' . $order['id']) ?>">Diamond Return</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('admin/gold-inventory/issues/create?order_id=' . $order['id']) ?>">Gold Issue</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('admin/gold-inventory/returns/create?order_id=' . $order['id']) ?>">Gold Return</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('admin/stone-inventory/issues/create?order_id=' . $order['id']) ?>">Stone Issue</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('admin/stone-inventory/returns/create?order_id=' . $order['id']) ?>">Stone Return</a></li>
+                    </ul>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-outline-dark dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fe fe-shopping-bag me-1"></i>Create Purchase
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="<?= site_url('admin/diamond-inventory/purchases/create') ?>">Diamond Purchase</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('admin/gold-inventory/purchases/create') ?>">Gold Purchase</a></li>
+                        <li><a class="dropdown-item" href="<?= site_url('admin/stone-inventory/purchases/create') ?>">Stone Purchase</a></li>
+                    </ul>
+                </div>
                 <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal"><i class="fe fe-x-circle me-1"></i>Cancel</button>
             <?php elseif ($isCompletedOrder): ?>
                 <a href="<?= site_url('admin/orders/' . $order['id'] . '/packing-list/generate?print=1&download=1') ?>" class="btn btn-outline-primary"><i class="fe fe-download me-1"></i>Download Packing List</a>
