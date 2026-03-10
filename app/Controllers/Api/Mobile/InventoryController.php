@@ -119,5 +119,102 @@ class InventoryController extends MobileBaseController
         $rows = $builder->orderBy('si.product_name', 'ASC')->orderBy('si.id', 'DESC')->get()->getResultArray();
         return $this->ok($rows);
     }
-}
 
+    public function diamondIssues()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('issue_headers ih')
+            ->select('ih.id, ih.issue_date, ih.issue_to, ih.purpose, ih.notes, ih.created_at')
+            ->orderBy('ih.id', 'DESC')
+            ->get(200)
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+
+    public function diamondReturns()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('return_headers rh')
+            ->select('rh.id, rh.return_date, rh.return_from, rh.purpose, rh.notes, rh.created_at, rh.order_id, rh.issue_id')
+            ->orderBy('rh.id', 'DESC')
+            ->get(200)
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+
+    public function diamondPurchases()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('purchase_headers ph')
+            ->select('ph.id, ph.purchase_date, ph.supplier_name, ph.invoice_no, ph.notes, ph.created_at')
+            ->orderBy('ph.id', 'DESC')
+            ->get(200)
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+
+    public function goldIssues()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('gold_inventory_issue_headers gih')
+            ->select('gih.id, gih.issue_date, gih.order_id, gih.karigar_id, gih.issue_to, gih.purpose, gih.notes, gih.created_at, k.name as karigar_name')
+            ->join('karigars k', 'k.id = gih.karigar_id', 'left')
+            ->orderBy('gih.id', 'DESC')
+            ->get(200)
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+
+    public function goldReturns()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('gold_inventory_return_headers grh')
+            ->select('grh.id, grh.return_date, grh.order_id, grh.karigar_id, grh.return_from, grh.purpose, grh.notes, grh.created_at, k.name as karigar_name')
+            ->join('karigars k', 'k.id = grh.karigar_id', 'left')
+            ->orderBy('grh.id', 'DESC')
+            ->get(200)
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+
+    public function goldPurchases()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('gold_inventory_purchase_headers gph')
+            ->select('gph.id, gph.purchase_date, gph.supplier_name, gph.invoice_no, gph.notes, gph.created_at')
+            ->orderBy('gph.id', 'DESC')
+            ->get(200)
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+}

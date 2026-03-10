@@ -317,5 +317,13 @@ $routes->group('api', static function ($routes): void {
         $routes->get('inventory/diamonds', 'Api\Mobile\InventoryController::diamonds');
         $routes->get('inventory/gold', 'Api\Mobile\InventoryController::gold');
         $routes->get('inventory/stones', 'Api\Mobile\InventoryController::stones');
+
+        $routes->get('diamond/issues', 'Api\Mobile\InventoryController::diamondIssues');
+        $routes->get('diamond/returns', 'Api\Mobile\InventoryController::diamondReturns');
+        $routes->get('diamond/purchases', 'Api\Mobile\InventoryController::diamondPurchases');
+
+        $routes->get('gold/issues', 'Api\Mobile\InventoryController::goldIssues');
+        $routes->get('gold/returns', 'Api\Mobile\InventoryController::goldReturns');
+        $routes->get('gold/purchases', 'Api\Mobile\InventoryController::goldPurchases');
     });
 });
