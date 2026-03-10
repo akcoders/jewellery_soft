@@ -70,7 +70,7 @@ class OrdersController extends MobileBaseController
 
         $db = db_connect();
         $order = $db->table('orders o')
-            ->select('o.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, k.name as karigar_name')
+            ->select('o.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, k.name as karigar_name, k.phone as karigar_phone')
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
             ->where('o.id', $id)
@@ -313,4 +313,3 @@ class OrdersController extends MobileBaseController
         ];
     }
 }
-

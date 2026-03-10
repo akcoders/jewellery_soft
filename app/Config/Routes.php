@@ -329,5 +329,43 @@ $routes->group('api', static function ($routes): void {
         $routes->get('stone/issues', 'Api\Mobile\InventoryController::stoneIssues');
         $routes->get('stone/returns', 'Api\Mobile\InventoryController::stoneReturns');
         $routes->get('stone/purchases', 'Api\Mobile\InventoryController::stonePurchases');
+
+        $routes->get('lookups/karigars', 'Api\Mobile\LookupsController::karigars');
+        $routes->get('lookups/vendors', 'Api\Mobile\LookupsController::vendors');
+        $routes->get('lookups/locations', 'Api\Mobile\LookupsController::locations');
+        $routes->get('lookups/orders', 'Api\Mobile\LookupsController::orders');
+        $routes->get('lookups/diamond-items', 'Api\Mobile\LookupsController::diamondItems');
+        $routes->get('lookups/gold-items', 'Api\Mobile\LookupsController::goldItems');
+        $routes->get('lookups/stone-items', 'Api\Mobile\LookupsController::stoneItems');
+        $routes->get('lookups/diamond-issues', 'Api\Mobile\LookupsController::diamondIssues');
+        $routes->get('lookups/gold-issues', 'Api\Mobile\LookupsController::goldIssues');
+        $routes->get('lookups/stone-issues', 'Api\Mobile\LookupsController::stoneIssues');
+
+        $routes->post('diamond/purchases', 'Api\Mobile\TransactionsController::createDiamondPurchase');
+        $routes->get('diamond/purchases/(:num)', 'Api\Mobile\TransactionsController::diamondPurchaseDetail/$1');
+        $routes->post('diamond/issues', 'Api\Mobile\TransactionsController::createDiamondIssue');
+        $routes->get('diamond/issues/(:num)', 'Api\Mobile\TransactionsController::diamondIssueDetail/$1');
+        $routes->get('diamond/issues/(:num)/pdf', 'Api\Mobile\TransactionsController::diamondIssuePdf/$1');
+        $routes->post('diamond/returns', 'Api\Mobile\TransactionsController::createDiamondReturn');
+        $routes->get('diamond/returns/(:num)', 'Api\Mobile\TransactionsController::diamondReturnDetail/$1');
+        $routes->get('diamond/returns/(:num)/pdf', 'Api\Mobile\TransactionsController::diamondReturnPdf/$1');
+
+        $routes->post('gold/purchases', 'Api\Mobile\TransactionsController::createGoldPurchase');
+        $routes->get('gold/purchases/(:num)', 'Api\Mobile\TransactionsController::goldPurchaseDetail/$1');
+        $routes->post('gold/issues', 'Api\Mobile\TransactionsController::createGoldIssue');
+        $routes->get('gold/issues/(:num)', 'Api\Mobile\TransactionsController::goldIssueDetail/$1');
+        $routes->get('gold/issues/(:num)/pdf', 'Api\Mobile\TransactionsController::goldIssuePdf/$1');
+        $routes->post('gold/returns', 'Api\Mobile\TransactionsController::createGoldReturn');
+        $routes->get('gold/returns/(:num)', 'Api\Mobile\TransactionsController::goldReturnDetail/$1');
+        $routes->get('gold/returns/(:num)/pdf', 'Api\Mobile\TransactionsController::goldReturnPdf/$1');
+
+        $routes->post('stone/purchases', 'Api\Mobile\TransactionsController::createStonePurchase');
+        $routes->get('stone/purchases/(:num)', 'Api\Mobile\TransactionsController::stonePurchaseDetail/$1');
+        $routes->post('stone/issues', 'Api\Mobile\TransactionsController::createStoneIssue');
+        $routes->get('stone/issues/(:num)', 'Api\Mobile\TransactionsController::stoneIssueDetail/$1');
+        $routes->get('stone/issues/(:num)/pdf', 'Api\Mobile\TransactionsController::stoneIssuePdf/$1');
+        $routes->post('stone/returns', 'Api\Mobile\TransactionsController::createStoneReturn');
+        $routes->get('stone/returns/(:num)', 'Api\Mobile\TransactionsController::stoneReturnDetail/$1');
+        $routes->get('stone/returns/(:num)/pdf', 'Api\Mobile\TransactionsController::stoneReturnPdf/$1');
     });
 });
