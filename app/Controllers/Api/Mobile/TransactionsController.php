@@ -371,6 +371,7 @@ class TransactionsController extends MobileBaseController
             'issue' => $issue,
             'lines' => $lines,
             'totals' => $totals,
+            'document_path' => '/api/mobile/diamond/issues/' . $id . '/pdf',
             'document_url' => base_url('api/mobile/diamond/issues/' . $id . '/pdf'),
         ]);
     }
@@ -403,6 +404,7 @@ class TransactionsController extends MobileBaseController
             'lines' => $lines,
             'totals' => $totals,
             'issue_lines' => $issueLines,
+            'document_path' => '/api/mobile/diamond/returns/' . $id . '/pdf',
             'document_url' => base_url('api/mobile/diamond/returns/' . $id . '/pdf'),
         ]);
     }
@@ -796,6 +798,7 @@ class TransactionsController extends MobileBaseController
             'issue' => $issue,
             'lines' => $lines,
             'totals' => $totals,
+            'document_path' => '/api/mobile/gold/issues/' . $id . '/pdf',
             'document_url' => base_url('api/mobile/gold/issues/' . $id . '/pdf'),
         ]);
     }
@@ -828,6 +831,7 @@ class TransactionsController extends MobileBaseController
             'lines' => $lines,
             'totals' => $totals,
             'issue_lines' => $issueLines,
+            'document_path' => '/api/mobile/gold/returns/' . $id . '/pdf',
             'document_url' => base_url('api/mobile/gold/returns/' . $id . '/pdf'),
         ]);
     }
@@ -1219,6 +1223,7 @@ class TransactionsController extends MobileBaseController
             'issue' => $issue,
             'lines' => $lines,
             'totals' => $totals,
+            'document_path' => '/api/mobile/stone/issues/' . $id . '/pdf',
             'document_url' => base_url('api/mobile/stone/issues/' . $id . '/pdf'),
         ]);
     }
@@ -1251,6 +1256,7 @@ class TransactionsController extends MobileBaseController
             'lines' => $lines,
             'totals' => $totals,
             'issue_lines' => $issueLines,
+            'document_path' => '/api/mobile/stone/returns/' . $id . '/pdf',
             'document_url' => base_url('api/mobile/stone/returns/' . $id . '/pdf'),
         ]);
     }

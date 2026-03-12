@@ -298,6 +298,8 @@ $routes->group('api', static function ($routes): void {
     $routes->get('documents/diamond-issue/(:num)', 'Api\DocumentsController::diamondIssueChallan/$1');
     $routes->get('documents/return-voucher/(:num)', 'Api\DocumentsController::returnVoucher/$1');
     $routes->get('documents/packing-list/(:num)', 'Api\DocumentsController::packingList/$1');
+    $routes->get('documents/orders/(:num)/packing-list', 'Api\DocumentsController::packingListByOrder/$1');
+    $routes->get('documents/orders/(:num)/delivery-challan', 'Api\DocumentsController::deliveryChallan/$1');
     $routes->get('documents/invoice/(:num)', 'Api\DocumentsController::invoice/$1');
     $routes->get('documents/ledger/(:num)', 'Api\DocumentsController::ledgerStatement/$1');
 
@@ -307,6 +309,9 @@ $routes->group('api', static function ($routes): void {
         $routes->post('login', 'Api\Mobile\AuthController::login');
         $routes->get('me', 'Api\Mobile\AuthController::me');
         $routes->post('logout', 'Api\Mobile\AuthController::logout');
+        $routes->get('tasks', 'Api\Mobile\TasksController::index');
+        $routes->post('tasks', 'Api\Mobile\TasksController::create');
+        $routes->post('tasks/(:num)/delete', 'Api\Mobile\TasksController::delete/$1');
 
         $routes->get('orders', 'Api\Mobile\OrdersController::index');
         $routes->get('orders/(:num)', 'Api\Mobile\OrdersController::show/$1');

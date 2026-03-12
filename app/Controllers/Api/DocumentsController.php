@@ -2,15 +2,23 @@
 
 namespace App\Controllers\Api;
 
+use App\Models\CompanySettingModel;
+use App\Models\DeliveryChallanModel;
 use App\Services\PdfService;
+use Exception;
 
 class DocumentsController extends ApiBaseController
 {
     private PdfService $pdf;
+    private CompanySettingModel $companySettingModel;
+    private DeliveryChallanModel $deliveryChallanModel;
 
     public function __construct()
     {
+        helper(['url']);
         $this->pdf = new PdfService();
+        $this->companySettingModel = new CompanySettingModel();
+        $this->deliveryChallanModel = new DeliveryChallanModel();
     }
 
     public function jobCard(int $jobCardId)
@@ -106,6 +114,74 @@ class DocumentsController extends ApiBaseController
             ->setBody($pdf);
     }
 
+    public function packingListByOrder(int $orderId)
+    {
+        $order = $this->eligibleOrderForDocuments($orderId);
+        if (! $order) {
+            return $this->fail('Order is not ready for packing list.', 422);
+        }
+
+        try {
+            $packing = $this->ensurePackingListForOrder($orderId);
+        } catch (Exception $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
+
+        $packingId = (int) ($packing['id'] ?? 0);
+        if ($packingId <= 0) {
+            return $this->fail('Packing list not found.', 404);
+        }
+
+        return $this->packingList($packingId);
+    }
+
+    public function deliveryChallan(int $orderId)
+    {
+        $order = $this->eligibleOrderForDocuments($orderId);
+        if (! $order) {
+            return $this->fail('Order is not ready for delivery challan.', 422);
+        }
+
+        $db = db_connect();
+        if (! $db->tableExists('delivery_challans')) {
+            return $this->fail('Delivery challan table is not available.', 500);
+        }
+
+        try {
+            $packing = $this->ensurePackingListForOrder($orderId);
+        } catch (Exception $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
+
+        $packingId = (int) ($packing['id'] ?? 0);
+        if ($packingId <= 0) {
+            return $this->fail('Packing list is required before delivery challan.', 422);
+        }
+
+        $setting = $this->companySetting();
+        $detailRows = $this->packingDetailRows($orderId);
+        $receive = $this->packingReceiveSummary($orderId);
+        $pricing = $this->packingPricingSummary($orderId, $detailRows, $receive);
+        $challan = $this->saveDeliveryChallanSnapshot($orderId, $packingId, $setting, $receive, $pricing);
+
+        $pdf = $this->pdf->render('pdf/delivery_challan', [
+            'company' => $setting,
+            'order' => $order,
+            'packing' => $packing,
+            'challan' => $challan,
+            'receive' => $receive,
+            'pricing' => $pricing,
+            'challan_no' => (string) ($challan['challan_no'] ?? '-'),
+        ]);
+
+        $download = (string) ($this->request->getGet('download') ?? '');
+        $disposition = $download === '0' ? 'inline' : 'attachment';
+
+        return $this->response->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', $disposition . '; filename="delivery_challan_' . $orderId . '.pdf"')
+            ->setBody($pdf);
+    }
+
     public function invoice(int $invoiceId)
     {
         $db = db_connect();
@@ -172,6 +248,214 @@ class DocumentsController extends ApiBaseController
         return $this->response->setHeader('Content-Type', 'application/pdf')
             ->setHeader('Content-Disposition', 'inline; filename="' . $filename . '"')
             ->setBody($pdf);
+    }
+
+    private function eligibleOrderForDocuments(int $orderId): ?array
+    {
+        if ($orderId <= 0) {
+            return null;
+        }
+
+        $order = db_connect()->table('orders o')
+            ->select('o.*, c.name as customer_name')
+            ->join('customers c', 'c.id = o.customer_id', 'left')
+            ->where('o.id', $orderId)
+            ->get()
+            ->getRowArray();
+        if (! is_array($order)) {
+            return null;
+        }
+
+        $status = (string) ($order['status'] ?? '');
+        return $this->isDocumentEligibleStatus($status) ? $order : null;
+    }
+
+    private function isDocumentEligibleStatus(string $status): bool
+    {
+        return in_array($status, ['Ready', 'Packed', 'Dispatched', 'Completed'], true);
+    }
+
+    private function ensurePackingListForOrder(int $orderId): array
+    {
+        $db = db_connect();
+        $existing = $db->table('packing_lists')
+            ->where('order_id', $orderId)
+            ->orderBy('id', 'DESC')
+            ->get()
+            ->getRowArray();
+        if (is_array($existing) && $existing !== []) {
+            return $existing;
+        }
+
+        $order = $db->table('orders')->where('id', $orderId)->get()->getRowArray();
+        if (! $order) {
+            throw new Exception('Order not found.');
+        }
+        if (! $this->isDocumentEligibleStatus((string) ($order['status'] ?? ''))) {
+            throw new Exception('Packing list can be generated only for ready orders.');
+        }
+
+        $rows = $db->table('order_items')
+            ->select('id, qty, gold_required_gm, diamond_required_cts')
+            ->where('order_id', $orderId)
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultArray();
+        if ($rows === []) {
+            throw new Exception('No order items found to create packing list.');
+        }
+
+        $packingNo = $this->nextPackingNo();
+        $db->transException(true)->transStart();
+
+        $packingId = (int) $db->table('packing_lists')->insert([
+            'packing_no' => $packingNo,
+            'packing_date' => date('Y-m-d'),
+            'order_id' => $orderId,
+            'customer_id' => (int) ($order['customer_id'] ?? 0) > 0 ? (int) ($order['customer_id'] ?? 0) : null,
+            'warehouse_id' => null,
+            'status' => 'Packed',
+            'notes' => 'Auto-generated from mobile document request.',
+            'created_by' => null,
+        ], true);
+
+        foreach ($rows as $index => $line) {
+            $qty = (int) max(1, (int) ($line['qty'] ?? 1));
+            $netGold = round((float) ($line['gold_required_gm'] ?? 0), 3);
+            $diamondCts = round((float) ($line['diamond_required_cts'] ?? 0), 3);
+            $gross = round($netGold + ($diamondCts * 0.2), 3);
+
+            $db->table('packing_list_items')->insert([
+                'packing_list_id' => $packingId,
+                'fg_item_id' => 0,
+                'tag_no' => (string) ($order['order_no'] ?? 'ORD') . '-' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
+                'qty' => $qty,
+                'gross_wt' => $gross,
+                'net_gold_wt' => $netGold,
+                'diamond_cts' => $diamondCts,
+                'stone_wt' => 0,
+            ]);
+        }
+
+        $db->transComplete();
+
+        $created = $db->table('packing_lists')->where('id', $packingId)->get()->getRowArray();
+        return is_array($created) ? $created : [];
+    }
+
+    private function nextPackingNo(): string
+    {
+        $db = db_connect();
+        $prefix = 'PK' . date('ymd');
+        $rows = $db->table('packing_lists')
+            ->select('packing_no')
+            ->like('packing_no', $prefix, 'after')
+            ->get()
+            ->getResultArray();
+
+        $max = 0;
+        $pattern = '/^' . preg_quote($prefix, '/') . '(\d{3,})$/';
+        foreach ($rows as $row) {
+            $no = (string) ($row['packing_no'] ?? '');
+            if ($no !== '' && preg_match($pattern, $no, $m) === 1) {
+                $serial = (int) ($m[1] ?? 0);
+                if ($serial > $max) {
+                    $max = $serial;
+                }
+            }
+        }
+
+        return $prefix . str_pad((string) ($max + 1), 3, '0', STR_PAD_LEFT);
+    }
+
+    private function companySetting(): array
+    {
+        $row = $this->companySettingModel->orderBy('id', 'ASC')->first();
+        return is_array($row) ? $row : [];
+    }
+
+    private function saveDeliveryChallanSnapshot(int $orderId, int $packingId, array $setting, array $receive, array $pricing): array
+    {
+        $prefix = strtoupper(trim((string) ($setting['delivery_challan_suffix'] ?? 'DC')));
+        $prefix = preg_replace('/[^A-Z0-9]/', '', $prefix) ?: 'DC';
+        $taxPercent = 3.0;
+        $taxable = round((float) ($pricing['total'] ?? 0), 2);
+        $taxAmount = round($taxable * ($taxPercent / 100), 2);
+        $totalAmount = round($taxable + $taxAmount, 2);
+
+        $existing = $this->deliveryChallanModel
+            ->where('order_id', $orderId)
+            ->where('packing_list_id', $packingId)
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        $challanNo = (string) ($existing['challan_no'] ?? '');
+        if ($challanNo === '') {
+            $challanNo = $this->nextDeliveryChallanNo($prefix);
+        }
+
+        $payload = [
+            'challan_no' => $challanNo,
+            'challan_date' => date('Y-m-d'),
+            'order_id' => $orderId,
+            'packing_list_id' => $packingId > 0 ? $packingId : null,
+            'receive_movement_id' => (int) ($receive['movement_id'] ?? 0) > 0 ? (int) ($receive['movement_id'] ?? 0) : null,
+            'gross_weight_gm' => round((float) ($receive['gross'] ?? 0), 3),
+            'net_gold_weight_gm' => round((float) ($receive['net'] ?? 0), 3),
+            'diamond_weight_cts' => round((float) ($receive['diamond_cts'] ?? 0), 3),
+            'color_stone_weight_cts' => round((float) ($receive['stone_cts'] ?? 0), 3),
+            'other_weight_gm' => round((float) ($receive['other_gm'] ?? 0), 3),
+            'taxable_value' => $taxable,
+            'tax_percent' => $taxPercent,
+            'tax_amount' => $taxAmount,
+            'total_amount' => $totalAmount,
+            'summary_json' => json_encode(
+                ['receive' => $receive, 'pricing' => $pricing],
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            ),
+            'created_by' => null,
+        ];
+
+        if ($existing) {
+            $id = (int) ($existing['id'] ?? 0);
+            if ($id > 0) {
+                $this->deliveryChallanModel->update($id, $payload);
+                $updated = $this->deliveryChallanModel->find($id);
+                return is_array($updated) ? $updated : $payload;
+            }
+        }
+
+        $newId = (int) $this->deliveryChallanModel->insert($payload, true);
+        if ($newId > 0) {
+            $saved = $this->deliveryChallanModel->find($newId);
+            if (is_array($saved)) {
+                return $saved;
+            }
+        }
+
+        return $payload;
+    }
+
+    private function nextDeliveryChallanNo(string $prefix): string
+    {
+        $rows = $this->deliveryChallanModel
+            ->select('challan_no')
+            ->like('challan_no', $prefix, 'after')
+            ->findAll();
+
+        $max = 0;
+        $pattern = '/^' . preg_quote($prefix, '/') . '(\d{3,})$/';
+        foreach ($rows as $row) {
+            $no = (string) ($row['challan_no'] ?? '');
+            if ($no !== '' && preg_match($pattern, $no, $m) === 1) {
+                $serial = (int) ($m[1] ?? 0);
+                if ($serial > $max) {
+                    $max = $serial;
+                }
+            }
+        }
+
+        return $prefix . str_pad((string) ($max + 1), 3, '0', STR_PAD_LEFT);
     }
 
     /**

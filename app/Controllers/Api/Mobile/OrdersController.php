@@ -2,16 +2,19 @@
 
 namespace App\Controllers\Api\Mobile;
 
+use App\Services\MobilePushService;
 use Config\Jewellery;
 use Throwable;
 
 class OrdersController extends MobileBaseController
 {
     private Jewellery $jewelleryConfig;
+    private MobilePushService $mobilePushService;
 
     public function __construct()
     {
         $this->jewelleryConfig = config(Jewellery::class);
+        $this->mobilePushService = new MobilePushService();
     }
 
     public function index()
@@ -91,9 +94,11 @@ class OrdersController extends MobileBaseController
             ->getResultArray();
 
         $followups = $this->followupRows($id);
+        $documents = $this->documentLinks($order);
+        $media = $this->orderMedia($id);
 
         return $this->ok([
-            'order' => $order,
+            'order' => array_merge($order, $documents, $media),
             'items' => $items,
             'followups' => $followups,
             'allowed_stages' => $this->jewelleryConfig->orderStatuses,
@@ -141,7 +146,7 @@ class OrdersController extends MobileBaseController
         }
 
         $currentStatus = (string) ($order['status'] ?? '');
-        if ($currentStatus === 'Cancelled' || $currentStatus === 'Completed') {
+        if (in_array($currentStatus, ['Cancelled', 'Completed', 'Complete', 'Ready', 'Packed', 'Delivered', 'Dispatched'], true)) {
             return $this->fail('Followup not allowed for this order status.', 422);
         }
 
@@ -166,6 +171,8 @@ class OrdersController extends MobileBaseController
             $nextFollowupDateTime = date('Y-m-d H:i:s', $ts);
         }
 
+        $push = ['queued' => false, 'message' => 'No followup notification queued.'];
+
         try {
             $db->transException(true)->transStart();
 
@@ -181,6 +188,7 @@ class OrdersController extends MobileBaseController
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
+            $followupId = (int) $db->insertID();
 
             if ($currentStatus !== $stage) {
                 $db->table('orders')->where('id', $id)->update([
@@ -202,6 +210,24 @@ class OrdersController extends MobileBaseController
                 ]);
             }
 
+            if ($nextFollowupDateTime !== null) {
+                $push = $this->mobilePushService->queueForAdminRow($this->mobileAdmin ?? [], [
+                    'type' => 'followup',
+                    'reference_table' => 'order_followups',
+                    'reference_id' => $followupId,
+                    'title' => 'Followup Reminder',
+                    'message' => 'Order ' . (string) ($order['order_no'] ?? '-') . ' followup is due.',
+                    'scheduled_at' => $nextFollowupDateTime,
+                    'payload' => [
+                        'type' => 'followup',
+                        'order_id' => $id,
+                        'followup_id' => $followupId,
+                        'order_no' => (string) ($order['order_no'] ?? ''),
+                        'stage' => $stage,
+                    ],
+                ]);
+            }
+
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -212,6 +238,7 @@ class OrdersController extends MobileBaseController
             'order_id' => $id,
             'status' => $stage,
             'followups' => $this->followupRows($id),
+            'notification' => $push,
         ], 'Followup saved and order status synced.');
     }
 
@@ -277,6 +304,64 @@ class OrdersController extends MobileBaseController
         return $orders;
     }
 
+    private function documentLinks(array $order): array
+    {
+        $status = (string) ($order['status'] ?? '');
+        $eligible = in_array($status, ['Ready', 'Packed', 'Dispatched', 'Completed'], true);
+        $orderId = (int) ($order['id'] ?? 0);
+        $hasDeliveryChallanTable = db_connect()->tableExists('delivery_challans');
+
+        return [
+            'packing_list_url' => $eligible && $orderId > 0
+                ? base_url('api/documents/orders/' . $orderId . '/packing-list?download=1')
+                : null,
+            'delivery_challan_url' => $eligible && $orderId > 0 && $hasDeliveryChallanTable
+                ? base_url('api/documents/orders/' . $orderId . '/delivery-challan?download=1')
+                : null,
+        ];
+    }
+
+    private function orderMedia(int $orderId): array
+    {
+        $empty = [
+            'order_photo_url' => null,
+            'finish_photo_url' => null,
+            'primary_image_url' => null,
+        ];
+
+        $db = db_connect();
+        if ($orderId <= 0 || ! $db->tableExists('order_attachments')) {
+            return $empty;
+        }
+
+        $orderPhoto = $db->table('order_attachments')
+            ->select('file_path')
+            ->where('order_id', $orderId)
+            ->where('LOWER(file_type)', 'photo')
+            ->orderBy('id', 'DESC')
+            ->get()
+            ->getRowArray();
+
+        $finishPhoto = $db->table('order_attachments')
+            ->select('file_path')
+            ->where('order_id', $orderId)
+            ->where('LOWER(file_type)', 'finish_photo')
+            ->orderBy('id', 'DESC')
+            ->get()
+            ->getRowArray();
+
+        $orderPhotoPath = (string) ($orderPhoto['file_path'] ?? '');
+        $finishPhotoPath = (string) ($finishPhoto['file_path'] ?? '');
+        $orderPhotoUrl = $orderPhotoPath !== '' ? base_url($orderPhotoPath) : null;
+        $finishPhotoUrl = $finishPhotoPath !== '' ? base_url($finishPhotoPath) : null;
+
+        return [
+            'order_photo_url' => $orderPhotoUrl,
+            'finish_photo_url' => $finishPhotoUrl,
+            'primary_image_url' => $finishPhotoUrl ?? $orderPhotoUrl,
+        ];
+    }
+
     private function saveBase64Image(string $input, string $uploadDir): array
     {
         $raw = $input;
@@ -313,3 +398,4 @@ class OrdersController extends MobileBaseController
         ];
     }
 }
+
