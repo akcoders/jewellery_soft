@@ -455,7 +455,7 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Issue not found.', 404);
         }
 
-        $pdf = (new PdfService())->render('admin/vouchers/issuement', [
+        $pdf = (new PdfService())->render('pdf/mobile_issue_voucher', [
             'title' => 'Diamond Issuement Voucher',
             'materialType' => 'Diamond',
             'issue' => $issue,
@@ -478,9 +478,10 @@ class TransactionsController extends MobileBaseController
         }
 
         $return = db_connect()->table('return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
+            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
             ->join('orders o', 'o.id = rh.order_id', 'left')
             ->join('issue_headers ih', 'ih.id = rh.issue_id', 'left')
+            ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
             ->where('rh.id', $id)
             ->get()
@@ -489,7 +490,7 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Return not found.', 404);
         }
 
-        $pdf = (new PdfService())->render('admin/vouchers/return_receipt', [
+        $pdf = (new PdfService())->render('pdf/mobile_return_receipt', [
             'title' => 'Diamond Return Receipt',
             'materialType' => 'Diamond',
             'return' => $return,
@@ -882,7 +883,7 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Issue not found.', 404);
         }
 
-        $pdf = (new PdfService())->render('admin/vouchers/issuement', [
+        $pdf = (new PdfService())->render('pdf/mobile_issue_voucher', [
             'title' => 'Gold Issuement Voucher',
             'materialType' => 'Gold',
             'issue' => $issue,
@@ -905,9 +906,10 @@ class TransactionsController extends MobileBaseController
         }
 
         $return = db_connect()->table('gold_inventory_return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
+            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
             ->join('orders o', 'o.id = rh.order_id', 'left')
             ->join('gold_inventory_issue_headers ih', 'ih.id = rh.issue_id', 'left')
+            ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
             ->where('rh.id', $id)
             ->get()
@@ -916,7 +918,7 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Return not found.', 404);
         }
 
-        $pdf = (new PdfService())->render('admin/vouchers/return_receipt', [
+        $pdf = (new PdfService())->render('pdf/mobile_return_receipt', [
             'title' => 'Gold Return Receipt',
             'materialType' => 'Gold',
             'return' => $return,
@@ -1307,7 +1309,7 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Issue not found.', 404);
         }
 
-        $pdf = (new PdfService())->render('admin/vouchers/issuement', [
+        $pdf = (new PdfService())->render('pdf/mobile_issue_voucher', [
             'title' => 'Stone Issuement Voucher',
             'materialType' => 'Stone',
             'issue' => $issue,
@@ -1330,9 +1332,10 @@ class TransactionsController extends MobileBaseController
         }
 
         $return = db_connect()->table('stone_inventory_return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
+            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
             ->join('orders o', 'o.id = rh.order_id', 'left')
             ->join('stone_inventory_issue_headers ih', 'ih.id = rh.issue_id', 'left')
+            ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
             ->where('rh.id', $id)
             ->get()
@@ -1341,7 +1344,7 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Return not found.', 404);
         }
 
-        $pdf = (new PdfService())->render('admin/vouchers/return_receipt', [
+        $pdf = (new PdfService())->render('pdf/mobile_return_receipt', [
             'title' => 'Stone Return Receipt',
             'materialType' => 'Stone',
             'return' => $return,

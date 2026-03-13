@@ -312,6 +312,8 @@ $routes->group('api', static function ($routes): void {
         $routes->get('tasks', 'Api\Mobile\TasksController::index');
         $routes->post('tasks', 'Api\Mobile\TasksController::create');
         $routes->post('tasks/(:num)/delete', 'Api\Mobile\TasksController::delete/$1');
+        $routes->get('notifications', 'Api\Mobile\NotificationsController::index');
+        $routes->post('notifications/(:num)/done', 'Api\Mobile\NotificationsController::done/$1');
 
         $routes->get('orders', 'Api\Mobile\OrdersController::index');
         $routes->get('orders/(:num)', 'Api\Mobile\OrdersController::show/$1');

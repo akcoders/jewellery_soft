@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AdminUserModel;
 use App\Models\CompanySettingModel;
+use App\Models\MobileTaskModel;
 use App\Models\MobilePushNotificationModel;
 use CodeIgniter\HTTP\CURLRequest;
 use Throwable;
@@ -13,6 +14,7 @@ class MobilePushService
     private CompanySettingModel $companySettingModel;
     private MobilePushNotificationModel $notificationModel;
     private AdminUserModel $adminUserModel;
+    private MobileTaskModel $taskModel;
     private CURLRequest $http;
 
     public function __construct()
@@ -20,6 +22,7 @@ class MobilePushService
         $this->companySettingModel = new CompanySettingModel();
         $this->notificationModel = new MobilePushNotificationModel();
         $this->adminUserModel = new AdminUserModel();
+        $this->taskModel = new MobileTaskModel();
         $this->http = service('curlrequest', [
             'baseURI' => 'https://api.onesignal.com',
             'timeout' => 20,
@@ -61,10 +64,20 @@ class MobilePushService
             'payload_json' => $payload === [] ? null : json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'scheduled_at' => $scheduledAt,
             'status' => 'pending',
+            'done_flag' => 0,
         ], true);
 
         if ($insertId <= 0) {
             return ['queued' => false, 'message' => 'Could not create push notification row.'];
+        }
+
+        if (! $this->isConfigured($this->settings())) {
+            return [
+                'queued' => true,
+                'status' => 'pending',
+                'notification_id' => $insertId,
+                'message' => 'Push queued. OneSignal is not configured yet.',
+            ];
         }
 
         return $this->dispatch($insertId);
@@ -75,6 +88,10 @@ class MobilePushService
         $row = $this->notificationModel->find($notificationId);
         if (! is_array($row)) {
             return ['queued' => false, 'message' => 'Push notification row not found.'];
+        }
+
+        if ((int) ($row['done_flag'] ?? 0) === 1 || in_array((string) ($row['status'] ?? ''), ['done', 'cancelled'], true)) {
+            return ['queued' => false, 'message' => 'Push notification is already completed.'];
         }
 
         $config = $this->settings();
@@ -97,6 +114,7 @@ class MobilePushService
             'contents' => ['en' => (string) ($row['message'] ?? '')],
             'data' => $this->decodedPayload($row['payload_json'] ?? null),
             'small_icon' => 'ic_stat_onesignal_default',
+            'android_sound' => 'aabhushan_alert',
         ];
 
         $scheduledAt = $this->normalizeDateTime($row['scheduled_at'] ?? null);
@@ -190,9 +208,84 @@ class MobilePushService
             $this->cancelOneSignalMessage($row);
             $this->notificationModel->update((int) ($row['id'] ?? 0), [
                 'status' => 'cancelled',
+                'done_flag' => 1,
+                'done_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
         }
+    }
+
+    public function markDone(int $notificationId, ?int $adminUserId = null): array
+    {
+        $row = $this->notificationModel->find($notificationId);
+        if (! is_array($row)) {
+            return ['ok' => false, 'message' => 'Notification not found.'];
+        }
+
+        if ($adminUserId !== null && (int) ($row['admin_user_id'] ?? 0) !== $adminUserId) {
+            return ['ok' => false, 'message' => 'Notification does not belong to this user.'];
+        }
+
+        if ((int) ($row['done_flag'] ?? 0) === 1) {
+            return ['ok' => true];
+        }
+
+        if (in_array((string) ($row['status'] ?? ''), ['queued', 'pending', 'failed'], true)) {
+            $this->cancelOneSignalMessage($row);
+        }
+
+        $this->notificationModel->update($notificationId, [
+            'done_flag' => 1,
+            'done_at' => date('Y-m-d H:i:s'),
+            'status' => 'done',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        if ((string) ($row['reference_table'] ?? '') === 'mobile_tasks' && (int) ($row['reference_id'] ?? 0) > 0) {
+            $this->taskModel->update((int) $row['reference_id'], [
+                'is_done' => 1,
+                'status' => 'done',
+            ]);
+        }
+
+        return ['ok' => true];
+    }
+
+    public function dispatchPendingNotifications(int $limit = 200): array
+    {
+        $limit = max(1, $limit);
+        $rows = $this->notificationModel
+            ->where('done_flag', 0)
+            ->whereIn('status', ['pending', 'failed'])
+            ->orderBy('scheduled_at', 'ASC')
+            ->orderBy('id', 'ASC')
+            ->findAll($limit);
+
+        $result = [
+            'scanned' => count($rows),
+            'sent' => 0,
+            'queued' => 0,
+            'failed' => 0,
+            'skipped' => 0,
+        ];
+
+        foreach ($rows as $row) {
+            $dispatch = $this->dispatch((int) ($row['id'] ?? 0));
+            if (! ($dispatch['queued'] ?? false)) {
+                $result['failed']++;
+                continue;
+            }
+
+            if (($dispatch['status'] ?? '') === 'queued') {
+                $result['queued']++;
+            } elseif (($dispatch['status'] ?? '') === 'sent') {
+                $result['sent']++;
+            } else {
+                $result['skipped']++;
+            }
+        }
+
+        return $result;
     }
 
     public function settings(): array

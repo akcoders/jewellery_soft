@@ -24,6 +24,8 @@ class MobilePushNotificationModel extends Model
         'sent_at',
         'onesignal_message_id',
         'status',
+        'done_flag',
+        'done_at',
         'error_message',
         'response_json',
     ];
