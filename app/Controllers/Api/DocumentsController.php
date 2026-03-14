@@ -182,6 +182,87 @@ class DocumentsController extends ApiBaseController
             ->setBody($pdf);
     }
 
+    public function mobileDiamondIssue(int $id)
+    {
+        return $this->mobileIssueVoucherPdf(
+            'issue_headers',
+            'issue_lines',
+            'inventory_locations',
+            'item_id',
+            $id,
+            'Diamond',
+            'diamond_issue_' . $id . '.pdf'
+        );
+    }
+
+    public function mobileDiamondReturn(int $id)
+    {
+        return $this->mobileReturnVoucherPdf(
+            'return_headers',
+            'return_lines',
+            'issue_headers',
+            'inventory_locations',
+            'item_id',
+            $id,
+            'Diamond',
+            'diamond_return_' . $id . '.pdf'
+        );
+    }
+
+    public function mobileGoldIssue(int $id)
+    {
+        return $this->mobileIssueVoucherPdf(
+            'gold_inventory_issue_headers',
+            'gold_inventory_issue_lines',
+            'inventory_locations',
+            'item_id',
+            $id,
+            'Gold',
+            'gold_issue_' . $id . '.pdf'
+        );
+    }
+
+    public function mobileGoldReturn(int $id)
+    {
+        return $this->mobileReturnVoucherPdf(
+            'gold_inventory_return_headers',
+            'gold_inventory_return_lines',
+            'gold_inventory_issue_headers',
+            'inventory_locations',
+            'item_id',
+            $id,
+            'Gold',
+            'gold_return_' . $id . '.pdf'
+        );
+    }
+
+    public function mobileStoneIssue(int $id)
+    {
+        return $this->mobileIssueVoucherPdf(
+            'stone_inventory_issue_headers',
+            'stone_inventory_issue_lines',
+            'inventory_locations',
+            'item_id',
+            $id,
+            'Stone',
+            'stone_issue_' . $id . '.pdf'
+        );
+    }
+
+    public function mobileStoneReturn(int $id)
+    {
+        return $this->mobileReturnVoucherPdf(
+            'stone_inventory_return_headers',
+            'stone_inventory_return_lines',
+            'stone_inventory_issue_headers',
+            'inventory_locations',
+            'item_id',
+            $id,
+            'Stone',
+            'stone_return_' . $id . '.pdf'
+        );
+    }
+
     public function invoice(int $invoiceId)
     {
         $db = db_connect();
@@ -247,6 +328,140 @@ class DocumentsController extends ApiBaseController
 
         return $this->response->setHeader('Content-Type', 'application/pdf')
             ->setHeader('Content-Disposition', 'inline; filename="' . $filename . '"')
+            ->setBody($pdf);
+    }
+
+    private function mobileIssueVoucherPdf(
+        string $headerTable,
+        string $lineTable,
+        string $locationTable,
+        string $lineItemField,
+        int $id,
+        string $materialType,
+        string $filename
+    ) {
+        $db = db_connect();
+        $header = $db->table($headerTable . ' ih')
+            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
+            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->join('karigars k', 'k.id = ih.karigar_id', 'left')
+            ->join($locationTable . ' iloc', 'iloc.id = ih.location_id', 'left')
+            ->where('ih.id', $id)
+            ->get()
+            ->getRowArray();
+
+        if (! is_array($header)) {
+            return $this->fail('Issue not found.', 404);
+        }
+
+        $material = strtolower($materialType);
+        $lines = match ($material) {
+            'diamond' => $db->table($lineTable . ' l')
+                ->select('l.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut')
+                ->join('items i', 'i.id = l.' . $lineItemField, 'left')
+                ->where('l.issue_id', $id)
+                ->orderBy('l.id', 'ASC')
+                ->get()
+                ->getResultArray(),
+            'gold' => $db->table($lineTable . ' l')
+                ->select('l.*, gi.purity_code, gi.purity_percent, gi.color_name, gi.form_type')
+                ->join('gold_inventory_items gi', 'gi.id = l.' . $lineItemField, 'left')
+                ->where('l.issue_id', $id)
+                ->orderBy('l.id', 'ASC')
+                ->get()
+                ->getResultArray(),
+            default => $db->table($lineTable . ' l')
+                ->select('l.*, si.product_name, si.stone_type')
+                ->join('stone_inventory_items si', 'si.id = l.' . $lineItemField, 'left')
+                ->where('l.issue_id', $id)
+                ->orderBy('l.id', 'ASC')
+                ->get()
+                ->getResultArray(),
+        };
+
+        $totalValue = 0.0;
+        foreach ($lines as $line) {
+            $totalValue += (float) ($line['line_value'] ?? 0);
+        }
+
+        $pdf = $this->pdf->render('pdf/mobile_issue_voucher', [
+            'materialType' => $materialType,
+            'issue' => $header,
+            'lines' => $lines,
+            'totals' => ['total_value' => $totalValue],
+            'company' => $this->companySetting(),
+        ]);
+
+        return $this->response->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->setBody($pdf);
+    }
+
+    private function mobileReturnVoucherPdf(
+        string $returnHeaderTable,
+        string $returnLineTable,
+        string $issueHeaderTable,
+        string $locationTable,
+        string $lineItemField,
+        int $id,
+        string $materialType,
+        string $filename
+    ) {
+        $db = db_connect();
+        $header = $db->table($returnHeaderTable . ' rh')
+            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
+            ->join('orders o', 'o.id = rh.order_id', 'left')
+            ->join($issueHeaderTable . ' ih', 'ih.id = rh.issue_id', 'left')
+            ->join($locationTable . ' iloc', 'iloc.id = ih.location_id', 'left')
+            ->join('karigars k', 'k.id = rh.karigar_id', 'left')
+            ->where('rh.id', $id)
+            ->get()
+            ->getRowArray();
+
+        if (! is_array($header)) {
+            return $this->fail('Return not found.', 404);
+        }
+
+        $material = strtolower($materialType);
+        $lines = match ($material) {
+            'diamond' => $db->table($returnLineTable . ' l')
+                ->select('l.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut')
+                ->join('items i', 'i.id = l.' . $lineItemField, 'left')
+                ->where('l.return_id', $id)
+                ->orderBy('l.id', 'ASC')
+                ->get()
+                ->getResultArray(),
+            'gold' => $db->table($returnLineTable . ' l')
+                ->select('l.*, gi.purity_code, gi.purity_percent, gi.color_name, gi.form_type')
+                ->join('gold_inventory_items gi', 'gi.id = l.' . $lineItemField, 'left')
+                ->where('l.return_id', $id)
+                ->orderBy('l.id', 'ASC')
+                ->get()
+                ->getResultArray(),
+            default => $db->table($returnLineTable . ' l')
+                ->select('l.*, si.product_name, si.stone_type')
+                ->join('stone_inventory_items si', 'si.id = l.' . $lineItemField, 'left')
+                ->where('l.return_id', $id)
+                ->orderBy('l.id', 'ASC')
+                ->get()
+                ->getResultArray(),
+        };
+
+        $totalValue = 0.0;
+        foreach ($lines as $line) {
+            $totalValue += (float) ($line['line_value'] ?? 0);
+        }
+
+        $pdf = $this->pdf->render('pdf/mobile_return_receipt', [
+            'materialType' => $materialType,
+            'return' => $header,
+            'lines' => $lines,
+            'totals' => ['total_value' => $totalValue],
+            'company' => $this->companySetting(),
+        ]);
+
+        return $this->response->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
             ->setBody($pdf);
     }
 

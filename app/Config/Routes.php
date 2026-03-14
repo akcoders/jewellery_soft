@@ -300,6 +300,12 @@ $routes->group('api', static function ($routes): void {
     $routes->get('documents/packing-list/(:num)', 'Api\DocumentsController::packingList/$1');
     $routes->get('documents/orders/(:num)/packing-list', 'Api\DocumentsController::packingListByOrder/$1');
     $routes->get('documents/orders/(:num)/delivery-challan', 'Api\DocumentsController::deliveryChallan/$1');
+    $routes->get('documents/mobile/diamond/issues/(:num)', 'Api\DocumentsController::mobileDiamondIssue/$1');
+    $routes->get('documents/mobile/diamond/returns/(:num)', 'Api\DocumentsController::mobileDiamondReturn/$1');
+    $routes->get('documents/mobile/gold/issues/(:num)', 'Api\DocumentsController::mobileGoldIssue/$1');
+    $routes->get('documents/mobile/gold/returns/(:num)', 'Api\DocumentsController::mobileGoldReturn/$1');
+    $routes->get('documents/mobile/stone/issues/(:num)', 'Api\DocumentsController::mobileStoneIssue/$1');
+    $routes->get('documents/mobile/stone/returns/(:num)', 'Api\DocumentsController::mobileStoneReturn/$1');
     $routes->get('documents/invoice/(:num)', 'Api\DocumentsController::invoice/$1');
     $routes->get('documents/ledger/(:num)', 'Api\DocumentsController::ledgerStatement/$1');
 
