@@ -372,29 +372,31 @@ class DocumentsController extends ApiBaseController
         }
 
         $material = strtolower($materialType);
-        $lines = match ($material) {
-            'diamond' => $db->table($lineTable . ' l')
+        if ($material === 'diamond') {
+            $lines = $db->table($lineTable . ' l')
                 ->select('l.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut')
                 ->join('items i', 'i.id = l.' . $lineItemField, 'left')
                 ->where('l.issue_id', $id)
                 ->orderBy('l.id', 'ASC')
                 ->get()
-                ->getResultArray(),
-            'gold' => $db->table($lineTable . ' l')
+                ->getResultArray();
+        } elseif ($material === 'gold') {
+            $lines = $db->table($lineTable . ' l')
                 ->select('l.*, gi.purity_code, gi.purity_percent, gi.color_name, gi.form_type')
                 ->join('gold_inventory_items gi', 'gi.id = l.' . $lineItemField, 'left')
                 ->where('l.issue_id', $id)
                 ->orderBy('l.id', 'ASC')
                 ->get()
-                ->getResultArray(),
-            default => $db->table($lineTable . ' l')
+                ->getResultArray();
+        } else {
+            $lines = $db->table($lineTable . ' l')
                 ->select('l.*, si.product_name, si.stone_type')
                 ->join('stone_inventory_items si', 'si.id = l.' . $lineItemField, 'left')
                 ->where('l.issue_id', $id)
                 ->orderBy('l.id', 'ASC')
                 ->get()
-                ->getResultArray(),
-        };
+                ->getResultArray();
+        }
 
         $totalValue = 0.0;
         foreach ($lines as $line) {
@@ -440,29 +442,31 @@ class DocumentsController extends ApiBaseController
         }
 
         $material = strtolower($materialType);
-        $lines = match ($material) {
-            'diamond' => $db->table($returnLineTable . ' l')
+        if ($material === 'diamond') {
+            $lines = $db->table($returnLineTable . ' l')
                 ->select('l.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut')
                 ->join('items i', 'i.id = l.' . $lineItemField, 'left')
                 ->where('l.return_id', $id)
                 ->orderBy('l.id', 'ASC')
                 ->get()
-                ->getResultArray(),
-            'gold' => $db->table($returnLineTable . ' l')
+                ->getResultArray();
+        } elseif ($material === 'gold') {
+            $lines = $db->table($returnLineTable . ' l')
                 ->select('l.*, gi.purity_code, gi.purity_percent, gi.color_name, gi.form_type')
                 ->join('gold_inventory_items gi', 'gi.id = l.' . $lineItemField, 'left')
                 ->where('l.return_id', $id)
                 ->orderBy('l.id', 'ASC')
                 ->get()
-                ->getResultArray(),
-            default => $db->table($returnLineTable . ' l')
+                ->getResultArray();
+        } else {
+            $lines = $db->table($returnLineTable . ' l')
                 ->select('l.*, si.product_name, si.stone_type')
                 ->join('stone_inventory_items si', 'si.id = l.' . $lineItemField, 'left')
                 ->where('l.return_id', $id)
                 ->orderBy('l.id', 'ASC')
                 ->get()
-                ->getResultArray(),
-        };
+                ->getResultArray();
+        }
 
         $totalValue = 0.0;
         foreach ($lines as $line) {

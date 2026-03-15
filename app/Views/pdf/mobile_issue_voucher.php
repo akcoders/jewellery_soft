@@ -38,44 +38,69 @@
         (string) ($company['state'] ?? ''),
         (string) ($company['pincode'] ?? ''),
     ])));
+    $supplierAddress = trim(implode(', ', array_filter([
+        (string) ($issue['labour_address'] ?? ''),
+        (string) ($issue['labour_city'] ?? ''),
+        (string) ($issue['labour_state'] ?? ''),
+        (string) ($issue['labour_pincode'] ?? ''),
+    ])));
+    if ($supplierAddress === '') {
+        $supplierAddress = '-';
+    }
 
     $lineDescription = static function (array $row, string $type): string {
-        return match (strtolower($type)) {
-            'diamond' => trim(implode(' ', array_filter([(string) ($row['diamond_type'] ?? ''), (string) ($row['shape'] ?? '')]))),
-            'gold' => trim(implode(' ', array_filter([(string) ($row['color_name'] ?? ''), (string) ($row['form_type'] ?? '')]))),
-            'stone' => trim(implode(' ', array_filter([(string) ($row['product_name'] ?? ''), (string) ($row['stone_type'] ?? '')]))),
-            default => '-',
-        };
+        $type = strtolower($type);
+        if ($type === 'diamond') {
+            return trim(implode(' ', array_filter([(string) ($row['diamond_type'] ?? ''), (string) ($row['shape'] ?? '')])));
+        }
+        if ($type === 'gold') {
+            return trim(implode(' ', array_filter([(string) ($row['color_name'] ?? ''), (string) ($row['form_type'] ?? '')])));
+        }
+        if ($type === 'stone') {
+            return trim(implode(' ', array_filter([(string) ($row['product_name'] ?? ''), (string) ($row['stone_type'] ?? '')])));
+        }
+        return '-';
     };
     $lineGrade = static function (array $row, string $type): string {
-        return match (strtolower($type)) {
-            'diamond' => trim(implode(' / ', array_filter([
+        $type = strtolower($type);
+        if ($type === 'diamond') {
+            return trim(implode(' / ', array_filter([
                 trim(((string) ($row['chalni_from'] ?? '')) !== '' || ((string) ($row['chalni_to'] ?? '')) !== '' ? ((string) ($row['chalni_from'] ?? '')) . '-' . ((string) ($row['chalni_to'] ?? '')) : ''),
                 (string) ($row['color'] ?? ''),
                 (string) ($row['clarity'] ?? ''),
-            ]))),
-            'gold' => trim(implode(' / ', array_filter([
+            ])));
+        }
+        if ($type === 'gold') {
+            return trim(implode(' / ', array_filter([
                 (string) ($row['purity_code'] ?? ''),
                 ((string) ($row['purity_percent'] ?? '')) !== '' ? rtrim(rtrim(number_format((float) ($row['purity_percent'] ?? 0), 3), '0'), '.') . '%' : '',
-            ]))),
-            'stone' => '-',
-            default => '-',
-        };
+            ])));
+        }
+        return '-';
     };
     $pcsValue = static function (array $row, string $type): string {
-        return match (strtolower($type)) {
-            'diamond' => number_format((float) ($row['pcs'] ?? 0), 3),
-            'stone' => number_format((float) ($row['qty'] ?? 0), 3),
-            default => '-',
-        };
+        $type = strtolower($type);
+        if ($type === 'diamond') {
+            return number_format((float) ($row['pcs'] ?? 0), 3);
+        }
+        if ($type === 'stone') {
+            return number_format((float) ($row['qty'] ?? 0), 3);
+        }
+        return '-';
     };
     $weightValue = static function (array $row, string $type): string {
-        return match (strtolower($type)) {
-            'diamond' => number_format((float) ($row['carat'] ?? 0), 3) . ' cts',
-            'gold' => number_format((float) ($row['weight_gm'] ?? 0), 3) . ' gm',
-            'stone' => number_format((float) ($row['weight_cts'] ?? 0), 3) . ' cts',
-            default => '-',
-        };
+        $type = strtolower($type);
+        if ($type === 'diamond') {
+            return number_format((float) ($row['carat'] ?? 0), 3) . ' cts';
+        }
+        if ($type === 'gold') {
+            return number_format((float) ($row['weight_gm'] ?? 0), 3) . ' gm';
+        }
+        if ($type === 'stone') {
+            $value = array_key_exists('weight_cts', $row) ? (float) ($row['weight_cts'] ?? 0) : (float) ($row['qty'] ?? 0);
+            return number_format($value, 3) . ' cts';
+        }
+        return '-';
     };
     $rateValue = static function (array $row): string {
         if (array_key_exists('rate_per_carat', $row)) {
@@ -113,7 +138,7 @@
             <div style="font-weight:700; margin-bottom:6px;">Supplier Details</div>
             <table class="meta">
                 <tr><td class="label">Supplier/Manufacturer:</td><td><?= esc((string) ($issue['issue_to'] ?? $issue['karigar_name'] ?? '-')) ?></td></tr>
-                <tr><td class="label">Address:</td><td><?= esc(trim(implode(', ', array_filter([(string) ($issue['labour_address'] ?? ''), (string) ($issue['labour_city'] ?? ''), (string) ($issue['labour_state'] ?? ''), (string) ($issue['labour_pincode'] ?? '')])) ?: '-') ?></td></tr>
+                <tr><td class="label">Address:</td><td><?= esc($supplierAddress) ?></td></tr>
                 <tr><td class="label">Contact Number:</td><td><?= esc((string) ($issue['labour_phone'] ?? '-')) ?></td></tr>
                 <tr><td class="label">Contact Email:</td><td><?= esc((string) ($issue['labour_email'] ?? '-')) ?></td></tr>
             </table>
