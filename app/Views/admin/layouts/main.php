@@ -19,6 +19,11 @@ $isOrdersCreate = $isOrders && $segment3 === 'create';
 $isOrdersRepairCreate = $isOrdersRepair && $segment4 === 'create';
 $isIssuements = $segment2 === 'issuements';
 $isDesigns  = $segment2 === 'designs';
+$isDepartments = $segment2 === 'departments';
+$isDesignations = $segment2 === 'designations';
+$isEmployees = $segment2 === 'employees';
+$isEmployeeHierarchy = $segment2 === 'employee-hierarchy';
+$isStaffHierarchy = $isDepartments || $isDesignations || $isEmployees || $isEmployeeHierarchy;
 $isKarigars = $segment2 === 'karigars';
 $isReports  = $segment2 === 'reports';
 $isReportsGoldLedger = $isReports && ($segment3 === '' || $segment3 === 'gold-ledger');
@@ -493,6 +498,15 @@ $isGoldInventoryProducts = $isGoldInventory && $segment3 === 'products';
                         </li>
                         <li class="<?= $isKarigars ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/karigars') ?>"><i class="fe fe-user-check"></i> <span>Karigar Master</span></a>
+                        </li>
+                        <li class="submenu <?= $isStaffHierarchy ? 'active' : '' ?>">
+                            <a href="javascript:void(0);"><i class="fe fe-briefcase"></i> <span>Staff & Hierarchy</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isStaffHierarchy ? 'display:block;' : 'display:none;' ?>">
+                                <li><a class="<?= $isDepartments ? 'active' : '' ?>" href="<?= site_url('admin/departments') ?>"><i class="fe fe-grid"></i> Department Master</a></li>
+                                <li><a class="<?= $isDesignations ? 'active' : '' ?>" href="<?= site_url('admin/designations') ?>"><i class="fe fe-award"></i> Designation Master</a></li>
+                                <li><a class="<?= $isEmployees ? 'active' : '' ?>" href="<?= site_url('admin/employees') ?>"><i class="fe fe-user"></i> Employee Master</a></li>
+                                <li><a class="<?= $isEmployeeHierarchy ? 'active' : '' ?>" href="<?= site_url('admin/employee-hierarchy') ?>"><i class="fe fe-git-branch"></i> Employee Hierarchy</a></li>
+                            </ul>
                         </li>
                         <li class="<?= $isVendors ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/vendors') ?>"><i class="fe fe-truck"></i> <span>Vendors</span></a>
