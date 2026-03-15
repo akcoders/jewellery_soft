@@ -24,6 +24,10 @@ $isDesignations = $segment2 === 'designations';
 $isEmployees = $segment2 === 'employees';
 $isEmployeeHierarchy = $segment2 === 'employee-hierarchy';
 $isStaffHierarchy = $isDepartments || $isDesignations || $isEmployees || $isEmployeeHierarchy;
+$isShowrooms = $segment2 === 'showrooms';
+$isShowroomCounters = $segment2 === 'showroom-counters';
+$isShowroomStaff = $segment2 === 'showroom-staff';
+$isShowroomModule = $isShowrooms || $isShowroomCounters || $isShowroomStaff;
 $isAccess = $segment2 === 'access';
 $isAccessRoles = $isAccess && $segment3 === 'roles';
 $isAccessPermissions = $isAccess && $segment3 === 'permissions';
@@ -86,6 +90,7 @@ $canAccounts = admin_can('accounts.read');
 $canDesigns = admin_can('masters.designs.read');
 $canKarigars = admin_can('masters.karigars.read');
 $canStaffHierarchy = admin_can_any(['organization.departments.read', 'organization.designations.read', 'organization.employees.read', 'organization.hierarchy.read']);
+$canShowroomMasters = admin_can('showroom.masters.read');
 $canVendors = admin_can('masters.vendors.read');
 $canCompanySettings = admin_can_any(['company-settings.read', 'company-settings.manage']);
 $canInventorySettings = admin_can('inventory.settings.read');
@@ -559,6 +564,16 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                                 <?php if (admin_can('organization.designations.read')): ?><li><a class="<?= $isDesignations ? 'active' : '' ?>" href="<?= site_url('admin/designations') ?>"><i class="fe fe-award"></i> Designation Master</a></li><?php endif; ?>
                                 <?php if (admin_can('organization.employees.read')): ?><li><a class="<?= $isEmployees ? 'active' : '' ?>" href="<?= site_url('admin/employees') ?>"><i class="fe fe-user"></i> Employee Master</a></li><?php endif; ?>
                                 <?php if (admin_can('organization.hierarchy.read')): ?><li><a class="<?= $isEmployeeHierarchy ? 'active' : '' ?>" href="<?= site_url('admin/employee-hierarchy') ?>"><i class="fe fe-git-branch"></i> Employee Hierarchy</a></li><?php endif; ?>
+                            </ul>
+                        </li>
+                        <?php endif; ?>
+                        <?php if ($canShowroomMasters): ?>
+                        <li class="submenu <?= $isShowroomModule ? 'active' : '' ?>">
+                            <a href="javascript:void(0);"><i class="fe fe-shopping-bag"></i> <span>Retail Showroom</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isShowroomModule ? 'display:block;' : 'display:none;' ?>">
+                                <li><a class="<?= $isShowrooms ? 'active' : '' ?>" href="<?= site_url('admin/showrooms') ?>"><i class="fe fe-home"></i> Showroom Master</a></li>
+                                <li><a class="<?= $isShowroomCounters ? 'active' : '' ?>" href="<?= site_url('admin/showroom-counters') ?>"><i class="fe fe-grid"></i> Counter Master</a></li>
+                                <li><a class="<?= $isShowroomStaff ? 'active' : '' ?>" href="<?= site_url('admin/showroom-staff') ?>"><i class="fe fe-users"></i> Staff Assignment</a></li>
                             </ul>
                         </li>
                         <?php endif; ?>
