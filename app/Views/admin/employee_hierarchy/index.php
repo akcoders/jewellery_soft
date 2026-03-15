@@ -154,9 +154,11 @@
                                             value="<?= esc(old('remarks', '')) ?>" placeholder="Optional remarks">
                                     </div>
                                 </div>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fe fe-save me-1"></i> Save Hierarchy
-                                </button>
+                                <?php if (admin_can('organization.hierarchy.manage')): ?>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fe fe-save me-1"></i> Save Hierarchy
+                                    </button>
+                                <?php endif; ?>
                             </form>
                         </div>
                     </div>

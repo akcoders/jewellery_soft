@@ -6,9 +6,11 @@
         <h4 class="mb-1">Employee Master</h4>
         <p class="text-muted mb-0">Manage internal staff records, admin login linkage, and hierarchy entry points.</p>
     </div>
-    <a href="<?= site_url('admin/employees/create') ?>" class="btn btn-primary">
-        <i class="fe fe-plus me-1"></i> Add Employee
-    </a>
+    <?php if (admin_can('organization.employees.manage')): ?>
+        <a href="<?= site_url('admin/employees/create') ?>" class="btn btn-primary">
+            <i class="fe fe-plus me-1"></i> Add Employee
+        </a>
+    <?php endif; ?>
 </div>
 
 <div class="card">
@@ -48,18 +50,24 @@
                                 </span>
                             </td>
                             <td class="text-end">
-                                <a href="<?= site_url('admin/employees/' . (int) $row['id'] . '/edit') ?>" class="btn btn-sm btn-outline-primary" title="Edit">
-                                    <i class="fe fe-edit"></i>
-                                </a>
-                                <a href="<?= site_url('admin/employee-hierarchy?employee_id=' . (int) $row['id']) ?>" class="btn btn-sm btn-outline-info" title="Manage Hierarchy">
-                                    <i class="fe fe-git-branch"></i>
-                                </a>
-                                <form action="<?= site_url('admin/employees/' . (int) $row['id'] . '/status') ?>" method="post" class="d-inline">
-                                    <?= csrf_field() ?>
-                                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Toggle Status">
-                                        <i class="fe fe-refresh-cw"></i>
-                                    </button>
-                                </form>
+                                <?php if (admin_can('organization.employees.manage')): ?>
+                                    <a href="<?= site_url('admin/employees/' . (int) $row['id'] . '/edit') ?>" class="btn btn-sm btn-outline-primary" title="Edit">
+                                        <i class="fe fe-edit"></i>
+                                    </a>
+                                <?php endif; ?>
+                                <?php if (admin_can('organization.hierarchy.read')): ?>
+                                    <a href="<?= site_url('admin/employee-hierarchy?employee_id=' . (int) $row['id']) ?>" class="btn btn-sm btn-outline-info" title="Manage Hierarchy">
+                                        <i class="fe fe-git-branch"></i>
+                                    </a>
+                                <?php endif; ?>
+                                <?php if (admin_can('organization.employees.manage')): ?>
+                                    <form action="<?= site_url('admin/employees/' . (int) $row['id'] . '/status') ?>" method="post" class="d-inline">
+                                        <?= csrf_field() ?>
+                                        <button type="submit" class="btn btn-sm btn-outline-warning" title="Toggle Status">
+                                            <i class="fe fe-refresh-cw"></i>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

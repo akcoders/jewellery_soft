@@ -24,6 +24,10 @@ $isDesignations = $segment2 === 'designations';
 $isEmployees = $segment2 === 'employees';
 $isEmployeeHierarchy = $segment2 === 'employee-hierarchy';
 $isStaffHierarchy = $isDepartments || $isDesignations || $isEmployees || $isEmployeeHierarchy;
+$isAccess = $segment2 === 'access';
+$isAccessRoles = $isAccess && $segment3 === 'roles';
+$isAccessPermissions = $isAccess && $segment3 === 'permissions';
+$isAccessUsers = $isAccess && $segment3 === 'users';
 $isKarigars = $segment2 === 'karigars';
 $isReports  = $segment2 === 'reports';
 $isReportsGoldLedger = $isReports && ($segment3 === '' || $segment3 === 'gold-ledger');
@@ -67,6 +71,24 @@ $isGoldInventoryStock = $isGoldInventory && $segment3 === 'stock';
 $isGoldInventoryLedger = $isGoldInventory && $segment3 === 'ledger';
 $isGoldInventoryPurities = $isGoldInventory && $segment3 === 'purities';
 $isGoldInventoryProducts = $isGoldInventory && $segment3 === 'products';
+$canDashboard = admin_can('dashboard.read');
+$canLeads = admin_can('leads.read');
+$canCustomers = admin_can('customers.read');
+$canOrders = admin_can('orders.read');
+$canOrdersCreate = admin_can('orders.create');
+$canIssuements = admin_can('issuements.read');
+$canReports = admin_can('reports.read');
+$canAccounts = admin_can('accounts.read');
+$canDesigns = admin_can('masters.designs.read');
+$canKarigars = admin_can('masters.karigars.read');
+$canStaffHierarchy = admin_can_any(['organization.departments.read', 'organization.designations.read', 'organization.employees.read', 'organization.hierarchy.read']);
+$canVendors = admin_can('masters.vendors.read');
+$canCompanySettings = admin_can_any(['company-settings.read', 'company-settings.manage']);
+$canInventorySettings = admin_can('inventory.settings.read');
+$canDiamondInventory = admin_can('diamond.inventory.read');
+$canStoneInventory = admin_can('stone.inventory.read');
+$canGoldInventory = admin_can('gold.inventory.read');
+$canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read', 'access.users.read']);
 ?>
 <!DOCTYPE html>
 <html lang="en" data-layout="vertical" data-topbar="light" data-sidebar="light" data-sidebar-size="lg" data-sidebar-image="none">
@@ -452,28 +474,43 @@ $isGoldInventoryProducts = $isGoldInventory && $segment3 === 'products';
                 <div id="sidebar-menu" class="sidebar-menu">
                     <ul class="sidebar-vertical">
                         <li class="menu-title"><span>Main</span></li>
+                        <?php if ($canDashboard): ?>
                         <li class="<?= $isDash ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/dashboard') ?>"><i class="fe fe-home"></i> <span>Dashboard</span></a>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canLeads): ?>
                         <li class="<?= $isLeads ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/leads') ?>"><i class="fe fe-phone-call"></i> <span>Leads</span></a>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canCustomers): ?>
                         <li class="<?= $isCustomers ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/customers') ?>"><i class="fe fe-users"></i> <span>Customers</span></a>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canOrders): ?>
                         <li class="submenu <?= $isOrders ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-clipboard"></i> <span>Orders</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isOrders ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= ($isOrdersAll || $isOrdersCreate) ? 'active' : '' ?>" href="<?= site_url('admin/orders') ?>"><i class="fe fe-list"></i> All Orders</a></li>
+                                <?php if ($canOrdersCreate): ?>
                                 <li><a class="<?= $isOrdersFresh ? 'active' : '' ?>" href="<?= site_url('admin/orders/fresh') ?>"><i class="fe fe-plus-square"></i> Fresh Orders</a></li>
+                                <?php endif; ?>
                                 <li><a class="<?= $isOrdersReady ? 'active' : '' ?>" href="<?= site_url('admin/orders/ready') ?>"><i class="fe fe-package"></i> Ready Orders</a></li>
+                                <?php if ($canOrdersCreate): ?>
                                 <li><a class="<?= ($isOrdersRepair || $isOrdersRepairCreate) ? 'active' : '' ?>" href="<?= site_url('admin/orders/repair') ?>"><i class="fe fe-settings"></i> Repair Orders</a></li>
+                                <?php endif; ?>
                                 <li><a class="<?= $isOrdersFollowups ? 'active' : '' ?>" href="<?= site_url('admin/orders/followups') ?>"><i class="fe fe-calendar"></i> Followups</a></li>
                             </ul>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canIssuements): ?>
                         <li class="<?= $isIssuements ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/issuements') ?>"><i class="fe fe-share-2"></i> <span>Issuement</span></a>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canReports): ?>
                         <li class="submenu <?= $isReports ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-bar-chart-2"></i> <span>Reports</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isReports ? 'display:block;' : 'display:none;' ?>">
@@ -483,6 +520,8 @@ $isGoldInventoryProducts = $isGoldInventory && $segment3 === 'products';
                                 <li><a class="<?= $isReportsInventory ? 'active' : '' ?>" href="<?= site_url('admin/reports/inventory') ?>"><i class="fe fe-layers"></i> Inventory Report</a></li>
                             </ul>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canAccounts): ?>
                         <li class="submenu <?= $isAccounts ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-file-text"></i> <span>Accounts</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isAccounts ? 'display:block;' : 'display:none;' ?>">
@@ -491,36 +530,60 @@ $isGoldInventoryProducts = $isGoldInventory && $segment3 === 'products';
                                 <li><a class="<?= $isAccountsSaleBills ? 'active' : '' ?>" href="<?= site_url('admin/accounts/sale-bills') ?>"><i class="fe fe-credit-card"></i> Sale Bills</a></li>
                             </ul>
                         </li>
+                        <?php endif; ?>
 
                         <li class="menu-title"><span>Masters</span></li>
+                        <?php if ($canDesigns): ?>
                         <li class="<?= $isDesigns ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/designs') ?>"><i class="fe fe-image"></i> <span>Design Master</span></a>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canKarigars): ?>
                         <li class="<?= $isKarigars ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/karigars') ?>"><i class="fe fe-user-check"></i> <span>Karigar Master</span></a>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canStaffHierarchy): ?>
                         <li class="submenu <?= $isStaffHierarchy ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-briefcase"></i> <span>Staff & Hierarchy</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isStaffHierarchy ? 'display:block;' : 'display:none;' ?>">
-                                <li><a class="<?= $isDepartments ? 'active' : '' ?>" href="<?= site_url('admin/departments') ?>"><i class="fe fe-grid"></i> Department Master</a></li>
-                                <li><a class="<?= $isDesignations ? 'active' : '' ?>" href="<?= site_url('admin/designations') ?>"><i class="fe fe-award"></i> Designation Master</a></li>
-                                <li><a class="<?= $isEmployees ? 'active' : '' ?>" href="<?= site_url('admin/employees') ?>"><i class="fe fe-user"></i> Employee Master</a></li>
-                                <li><a class="<?= $isEmployeeHierarchy ? 'active' : '' ?>" href="<?= site_url('admin/employee-hierarchy') ?>"><i class="fe fe-git-branch"></i> Employee Hierarchy</a></li>
+                                <?php if (admin_can('organization.departments.read')): ?><li><a class="<?= $isDepartments ? 'active' : '' ?>" href="<?= site_url('admin/departments') ?>"><i class="fe fe-grid"></i> Department Master</a></li><?php endif; ?>
+                                <?php if (admin_can('organization.designations.read')): ?><li><a class="<?= $isDesignations ? 'active' : '' ?>" href="<?= site_url('admin/designations') ?>"><i class="fe fe-award"></i> Designation Master</a></li><?php endif; ?>
+                                <?php if (admin_can('organization.employees.read')): ?><li><a class="<?= $isEmployees ? 'active' : '' ?>" href="<?= site_url('admin/employees') ?>"><i class="fe fe-user"></i> Employee Master</a></li><?php endif; ?>
+                                <?php if (admin_can('organization.hierarchy.read')): ?><li><a class="<?= $isEmployeeHierarchy ? 'active' : '' ?>" href="<?= site_url('admin/employee-hierarchy') ?>"><i class="fe fe-git-branch"></i> Employee Hierarchy</a></li><?php endif; ?>
                             </ul>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canVendors): ?>
                         <li class="<?= $isVendors ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/vendors') ?>"><i class="fe fe-truck"></i> <span>Vendors</span></a>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canCompanySettings): ?>
                         <li class="<?= $isCompanySettings ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/company-settings') ?>"><i class="fe fe-briefcase"></i> <span>Company Settings</span></a>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canAccessControl): ?>
+                        <li class="submenu <?= $isAccess ? 'active' : '' ?>">
+                            <a href="javascript:void(0);"><i class="fe fe-shield"></i> <span>Access Control</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isAccess ? 'display:block;' : 'display:none;' ?>">
+                                <?php if (admin_can('access.roles.read')): ?><li><a class="<?= $isAccessRoles ? 'active' : '' ?>" href="<?= site_url('admin/access/roles') ?>"><i class="fe fe-lock"></i> Roles</a></li><?php endif; ?>
+                                <?php if (admin_can('access.permissions.read')): ?><li><a class="<?= $isAccessPermissions ? 'active' : '' ?>" href="<?= site_url('admin/access/permissions') ?>"><i class="fe fe-key"></i> Permissions</a></li><?php endif; ?>
+                                <?php if (admin_can('access.users.read')): ?><li><a class="<?= $isAccessUsers ? 'active' : '' ?>" href="<?= site_url('admin/access/users') ?>"><i class="fe fe-users"></i> User Access</a></li><?php endif; ?>
+                            </ul>
+                        </li>
+                        <?php endif; ?>
                         <li class="menu-title"><span>Inventory</span></li>
+                        <?php if ($canInventorySettings): ?>
                         <li class="submenu <?= $isInventory ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-settings"></i> <span>Inventory Settings</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isInventory ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isInventoryWarehouses ? 'active' : '' ?>" href="<?= site_url('admin/inventory/warehouses') ?>"><i class="fe fe-home"></i> Warehouse</a></li>
                             </ul>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canDiamondInventory): ?>
                         <li class="submenu <?= $isDiamondInventory ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fas fa-gem"></i> <span>Diamond Inventory</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isDiamondInventory ? 'display:block;' : 'display:none;' ?>">
@@ -531,6 +594,8 @@ $isGoldInventoryProducts = $isGoldInventory && $segment3 === 'products';
                                 <li><a class="<?= $isDiamondInventoryStock ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/stock') ?>"><i class="fe fe-layers"></i> Stock Summary</a></li>
                             </ul>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canStoneInventory): ?>
                         <li class="submenu <?= $isStoneInventory ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-disc"></i> <span>Stone Inventory</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isStoneInventory ? 'display:block;' : 'display:none;' ?>">
@@ -541,6 +606,8 @@ $isGoldInventoryProducts = $isGoldInventory && $segment3 === 'products';
                                 <li><a class="<?= $isStoneInventoryStock ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/stock') ?>"><i class="fe fe-layers"></i> Stock Summary</a></li>
                             </ul>
                         </li>
+                        <?php endif; ?>
+                        <?php if ($canGoldInventory): ?>
                         <li class="submenu <?= $isGoldInventory ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-circle"></i> <span>Gold Inventory</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isGoldInventory ? 'display:block;' : 'display:none;' ?>">
@@ -553,6 +620,7 @@ $isGoldInventoryProducts = $isGoldInventory && $segment3 === 'products';
                                 <li><a class="<?= $isGoldInventoryLedger ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/ledger') ?>"><i class="fe fe-book-open"></i> Ledger</a></li>
                             </ul>
                         </li>
+                        <?php endif; ?>
 
                         <li class="menu-title"><span>Auth</span></li>
                         <li>
