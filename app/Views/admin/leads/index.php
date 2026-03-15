@@ -3,7 +3,9 @@
 <?= $this->section('content') ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Leads</h4>
-    <a href="<?= site_url('admin/leads/create') ?>" class="btn btn-primary">Add Lead</a>
+    <?php if (admin_can('leads.create')): ?>
+        <a href="<?= site_url('admin/leads/create') ?>" class="btn btn-primary">Add Lead</a>
+    <?php endif; ?>
 </div>
 
 <div class="card">

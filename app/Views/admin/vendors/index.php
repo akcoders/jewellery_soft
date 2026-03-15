@@ -2,6 +2,7 @@
 
 <?= $this->section('content') ?>
 <div class="row">
+    <?php if (admin_can('masters.vendors.manage')): ?>
     <div class="col-lg-4 d-flex">
         <div class="card w-100">
             <div class="card-header"><h5 class="card-title mb-0">Add Vendor</h5></div>
@@ -37,8 +38,9 @@
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
-    <div class="col-lg-8 d-flex">
+    <div class="<?= admin_can('masters.vendors.manage') ? 'col-lg-8' : 'col-lg-12' ?> d-flex">
         <div class="card w-100">
             <div class="card-header"><h5 class="card-title mb-0">Vendor List</h5></div>
             <div class="card-body">
@@ -74,4 +76,3 @@
     </div>
 </div>
 <?= $this->endSection() ?>
-

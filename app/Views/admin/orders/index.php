@@ -7,10 +7,10 @@
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0"><?= esc($title ?? 'Orders') ?></h4>
     <div class="d-flex gap-2">
-        <?php if (! in_array($orderMode, ['repair', 'ready'], true)): ?>
+        <?php if (admin_can('orders.create') && ! in_array($orderMode, ['repair', 'ready'], true)): ?>
             <a href="<?= site_url('admin/orders/create') ?>" class="btn btn-primary"><i class="fe fe-plus"></i> Create Order</a>
         <?php endif; ?>
-        <?php if ($orderMode !== 'ready'): ?>
+        <?php if (admin_can('orders.create') && $orderMode !== 'ready'): ?>
             <a href="<?= site_url('admin/orders/repair/create') ?>" class="btn btn-outline-primary"><i class="fe fe-settings"></i> Repair Receive</a>
         <?php endif; ?>
     </div>
@@ -74,58 +74,68 @@
                                             <i class="fe fe-eye"></i>
                                         </a>
                                         <?php if ($isCompleted): ?>
-                                            <a href="<?= site_url('admin/orders/' . $order['id'] . '/packing-list/generate') ?>" class="btn btn-sm btn-outline-primary" title="Generate Packing List">
-                                                <i class="fe fe-package"></i>
-                                            </a>
-                                            <a href="<?= site_url('admin/orders/' . $order['id'] . '/delivery-challan?download=1') ?>" target="_blank" class="btn btn-sm btn-outline-dark" title="Delivery Challan">
-                                                <i class="fe fe-file-text"></i>
-                                            </a>
+                                            <?php if (admin_can('orders.documents')): ?>
+                                                <a href="<?= site_url('admin/orders/' . $order['id'] . '/packing-list/generate') ?>" class="btn btn-sm btn-outline-primary" title="Generate Packing List">
+                                                    <i class="fe fe-package"></i>
+                                                </a>
+                                                <a href="<?= site_url('admin/orders/' . $order['id'] . '/delivery-challan?download=1') ?>" target="_blank" class="btn btn-sm btn-outline-dark" title="Delivery Challan">
+                                                    <i class="fe fe-file-text"></i>
+                                                </a>
+                                            <?php endif; ?>
                                         <?php elseif ($isCancelled): ?>
                                             <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Cancelled order">
                                                 <i class="fe fe-lock"></i>
                                             </button>
                                         <?php else: ?>
-                                            <a href="<?= site_url('admin/orders/' . $order['id'] . '/edit') ?>" class="btn btn-sm btn-outline-info" title="Edit">
-                                                <i class="fe fe-edit"></i>
-                                            </a>
-                                            <?php if (empty($order['assigned_karigar_id'])): ?>
+                                            <?php if (admin_can('orders.edit')): ?>
+                                                <a href="<?= site_url('admin/orders/' . $order['id'] . '/edit') ?>" class="btn btn-sm btn-outline-info" title="Edit">
+                                                    <i class="fe fe-edit"></i>
+                                                </a>
+                                            <?php endif; ?>
+                                            <?php if (admin_can('orders.assign')): ?>
+                                                <?php if (empty($order['assigned_karigar_id'])): ?>
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm btn-outline-success js-assign-btn"
+                                                        data-order-id="<?= esc((string) $order['id']) ?>"
+                                                        data-order-no="<?= esc($order['order_no']) ?>"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#assignKarigarModal"
+                                                        title="Assign Karigar">
+                                                        <i class="fe fe-user-plus"></i>
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Already Assigned">
+                                                        <i class="fe fe-check"></i>
+                                                    </button>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                            <?php if (admin_can('orders.receive')): ?>
                                                 <button
                                                     type="button"
-                                                    class="btn btn-sm btn-outline-success js-assign-btn"
+                                                    class="btn btn-sm btn-outline-success js-receive-btn"
+                                                    data-order-id="<?= esc((string) $order['id']) ?>"
+                                                    data-order-no="<?= esc($order['order_no']) ?>"
+                                                    data-order-purity="<?= esc((string) number_format((float) ($order['avg_purity_percent'] ?? 100), 3, '.', '')) ?>"
+                                                    data-karigar-rate="<?= esc((string) number_format((float) ($order['karigar_rate_per_gm'] ?? 0), 2, '.', '')) ?>"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#receiveModal"
+                                                    title="Receive">
+                                                    <i class="fe fe-download"></i>
+                                                </button>
+                                            <?php endif; ?>
+                                            <?php if (admin_can('orders.status')): ?>
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-outline-danger js-cancel-btn"
                                                     data-order-id="<?= esc((string) $order['id']) ?>"
                                                     data-order-no="<?= esc($order['order_no']) ?>"
                                                     data-bs-toggle="modal"
-                                                    data-bs-target="#assignKarigarModal"
-                                                    title="Assign Karigar">
-                                                    <i class="fe fe-user-plus"></i>
-                                                </button>
-                                            <?php else: ?>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Already Assigned">
-                                                    <i class="fe fe-check"></i>
+                                                    data-bs-target="#cancelOrderModal"
+                                                    title="Cancel Order">
+                                                    <i class="fe fe-x-circle"></i>
                                                 </button>
                                             <?php endif; ?>
-                                            <button
-                                                type="button"
-                                                class="btn btn-sm btn-outline-success js-receive-btn"
-                                                data-order-id="<?= esc((string) $order['id']) ?>"
-                                                data-order-no="<?= esc($order['order_no']) ?>"
-                                                data-order-purity="<?= esc((string) number_format((float) ($order['avg_purity_percent'] ?? 100), 3, '.', '')) ?>"
-                                                data-karigar-rate="<?= esc((string) number_format((float) ($order['karigar_rate_per_gm'] ?? 0), 2, '.', '')) ?>"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#receiveModal"
-                                                title="Receive">
-                                                <i class="fe fe-download"></i>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="btn btn-sm btn-outline-danger js-cancel-btn"
-                                                data-order-id="<?= esc((string) $order['id']) ?>"
-                                                data-order-no="<?= esc($order['order_no']) ?>"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#cancelOrderModal"
-                                                title="Cancel Order">
-                                                <i class="fe fe-x-circle"></i>
-                                            </button>
                                         <?php endif; ?>
                                     <?php endif; ?>
                                 </div>
@@ -138,7 +148,7 @@
     </div>
 </div>
 
-<?php if (! $isReadyMode): ?>
+<?php if (! $isReadyMode && admin_can('orders.assign')): ?>
 <div class="modal fade" id="assignKarigarModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -196,7 +206,9 @@
         </div>
     </div>
 </div>
+<?php endif; ?>
 
+<?php if (! $isReadyMode && admin_can('orders.receive')): ?>
 <div class="modal fade" id="receiveModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -353,6 +365,7 @@
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="modal fade" id="cancelOrderModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
@@ -375,7 +388,6 @@
         </div>
     </div>
 </div>
-<?php endif; ?>
 
 <?= $this->endSection() ?>
 

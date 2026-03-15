@@ -3,7 +3,9 @@
 <?= $this->section('content') ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Karigar Master</h4>
-    <a href="<?= site_url('admin/karigars/create') ?>" class="btn btn-primary"><i class="fe fe-plus-circle"></i> Add Karigar</a>
+    <?php if (admin_can('masters.karigars.manage')): ?>
+        <a href="<?= site_url('admin/karigars/create') ?>" class="btn btn-primary"><i class="fe fe-plus-circle"></i> Add Karigar</a>
+    <?php endif; ?>
 </div>
 
 <div class="card">
@@ -47,21 +49,23 @@
                                 <a href="<?= site_url('admin/karigars/' . $k['id']) ?>" class="btn btn-sm btn-outline-primary" title="View">
                                     <i class="fe fe-eye"></i>
                                 </a>
-                                <a href="<?= site_url('admin/karigars/' . $k['id'] . '/edit') ?>" class="btn btn-sm btn-outline-warning" title="Edit">
-                                    <i class="fe fe-edit"></i>
-                                </a>
-                                <form method="post" action="<?= site_url('admin/karigars/' . $k['id'] . '/status') ?>" class="d-inline">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="is_active" value="<?= (int) $k['is_active'] === 1 ? '0' : '1' ?>">
-                                    <button
-                                        type="submit"
-                                        class="btn btn-sm <?= (int) $k['is_active'] === 1 ? 'btn-outline-danger' : 'btn-outline-success' ?>"
-                                        title="<?= (int) $k['is_active'] === 1 ? 'Deactivate' : 'Activate' ?>"
-                                        onclick="return confirm('Are you sure you want to <?= (int) $k['is_active'] === 1 ? 'deactivate' : 'activate' ?> this karigar?');"
-                                    >
-                                        <i class="fe <?= (int) $k['is_active'] === 1 ? 'fe-user-x' : 'fe-user-check' ?>"></i>
-                                    </button>
-                                </form>
+                                <?php if (admin_can('masters.karigars.manage')): ?>
+                                    <a href="<?= site_url('admin/karigars/' . $k['id'] . '/edit') ?>" class="btn btn-sm btn-outline-warning" title="Edit">
+                                        <i class="fe fe-edit"></i>
+                                    </a>
+                                    <form method="post" action="<?= site_url('admin/karigars/' . $k['id'] . '/status') ?>" class="d-inline">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="is_active" value="<?= (int) $k['is_active'] === 1 ? '0' : '1' ?>">
+                                        <button
+                                            type="submit"
+                                            class="btn btn-sm <?= (int) $k['is_active'] === 1 ? 'btn-outline-danger' : 'btn-outline-success' ?>"
+                                            title="<?= (int) $k['is_active'] === 1 ? 'Deactivate' : 'Activate' ?>"
+                                            onclick="return confirm('Are you sure you want to <?= (int) $k['is_active'] === 1 ? 'deactivate' : 'activate' ?> this karigar?');"
+                                        >
+                                            <i class="fe <?= (int) $k['is_active'] === 1 ? 'fe-user-x' : 'fe-user-check' ?>"></i>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

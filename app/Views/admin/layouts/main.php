@@ -34,6 +34,10 @@ $isReportsGoldLedger = $isReports && ($segment3 === '' || $segment3 === 'gold-le
 $isReportsDiamondLedger = $isReports && $segment3 === 'diamond-ledger';
 $isReportsKarigarPerformance = $isReports && $segment3 === 'karigar-performance';
 $isReportsInventory = $isReports && $segment3 === 'inventory';
+$isReportsStaffDirectory = $isReports && $segment3 === 'staff-directory';
+$isReportsDepartmentStaff = $isReports && $segment3 === 'department-staff';
+$isReportsDesignationStaff = $isReports && $segment3 === 'designation-staff';
+$isReportsStaffHierarchy = $isReports && $segment3 === 'staff-hierarchy';
 $isAccounts = $segment2 === 'accounts';
 $isAccountsPurchaseBills = $isAccounts && ($segment3 === '' || $segment3 === 'purchase-bills');
 $isAccountsLabourBills = $isAccounts && $segment3 === 'labour-bills';
@@ -518,6 +522,10 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                                 <li><a class="<?= $isReportsDiamondLedger ? 'active' : '' ?>" href="<?= site_url('admin/reports/diamond-ledger') ?>"><i class="fe fe-disc"></i> Diamond Ledger Report</a></li>
                                 <li><a class="<?= $isReportsKarigarPerformance ? 'active' : '' ?>" href="<?= site_url('admin/reports/karigar-performance') ?>"><i class="fe fe-activity"></i> Karigar Performance</a></li>
                                 <li><a class="<?= $isReportsInventory ? 'active' : '' ?>" href="<?= site_url('admin/reports/inventory') ?>"><i class="fe fe-layers"></i> Inventory Report</a></li>
+                                <li><a class="<?= $isReportsStaffDirectory ? 'active' : '' ?>" href="<?= site_url('admin/reports/staff-directory') ?>"><i class="fe fe-users"></i> Staff Directory</a></li>
+                                <li><a class="<?= $isReportsDepartmentStaff ? 'active' : '' ?>" href="<?= site_url('admin/reports/department-staff') ?>"><i class="fe fe-grid"></i> Department Staff</a></li>
+                                <li><a class="<?= $isReportsDesignationStaff ? 'active' : '' ?>" href="<?= site_url('admin/reports/designation-staff') ?>"><i class="fe fe-award"></i> Designation Staff</a></li>
+                                <li><a class="<?= $isReportsStaffHierarchy ? 'active' : '' ?>" href="<?= site_url('admin/reports/staff-hierarchy') ?>"><i class="fe fe-git-branch"></i> Staff Hierarchy</a></li>
                             </ul>
                         </li>
                         <?php endif; ?>

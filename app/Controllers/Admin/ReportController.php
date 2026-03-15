@@ -4,6 +4,8 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\KarigarModel;
+use App\Models\DepartmentModel;
+use App\Models\DesignationModel;
 
 class ReportController extends BaseController
 {
@@ -397,6 +399,251 @@ class ReportController extends BaseController
         ]);
     }
 
+    public function staffDirectory(): string
+    {
+        $filters = [
+            'department_id' => (int) ($this->request->getGet('department_id') ?? 0),
+            'designation_id' => (int) ($this->request->getGet('designation_id') ?? 0),
+            'status' => trim((string) ($this->request->getGet('status') ?? 'active')),
+            'location' => trim((string) ($this->request->getGet('location') ?? '')),
+        ];
+
+        $builder = db_connect()->table('employees e')
+            ->select('e.employee_code, e.full_name, e.mobile, e.email, e.work_location, e.joining_date, e.is_active, dep.name as department_name, des.name as designation_name, rm.full_name as reporting_manager_name')
+            ->join('departments dep', 'dep.id = e.department_id', 'left')
+            ->join('designations des', 'des.id = e.designation_id', 'left')
+            ->join('employee_hierarchies eh', 'eh.employee_id = e.id AND eh.is_active = 1', 'left', false)
+            ->join('employees rm', 'rm.id = eh.reporting_manager_id', 'left')
+            ->orderBy('e.full_name', 'ASC');
+
+        if ($filters['department_id'] > 0) {
+            $builder->where('e.department_id', $filters['department_id']);
+        }
+        if ($filters['designation_id'] > 0) {
+            $builder->where('e.designation_id', $filters['designation_id']);
+        }
+        if ($filters['status'] === 'active') {
+            $builder->where('e.is_active', 1);
+        } elseif ($filters['status'] === 'inactive') {
+            $builder->where('e.is_active', 0);
+        }
+        if ($filters['location'] !== '') {
+            $builder->like('e.work_location', $filters['location']);
+        }
+
+        $rows = $builder->get()->getResultArray();
+
+        $cards = [
+            'total' => count($rows),
+            'active' => 0,
+            'inactive' => 0,
+            'locations' => [],
+        ];
+        foreach ($rows as $row) {
+            if ((int) ($row['is_active'] ?? 0) === 1) {
+                $cards['active']++;
+            } else {
+                $cards['inactive']++;
+            }
+            $location = trim((string) ($row['work_location'] ?? ''));
+            if ($location !== '') {
+                $cards['locations'][$location] = true;
+            }
+        }
+        $cards['locations'] = count($cards['locations']);
+
+        return view('admin/reports/staff_directory', [
+            'title' => 'Staff Directory',
+            'rows' => $rows,
+            'cards' => $cards,
+            'filters' => $filters,
+            'departments' => $this->departmentOptions(),
+            'designations' => $this->designationOptions(),
+        ]);
+    }
+
+    public function departmentStaff(): string
+    {
+        $filters = [
+            'status' => trim((string) ($this->request->getGet('status') ?? 'active')),
+        ];
+
+        $builder = db_connect()->table('departments d')
+            ->select("
+                d.department_code,
+                d.name,
+                d.is_active,
+                COUNT(e.id) as total_staff,
+                SUM(CASE WHEN e.is_active = 1 THEN 1 ELSE 0 END) as active_staff,
+                SUM(CASE WHEN e.is_active = 0 THEN 1 ELSE 0 END) as inactive_staff,
+                SUM(CASE WHEN des.can_manage_team = 1 THEN 1 ELSE 0 END) as managers
+            ", false)
+            ->join('employees e', 'e.department_id = d.id', 'left')
+            ->join('designations des', 'des.id = e.designation_id', 'left')
+            ->groupBy('d.id')
+            ->orderBy('d.sort_order', 'ASC')
+            ->orderBy('d.name', 'ASC');
+
+        if ($filters['status'] === 'active') {
+            $builder->where('d.is_active', 1);
+        } elseif ($filters['status'] === 'inactive') {
+            $builder->where('d.is_active', 0);
+        }
+
+        $rows = $builder->get()->getResultArray();
+
+        $cards = [
+            'departments' => count($rows),
+            'total_staff' => 0,
+            'active_staff' => 0,
+            'managers' => 0,
+        ];
+        foreach ($rows as $row) {
+            $cards['total_staff'] += (int) ($row['total_staff'] ?? 0);
+            $cards['active_staff'] += (int) ($row['active_staff'] ?? 0);
+            $cards['managers'] += (int) ($row['managers'] ?? 0);
+        }
+
+        return view('admin/reports/department_staff', [
+            'title' => 'Department Staff Report',
+            'rows' => $rows,
+            'cards' => $cards,
+            'filters' => $filters,
+        ]);
+    }
+
+    public function designationStaff(): string
+    {
+        $filters = [
+            'department_id' => (int) ($this->request->getGet('department_id') ?? 0),
+            'status' => trim((string) ($this->request->getGet('status') ?? 'active')),
+        ];
+
+        $builder = db_connect()->table('designations des')
+            ->select("
+                des.designation_code,
+                des.name,
+                des.level_no,
+                des.can_manage_team,
+                des.is_active,
+                dep.name as department_name,
+                rpt.name as reports_to_designation_name,
+                COUNT(e.id) as total_staff,
+                SUM(CASE WHEN e.is_active = 1 THEN 1 ELSE 0 END) as active_staff
+            ", false)
+            ->join('departments dep', 'dep.id = des.department_id', 'left')
+            ->join('designations rpt', 'rpt.id = des.reports_to_designation_id', 'left')
+            ->join('employees e', 'e.designation_id = des.id', 'left')
+            ->groupBy('des.id')
+            ->orderBy('dep.name', 'ASC')
+            ->orderBy('des.level_no', 'ASC')
+            ->orderBy('des.name', 'ASC');
+
+        if ($filters['department_id'] > 0) {
+            $builder->where('des.department_id', $filters['department_id']);
+        }
+        if ($filters['status'] === 'active') {
+            $builder->where('des.is_active', 1);
+        } elseif ($filters['status'] === 'inactive') {
+            $builder->where('des.is_active', 0);
+        }
+
+        $rows = $builder->get()->getResultArray();
+
+        $cards = [
+            'designations' => count($rows),
+            'team_designations' => 0,
+            'total_staff' => 0,
+            'active_staff' => 0,
+        ];
+        foreach ($rows as $row) {
+            $cards['total_staff'] += (int) ($row['total_staff'] ?? 0);
+            $cards['active_staff'] += (int) ($row['active_staff'] ?? 0);
+            if ((int) ($row['can_manage_team'] ?? 0) === 1) {
+                $cards['team_designations']++;
+            }
+        }
+
+        return view('admin/reports/designation_staff', [
+            'title' => 'Designation Staff Report',
+            'rows' => $rows,
+            'cards' => $cards,
+            'filters' => $filters,
+            'departments' => $this->departmentOptions(),
+        ]);
+    }
+
+    public function staffHierarchy(): string
+    {
+        $filters = [
+            'department_id' => (int) ($this->request->getGet('department_id') ?? 0),
+            'manager_id' => (int) ($this->request->getGet('manager_id') ?? 0),
+        ];
+
+        $builder = db_connect()->table('employees m')
+            ->select("
+                m.id,
+                m.employee_code,
+                m.full_name,
+                m.work_location,
+                dep.name as department_name,
+                des.name as designation_name,
+                COUNT(DISTINCT rep.employee_id) as direct_reports,
+                COUNT(DISTINCT obs.employee_id) as observing_reports,
+                COUNT(DISTINCT rev.employee_id) as reviewing_reports,
+                COUNT(DISTINCT app.employee_id) as approving_reports
+            ", false)
+            ->join('departments dep', 'dep.id = m.department_id', 'left')
+            ->join('designations des', 'des.id = m.designation_id', 'left')
+            ->join('employee_hierarchies rep', 'rep.reporting_manager_id = m.id AND rep.is_active = 1', 'left', false)
+            ->join('employee_hierarchies obs', 'obs.observing_manager_id = m.id AND obs.is_active = 1', 'left', false)
+            ->join('employee_hierarchies rev', 'rev.reviewing_manager_id = m.id AND rev.is_active = 1', 'left', false)
+            ->join('employee_hierarchies app', 'app.approving_manager_id = m.id AND app.is_active = 1', 'left', false)
+            ->where('m.is_active', 1)
+            ->groupBy('m.id')
+            ->having('(COUNT(DISTINCT rep.employee_id) + COUNT(DISTINCT obs.employee_id) + COUNT(DISTINCT rev.employee_id) + COUNT(DISTINCT app.employee_id)) >', 0, false)
+            ->orderBy('direct_reports', 'DESC')
+            ->orderBy('m.full_name', 'ASC');
+
+        if ($filters['department_id'] > 0) {
+            $builder->where('m.department_id', $filters['department_id']);
+        }
+        if ($filters['manager_id'] > 0) {
+            $builder->where('m.id', $filters['manager_id']);
+        }
+
+        $rows = $builder->get()->getResultArray();
+
+        foreach ($rows as &$row) {
+            $managerId = (int) ($row['id'] ?? 0);
+            $row['team_members'] = $managerId > 0 ? $this->managerTeamMembers($managerId) : [];
+        }
+        unset($row);
+
+        $cards = [
+            'managers' => count($rows),
+            'direct_reports' => 0,
+            'observing_reports' => 0,
+            'reviewing_reports' => 0,
+            'approving_reports' => 0,
+        ];
+        foreach ($rows as $row) {
+            $cards['direct_reports'] += (int) ($row['direct_reports'] ?? 0);
+            $cards['observing_reports'] += (int) ($row['observing_reports'] ?? 0);
+            $cards['reviewing_reports'] += (int) ($row['reviewing_reports'] ?? 0);
+            $cards['approving_reports'] += (int) ($row['approving_reports'] ?? 0);
+        }
+
+        return view('admin/reports/staff_hierarchy', [
+            'title' => 'Staff Hierarchy Report',
+            'rows' => $rows,
+            'cards' => $cards,
+            'filters' => $filters,
+            'departments' => $this->departmentOptions(),
+            'employees' => $this->employeeOptions(),
+        ]);
+    }
+
     /**
      * @return list<array<string,mixed>>
      */
@@ -406,6 +653,46 @@ class ReportController extends BaseController
             ->where('is_active', 1)
             ->orderBy('name', 'ASC')
             ->findAll();
+    }
+
+    private function departmentOptions(): array
+    {
+        return (new DepartmentModel())
+            ->orderBy('sort_order', 'ASC')
+            ->orderBy('name', 'ASC')
+            ->findAll();
+    }
+
+    private function designationOptions(): array
+    {
+        return (new DesignationModel())
+            ->orderBy('name', 'ASC')
+            ->findAll();
+    }
+
+    private function employeeOptions(): array
+    {
+        return db_connect()->table('employees e')
+            ->select('e.id, e.full_name, e.employee_code, des.name as designation_name')
+            ->join('designations des', 'des.id = e.designation_id', 'left')
+            ->where('e.is_active', 1)
+            ->orderBy('e.full_name', 'ASC')
+            ->get()
+            ->getResultArray();
+    }
+
+    private function managerTeamMembers(int $managerId): array
+    {
+        return db_connect()->table('employee_hierarchies eh')
+            ->select('e.employee_code, e.full_name, dep.name as department_name, des.name as designation_name')
+            ->join('employees e', 'e.id = eh.employee_id', 'inner')
+            ->join('departments dep', 'dep.id = e.department_id', 'left')
+            ->join('designations des', 'des.id = e.designation_id', 'left')
+            ->where('eh.reporting_manager_id', $managerId)
+            ->where('eh.is_active', 1)
+            ->orderBy('e.full_name', 'ASC')
+            ->get()
+            ->getResultArray();
     }
 
     /**
