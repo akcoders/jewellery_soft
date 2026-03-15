@@ -263,6 +263,23 @@ class DocumentsController extends ApiBaseController
         );
     }
 
+    public function labourBill(int $billId)
+    {
+        $payload = $this->labourBillPayload($billId);
+        if (! is_array($payload)) {
+            return $this->fail('Labour bill not found.', 404);
+        }
+
+        $pdf = $this->pdf->render('pdf/labour_bill', $payload);
+        $download = (string) ($this->request->getGet('download') ?? '');
+        $disposition = $download === '1' ? 'attachment' : 'inline';
+        $filename = 'labour_bill_' . ($payload['bill']['bill_no'] ?? $billId) . '.pdf';
+
+        return $this->response->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', $disposition . '; filename="' . $filename . '"')
+            ->setBody($pdf);
+    }
+
     public function invoice(int $invoiceId)
     {
         $db = db_connect();
@@ -465,6 +482,121 @@ class DocumentsController extends ApiBaseController
             ->setBody($pdf);
     }
 
+    private function labourBillPayload(int $billId): ?array
+    {
+        if ($billId <= 0) {
+            return null;
+        }
+
+        $db = db_connect();
+        if (! $db->tableExists('labour_bills')) {
+            return null;
+        }
+
+        $bill = $db->table('labour_bills lb')
+            ->select('lb.*, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode, k.pan_no as karigar_pan_no, k.bank_name as karigar_bank_name, k.bank_account_no as karigar_bank_account_no, k.ifsc_code as karigar_ifsc_code, k.department as karigar_department, k.skills_text as karigar_skills, k.wastage_percentage as karigar_wastage_percentage, o.order_no, o.customer_id, c.name as customer_name, c.gstin as customer_gstin')
+            ->join('karigars k', 'k.id = lb.karigar_id', 'left')
+            ->join('orders o', 'o.id = lb.order_id', 'left')
+            ->join('customers c', 'c.id = o.customer_id', 'left')
+            ->where('lb.id', $billId)
+            ->get()
+            ->getRowArray();
+
+        if (! is_array($bill)) {
+            return null;
+        }
+
+        $orderId = (int) ($bill['order_id'] ?? 0);
+        $movementId = (int) ($bill['receive_movement_id'] ?? 0);
+
+        $receive = [
+            'gross_weight_gm' => 0.0,
+            'net_gold_weight_gm' => round((float) ($bill['gold_weight_gm'] ?? 0), 3),
+            'pure_gold_weight_gm' => 0.0,
+            'diamond_weight_cts' => 0.0,
+            'diamond_weight_gm' => 0.0,
+            'stone_weight_cts' => 0.0,
+            'stone_weight_gm' => 0.0,
+            'other_weight_gm' => 0.0,
+            'diamond_amount' => 0.0,
+            'stone_amount' => 0.0,
+            'other_amount' => round((float) ($bill['other_amount'] ?? 0), 2),
+            'gold_amount' => 0.0,
+            'labour_rate_per_gm' => round((float) ($bill['rate_per_gm'] ?? 0), 2),
+            'labour_amount' => round((float) ($bill['labour_amount'] ?? 0), 2),
+            'total_valuation' => round((float) ($bill['total_amount'] ?? 0), 2),
+        ];
+
+        if ($db->tableExists('order_receive_summaries')) {
+            $receiveRow = $db->table('order_receive_summaries')
+                ->where($movementId > 0 ? ['movement_id' => $movementId] : ['order_id' => $orderId])
+                ->get()
+                ->getRowArray();
+
+            if (is_array($receiveRow)) {
+                $receive = [
+                    'gross_weight_gm' => round((float) ($receiveRow['gross_weight_gm'] ?? 0), 3),
+                    'net_gold_weight_gm' => round((float) ($receiveRow['net_gold_weight_gm'] ?? ($bill['gold_weight_gm'] ?? 0)), 3),
+                    'pure_gold_weight_gm' => round((float) ($receiveRow['pure_gold_weight_gm'] ?? 0), 3),
+                    'diamond_weight_cts' => round((float) ($receiveRow['diamond_weight_cts'] ?? 0), 3),
+                    'diamond_weight_gm' => round((float) ($receiveRow['diamond_weight_gm'] ?? 0), 3),
+                    'stone_weight_cts' => round((float) ($receiveRow['stone_weight_cts'] ?? 0), 3),
+                    'stone_weight_gm' => round((float) ($receiveRow['stone_weight_gm'] ?? 0), 3),
+                    'other_weight_gm' => round((float) ($receiveRow['other_weight_gm'] ?? 0), 3),
+                    'diamond_amount' => round((float) ($receiveRow['diamond_amount'] ?? 0), 2),
+                    'stone_amount' => round((float) ($receiveRow['stone_amount'] ?? 0), 2),
+                    'other_amount' => round((float) ($receiveRow['other_amount'] ?? ($bill['other_amount'] ?? 0)), 2),
+                    'gold_amount' => round((float) ($receiveRow['gold_amount'] ?? 0), 2),
+                    'labour_rate_per_gm' => round((float) ($receiveRow['labour_rate_per_gm'] ?? ($bill['rate_per_gm'] ?? 0)), 2),
+                    'labour_amount' => round((float) ($receiveRow['labour_amount'] ?? ($bill['labour_amount'] ?? 0)), 2),
+                    'total_valuation' => round((float) ($receiveRow['total_valuation'] ?? ($bill['total_amount'] ?? 0)), 2),
+                ];
+            }
+        }
+
+        $purityCode = '-';
+        if ($orderId > 0 && $db->tableExists('order_items') && $db->tableExists('gold_purities')) {
+            $purityRow = $db->table('order_items oi')
+                ->select('gp.purity_code')
+                ->join('gold_purities gp', 'gp.id = oi.gold_purity_id', 'left')
+                ->where('oi.order_id', $orderId)
+                ->orderBy('oi.id', 'ASC')
+                ->get(1)
+                ->getRowArray();
+            $purityCode = trim((string) ($purityRow['purity_code'] ?? '-'));
+            if ($purityCode === '') {
+                $purityCode = '-';
+            }
+        }
+
+        $wastagePercent = round((float) ($bill['karigar_wastage_percentage'] ?? 0), 3);
+        $wastageWeight = round((float) ($receive['net_gold_weight_gm'] ?? 0) * ($wastagePercent / 100), 3);
+        $taxableAmount = round((float) ($bill['total_amount'] ?? 0), 2);
+        $igstPercent = 5.0;
+        $igstAmount = round($taxableAmount * ($igstPercent / 100), 2);
+        $totalWithTax = round($taxableAmount + $igstAmount, 2);
+        $company = $this->companySetting();
+
+        return [
+            'bill' => $bill,
+            'company' => $company,
+            'receive' => $receive,
+            'purityCode' => $purityCode,
+            'stateCode' => $this->stateCode((string) ($bill['karigar_state'] ?? ($company['state'] ?? ''))),
+            'wastagePercent' => $wastagePercent,
+            'wastageWeight' => $wastageWeight,
+            'taxableAmount' => $taxableAmount,
+            'sgstPercent' => 0.0,
+            'sgstAmount' => 0.0,
+            'cgstPercent' => 0.0,
+            'cgstAmount' => 0.0,
+            'igstPercent' => $igstPercent,
+            'igstAmount' => $igstAmount,
+            'totalWithTax' => $totalWithTax,
+            'amountInWords' => $this->amountInWordsIndian($totalWithTax),
+        ];
+    }
+
     private function eligibleOrderForDocuments(int $orderId): ?array
     {
         if ($orderId <= 0) {
@@ -587,6 +719,124 @@ class DocumentsController extends ApiBaseController
     {
         $row = $this->companySettingModel->orderBy('id', 'ASC')->first();
         return is_array($row) ? $row : [];
+    }
+
+    private function stateCode(string $state): string
+    {
+        $normalized = strtoupper(trim($state));
+        if ($normalized === '') {
+            return '-';
+        }
+
+        $map = [
+            'ANDHRA PRADESH' => '37',
+            'ARUNACHAL PRADESH' => '12',
+            'ASSAM' => '18',
+            'BIHAR' => '10',
+            'CHHATTISGARH' => '22',
+            'GOA' => '30',
+            'GUJARAT' => '24',
+            'HARYANA' => '06',
+            'HIMACHAL PRADESH' => '02',
+            'JHARKHAND' => '20',
+            'KARNATAKA' => '29',
+            'KERALA' => '32',
+            'MADHYA PRADESH' => '23',
+            'MAHARASHTRA' => '27',
+            'MANIPUR' => '14',
+            'MEGHALAYA' => '17',
+            'MIZORAM' => '15',
+            'NAGALAND' => '13',
+            'ODISHA' => '21',
+            'PUNJAB' => '03',
+            'RAJASTHAN' => '08',
+            'SIKKIM' => '11',
+            'TAMIL NADU' => '33',
+            'TELANGANA' => '36',
+            'TRIPURA' => '16',
+            'UTTAR PRADESH' => '09',
+            'UTTARAKHAND' => '05',
+            'WEST BENGAL' => '19',
+            'DELHI' => '07',
+            'JAMMU AND KASHMIR' => '01',
+            'LADAKH' => '38',
+            'PUDUCHERRY' => '34',
+            'CHANDIGARH' => '04',
+            'DADRA AND NAGAR HAVELI AND DAMAN AND DIU' => '26',
+            'ANDAMAN AND NICOBAR ISLANDS' => '35',
+            'LAKSHADWEEP' => '31',
+        ];
+
+        return $map[$normalized] ?? '-';
+    }
+
+    private function amountInWordsIndian(float $amount): string
+    {
+        $rupees = (int) floor(max(0, $amount));
+        $paise = (int) round(($amount - $rupees) * 100);
+
+        $words = $this->integerToIndianWords($rupees) . ' Rupees';
+        if ($paise > 0) {
+            $words .= ' and ' . $this->integerToIndianWords($paise) . ' Paise';
+        }
+
+        return trim($words) . ' Only';
+    }
+
+    private function integerToIndianWords(int $number): string
+    {
+        if ($number === 0) {
+            return 'Zero';
+        }
+
+        $ones = [
+            '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+            'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+            'Seventeen', 'Eighteen', 'Nineteen',
+        ];
+        $tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+        $twoDigits = static function (int $value) use ($ones, $tens): string {
+            if ($value < 20) {
+                return $ones[$value];
+            }
+
+            $text = $tens[(int) floor($value / 10)];
+            $unit = $value % 10;
+            if ($unit > 0) {
+                $text .= ' ' . $ones[$unit];
+            }
+
+            return trim($text);
+        };
+
+        $parts = [];
+        $crore = (int) floor($number / 10000000);
+        $number %= 10000000;
+        $lakh = (int) floor($number / 100000);
+        $number %= 100000;
+        $thousand = (int) floor($number / 1000);
+        $number %= 1000;
+        $hundred = (int) floor($number / 100);
+        $rest = $number % 100;
+
+        if ($crore > 0) {
+            $parts[] = $twoDigits($crore) . ' Crore';
+        }
+        if ($lakh > 0) {
+            $parts[] = $twoDigits($lakh) . ' Lakh';
+        }
+        if ($thousand > 0) {
+            $parts[] = $twoDigits($thousand) . ' Thousand';
+        }
+        if ($hundred > 0) {
+            $parts[] = $ones[$hundred] . ' Hundred';
+        }
+        if ($rest > 0) {
+            $parts[] = $twoDigits($rest);
+        }
+
+        return trim(implode(' ', array_filter($parts)));
     }
 
     private function saveDeliveryChallanSnapshot(int $orderId, int $packingId, array $setting, array $receive, array $pricing): array

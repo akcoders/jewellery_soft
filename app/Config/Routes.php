@@ -298,6 +298,7 @@ $routes->group('api', static function ($routes): void {
     $routes->get('documents/diamond-issue/(:num)', 'Api\DocumentsController::diamondIssueChallan/$1');
     $routes->get('documents/return-voucher/(:num)', 'Api\DocumentsController::returnVoucher/$1');
     $routes->get('documents/packing-list/(:num)', 'Api\DocumentsController::packingList/$1');
+    $routes->get('documents/labour-bill/(:num)', 'Api\DocumentsController::labourBill/$1');
     $routes->get('documents/orders/(:num)/packing-list', 'Api\DocumentsController::packingListByOrder/$1');
     $routes->get('documents/orders/(:num)/delivery-challan', 'Api\DocumentsController::deliveryChallan/$1');
     $routes->get('documents/mobile/diamond/issues/(:num)', 'Api\DocumentsController::mobileDiamondIssue/$1');

@@ -62,6 +62,13 @@
                             <td><?= esc((string) ($row['days_left'] ?? '-')) ?></td>
                             <td><span class="badge <?= esc($statusClass) ?>"><?= esc($status) ?></span></td>
                             <td>
+                                <a
+                                    href="<?= site_url('api/documents/labour-bill/' . (int) ($row['id'] ?? 0)) ?>?download=1"
+                                    class="btn btn-sm btn-outline-primary"
+                                    target="_blank"
+                                    title="Download Labour Bill PDF">
+                                    <i class="fe fe-download"></i>
+                                </a>
                                 <button
                                     type="button"
                                     class="btn btn-sm btn-outline-success js-labour-payment-btn"
@@ -169,4 +176,3 @@
     })();
 </script>
 <?= $this->endSection() ?>
-
