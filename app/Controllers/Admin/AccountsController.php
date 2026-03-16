@@ -406,8 +406,28 @@ class AccountsController extends BaseController
 
     public function saleBills(): string
     {
+        $db = db_connect();
+        $rows = [];
+
+        if ($db->tableExists('showroom_sales')) {
+            $rows = $db->table('showroom_sales s')
+                ->select('s.*, sh.name as showroom_name, c.counter_name, e.full_name as salesperson_name, cust.name as customer_name, i.invoice_no, i.invoice_date, COALESCE(SUM(cr.amount),0) as paid_amount', false)
+                ->join('showrooms sh', 'sh.id = s.showroom_id', 'left')
+                ->join('showroom_counters c', 'c.id = s.showroom_counter_id', 'left')
+                ->join('employees e', 'e.id = s.salesperson_employee_id', 'left')
+                ->join('customers cust', 'cust.id = s.customer_id', 'left')
+                ->join('invoices i', 'i.id = s.invoice_id', 'left')
+                ->join('customer_receipts cr', 'cr.invoice_id = s.invoice_id', 'left')
+                ->groupBy('s.id')
+                ->orderBy('s.id', 'DESC')
+                ->get()
+                ->getResultArray();
+        }
+
         return view('admin/accounts/sale_bills', [
             'title' => 'Sale Bills',
+            'rows' => $rows,
+            'showroomSalesEnabled' => $db->tableExists('showroom_sales'),
         ]);
     }
 

@@ -28,7 +28,13 @@ $isShowrooms = $segment2 === 'showrooms';
 $isShowroomCounters = $segment2 === 'showroom-counters';
 $isShowroomStaff = $segment2 === 'showroom-staff';
 $isShowroomStock = $segment2 === 'showroom-stock';
-$isShowroomModule = $isShowrooms || $isShowroomCounters || $isShowroomStaff || $isShowroomStock;
+$isShowroomSales = $segment2 === 'showroom-sales';
+$isShowroomModule = $isShowrooms || $isShowroomCounters || $isShowroomStaff || $isShowroomStock || $isShowroomSales;
+$isPerformance = $segment2 === 'performance';
+$isPerformanceDashboard = $isPerformance && ($segment3 === 'dashboard' || $segment3 === '');
+$isPerformanceKpis = $isPerformance && $segment3 === 'kpis';
+$isPerformanceTargets = $isPerformance && $segment3 === 'targets';
+$isPerformanceIncentives = $isPerformance && $segment3 === 'incentives';
 $isAccess = $segment2 === 'access';
 $isAccessRoles = $isAccess && $segment3 === 'roles';
 $isAccessPermissions = $isAccess && $segment3 === 'permissions';
@@ -93,6 +99,8 @@ $canKarigars = admin_can('masters.karigars.read');
 $canStaffHierarchy = admin_can_any(['organization.departments.read', 'organization.designations.read', 'organization.employees.read', 'organization.hierarchy.read']);
 $canShowroomMasters = admin_can('showroom.masters.read');
 $canShowroomStock = admin_can('showroom.stock.read');
+$canShowroomSales = admin_can('showroom.sales.read');
+$canPerformance = admin_can_any(['performance.dashboard.read', 'performance.kpis.read', 'performance.targets.read', 'performance.incentives.read']);
 $canVendors = admin_can('masters.vendors.read');
 $canCompanySettings = admin_can_any(['company-settings.read', 'company-settings.manage']);
 $canInventorySettings = admin_can('inventory.settings.read');
@@ -569,7 +577,7 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                             </ul>
                         </li>
                         <?php endif; ?>
-                        <?php if ($canShowroomMasters || $canShowroomStock): ?>
+                        <?php if ($canShowroomMasters || $canShowroomStock || $canShowroomSales): ?>
                         <li class="submenu <?= $isShowroomModule ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-shopping-bag"></i> <span>Retail Showroom</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isShowroomModule ? 'display:block;' : 'display:none;' ?>">
@@ -577,6 +585,18 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                                 <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomCounters ? 'active' : '' ?>" href="<?= site_url('admin/showroom-counters') ?>"><i class="fe fe-grid"></i> Counter Master</a></li><?php endif; ?>
                                 <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomStaff ? 'active' : '' ?>" href="<?= site_url('admin/showroom-staff') ?>"><i class="fe fe-users"></i> Staff Assignment</a></li><?php endif; ?>
                                 <?php if ($canShowroomStock): ?><li><a class="<?= $isShowroomStock ? 'active' : '' ?>" href="<?= site_url('admin/showroom-stock') ?>"><i class="fe fe-layers"></i> Showroom Stock</a></li><?php endif; ?>
+                                <?php if ($canShowroomSales): ?><li><a class="<?= $isShowroomSales ? 'active' : '' ?>" href="<?= site_url('admin/showroom-sales') ?>"><i class="fe fe-credit-card"></i> Sales Billing</a></li><?php endif; ?>
+                            </ul>
+                        </li>
+                        <?php endif; ?>
+                        <?php if ($canPerformance): ?>
+                        <li class="submenu <?= $isPerformance ? 'active' : '' ?>">
+                            <a href="javascript:void(0);"><i class="fe fe-trending-up"></i> <span>Performance</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isPerformance ? 'display:block;' : 'display:none;' ?>">
+                                <?php if (admin_can('performance.dashboard.read')): ?><li><a class="<?= $isPerformanceDashboard ? 'active' : '' ?>" href="<?= site_url('admin/performance/dashboard') ?>"><i class="fe fe-bar-chart-2"></i> KPI Dashboard</a></li><?php endif; ?>
+                                <?php if (admin_can('performance.kpis.read')): ?><li><a class="<?= $isPerformanceKpis ? 'active' : '' ?>" href="<?= site_url('admin/performance/kpis') ?>"><i class="fe fe-activity"></i> KPI Master</a></li><?php endif; ?>
+                                <?php if (admin_can('performance.targets.read')): ?><li><a class="<?= $isPerformanceTargets ? 'active' : '' ?>" href="<?= site_url('admin/performance/targets') ?>"><i class="fe fe-target"></i> KPI Targets</a></li><?php endif; ?>
+                                <?php if (admin_can('performance.incentives.read')): ?><li><a class="<?= $isPerformanceIncentives ? 'active' : '' ?>" href="<?= site_url('admin/performance/incentives') ?>"><i class="fe fe-award"></i> Incentive Rules</a></li><?php endif; ?>
                             </ul>
                         </li>
                         <?php endif; ?>

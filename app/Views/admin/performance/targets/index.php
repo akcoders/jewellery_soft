@@ -1,0 +1,8 @@
+<?= $this->extend('admin/layouts/main') ?>
+
+<?= $this->section('content') ?>
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center"><h5 class="card-title mb-0">KPI Targets</h5><?php if (admin_can('performance.targets.manage')): ?><a href="<?= site_url('admin/performance/targets/create') ?>" class="btn btn-primary"><i class="fe fe-plus"></i> Assign Target</a><?php endif; ?></div>
+    <div class="card-body"><div class="table-responsive"><table class="table datatable table-hover mb-0"><thead><tr><th>Employee</th><th>Designation</th><th>KPI</th><th>Period</th><th>Target</th><th>Weightage</th><th>Status</th><th>Actions</th></tr></thead><tbody><?php foreach (($rows ?? []) as $row): ?><tr><td><?= esc((string) ($row['full_name'] ?? '-')) ?></td><td><?= esc((string) ($row['designation_name'] ?? '-')) ?></td><td><?= esc((string) ($row['kpi_name'] ?? '-')) ?></td><td><?= esc((string) (($row['target_month'] ?? '-') . '/' . ($row['target_year'] ?? '-'))) ?></td><td><?= number_format((float) ($row['target_value'] ?? 0), 2) ?></td><td><?= number_format((float) ($row['weightage'] ?? 0), 2) ?></td><td><span class="badge <?= (int) ($row['is_active'] ?? 0) === 1 ? 'bg-success' : 'bg-secondary' ?>"><?= (int) ($row['is_active'] ?? 0) === 1 ? 'Active' : 'Inactive' ?></span></td><td><?php if (admin_can('performance.targets.manage')): ?><a href="<?= site_url('admin/performance/targets/' . (int) $row['id'] . '/edit') ?>" class="btn btn-sm btn-outline-primary"><i class="fe fe-edit"></i></a><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div></div>
+</div>
+<?= $this->endSection() ?>

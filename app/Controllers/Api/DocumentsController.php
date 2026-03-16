@@ -295,8 +295,10 @@ class DocumentsController extends ApiBaseController
             'customer_name' => $this->nameFromTable('customers', (int) ($invoice['customer_id'] ?? 0)),
         ]);
 
+        $download = (string) ($this->request->getGet('download') ?? '');
+        $disposition = $download === '1' ? 'attachment' : 'inline';
         return $this->response->setHeader('Content-Type', 'application/pdf')
-            ->setHeader('Content-Disposition', 'inline; filename="invoice_' . $invoiceId . '.pdf"')
+            ->setHeader('Content-Disposition', $disposition . '; filename="invoice_' . $invoiceId . '.pdf"')
             ->setBody($pdf);
     }
 

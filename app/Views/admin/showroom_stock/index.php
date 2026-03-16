@@ -25,12 +25,17 @@
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="card-title mb-0">Showroom Stock</h5>
-        <?php if (admin_can('showroom.stock.manage')): ?>
+        <?php if (admin_can_any(['showroom.stock.manage', 'showroom.sales.manage', 'showroom.reservations.manage'])): ?>
             <div class="d-flex gap-2">
-                <a href="<?= site_url('admin/showroom-stock/transfer') ?>" class="btn btn-primary"><i class="fe fe-arrow-right-circle"></i> Transfer FG</a>
-                <a href="<?= site_url('admin/showroom-stock/allocation') ?>" class="btn btn-outline-primary"><i class="fe fe-grid"></i> Counter Allocation</a>
+                <?php if (admin_can('showroom.stock.manage')): ?>
+                    <a href="<?= site_url('admin/showroom-stock/transfer') ?>" class="btn btn-primary"><i class="fe fe-arrow-right-circle"></i> Transfer FG</a>
+                    <a href="<?= site_url('admin/showroom-stock/allocation') ?>" class="btn btn-outline-primary"><i class="fe fe-grid"></i> Counter Allocation</a>
+                <?php endif; ?>
                 <?php if (admin_can('showroom.reservations.manage')): ?>
                     <a href="<?= site_url('admin/showroom-stock/reservation') ?>" class="btn btn-outline-secondary"><i class="fe fe-bookmark"></i> Reserve Item</a>
+                <?php endif; ?>
+                <?php if (admin_can('showroom.sales.manage')): ?>
+                    <a href="<?= site_url('admin/showroom-sales/create') ?>" class="btn btn-outline-dark"><i class="fe fe-credit-card"></i> New Sale</a>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
