@@ -27,7 +27,8 @@ $isStaffHierarchy = $isDepartments || $isDesignations || $isEmployees || $isEmpl
 $isShowrooms = $segment2 === 'showrooms';
 $isShowroomCounters = $segment2 === 'showroom-counters';
 $isShowroomStaff = $segment2 === 'showroom-staff';
-$isShowroomModule = $isShowrooms || $isShowroomCounters || $isShowroomStaff;
+$isShowroomStock = $segment2 === 'showroom-stock';
+$isShowroomModule = $isShowrooms || $isShowroomCounters || $isShowroomStaff || $isShowroomStock;
 $isAccess = $segment2 === 'access';
 $isAccessRoles = $isAccess && $segment3 === 'roles';
 $isAccessPermissions = $isAccess && $segment3 === 'permissions';
@@ -91,6 +92,7 @@ $canDesigns = admin_can('masters.designs.read');
 $canKarigars = admin_can('masters.karigars.read');
 $canStaffHierarchy = admin_can_any(['organization.departments.read', 'organization.designations.read', 'organization.employees.read', 'organization.hierarchy.read']);
 $canShowroomMasters = admin_can('showroom.masters.read');
+$canShowroomStock = admin_can('showroom.stock.read');
 $canVendors = admin_can('masters.vendors.read');
 $canCompanySettings = admin_can_any(['company-settings.read', 'company-settings.manage']);
 $canInventorySettings = admin_can('inventory.settings.read');
@@ -567,13 +569,14 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                             </ul>
                         </li>
                         <?php endif; ?>
-                        <?php if ($canShowroomMasters): ?>
+                        <?php if ($canShowroomMasters || $canShowroomStock): ?>
                         <li class="submenu <?= $isShowroomModule ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-shopping-bag"></i> <span>Retail Showroom</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isShowroomModule ? 'display:block;' : 'display:none;' ?>">
-                                <li><a class="<?= $isShowrooms ? 'active' : '' ?>" href="<?= site_url('admin/showrooms') ?>"><i class="fe fe-home"></i> Showroom Master</a></li>
-                                <li><a class="<?= $isShowroomCounters ? 'active' : '' ?>" href="<?= site_url('admin/showroom-counters') ?>"><i class="fe fe-grid"></i> Counter Master</a></li>
-                                <li><a class="<?= $isShowroomStaff ? 'active' : '' ?>" href="<?= site_url('admin/showroom-staff') ?>"><i class="fe fe-users"></i> Staff Assignment</a></li>
+                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowrooms ? 'active' : '' ?>" href="<?= site_url('admin/showrooms') ?>"><i class="fe fe-home"></i> Showroom Master</a></li><?php endif; ?>
+                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomCounters ? 'active' : '' ?>" href="<?= site_url('admin/showroom-counters') ?>"><i class="fe fe-grid"></i> Counter Master</a></li><?php endif; ?>
+                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomStaff ? 'active' : '' ?>" href="<?= site_url('admin/showroom-staff') ?>"><i class="fe fe-users"></i> Staff Assignment</a></li><?php endif; ?>
+                                <?php if ($canShowroomStock): ?><li><a class="<?= $isShowroomStock ? 'active' : '' ?>" href="<?= site_url('admin/showroom-stock') ?>"><i class="fe fe-layers"></i> Showroom Stock</a></li><?php endif; ?>
                             </ul>
                         </li>
                         <?php endif; ?>

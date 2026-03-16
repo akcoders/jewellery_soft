@@ -23,6 +23,9 @@ class FgItemModel extends Model
         'status',
         'warehouse_id',
         'bin_id',
+        'showroom_id',
+        'showroom_counter_id',
+        'showroom_stock_status',
         'reserved_order_id',
         'created_by',
     ];

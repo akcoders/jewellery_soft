@@ -18,8 +18,9 @@ class ShowroomController extends BaseController
     public function index(): string
     {
         $rows = db_connect()->table('showrooms s')
-            ->select('s.*, e.full_name as manager_name')
+            ->select('s.*, e.full_name as manager_name, l.name as warehouse_name')
             ->join('employees e', 'e.id = s.manager_employee_id', 'left')
+            ->join('inventory_locations l', 'l.id = s.warehouse_location_id', 'left')
             ->orderBy('s.name', 'ASC')
             ->get()
             ->getResultArray();
@@ -36,6 +37,7 @@ class ShowroomController extends BaseController
             'title' => 'Create Showroom',
             'row' => null,
             'employees' => $this->employeeOptions(),
+            'locations' => $this->locationOptions(),
             'formAction' => site_url('admin/showrooms'),
         ]);
     }
@@ -56,6 +58,7 @@ class ShowroomController extends BaseController
             'title' => 'Edit Showroom',
             'row' => $row,
             'employees' => $this->employeeOptions(),
+            'locations' => $this->locationOptions(),
             'formAction' => site_url('admin/showrooms/' . $id . '/update'),
         ]);
     }
@@ -83,6 +86,7 @@ class ShowroomController extends BaseController
             'name' => 'required|max_length[150]',
             'showroom_type' => 'required|max_length[50]',
             'manager_employee_id' => 'permit_empty|integer',
+            'warehouse_location_id' => 'permit_empty|integer',
             'phone' => 'permit_empty|max_length[30]',
             'email' => 'permit_empty|valid_email|max_length[120]',
             'gstin' => 'permit_empty|max_length[30]',
@@ -100,6 +104,7 @@ class ShowroomController extends BaseController
             'name' => trim((string) $this->request->getPost('name')),
             'showroom_type' => trim((string) $this->request->getPost('showroom_type')),
             'manager_employee_id' => $this->nullableInt($this->request->getPost('manager_employee_id')),
+            'warehouse_location_id' => $this->nullableInt($this->request->getPost('warehouse_location_id')),
             'phone' => trim((string) $this->request->getPost('phone')) ?: null,
             'email' => trim((string) $this->request->getPost('email')) ?: null,
             'gstin' => trim((string) $this->request->getPost('gstin')) ?: null,
@@ -137,6 +142,20 @@ class ShowroomController extends BaseController
             ->join('designations des', 'des.id = e.designation_id', 'left')
             ->where('e.is_active', 1)
             ->orderBy('e.full_name', 'ASC')
+            ->get()
+            ->getResultArray();
+    }
+
+    private function locationOptions(): array
+    {
+        if (! db_connect()->tableExists('inventory_locations')) {
+            return [];
+        }
+
+        return db_connect()->table('inventory_locations')
+            ->select('id, code, name')
+            ->where('is_active', 1)
+            ->orderBy('name', 'ASC')
             ->get()
             ->getResultArray();
     }
