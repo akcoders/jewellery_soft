@@ -30,6 +30,7 @@
                 <?php if (admin_can('showroom.stock.manage')): ?>
                     <a href="<?= site_url('admin/showroom-stock/transfer') ?>" class="btn btn-primary"><i class="fe fe-arrow-right-circle"></i> Transfer FG</a>
                     <a href="<?= site_url('admin/showroom-stock/allocation') ?>" class="btn btn-outline-primary"><i class="fe fe-grid"></i> Counter Allocation</a>
+                    <a href="<?= site_url('admin/showroom-stock/counter-return') ?>" class="btn btn-outline-secondary"><i class="fe fe-corner-up-left"></i> Counter Return</a>
                 <?php endif; ?>
                 <?php if (admin_can('showroom.reservations.manage')): ?>
                     <a href="<?= site_url('admin/showroom-stock/reservation') ?>" class="btn btn-outline-secondary"><i class="fe fe-bookmark"></i> Reserve Item</a>
@@ -54,10 +55,12 @@
                         <th>Diamond</th>
                         <th>Status</th>
                         <th>Reserved For</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach (($rows ?? []) as $row): ?>
+                        <?php $stockStatus = (string) ($row['showroom_stock_status'] ?? ''); ?>
                         <tr>
                             <td><?= esc((string) ($row['tag_no'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['order_no'] ?? '-')) ?></td>
@@ -66,8 +69,18 @@
                             <td><?= number_format((float) ($row['gross_wt'] ?? 0), 3) ?></td>
                             <td><?= number_format((float) ($row['net_gold_wt'] ?? 0), 3) ?></td>
                             <td><?= number_format((float) ($row['diamond_cts'] ?? 0), 3) ?></td>
-                            <td><span class="badge bg-info text-dark"><?= esc((string) ($row['showroom_stock_status'] ?? '-')) ?></span></td>
+                            <td><span class="badge bg-info text-dark"><?= esc($stockStatus ?: '-') ?></span></td>
                             <td><?= esc((string) (($row['customer_name'] ?: $row['reserved_for_name']) ?? '-')) ?></td>
+                            <td class="text-nowrap">
+                                <?php if ($stockStatus === 'RESERVED' && admin_can('showroom.sales.manage')): ?>
+                                    <a href="<?= site_url('admin/showroom-sales/create?reservation_id=' . (int) ($row['reservation_id'] ?? 0)) ?>" class="btn btn-sm btn-outline-primary"><i class="fe fe-credit-card"></i></a>
+                                <?php elseif (in_array($stockStatus, ['SHOWROOM_AVAILABLE', 'COUNTER_AVAILABLE'], true) && admin_can('showroom.sales.manage')): ?>
+                                    <a href="<?= site_url('admin/showroom-sales/create?showroom_id=' . (int) ($row['showroom_id'] ?? 0) . '&counter_id=' . (int) ($row['showroom_counter_id'] ?? 0)) ?>" class="btn btn-sm btn-outline-primary"><i class="fe fe-credit-card"></i></a>
+                                <?php endif; ?>
+                                <?php if ($stockStatus === 'COUNTER_AVAILABLE' && admin_can('showroom.stock.manage')): ?>
+                                    <a href="<?= site_url('admin/showroom-stock/counter-return?fg_item_id=' . (int) $row['id']) ?>" class="btn btn-sm btn-outline-secondary"><i class="fe fe-corner-up-left"></i></a>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -104,6 +117,9 @@
                             <td><span class="badge <?= (string) ($row['reservation_status'] ?? '') === 'Reserved' ? 'bg-warning text-dark' : 'bg-secondary' ?>"><?= esc((string) ($row['reservation_status'] ?? '-')) ?></span></td>
                             <td><?= esc((string) ($row['expires_on'] ?? '-')) ?></td>
                             <td>
+                                <?php if ((string) ($row['reservation_status'] ?? '') === 'Reserved' && admin_can('showroom.sales.manage')): ?>
+                                    <a href="<?= site_url('admin/showroom-sales/create?reservation_id=' . (int) $row['id']) ?>" class="btn btn-sm btn-outline-primary"><i class="fe fe-credit-card"></i> Bill</a>
+                                <?php endif; ?>
                                 <?php if ((string) ($row['reservation_status'] ?? '') === 'Reserved' && admin_can('showroom.reservations.manage')): ?>
                                     <form method="post" action="<?= site_url('admin/showroom-stock/reservations/' . (int) $row['id'] . '/release') ?>" class="d-inline">
                                         <?= csrf_field() ?>

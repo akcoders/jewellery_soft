@@ -33,6 +33,17 @@
                             </select>
                         </div>
                         <div class="col-md-4">
+                            <label class="form-label">Warehouse Location</label>
+                            <select name="warehouse_location_id" class="form-select select2">
+                                <option value="">Select</option>
+                                <?php foreach (($locations ?? []) as $location): ?>
+                                    <option value="<?= (int) $location['id'] ?>" <?= (int) old('warehouse_location_id', $row['warehouse_location_id'] ?? 0) === (int) $location['id'] ? 'selected' : '' ?>>
+                                        <?= esc((string) $location['name']) ?><?= ! empty($location['code']) ? ' (' . esc((string) $location['code']) . ')' : '' ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">Opening Date</label>
                             <input type="date" name="opening_date" class="form-control" value="<?= esc((string) old('opening_date', $row['opening_date'] ?? '')) ?>">
                         </div>

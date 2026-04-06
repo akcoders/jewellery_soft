@@ -3,15 +3,29 @@
 <?= $this->section('content') ?>
 <form method="post" action="<?= esc($formAction) ?>">
     <?= csrf_field() ?>
+    <?php if (! empty($reservationId)): ?>
+        <input type="hidden" name="reservation_id" value="<?= (int) $reservationId ?>">
+    <?php endif; ?>
     <div class="row g-3">
         <div class="col-lg-4">
+            <?php if (! empty($reservationContext)): ?>
+                <div class="alert alert-info border">
+                    Billing reserved tag <strong><?= esc((string) ($reservationContext['tag_no'] ?? '-')) ?></strong>
+                    <?php if (! empty($reservationContext['customer_name'])): ?>
+                        for <strong><?= esc((string) $reservationContext['customer_name']) ?></strong>
+                    <?php endif; ?>
+                    <?php if (! empty($reservationContext['order_no'])): ?>
+                        against order <strong><?= esc((string) $reservationContext['order_no']) ?></strong>
+                    <?php endif; ?>.
+                </div>
+            <?php endif; ?>
             <div class="card mb-3">
                 <div class="card-header"><h5 class="card-title mb-0">Sale Header</h5></div>
                 <div class="card-body">
                     <div class="mb-3"><label class="form-label">Sale Date</label><input type="date" name="sale_date" class="form-control" value="<?= esc(old('sale_date', date('Y-m-d'))) ?>" required></div>
-                    <div class="mb-3"><label class="form-label">Showroom</label><select name="showroom_id" class="form-select select2" required><option value="">Select showroom</option><?php foreach (($showrooms ?? []) as $row): ?><option value="<?= (int) $row['id'] ?>" <?= old('showroom_id') == $row['id'] ? 'selected' : '' ?>><?= esc((string) $row['name']) ?></option><?php endforeach; ?></select></div>
-                    <div class="mb-3"><label class="form-label">Counter</label><select name="showroom_counter_id" class="form-select select2"><option value="">Any counter</option><?php foreach (($counters ?? []) as $row): ?><option value="<?= (int) $row['id'] ?>" <?= old('showroom_counter_id') == $row['id'] ? 'selected' : '' ?>><?= esc((string) ($row['showroom_name'] . ' / ' . $row['counter_name'])) ?></option><?php endforeach; ?></select></div>
-                    <div class="mb-3"><label class="form-label">Customer</label><select name="customer_id" class="form-select select2" required><option value="">Select customer</option><?php foreach (($customers ?? []) as $row): ?><option value="<?= (int) $row['id'] ?>" <?= old('customer_id') == $row['id'] ? 'selected' : '' ?>><?= esc((string) ($row['name'] . ' / ' . ($row['phone'] ?? '-'))) ?></option><?php endforeach; ?></select></div>
+                    <div class="mb-3"><label class="form-label">Showroom</label><select name="showroom_id" class="form-select select2" required <?= ! empty($prefillShowroomId) ? 'readonly disabled' : '' ?>><option value="">Select showroom</option><?php foreach (($showrooms ?? []) as $row): ?><option value="<?= (int) $row['id'] ?>" <?= (string) old('showroom_id', $prefillShowroomId ?? '') === (string) $row['id'] ? 'selected' : '' ?>><?= esc((string) $row['name']) ?></option><?php endforeach; ?></select><?php if (! empty($prefillShowroomId)): ?><input type="hidden" name="showroom_id" value="<?= (int) $prefillShowroomId ?>"><?php endif; ?></div>
+                    <div class="mb-3"><label class="form-label">Counter</label><select name="showroom_counter_id" class="form-select select2" <?= ! empty($prefillCounterId) ? 'readonly disabled' : '' ?>><option value="">Any counter</option><?php foreach (($counters ?? []) as $row): ?><option value="<?= (int) $row['id'] ?>" <?= (string) old('showroom_counter_id', $prefillCounterId ?? '') === (string) $row['id'] ? 'selected' : '' ?>><?= esc((string) ($row['showroom_name'] . ' / ' . $row['counter_name'])) ?></option><?php endforeach; ?></select><?php if (! empty($prefillCounterId)): ?><input type="hidden" name="showroom_counter_id" value="<?= (int) $prefillCounterId ?>"><?php endif; ?></div>
+                    <div class="mb-3"><label class="form-label">Customer</label><select name="customer_id" class="form-select select2" required <?= ! empty($lockedCustomerId) ? 'readonly disabled' : '' ?>><option value="">Select customer</option><?php foreach (($customers ?? []) as $row): ?><option value="<?= (int) $row['id'] ?>" <?= (string) old('customer_id', $lockedCustomerId ?? '') === (string) $row['id'] ? 'selected' : '' ?>><?= esc((string) ($row['name'] . ' / ' . ($row['phone'] ?? '-'))) ?></option><?php endforeach; ?></select><?php if (! empty($lockedCustomerId)): ?><input type="hidden" name="customer_id" value="<?= (int) $lockedCustomerId ?>"><?php endif; ?></div>
                     <div class="mb-3"><label class="form-label">Salesperson</label><select name="salesperson_employee_id" class="form-select select2" required><option value="">Select salesperson</option><?php foreach (($salesEmployees ?? []) as $row): ?><option value="<?= (int) $row['id'] ?>" <?= old('salesperson_employee_id') == $row['id'] ? 'selected' : '' ?>><?= esc((string) ($row['full_name'] . ' / ' . ($row['designation_name'] ?? '-'))) ?></option><?php endforeach; ?></select></div>
                     <div class="row g-2">
                         <div class="col-md-6"><label class="form-label">GST %</label><input type="number" step="0.01" min="0" name="gst_percent" id="gst_percent" class="form-control" value="<?= esc(old('gst_percent', '3.00')) ?>"></div>
@@ -60,7 +74,7 @@
                             <tbody>
                                 <?php foreach (($fgItems ?? []) as $row): ?>
                                     <tr>
-                                        <td><input type="checkbox" name="fg_item_ids[]" value="<?= (int) $row['id'] ?>"></td>
+                                        <td><input type="checkbox" name="fg_item_ids[]" value="<?= (int) $row['id'] ?>" <?= in_array((int) $row['id'], array_map('intval', $preselectedFgIds ?? []), true) ? 'checked' : '' ?>></td>
                                         <td><?= esc((string) ($row['tag_no'] ?? '-')) ?></td>
                                         <td><?= esc((string) ($row['showroom_name'] ?? '-')) ?></td>
                                         <td><?= esc((string) ($row['counter_name'] ?? '-')) ?></td>

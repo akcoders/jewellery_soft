@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "845623938426",
+    "project_id": "aabhushan-43429",
+    "storage_bucket": "aabhushan-43429.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:845623938426:android:bf436826f89724db1d1ac3",
+        "android_client_info": {
+          "package_name": "com.aabhushan.erp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC5vNO3qMw6FzDgu0oLlZmZq9IWE00AXJg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

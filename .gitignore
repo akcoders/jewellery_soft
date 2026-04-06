@@ -122,8 +122,7 @@ _modules/*
 # Visual Studio Code
 .vscode/
 
-/results/
+
 /phpunit*.xml
 release.zip
-release/
-app_kit/
+

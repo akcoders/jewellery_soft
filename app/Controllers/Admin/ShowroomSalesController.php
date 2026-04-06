@@ -77,6 +77,32 @@ class ShowroomSalesController extends BaseController
 
     public function create(): string
     {
+        $reservationId = (int) ($this->request->getGet('reservation_id') ?? 0);
+        $showroomId = (int) ($this->request->getGet('showroom_id') ?? 0);
+        $counterId = (int) ($this->request->getGet('counter_id') ?? 0);
+        $lockedCustomerId = null;
+        $preselectedFgIds = [];
+        $reservationContext = null;
+
+        if ($reservationId > 0) {
+            $reservationContext = db_connect()->table('showroom_reservations r')
+                ->select('r.*, fg.tag_no, fg.showroom_id as fg_showroom_id, fg.showroom_counter_id as fg_counter_id, cust.name as customer_name, o.order_no')
+                ->join('fg_items fg', 'fg.id = r.fg_item_id', 'left')
+                ->join('customers cust', 'cust.id = r.customer_id', 'left')
+                ->join('orders o', 'o.id = r.order_id', 'left')
+                ->where('r.id', $reservationId)
+                ->where('r.reservation_status', 'Reserved')
+                ->get()
+                ->getRowArray();
+
+            if ($reservationContext) {
+                $showroomId = (int) ($reservationContext['showroom_id'] ?: $reservationContext['fg_showroom_id']);
+                $counterId = (int) ($reservationContext['fg_counter_id'] ?? 0);
+                $lockedCustomerId = (int) ($reservationContext['customer_id'] ?? 0) ?: null;
+                $preselectedFgIds = [(int) ($reservationContext['fg_item_id'] ?? 0)];
+            }
+        }
+
         return view('admin/showroom_sales/form', [
             'title' => 'Create Showroom Sale',
             'formAction' => site_url('admin/showroom-sales'),
@@ -84,7 +110,13 @@ class ShowroomSalesController extends BaseController
             'counters' => $this->activeCounters(),
             'customers' => $this->activeCustomers(),
             'salesEmployees' => $this->salesEmployees(),
-            'fgItems' => $this->saleableFgItems(),
+            'fgItems' => $this->saleableFgItems($showroomId > 0 ? $showroomId : null, $counterId > 0 ? $counterId : null, $preselectedFgIds),
+            'reservationId' => $reservationId > 0 ? $reservationId : null,
+            'reservationContext' => $reservationContext,
+            'prefillShowroomId' => $showroomId > 0 ? $showroomId : null,
+            'prefillCounterId' => $counterId > 0 ? $counterId : null,
+            'lockedCustomerId' => $lockedCustomerId,
+            'preselectedFgIds' => $preselectedFgIds,
         ]);
     }
 
@@ -111,6 +143,7 @@ class ShowroomSalesController extends BaseController
         $receivedAmount = round((float) ($this->request->getPost('received_amount') ?: 0), 2);
         $lineRates = (array) ($this->request->getPost('line_rates') ?? []);
         $fgItemIds = array_values(array_filter(array_unique(array_map('intval', (array) ($this->request->getPost('fg_item_ids') ?? [])))));
+        $postedReservationId = $this->nullableInt($this->request->getPost('reservation_id'));
 
         if ($fgItemIds === []) {
             return redirect()->back()->withInput()->with('error', 'Select at least one FG item for sale.');
@@ -134,7 +167,7 @@ class ShowroomSalesController extends BaseController
         $saleLines = [];
         $taxableAmount = 0.0;
         $totalQty = 0.0;
-        $reservationId = null;
+        $reservationId = $postedReservationId;
 
         foreach ($fgRows as $fg) {
             $fgId = (int) ($fg['id'] ?? 0);
@@ -398,9 +431,9 @@ class ShowroomSalesController extends BaseController
             ->getResultArray();
     }
 
-    private function saleableFgItems(): array
+    private function saleableFgItems(?int $showroomId = null, ?int $counterId = null, array $forceFgIds = []): array
     {
-        return db_connect()->table('fg_items fg')
+        $builder = db_connect()->table('fg_items fg')
             ->select('fg.id, fg.tag_no, fg.qty, fg.gross_wt, fg.net_gold_wt, fg.diamond_cts, fg.stone_wt, fg.showroom_id, fg.showroom_counter_id, fg.showroom_stock_status, sh.name as showroom_name, sc.counter_name, o.order_no, cust.name as reserved_customer_name')
             ->join('showrooms sh', 'sh.id = fg.showroom_id', 'left')
             ->join('showroom_counters sc', 'sc.id = fg.showroom_counter_id', 'left')
@@ -408,7 +441,19 @@ class ShowroomSalesController extends BaseController
             ->join('showroom_reservations sr', "sr.fg_item_id = fg.id AND sr.reservation_status = 'Reserved'", 'left', false)
             ->join('customers cust', 'cust.id = sr.customer_id', 'left')
             ->where('fg.showroom_id IS NOT NULL', null, false)
-            ->whereIn('fg.showroom_stock_status', ['SHOWROOM_AVAILABLE', 'COUNTER_AVAILABLE', 'RESERVED'])
+            ->whereIn('fg.showroom_stock_status', ['SHOWROOM_AVAILABLE', 'COUNTER_AVAILABLE', 'RESERVED']);
+
+        if ($showroomId !== null && $showroomId > 0) {
+            $builder->where('fg.showroom_id', $showroomId);
+        }
+        if ($counterId !== null && $counterId > 0) {
+            $builder->where('fg.showroom_counter_id', $counterId);
+        }
+        if ($forceFgIds !== []) {
+            $builder->whereIn('fg.id', $forceFgIds);
+        }
+
+        return $builder
             ->orderBy('sh.name', 'ASC')
             ->orderBy('sc.counter_name', 'ASC')
             ->orderBy('fg.tag_no', 'ASC')

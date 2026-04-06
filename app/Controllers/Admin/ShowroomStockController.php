@@ -37,7 +37,7 @@ class ShowroomStockController extends BaseController
     {
         $cards = $this->summaryCards();
         $rows = db_connect()->table('fg_items fg')
-            ->select('fg.*, s.name as showroom_name, c.counter_name, o.order_no, r.reserved_for_name, r.reservation_status, cust.name as customer_name')
+            ->select('fg.*, s.name as showroom_name, c.counter_name, o.order_no, r.id as reservation_id, r.reserved_for_name, r.reservation_status, cust.name as customer_name')
             ->join('showrooms s', 's.id = fg.showroom_id', 'left')
             ->join('showroom_counters c', 'c.id = fg.showroom_counter_id', 'left')
             ->join('orders o', 'o.id = fg.order_id', 'left')
@@ -154,6 +154,19 @@ class ShowroomStockController extends BaseController
             'counters' => $this->activeCounters(),
             'fgItems' => $this->showroomAvailableItems(),
             'formAction' => site_url('admin/showroom-stock/allocate'),
+        ]);
+    }
+
+    public function counterReturnForm(): string
+    {
+        $prefillFgItemId = (int) ($this->request->getGet('fg_item_id') ?? 0);
+        return view('admin/showroom_stock/counter_return', [
+            'title' => 'Return Counter Stock To Showroom',
+            'showrooms' => $this->activeShowrooms(),
+            'counters' => $this->activeCounters(),
+            'fgItems' => $this->counterAllocatedItems(),
+            'formAction' => site_url('admin/showroom-stock/counter-return'),
+            'prefillFgItemId' => $prefillFgItemId > 0 ? $prefillFgItemId : null,
         ]);
     }
 
@@ -281,6 +294,60 @@ class ShowroomStockController extends BaseController
         return redirect()->to(site_url('admin/showroom-stock'))->with('success', 'FG item reserved.');
     }
 
+    public function counterReturn()
+    {
+        $rules = [
+            'fg_item_ids' => 'required',
+            'remarks' => 'permit_empty',
+        ];
+        if (! $this->validate($rules)) {
+            return redirect()->back()->withInput()->with('error', $this->firstValidationError());
+        }
+
+        $fgItemIds = array_values(array_unique(array_map('intval', (array) $this->request->getPost('fg_item_ids'))));
+        $fgItemIds = array_values(array_filter($fgItemIds, static fn(int $id): bool => $id > 0));
+        if ($fgItemIds === []) {
+            return redirect()->back()->withInput()->with('error', 'Select at least one counter item.');
+        }
+
+        $db = db_connect();
+        $db->transStart();
+
+        $fgRows = $this->fgItemModel->whereIn('id', $fgItemIds)->findAll();
+        foreach ($fgRows as $fg) {
+            $currentStatus = strtoupper(trim((string) ($fg['showroom_stock_status'] ?? '')));
+            if ((int) ($fg['showroom_id'] ?? 0) <= 0 || (int) ($fg['showroom_counter_id'] ?? 0) <= 0) {
+                continue;
+            }
+            if (in_array($currentStatus, ['RESERVED', 'SOLD'], true)) {
+                continue;
+            }
+
+            $this->fgItemModel->update((int) $fg['id'], [
+                'showroom_counter_id' => null,
+                'showroom_stock_status' => 'SHOWROOM_AVAILABLE',
+            ]);
+
+            $this->movementModel->insert([
+                'fg_item_id' => (int) $fg['id'],
+                'movement_type' => 'COUNTER_TO_SHOWROOM',
+                'from_showroom_id' => (int) ($fg['showroom_id'] ?? 0),
+                'to_showroom_id' => (int) ($fg['showroom_id'] ?? 0),
+                'from_counter_id' => (int) ($fg['showroom_counter_id'] ?? 0),
+                'to_counter_id' => null,
+                'remarks' => trim((string) $this->request->getPost('remarks')) ?: 'Counter stock returned to showroom',
+                'created_by' => (int) (session('admin_id') ?? 0),
+            ]);
+        }
+
+        $db->transComplete();
+        if (! $db->transStatus()) {
+            return redirect()->back()->withInput()->with('error', 'Unable to return counter stock right now.');
+        }
+
+        return redirect()->to(site_url('admin/showroom-stock'))->with('success', 'Selected counter items returned to showroom.');
+    }
+
     public function releaseReservation(int $id)
     {
         $reservation = $this->reservationModel->find($id);
@@ -404,6 +471,22 @@ class ShowroomStockController extends BaseController
             ->where('fg.showroom_id IS NOT NULL', null, false)
             ->whereIn('fg.showroom_stock_status', ['SHOWROOM_AVAILABLE', 'COUNTER_AVAILABLE'])
             ->orderBy('s.name', 'ASC')
+            ->orderBy('fg.tag_no', 'ASC')
+            ->get()
+            ->getResultArray();
+    }
+
+    private function counterAllocatedItems(): array
+    {
+        return db_connect()->table('fg_items fg')
+            ->select('fg.id, fg.tag_no, fg.showroom_id, fg.showroom_counter_id, fg.gross_wt, fg.net_gold_wt, fg.diamond_cts, fg.showroom_stock_status, s.name as showroom_name, c.counter_name')
+            ->join('showrooms s', 's.id = fg.showroom_id', 'left')
+            ->join('showroom_counters c', 'c.id = fg.showroom_counter_id', 'left')
+            ->where('fg.showroom_id IS NOT NULL', null, false)
+            ->where('fg.showroom_counter_id IS NOT NULL', null, false)
+            ->whereIn('fg.showroom_stock_status', ['COUNTER_AVAILABLE'])
+            ->orderBy('s.name', 'ASC')
+            ->orderBy('c.counter_name', 'ASC')
             ->orderBy('fg.tag_no', 'ASC')
             ->get()
             ->getResultArray();
