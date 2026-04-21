@@ -50,9 +50,14 @@ $isReportsDepartmentStaff = $isReports && $segment3 === 'department-staff';
 $isReportsDesignationStaff = $isReports && $segment3 === 'designation-staff';
 $isReportsStaffHierarchy = $isReports && $segment3 === 'staff-hierarchy';
 $isAccounts = $segment2 === 'accounts';
-$isAccountsPurchaseBills = $isAccounts && ($segment3 === '' || $segment3 === 'purchase-bills');
+$isAccountsDashboard = $isAccounts && $segment3 === '';
+$isAccountsPurchaseBills = $isAccounts && $segment3 === 'purchase-bills';
 $isAccountsLabourBills = $isAccounts && $segment3 === 'labour-bills';
 $isAccountsSaleBills = $isAccounts && $segment3 === 'sale-bills';
+$isAccountsDebitNotes = $isAccounts && $segment3 === 'debit-notes';
+$isAccountsCreditNotes = $isAccounts && $segment3 === 'credit-notes';
+$isAccountsGstReport = $isAccounts && $segment3 === 'gst-report';
+$isAccountsOutstanding = $isAccounts && $segment3 === 'outstanding-summary';
 $isVendors  = $segment2 === 'vendors';
 $isCompanySettings = $segment2 === 'company-settings';
 $isInventory= $segment2 === 'inventory';
@@ -548,9 +553,14 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                         <li class="submenu <?= $isAccounts ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-file-text"></i> <span>Accounts</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isAccounts ? 'display:block;' : 'display:none;' ?>">
+                                <li><a class="<?= $isAccountsDashboard ? 'active' : '' ?>" href="<?= site_url('admin/accounts') ?>"><i class="fe fe-grid"></i> Dashboard</a></li>
                                 <li><a class="<?= $isAccountsPurchaseBills ? 'active' : '' ?>" href="<?= site_url('admin/accounts/purchase-bills') ?>"><i class="fe fe-shopping-bag"></i> Purchase Bills</a></li>
                                 <li><a class="<?= $isAccountsLabourBills ? 'active' : '' ?>" href="<?= site_url('admin/accounts/labour-bills') ?>"><i class="fe fe-tool"></i> Labour Bills</a></li>
                                 <li><a class="<?= $isAccountsSaleBills ? 'active' : '' ?>" href="<?= site_url('admin/accounts/sale-bills') ?>"><i class="fe fe-credit-card"></i> Sale Bills</a></li>
+                                <li><a class="<?= $isAccountsDebitNotes ? 'active' : '' ?>" href="<?= site_url('admin/accounts/debit-notes') ?>"><i class="fe fe-corner-down-right"></i> Debit Notes</a></li>
+                                <li><a class="<?= $isAccountsCreditNotes ? 'active' : '' ?>" href="<?= site_url('admin/accounts/credit-notes') ?>"><i class="fe fe-corner-up-left"></i> Credit Notes</a></li>
+                                <li><a class="<?= $isAccountsGstReport ? 'active' : '' ?>" href="<?= site_url('admin/accounts/gst-report') ?>"><i class="fe fe-percent"></i> GST Report</a></li>
+                                <li><a class="<?= $isAccountsOutstanding ? 'active' : '' ?>" href="<?= site_url('admin/accounts/outstanding-summary') ?>"><i class="fe fe-bar-chart"></i> Outstanding Summary</a></li>
                             </ul>
                         </li>
                         <?php endif; ?>

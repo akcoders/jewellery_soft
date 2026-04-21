@@ -30,6 +30,7 @@ use App\Models\StoneLedgerEntryModel;
 use App\Models\DeliveryChallanModel;
 use App\Services\AdminPostingService;
 use App\Services\GoldInventory\StockService as GoldInventoryStockService;
+use App\Services\OrderWhatsAppService;
 use App\Services\PdfService;
 use Config\Jewellery;
 use Exception;
@@ -63,6 +64,7 @@ class OrderController extends BaseController
     private InventoryTransactionModel $inventoryTxnModel;
     private DeliveryChallanModel $deliveryChallanModel;
     private AdminPostingService $adminPostingService;
+    private OrderWhatsAppService $orderWhatsAppService;
     private PdfService $pdfService;
     private Jewellery $jewelleryConfig;
 
@@ -95,6 +97,7 @@ class OrderController extends BaseController
         $this->inventoryTxnModel = new InventoryTransactionModel();
         $this->deliveryChallanModel = new DeliveryChallanModel();
         $this->adminPostingService = new AdminPostingService();
+        $this->orderWhatsAppService = new OrderWhatsAppService();
         $this->pdfService = new PdfService();
         $this->jewelleryConfig = config(Jewellery::class);
     }
@@ -386,6 +389,8 @@ class OrderController extends BaseController
         }
 
         $db->transComplete();
+
+        $this->dispatchWhatsappOrderCreated((int) $orderId);
 
         return redirect()->to(site_url('admin/orders/' . $orderId))->with('success', 'Order created successfully.');
     }
@@ -1338,6 +1343,11 @@ class OrderController extends BaseController
             'changed_by'  => $adminId,
         ]);
 
+        $this->dispatchWhatsappStatusChanged($id, (string) $order['status'], $newStatus, $remarks);
+        if (in_array($newStatus, ['Ready', 'Completed'], true)) {
+            $this->dispatchWhatsappOrderReady($id, $newStatus);
+        }
+
         return redirect()->back()->with('success', 'Order status updated.');
     }
 
@@ -2167,6 +2177,20 @@ class OrderController extends BaseController
         $summary = $this->getOrderBudgetSummary($orderId);
         $monitor = $this->getBudgetMonitor($orderId, $summary);
 
+        if (($monitor['over_issue_gold'] > 0 || $monitor['over_issue_diamond'] > 0) && $type === 'issue') {
+            $this->dispatchWhatsappOverBudget($orderId, $monitor, 'issue');
+        }
+        if (($monitor['over_receive_gold'] > 0 || $monitor['over_receive_diamond'] > 0) && $type === 'receive') {
+            $this->dispatchWhatsappOverBudget($orderId, $monitor, 'receive');
+        }
+        if ($type === 'receive') {
+            $currentOrder = $this->orderModel->find($orderId);
+            $currentStatus = (string) ($currentOrder['status'] ?? '');
+            if (in_array($currentStatus, ['Ready', 'Completed'], true)) {
+                $this->dispatchWhatsappOrderReady($orderId, $currentStatus);
+            }
+        }
+
         $message = $type === 'issue' ? 'Material issue saved.' : 'Material receive saved. Order marked as Completed.';
         $warning = null;
 
@@ -2440,6 +2464,57 @@ class OrderController extends BaseController
         }
 
         return 'LB' . str_pad((string) $next, 6, '0', STR_PAD_LEFT);
+    }
+
+    private function dispatchWhatsappOrderCreated(int $orderId): void
+    {
+        try {
+            $this->orderWhatsAppService->notifyOrderCreated($orderId);
+        } catch (Throwable $e) {
+            log_message('error', 'WhatsApp order created failed for order {id}: {message}', [
+                'id' => $orderId,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function dispatchWhatsappStatusChanged(int $orderId, string $fromStatus, string $toStatus, string $remarks = ''): void
+    {
+        try {
+            $this->orderWhatsAppService->notifyOrderStatusChanged($orderId, $fromStatus, $toStatus, $remarks);
+        } catch (Throwable $e) {
+            log_message('error', 'WhatsApp status update failed for order {id}: {message}', [
+                'id' => $orderId,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function dispatchWhatsappOrderReady(int $orderId, string $status): void
+    {
+        try {
+            $this->orderWhatsAppService->notifyOrderReady($orderId, $status);
+        } catch (Throwable $e) {
+            log_message('error', 'WhatsApp ready alert failed for order {id}: {message}', [
+                'id' => $orderId,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * @param array<string,float> $monitor
+     */
+    private function dispatchWhatsappOverBudget(int $orderId, array $monitor, string $context): void
+    {
+        try {
+            $this->orderWhatsAppService->notifyOrderOverBudget($orderId, $monitor, $context);
+        } catch (Throwable $e) {
+            log_message('error', 'WhatsApp over-budget alert failed for order {id}: {message}', [
+                'id' => $orderId,
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
