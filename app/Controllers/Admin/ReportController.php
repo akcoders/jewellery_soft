@@ -1248,12 +1248,12 @@ class ReportController extends BaseController
         }
 
         $builder = db_connect()->table('order_material_movements om')
-            ->select("om.movement_date as transaction_date, CASE WHEN om.movement_type='receive' THEN 'Order Receive' ELSE 'Order Issue' END as transaction_type, 'Order' as material_type, o.order_no, CONCAT('OM#', om.id) as reference_no, COALESCE(k.name, c.name, '-') as party_name, o.status, o.customer_id, om.karigar_id, NULL as vendor_id, COALESCE(om.gold_gm,0) as gold_gm, COALESCE(om.diamond_cts,0) as diamond_cts, COALESCE(om.stone_cts,0) as stone_qty, COALESCE(om.labour_amount,0) + COALESCE(om.other_amount,0) as amount, om.notes as notes", false)
+            ->select("DATE(om.created_at) as transaction_date, CASE WHEN om.movement_type='receive' THEN 'Order Receive' ELSE 'Order Issue' END as transaction_type, 'Order' as material_type, o.order_no, CONCAT('OM#', om.id) as reference_no, COALESCE(k.name, c.name, '-') as party_name, o.status, o.customer_id, om.karigar_id, NULL as vendor_id, COALESCE(om.gold_gm,0) as gold_gm, COALESCE(om.diamond_cts,0) as diamond_cts, 0 as stone_qty, 0 as amount, om.notes as notes", false)
             ->join('orders o', 'o.id = om.order_id', 'left')
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('karigars k', 'k.id = om.karigar_id', 'left');
 
-        return $this->fetchRowsByDate($builder, 'om.movement_date', $filters);
+        return $this->fetchRowsByDate($builder, 'DATE(om.created_at)', $filters);
     }
 
     private function transactionRowsShowroom(array $filters): array

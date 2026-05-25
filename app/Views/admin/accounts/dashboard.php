@@ -119,8 +119,11 @@
             </div>
             <div class="card-body">
                 <div class="row g-2">
+                    <div class="col-md-4"><a href="<?= site_url('admin/accounts/general-ledger') ?>" class="btn btn-outline-primary w-100">General Ledger</a></div>
                     <div class="col-md-4"><a href="<?= site_url('admin/accounts/purchase-bills') ?>" class="btn btn-outline-primary w-100">Purchase Bills</a></div>
                     <div class="col-md-4"><a href="<?= site_url('admin/accounts/labour-bills') ?>" class="btn btn-outline-primary w-100">Labour Bills</a></div>
+                    <div class="col-md-4"><a href="<?= site_url('admin/accounts/labour-ledger') ?>" class="btn btn-outline-primary w-100">Labour Ledger</a></div>
+                    <div class="col-md-4"><a href="<?= site_url('admin/accounts/payments') ?>" class="btn btn-outline-primary w-100">Payments</a></div>
                     <div class="col-md-4"><a href="<?= site_url('admin/accounts/sale-bills') ?>" class="btn btn-outline-primary w-100">Sale Bills</a></div>
                     <div class="col-md-4"><a href="<?= site_url('admin/accounts/debit-notes') ?>" class="btn btn-outline-dark w-100">Debit Notes</a></div>
                     <div class="col-md-4"><a href="<?= site_url('admin/accounts/credit-notes') ?>" class="btn btn-outline-dark w-100">Credit Notes</a></div>

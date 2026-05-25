@@ -3,26 +3,32 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
+use App\Models\AccountPaymentModel;
 use App\Models\CreditNoteModel;
 use App\Models\DebitNoteModel;
 use App\Models\LabourBillModel;
 use App\Models\LabourBillPaymentModel;
 use App\Models\PurchaseBillPaymentModel;
+use App\Models\VendorPaymentModel;
 
 class AccountsController extends BaseController
 {
+    private AccountPaymentModel $accountPaymentModel;
     private PurchaseBillPaymentModel $purchaseBillPaymentModel;
     private LabourBillModel $labourBillModel;
     private LabourBillPaymentModel $labourBillPaymentModel;
+    private VendorPaymentModel $vendorPaymentModel;
     private DebitNoteModel $debitNoteModel;
     private CreditNoteModel $creditNoteModel;
 
     public function __construct()
     {
         helper(['form', 'url']);
+        $this->accountPaymentModel = new AccountPaymentModel();
         $this->purchaseBillPaymentModel = new PurchaseBillPaymentModel();
         $this->labourBillModel = new LabourBillModel();
         $this->labourBillPaymentModel = new LabourBillPaymentModel();
+        $this->vendorPaymentModel = new VendorPaymentModel();
         $this->debitNoteModel = new DebitNoteModel();
         $this->creditNoteModel = new CreditNoteModel();
     }
@@ -200,6 +206,227 @@ class AccountsController extends BaseController
             'rows' => $rows,
             'labourTableEnabled' => $db->tableExists('labour_bills'),
         ]);
+    }
+
+    public function labourLedger(): string
+    {
+        $filters = [
+            'karigar_id' => (int) ($this->request->getGet('karigar_id') ?? 0),
+            'status' => trim((string) ($this->request->getGet('status') ?? 'all')),
+            'entry_type' => trim((string) ($this->request->getGet('entry_type') ?? 'all')),
+            'date_from' => trim((string) ($this->request->getGet('date_from') ?? '')),
+            'date_to' => trim((string) ($this->request->getGet('date_to') ?? '')),
+        ];
+
+        $data = $this->labourLedgerDataset($filters);
+
+        return view('admin/accounts/labour_ledger', [
+            'title' => 'Labour Ledger',
+            'filters' => $filters,
+            'karigars' => $this->karigarOptions(),
+            'rows' => $data['rows'],
+            'summary' => $data['summary'],
+        ]);
+    }
+
+    public function payments(): string
+    {
+        $db = db_connect();
+        $labourBills = array_values(array_filter(
+            $this->labourBillsDataset(),
+            static fn(array $row): bool => (float) ($row['pending_amount'] ?? 0) > 0
+        ));
+        $purchaseBills = array_values(array_filter(
+            $this->purchaseBillsDataset(),
+            static fn(array $row): bool => (float) ($row['pending_amount'] ?? 0) > 0
+        ));
+
+        return view('admin/accounts/payments', [
+            'title' => 'Payments',
+            'tableEnabled' => $db->tableExists('account_payments'),
+            'karigars' => $this->karigarOptionsWithBalance(),
+            'vendors' => $this->vendorOptionsWithBalance(),
+            'labourBills' => $labourBills,
+            'purchaseBills' => $purchaseBills,
+            'rows' => $this->accountPaymentsDataset(),
+        ]);
+    }
+
+    public function generalLedger(): string
+    {
+        $filters = [
+            'date_from' => trim((string) ($this->request->getGet('date_from') ?? '')),
+            'date_to' => trim((string) ($this->request->getGet('date_to') ?? '')),
+            'transaction_type' => trim((string) ($this->request->getGet('transaction_type') ?? '')),
+            'party_type' => trim((string) ($this->request->getGet('party_type') ?? '')),
+            'customer_id' => (int) ($this->request->getGet('customer_id') ?? 0),
+            'vendor_id' => (int) ($this->request->getGet('vendor_id') ?? 0),
+            'karigar_id' => (int) ($this->request->getGet('karigar_id') ?? 0),
+            'status' => trim((string) ($this->request->getGet('status') ?? '')),
+            'reference_no' => trim((string) ($this->request->getGet('reference_no') ?? '')),
+            'search' => trim((string) ($this->request->getGet('search') ?? '')),
+        ];
+        $data = $this->generalLedgerDataset($filters);
+
+        return view('admin/accounts/general_ledger', [
+            'title' => 'General Ledger',
+            'filters' => $filters,
+            'rows' => $data['rows'],
+            'summary' => $data['summary'],
+            'transactionTypes' => $data['transaction_types'],
+            'statuses' => $data['statuses'],
+            'customers' => $this->customerOptions(),
+            'vendors' => $this->vendorOptions(),
+            'karigars' => $this->karigarOptions(),
+        ]);
+    }
+
+    public function vendorTransactionLedger(): string
+    {
+        $filters = [
+            'date_from' => trim((string) ($this->request->getGet('date_from') ?? '')),
+            'date_to' => trim((string) ($this->request->getGet('date_to') ?? '')),
+            'party_type' => trim((string) ($this->request->getGet('party_type') ?? '')),
+            'vendor_id' => (int) ($this->request->getGet('vendor_id') ?? 0),
+            'karigar_id' => (int) ($this->request->getGet('karigar_id') ?? 0),
+            'category' => trim((string) ($this->request->getGet('category') ?? '')),
+            'transaction_type' => trim((string) ($this->request->getGet('transaction_type') ?? '')),
+            'material_type' => trim((string) ($this->request->getGet('material_type') ?? '')),
+            'reference_no' => trim((string) ($this->request->getGet('reference_no') ?? '')),
+            'search' => trim((string) ($this->request->getGet('search') ?? '')),
+        ];
+        $data = $this->vendorTransactionLedgerDataset($filters);
+
+        return view('admin/accounts/vendor_transaction_ledger', [
+            'title' => 'Issue Receive Ledger',
+            'filters' => $filters,
+            'rows' => $data['rows'],
+            'summary' => $data['summary'],
+            'categories' => $data['categories'],
+            'transactionTypes' => $data['transaction_types'],
+            'materialTypes' => $data['material_types'],
+            'vendors' => $this->vendorOptions(),
+            'karigars' => $this->karigarOptions(),
+        ]);
+    }
+
+    public function storePayment()
+    {
+        $db = db_connect();
+        if (! $db->tableExists('account_payments')) {
+            return redirect()->back()->withInput()->with('error', 'Payment table not available. Run migration.');
+        }
+
+        $rules = [
+            'party_type' => 'required|in_list[karigar,vendor]',
+            'karigar_id' => 'permit_empty|integer',
+            'vendor_id' => 'permit_empty|integer',
+            'payment_date' => 'required|valid_date',
+            'amount' => 'required|decimal|greater_than[0]',
+            'payment_mode' => 'permit_empty|max_length[30]',
+            'reference_no' => 'permit_empty|max_length[80]',
+            'bill_ref' => 'permit_empty|max_length[80]',
+            'notes' => 'permit_empty',
+        ];
+
+        if (! $this->validate($rules)) {
+            return redirect()->back()->withInput()->with('error', $this->firstValidationError());
+        }
+
+        $partyType = (string) $this->request->getPost('party_type');
+        $karigarId = (int) $this->request->getPost('karigar_id');
+        $vendorId = (int) $this->request->getPost('vendor_id');
+        if ($partyType === 'karigar' && $karigarId <= 0) {
+            return redirect()->back()->withInput()->with('error', 'Karigar is required for karigar payment.');
+        }
+        if ($partyType === 'vendor' && $vendorId <= 0) {
+            return redirect()->back()->withInput()->with('error', 'Vendor is required for vendor payment.');
+        }
+
+        $amount = round((float) $this->request->getPost('amount'), 2);
+        $billRef = trim((string) $this->request->getPost('bill_ref'));
+        $bill = $this->resolvePaymentBill($partyType, $billRef);
+        if ($bill['selected'] && ! $bill['found']) {
+            return redirect()->back()->withInput()->with('error', 'Selected bill was not found.');
+        }
+        if ($bill['selected'] && $amount > ((float) $bill['pending_amount'] + 0.001)) {
+            return redirect()->back()->withInput()->with('error', 'Payment amount exceeds selected bill pending amount.');
+        }
+
+        $upload = $this->storePaymentReferenceUpload();
+        if (! $upload['ok']) {
+            return redirect()->back()->withInput()->with('error', $upload['message']);
+        }
+
+        $db->transStart();
+
+        $paymentNo = $this->generateAccountPaymentNumber();
+        $paymentDate = (string) $this->request->getPost('payment_date');
+        $referenceNo = $this->nullableString($this->request->getPost('reference_no'));
+        $notes = $this->nullableString($this->request->getPost('notes'));
+
+        $accountPaymentId = (int) $this->accountPaymentModel->insert([
+            'payment_no' => $paymentNo,
+            'payment_date' => $paymentDate,
+            'party_type' => $partyType,
+            'karigar_id' => $partyType === 'karigar' ? $karigarId : null,
+            'vendor_id' => $partyType === 'vendor' ? $vendorId : null,
+            'amount' => $amount,
+            'payment_mode' => $this->nullableString($this->request->getPost('payment_mode')),
+            'reference_no' => $referenceNo,
+            'reference_file_path' => $upload['file_path'],
+            'reference_file_name' => $upload['file_name'],
+            'bill_type' => $bill['bill_type'],
+            'bill_source_type' => $bill['bill_source_type'],
+            'bill_source_id' => $bill['bill_source_id'],
+            'labour_bill_id' => $bill['labour_bill_id'],
+            'notes' => $notes,
+            'created_by' => (int) session('admin_id'),
+        ], true);
+
+        if ($partyType === 'karigar') {
+            if ((int) $bill['labour_bill_id'] > 0) {
+                $this->postLabourBillPayment((int) $bill['labour_bill_id'], $amount, $paymentDate, $referenceNo, $notes, false);
+            }
+            if ($db->tableExists('karigar_payment_ledgers')) {
+                $db->table('karigar_payment_ledgers')->insert([
+                    'karigar_id' => $karigarId,
+                    'order_id' => $bill['order_id'],
+                    'entry_type' => 'payment',
+                    'amount' => $amount,
+                    'reference_no' => $referenceNo ?: $paymentNo,
+                    'notes' => $notes ?: 'Account payment ' . $paymentNo,
+                    'created_by' => (int) session('admin_id'),
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        } elseif ($partyType === 'vendor') {
+            if ((string) $bill['bill_source_type'] !== '' && (int) $bill['bill_source_id'] > 0) {
+                $this->postPurchaseBillPayment((string) $bill['bill_source_type'], (int) $bill['bill_source_id'], $amount, $paymentDate, $referenceNo, $notes, false);
+            }
+            if ($db->tableExists('vendor_payments')) {
+                $this->vendorPaymentModel->insert([
+                    'payment_no' => $paymentNo,
+                    'payment_date' => $paymentDate,
+                    'vendor_id' => $vendorId,
+                    'purchase_invoice_id' => null,
+                    'amount' => $amount,
+                    'payment_mode' => $this->nullableString($this->request->getPost('payment_mode')),
+                    'reference_no' => $referenceNo,
+                    'notes' => $notes,
+                    'created_by' => (int) session('admin_id'),
+                    'created_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        }
+
+        $db->transComplete();
+        if (! $db->transStatus() || $accountPaymentId <= 0) {
+            return redirect()->back()->withInput()->with('error', 'Unable to save payment right now.');
+        }
+
+        return redirect()->to(site_url('admin/accounts/payments'))->with('success', 'Payment saved successfully.');
     }
 
     public function updateLabourBillPayment()
@@ -381,7 +608,7 @@ class AccountsController extends BaseController
 
         if ($db->tableExists('purchase_headers') && $db->tableExists('purchase_lines')) {
             $diamondRows = $db->table('purchase_headers ph')
-                ->select('ph.id, ph.purchase_date, ph.due_date, MAX(ph.invoice_no) as invoice_no, MAX(v.name) as vendor_name, MAX(ph.supplier_name) as supplier_name, COUNT(pl.id) as qty, COALESCE(SUM(pl.carat), 0) as total_weight, COALESCE(SUM(pl.line_value), 0) as subtotal, MAX(ph.invoice_total) as invoice_total', false)
+                ->select('ph.id, ph.vendor_id, ph.purchase_date, ph.due_date, MAX(ph.invoice_no) as invoice_no, MAX(v.name) as vendor_name, MAX(ph.supplier_name) as supplier_name, COUNT(pl.id) as qty, COALESCE(SUM(pl.carat), 0) as total_weight, COALESCE(SUM(pl.line_value), 0) as subtotal, MAX(ph.invoice_total) as invoice_total', false)
                 ->join('purchase_lines pl', 'pl.purchase_id = ph.id', 'left')
                 ->join('vendors v', 'v.id = ph.vendor_id', 'left')
                 ->groupBy('ph.id')
@@ -402,6 +629,7 @@ class AccountsController extends BaseController
                 $rows[] = [
                     'source_type' => 'diamond',
                     'source_id' => $sourceId,
+                    'vendor_id' => (int) ($row['vendor_id'] ?? 0),
                     'supplier_name' => trim((string) ($row['vendor_name'] ?: $row['supplier_name'] ?: '-')),
                     'purchase_date' => (string) ($row['purchase_date'] ?? ''),
                     'category' => 'Diamond',
@@ -438,6 +666,7 @@ class AccountsController extends BaseController
                 $rows[] = [
                     'source_type' => 'gold',
                     'source_id' => $sourceId,
+                    'vendor_id' => 0,
                     'supplier_name' => trim((string) ($row['supplier_name'] ?: '-')),
                     'purchase_date' => (string) ($row['purchase_date'] ?? ''),
                     'category' => 'Gold',
@@ -458,7 +687,7 @@ class AccountsController extends BaseController
 
         if ($db->tableExists('stone_inventory_purchase_headers') && $db->tableExists('stone_inventory_purchase_lines')) {
             $stoneRows = $db->table('stone_inventory_purchase_headers ph')
-                ->select('ph.id, ph.purchase_date, ph.due_date, MAX(ph.invoice_no) as invoice_no, MAX(v.name) as vendor_name, MAX(ph.supplier_name) as supplier_name, COUNT(pl.id) as qty, COALESCE(SUM(pl.qty), 0) as total_weight, COALESCE(SUM(pl.line_value), 0) as subtotal, MAX(ph.invoice_total) as invoice_total', false)
+                ->select('ph.id, ph.vendor_id, ph.purchase_date, ph.due_date, MAX(ph.invoice_no) as invoice_no, MAX(v.name) as vendor_name, MAX(ph.supplier_name) as supplier_name, COUNT(pl.id) as qty, COALESCE(SUM(pl.qty), 0) as total_weight, COALESCE(SUM(pl.line_value), 0) as subtotal, MAX(ph.invoice_total) as invoice_total', false)
                 ->join('stone_inventory_purchase_lines pl', 'pl.purchase_id = ph.id', 'left')
                 ->join('vendors v', 'v.id = ph.vendor_id', 'left')
                 ->groupBy('ph.id')
@@ -479,6 +708,7 @@ class AccountsController extends BaseController
                 $rows[] = [
                     'source_type' => 'stone',
                     'source_id' => $sourceId,
+                    'vendor_id' => (int) ($row['vendor_id'] ?? 0),
                     'supplier_name' => trim((string) ($row['vendor_name'] ?: $row['supplier_name'] ?: '-')),
                     'purchase_date' => (string) ($row['purchase_date'] ?? ''),
                     'category' => 'Stone',
@@ -497,7 +727,7 @@ class AccountsController extends BaseController
             }
         } elseif ($db->tableExists('purchases')) {
             $stoneRows = $db->table('purchases p')
-                ->select('p.id, p.purchase_date, p.payment_due_date as due_date, p.invoice_no, p.invoice_amount, p.payment_status as legacy_payment_status, MAX(v.name) as vendor_name, COUNT(pi.id) as qty, COALESCE(SUM(pi.cts), 0) as total_weight', false)
+                ->select('p.id, p.vendor_id, p.purchase_date, p.payment_due_date as due_date, p.invoice_no, p.invoice_amount, p.payment_status as legacy_payment_status, MAX(v.name) as vendor_name, COUNT(pi.id) as qty, COALESCE(SUM(pi.cts), 0) as total_weight', false)
                 ->join('purchase_items pi', 'pi.purchase_id = p.id', 'left')
                 ->join('vendors v', 'v.id = p.vendor_id', 'left')
                 ->where('p.purchase_type', 'Stone')
@@ -518,6 +748,7 @@ class AccountsController extends BaseController
                 $rows[] = [
                     'source_type' => 'stone',
                     'source_id' => $sourceId,
+                    'vendor_id' => (int) ($row['vendor_id'] ?? 0),
                     'supplier_name' => trim((string) ($row['vendor_name'] ?: '-')),
                     'purchase_date' => (string) ($row['purchase_date'] ?? ''),
                     'category' => 'Stone',
@@ -573,6 +804,8 @@ class AccountsController extends BaseController
 
                 $rows[] = [
                     'id' => (int) ($row['id'] ?? 0),
+                    'karigar_id' => (int) ($row['karigar_id'] ?? 0),
+                    'order_id' => isset($row['order_id']) ? (int) $row['order_id'] : null,
                     'bill_no' => (string) ($row['bill_no'] ?? ''),
                     'bill_date' => (string) ($row['bill_date'] ?? ''),
                     'order_no' => (string) ($row['order_no'] ?? '-'),
@@ -623,6 +856,7 @@ class AccountsController extends BaseController
 
                 $rows[] = [
                     'id' => (int) ($row['id'] ?? 0),
+                    'customer_id' => (int) ($row['customer_id'] ?? 0),
                     'sale_no' => (string) ($row['sale_no'] ?? ''),
                     'sale_date' => (string) ($row['sale_date'] ?? ''),
                     'showroom_name' => (string) ($row['showroom_name'] ?? '-'),
@@ -1314,6 +1548,1179 @@ class AccountsController extends BaseController
     {
         $v = (int) $value;
         return $v > 0 ? $v : null;
+    }
+
+    /**
+     * @param array<string,mixed> $filters
+     * @return array{rows:list<array<string,mixed>>,summary:array<string,float>}
+     */
+    private function labourLedgerDataset(array $filters): array
+    {
+        $rows = [];
+        $dateFrom = (string) ($filters['date_from'] ?? '');
+        $dateTo = (string) ($filters['date_to'] ?? '');
+        $karigarId = (int) ($filters['karigar_id'] ?? 0);
+        $status = strtolower((string) ($filters['status'] ?? 'all'));
+        $entryType = strtolower((string) ($filters['entry_type'] ?? 'all'));
+
+        foreach ($this->labourBillsDataset() as $bill) {
+            if ($karigarId > 0 && (int) ($bill['karigar_id'] ?? 0) !== $karigarId) {
+                continue;
+            }
+            if ($entryType !== 'all' && $entryType !== 'bill') {
+                continue;
+            }
+            if (! $this->dateInRange((string) ($bill['bill_date'] ?? ''), $dateFrom, $dateTo)) {
+                continue;
+            }
+            if ($status !== 'all' && strtolower((string) ($bill['payment_status'] ?? '')) !== $status) {
+                continue;
+            }
+
+            $rows[] = [
+                'entry_date' => (string) ($bill['bill_date'] ?? ''),
+                'entry_type' => 'Bill',
+                'karigar_id' => (int) ($bill['karigar_id'] ?? 0),
+                'karigar_name' => (string) ($bill['karigar_name'] ?? '-'),
+                'reference_no' => (string) ($bill['bill_no'] ?? ''),
+                'order_no' => (string) ($bill['order_no'] ?? '-'),
+                'bill_amount' => (float) ($bill['total_amount'] ?? 0),
+                'payment_amount' => 0.0,
+                'pending_amount' => (float) ($bill['pending_amount'] ?? 0),
+                'status' => (string) ($bill['payment_status'] ?? 'Pending'),
+                'notes' => '',
+                'file_path' => '',
+                'file_name' => '',
+            ];
+        }
+
+        $db = db_connect();
+        if ($db->tableExists('labour_bill_payments')) {
+            $builder = $db->table('labour_bill_payments lp')
+                ->select('lp.*, lb.bill_no, lb.order_id, lb.karigar_id, o.order_no, k.name as karigar_name', false)
+                ->join('labour_bills lb', 'lb.id = lp.labour_bill_id', 'left')
+                ->join('orders o', 'o.id = lb.order_id', 'left')
+                ->join('karigars k', 'k.id = lb.karigar_id', 'left');
+            if ($karigarId > 0) {
+                $builder->where('lb.karigar_id', $karigarId);
+            }
+            $payments = $builder->orderBy('lp.payment_date', 'DESC')->get()->getResultArray();
+            foreach ($payments as $payment) {
+                if ($entryType !== 'all' && $entryType !== 'payment') {
+                    continue;
+                }
+                if ($status !== 'all' && $status !== 'paid') {
+                    continue;
+                }
+                if (! $this->dateInRange((string) ($payment['payment_date'] ?? ''), $dateFrom, $dateTo)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'entry_date' => (string) ($payment['payment_date'] ?? ''),
+                    'entry_type' => 'Payment',
+                    'karigar_id' => (int) ($payment['karigar_id'] ?? 0),
+                    'karigar_name' => (string) ($payment['karigar_name'] ?? '-'),
+                    'reference_no' => (string) (($payment['reference_no'] ?? '') ?: ('PAY#' . (int) ($payment['id'] ?? 0))),
+                    'order_no' => (string) ($payment['order_no'] ?? '-'),
+                    'bill_amount' => 0.0,
+                    'payment_amount' => (float) ($payment['amount'] ?? 0),
+                    'pending_amount' => 0.0,
+                    'status' => 'Paid',
+                    'notes' => (string) ($payment['notes'] ?? ''),
+                    'file_path' => '',
+                    'file_name' => '',
+                ];
+            }
+        }
+
+        if ($db->tableExists('account_payments')) {
+            $builder = $db->table('account_payments ap')
+                ->select('ap.*, k.name as karigar_name', false)
+                ->join('karigars k', 'k.id = ap.karigar_id', 'left')
+                ->where('ap.party_type', 'karigar')
+                ->where('ap.labour_bill_id IS NULL', null, false);
+            if ($karigarId > 0) {
+                $builder->where('ap.karigar_id', $karigarId);
+            }
+            $payments = $builder->orderBy('ap.payment_date', 'DESC')->get()->getResultArray();
+            foreach ($payments as $payment) {
+                if ($entryType !== 'all' && $entryType !== 'payment') {
+                    continue;
+                }
+                if ($status !== 'all' && $status !== 'paid') {
+                    continue;
+                }
+                if (! $this->dateInRange((string) ($payment['payment_date'] ?? ''), $dateFrom, $dateTo)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'entry_date' => (string) ($payment['payment_date'] ?? ''),
+                    'entry_type' => 'Payment',
+                    'karigar_id' => (int) ($payment['karigar_id'] ?? 0),
+                    'karigar_name' => (string) ($payment['karigar_name'] ?? '-'),
+                    'reference_no' => (string) (($payment['reference_no'] ?? '') ?: ($payment['payment_no'] ?? '')),
+                    'order_no' => '-',
+                    'bill_amount' => 0.0,
+                    'payment_amount' => (float) ($payment['amount'] ?? 0),
+                    'pending_amount' => 0.0,
+                    'status' => 'Paid',
+                    'notes' => (string) ($payment['notes'] ?? ''),
+                    'file_path' => (string) ($payment['reference_file_path'] ?? ''),
+                    'file_name' => (string) ($payment['reference_file_name'] ?? ''),
+                ];
+            }
+        }
+
+        usort($rows, static function (array $a, array $b): int {
+            $dateCmp = strcmp((string) ($b['entry_date'] ?? ''), (string) ($a['entry_date'] ?? ''));
+            if ($dateCmp !== 0) {
+                return $dateCmp;
+            }
+            return strcmp((string) ($a['entry_type'] ?? ''), (string) ($b['entry_type'] ?? ''));
+        });
+
+        return [
+            'rows' => $rows,
+            'summary' => [
+                'bill_amount' => array_sum(array_column($rows, 'bill_amount')),
+                'payment_amount' => array_sum(array_column($rows, 'payment_amount')),
+                'pending_amount' => array_sum(array_column($rows, 'pending_amount')),
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function accountPaymentsDataset(): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('account_payments')) {
+            return [];
+        }
+
+        return $db->table('account_payments ap')
+            ->select('ap.*, k.name as karigar_name, v.name as vendor_name, lb.bill_no', false)
+            ->join('karigars k', 'k.id = ap.karigar_id', 'left')
+            ->join('vendors v', 'v.id = ap.vendor_id', 'left')
+            ->join('labour_bills lb', 'lb.id = ap.labour_bill_id', 'left')
+            ->orderBy('ap.id', 'DESC')
+            ->get()
+            ->getResultArray();
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function karigarOptionsWithBalance(): array
+    {
+        $balances = [];
+        foreach ($this->labourBillsDataset() as $row) {
+            $id = (int) ($row['karigar_id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $balances[$id] = ($balances[$id] ?? 0) + (float) ($row['pending_amount'] ?? 0);
+        }
+
+        $rows = $this->karigarOptions();
+        foreach ($rows as &$row) {
+            $row['balance_amount'] = round((float) ($balances[(int) ($row['id'] ?? 0)] ?? 0), 2);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function vendorOptionsWithBalance(): array
+    {
+        $balances = [];
+        foreach ($this->purchaseBillsDataset() as $row) {
+            $id = (int) ($row['vendor_id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $balances[$id] = ($balances[$id] ?? 0) + (float) ($row['pending_amount'] ?? 0);
+        }
+
+        $rows = $this->vendorOptions();
+        foreach ($rows as &$row) {
+            $row['balance_amount'] = round((float) ($balances[(int) ($row['id'] ?? 0)] ?? 0), 2);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function karigarOptions(): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('karigars')) {
+            return [];
+        }
+
+        return $db->table('karigars')
+            ->select('id, name, phone, is_active')
+            ->orderBy('name', 'ASC')
+            ->get()
+            ->getResultArray();
+    }
+
+    /**
+     * @param array<string,mixed> $filters
+     * @return array{rows:list<array<string,mixed>>,summary:array<string,float|int>,transaction_types:list<string>,statuses:list<string>}
+     */
+    private function generalLedgerDataset(array $filters): array
+    {
+        $rows = [];
+
+        foreach ($this->purchaseBillsDataset() as $bill) {
+            $rows[] = $this->ledgerRow([
+                'transaction_date' => $bill['purchase_date'] ?? '',
+                'transaction_type' => 'Purchase Bill',
+                'reference_no' => strtoupper((string) ($bill['source_type'] ?? 'purchase')) . '#' . (int) ($bill['source_id'] ?? 0),
+                'party_type' => 'vendor',
+                'party_id' => (int) ($bill['vendor_id'] ?? 0),
+                'party_name' => (string) ($bill['supplier_name'] ?? '-'),
+                'bill_no' => strtoupper((string) ($bill['source_type'] ?? 'purchase')) . '#' . (int) ($bill['source_id'] ?? 0),
+                'order_no' => '',
+                'debit_amount' => 0,
+                'credit_amount' => (float) ($bill['amount'] ?? 0),
+                'balance_amount' => (float) ($bill['pending_amount'] ?? 0),
+                'status' => (string) ($bill['payment_status'] ?? 'Pending'),
+                'payment_mode' => '',
+                'material_type' => (string) ($bill['category'] ?? 'Purchase'),
+                'details' => 'Paid: Rs ' . number_format((float) ($bill['paid_amount'] ?? 0), 2),
+                'notes' => '',
+                'file_path' => '',
+            ]);
+        }
+
+        foreach ($this->labourBillsDataset() as $bill) {
+            $rows[] = $this->ledgerRow([
+                'transaction_date' => $bill['bill_date'] ?? '',
+                'transaction_type' => 'Labour Bill',
+                'reference_no' => (string) ($bill['bill_no'] ?? ''),
+                'party_type' => 'karigar',
+                'party_id' => (int) ($bill['karigar_id'] ?? 0),
+                'party_name' => (string) ($bill['karigar_name'] ?? '-'),
+                'bill_no' => (string) ($bill['bill_no'] ?? ''),
+                'order_no' => (string) ($bill['order_no'] ?? ''),
+                'debit_amount' => 0,
+                'credit_amount' => (float) ($bill['total_amount'] ?? 0),
+                'balance_amount' => (float) ($bill['pending_amount'] ?? 0),
+                'status' => (string) ($bill['payment_status'] ?? 'Pending'),
+                'payment_mode' => '',
+                'material_type' => 'Labour',
+                'details' => 'Gold: ' . number_format((float) ($bill['gold_weight_gm'] ?? 0), 3) . ' gm',
+                'notes' => '',
+                'file_path' => '',
+            ]);
+        }
+
+        foreach ($this->saleBillsDataset() as $sale) {
+            $rows[] = $this->ledgerRow([
+                'transaction_date' => $sale['sale_date'] ?? '',
+                'transaction_type' => 'Sale Bill',
+                'reference_no' => (string) (($sale['invoice_no'] ?? '') ?: ($sale['sale_no'] ?? '')),
+                'party_type' => 'customer',
+                'party_id' => (int) ($sale['customer_id'] ?? 0),
+                'party_name' => (string) ($sale['customer_name'] ?? '-'),
+                'bill_no' => (string) (($sale['invoice_no'] ?? '') ?: ($sale['sale_no'] ?? '')),
+                'order_no' => '',
+                'debit_amount' => (float) ($sale['total_amount'] ?? 0),
+                'credit_amount' => 0,
+                'balance_amount' => (float) ($sale['pending_amount'] ?? 0),
+                'status' => (string) ($sale['payment_status'] ?? 'Pending'),
+                'payment_mode' => '',
+                'material_type' => 'Sale',
+                'details' => 'Paid: Rs ' . number_format((float) ($sale['paid_amount'] ?? 0), 2),
+                'notes' => '',
+                'file_path' => '',
+            ]);
+        }
+
+        $rows = array_merge($rows, $this->customerReceiptLedgerRows());
+
+        foreach ($this->debitNotesDataset() as $note) {
+            $partyType = (string) ($note['party_type'] ?? '');
+            $rows[] = $this->ledgerRow([
+                'transaction_date' => $note['note_date'] ?? '',
+                'transaction_type' => 'Debit Note',
+                'reference_no' => (string) ($note['note_no'] ?? ''),
+                'party_type' => $partyType,
+                'party_id' => $partyType === 'vendor' ? (int) ($note['vendor_id'] ?? 0) : (int) ($note['customer_id'] ?? 0),
+                'party_name' => (string) ($note['party_name'] ?? '-'),
+                'bill_no' => (string) (($note['invoice_no'] ?? '') ?: ($note['reference_no'] ?? '')),
+                'order_no' => (string) ($note['order_no'] ?? ''),
+                'debit_amount' => (float) ($note['total_amount'] ?? 0),
+                'credit_amount' => 0,
+                'balance_amount' => 0,
+                'status' => (string) ($note['status'] ?? 'Posted'),
+                'payment_mode' => '',
+                'material_type' => 'Adjustment',
+                'details' => (string) ($note['reason'] ?? ''),
+                'notes' => (string) ($note['notes'] ?? ''),
+                'file_path' => '',
+            ]);
+        }
+
+        foreach ($this->creditNotesDataset() as $note) {
+            $partyType = (string) ($note['party_type'] ?? '');
+            $rows[] = $this->ledgerRow([
+                'transaction_date' => $note['note_date'] ?? '',
+                'transaction_type' => 'Credit Note',
+                'reference_no' => (string) ($note['note_no'] ?? ''),
+                'party_type' => $partyType,
+                'party_id' => $partyType === 'vendor' ? (int) ($note['vendor_id'] ?? 0) : (int) ($note['customer_id'] ?? 0),
+                'party_name' => (string) ($note['party_name'] ?? '-'),
+                'bill_no' => (string) (($note['invoice_no'] ?? '') ?: ($note['reference_no'] ?? '')),
+                'order_no' => (string) ($note['order_no'] ?? ''),
+                'debit_amount' => 0,
+                'credit_amount' => (float) ($note['total_amount'] ?? 0),
+                'balance_amount' => 0,
+                'status' => (string) ($note['status'] ?? 'Posted'),
+                'payment_mode' => '',
+                'material_type' => 'Adjustment',
+                'details' => (string) ($note['reason'] ?? ''),
+                'notes' => (string) ($note['notes'] ?? ''),
+                'file_path' => '',
+            ]);
+        }
+
+        foreach ($this->accountPaymentsDataset() as $payment) {
+            $partyType = (string) ($payment['party_type'] ?? '');
+            $partyName = $partyType === 'vendor' ? (string) ($payment['vendor_name'] ?? '-') : (string) ($payment['karigar_name'] ?? '-');
+            $billNo = '-';
+            if ((string) ($payment['bill_type'] ?? '') === 'labour') {
+                $billNo = (string) (($payment['bill_no'] ?? '') ?: ('Labour #' . (int) ($payment['labour_bill_id'] ?? 0)));
+            } elseif ((string) ($payment['bill_type'] ?? '') === 'purchase') {
+                $billNo = ucfirst((string) ($payment['bill_source_type'] ?? 'Purchase')) . ' #' . (int) ($payment['bill_source_id'] ?? 0);
+            }
+
+            $rows[] = $this->ledgerRow([
+                'transaction_date' => $payment['payment_date'] ?? '',
+                'transaction_type' => 'Payment',
+                'reference_no' => (string) (($payment['reference_no'] ?? '') ?: ($payment['payment_no'] ?? '')),
+                'party_type' => $partyType,
+                'party_id' => $partyType === 'vendor' ? (int) ($payment['vendor_id'] ?? 0) : (int) ($payment['karigar_id'] ?? 0),
+                'party_name' => $partyName,
+                'bill_no' => $billNo,
+                'order_no' => '',
+                'debit_amount' => (float) ($payment['amount'] ?? 0),
+                'credit_amount' => 0,
+                'balance_amount' => 0,
+                'status' => 'Paid',
+                'payment_mode' => (string) ($payment['payment_mode'] ?? ''),
+                'material_type' => 'Accounts',
+                'details' => (string) ($payment['payment_no'] ?? ''),
+                'notes' => (string) ($payment['notes'] ?? ''),
+                'file_path' => (string) ($payment['reference_file_path'] ?? ''),
+            ]);
+        }
+
+        $transactionTypes = array_values(array_unique(array_filter(array_map(static fn(array $row): string => (string) ($row['transaction_type'] ?? ''), $rows))));
+        sort($transactionTypes);
+        $statuses = array_values(array_unique(array_filter(array_map(static fn(array $row): string => (string) ($row['status'] ?? ''), $rows))));
+        sort($statuses);
+
+        $rows = $this->filterGeneralLedgerRows($rows, $filters);
+        usort($rows, static function (array $a, array $b): int {
+            $dateCmp = strcmp((string) ($b['transaction_date'] ?? ''), (string) ($a['transaction_date'] ?? ''));
+            return $dateCmp !== 0 ? $dateCmp : strcmp((string) ($b['reference_no'] ?? ''), (string) ($a['reference_no'] ?? ''));
+        });
+
+        return [
+            'rows' => $rows,
+            'summary' => [
+                'row_count' => count($rows),
+                'debit_amount' => array_sum(array_column($rows, 'debit_amount')),
+                'credit_amount' => array_sum(array_column($rows, 'credit_amount')),
+                'balance_amount' => array_sum(array_column($rows, 'balance_amount')),
+            ],
+            'transaction_types' => $transactionTypes,
+            'statuses' => $statuses,
+        ];
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function customerReceiptLedgerRows(): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('customer_receipts')) {
+            return [];
+        }
+
+        $rows = $db->table('customer_receipts cr')
+            ->select('cr.*, c.name as customer_name, i.invoice_no, o.order_no', false)
+            ->join('customers c', 'c.id = cr.customer_id', 'left')
+            ->join('invoices i', 'i.id = cr.invoice_id', 'left')
+            ->join('orders o', 'o.id = i.order_id', 'left')
+            ->orderBy('cr.receipt_date', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[] = $this->ledgerRow([
+                'transaction_date' => $row['receipt_date'] ?? '',
+                'transaction_type' => 'Customer Receipt',
+                'reference_no' => (string) (($row['reference_no'] ?? '') ?: ($row['receipt_no'] ?? '')),
+                'party_type' => 'customer',
+                'party_id' => (int) ($row['customer_id'] ?? 0),
+                'party_name' => (string) ($row['customer_name'] ?? '-'),
+                'bill_no' => (string) ($row['invoice_no'] ?? ''),
+                'order_no' => (string) ($row['order_no'] ?? ''),
+                'debit_amount' => 0,
+                'credit_amount' => (float) ($row['amount'] ?? 0),
+                'balance_amount' => 0,
+                'status' => 'Received',
+                'payment_mode' => (string) ($row['payment_mode'] ?? ''),
+                'material_type' => 'Accounts',
+                'details' => (string) ($row['receipt_no'] ?? ''),
+                'notes' => (string) ($row['notes'] ?? ''),
+                'file_path' => '',
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string,mixed> $filters
+     * @return array{rows:list<array<string,mixed>>,summary:array<string,float|int>,categories:list<string>,transaction_types:list<string>,material_types:list<string>}
+     */
+    private function vendorTransactionLedgerDataset(array $filters): array
+    {
+        $rows = [];
+        foreach ($this->purchaseBillsDataset() as $bill) {
+            $rows[] = $this->vendorTransactionRow([
+                'transaction_date' => $bill['purchase_date'] ?? '',
+                'category' => 'Purchase',
+                'transaction_type' => 'Purchase Bill',
+                'material_type' => (string) ($bill['category'] ?? 'Purchase'),
+                'reference_no' => strtoupper((string) ($bill['source_type'] ?? 'purchase')) . '#' . (int) ($bill['source_id'] ?? 0),
+                'source_label' => (string) (($bill['invoice_no'] ?? '') ?: strtoupper((string) ($bill['source_type'] ?? 'purchase')) . '#' . (int) ($bill['source_id'] ?? 0)),
+                'party_type' => 'vendor',
+                'party_id' => (int) ($bill['vendor_id'] ?? 0),
+                'vendor_id' => (int) ($bill['vendor_id'] ?? 0),
+                'party_name' => (string) ($bill['supplier_name'] ?? '-'),
+                'payable_amount' => (float) ($bill['amount'] ?? 0),
+                'balance_amount' => (float) ($bill['pending_amount'] ?? 0),
+                'status' => (string) ($bill['payment_status'] ?? 'Pending'),
+                'details' => 'Paid: Rs ' . number_format((float) ($bill['paid_amount'] ?? 0), 2),
+            ]);
+        }
+
+        foreach ($this->accountPaymentsDataset() as $payment) {
+            $partyType = (string) ($payment['party_type'] ?? '');
+            $rows[] = $this->vendorTransactionRow([
+                'transaction_date' => $payment['payment_date'] ?? '',
+                'category' => 'Payment',
+                'transaction_type' => $partyType === 'vendor' ? 'Vendor Payment' : 'Karigar Payment',
+                'material_type' => 'Money',
+                'reference_no' => (string) (($payment['reference_no'] ?? '') ?: ($payment['payment_no'] ?? '')),
+                'source_label' => (string) ($payment['payment_no'] ?? ''),
+                'party_type' => $partyType,
+                'party_id' => $partyType === 'vendor' ? (int) ($payment['vendor_id'] ?? 0) : (int) ($payment['karigar_id'] ?? 0),
+                'vendor_id' => $partyType === 'vendor' ? (int) ($payment['vendor_id'] ?? 0) : 0,
+                'karigar_id' => $partyType === 'karigar' ? (int) ($payment['karigar_id'] ?? 0) : 0,
+                'party_name' => $partyType === 'vendor' ? (string) ($payment['vendor_name'] ?? '-') : (string) ($payment['karigar_name'] ?? '-'),
+                'paid_amount' => (float) ($payment['amount'] ?? 0),
+                'payment_mode' => (string) ($payment['payment_mode'] ?? ''),
+                'status' => 'Paid',
+                'details' => $this->paymentBillLabel($payment),
+                'notes' => (string) ($payment['notes'] ?? ''),
+                'file_path' => (string) ($payment['reference_file_path'] ?? ''),
+            ]);
+        }
+
+        $rows = array_merge(
+            $rows,
+            $this->materialMovementRows(),
+            $this->goldInventoryMovementRows(),
+            $this->diamondInventoryMovementRows(),
+            $this->stoneInventoryMovementRows()
+        );
+
+        $categories = $this->uniqueColumnValues($rows, 'category');
+        $transactionTypes = $this->uniqueColumnValues($rows, 'transaction_type');
+        $materialTypes = $this->uniqueColumnValues($rows, 'material_type');
+
+        $rows = $this->filterVendorTransactionRows($rows, $filters);
+        usort($rows, static function (array $a, array $b): int {
+            $dateCmp = strcmp((string) ($b['transaction_date'] ?? ''), (string) ($a['transaction_date'] ?? ''));
+            return $dateCmp !== 0 ? $dateCmp : strcmp((string) ($b['reference_no'] ?? ''), (string) ($a['reference_no'] ?? ''));
+        });
+
+        return [
+            'rows' => $rows,
+            'summary' => [
+                'row_count' => count($rows),
+                'issue_gold_gm' => array_sum(array_column($rows, 'issue_gold_gm')),
+                'receive_gold_gm' => array_sum(array_column($rows, 'receive_gold_gm')),
+                'issue_cts' => array_sum(array_column($rows, 'issue_cts')),
+                'receive_cts' => array_sum(array_column($rows, 'receive_cts')),
+                'payable_amount' => array_sum(array_column($rows, 'payable_amount')),
+                'paid_amount' => array_sum(array_column($rows, 'paid_amount')),
+                'balance_amount' => array_sum(array_column($rows, 'balance_amount')),
+            ],
+            'categories' => $categories,
+            'transaction_types' => $transactionTypes,
+            'material_types' => $materialTypes,
+        ];
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function materialMovementRows(): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('order_material_movements')) {
+            return [];
+        }
+
+        $rows = $db->table('order_material_movements om')
+            ->select('om.*, o.order_no, k.name as karigar_name', false)
+            ->join('orders o', 'o.id = om.order_id', 'left')
+            ->join('karigars k', 'k.id = om.karigar_id', 'left')
+            ->orderBy('om.created_at', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $isIssue = strtolower((string) ($row['movement_type'] ?? '')) === 'issue';
+            $result[] = $this->vendorTransactionRow([
+                'transaction_date' => substr((string) ($row['created_at'] ?? ''), 0, 10),
+                'category' => 'Jobwork Material',
+                'transaction_type' => $isIssue ? 'Material Issue' : 'Material Receive',
+                'material_type' => 'Mixed',
+                'reference_no' => 'MOV#' . (int) ($row['id'] ?? 0),
+                'source_label' => 'Order Movement',
+                'order_no' => (string) ($row['order_no'] ?? ''),
+                'party_type' => 'karigar',
+                'party_id' => (int) ($row['karigar_id'] ?? 0),
+                'karigar_id' => (int) ($row['karigar_id'] ?? 0),
+                'party_name' => (string) ($row['karigar_name'] ?? '-'),
+                'issue_gold_gm' => $isIssue ? (float) ($row['gold_gm'] ?? 0) : 0,
+                'receive_gold_gm' => $isIssue ? 0 : (float) ($row['gold_gm'] ?? 0),
+                'issue_cts' => $isIssue ? (float) ($row['diamond_cts'] ?? 0) : 0,
+                'receive_cts' => $isIssue ? 0 : (float) ($row['diamond_cts'] ?? 0),
+                'details' => (string) ($row['notes'] ?? ''),
+                'notes' => (string) ($row['notes'] ?? ''),
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function goldInventoryMovementRows(): array
+    {
+        $rows = [];
+        $db = db_connect();
+        if ($db->tableExists('gold_inventory_issue_headers') && $db->tableExists('gold_inventory_issue_lines')) {
+            $issueRows = $db->table('gold_inventory_issue_headers h')
+                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.weight_gm),0) as weight_gm, COALESCE(SUM(l.fine_weight_gm),0) as fine_weight_gm, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->join('gold_inventory_issue_lines l', 'l.issue_id = h.id', 'left')
+                ->join('orders o', 'o.id = h.order_id', 'left')
+                ->join('karigars k', 'k.id = h.karigar_id', 'left')
+                ->groupBy('h.id')
+                ->get()
+                ->getResultArray();
+            foreach ($issueRows as $row) {
+                $rows[] = $this->vendorTransactionRow([
+                    'transaction_date' => $row['issue_date'] ?? '',
+                    'category' => 'Issue',
+                    'transaction_type' => 'Gold Issue',
+                    'material_type' => 'Gold',
+                    'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'GI#' . (int) ($row['id'] ?? 0)),
+                    'source_label' => 'Gold Issue',
+                    'order_no' => (string) ($row['order_no'] ?? ''),
+                    'party_type' => 'karigar',
+                    'party_id' => (int) ($row['karigar_id'] ?? 0),
+                    'karigar_id' => (int) ($row['karigar_id'] ?? 0),
+                    'party_name' => (string) (($row['karigar_name'] ?? '') ?: ($row['issue_to'] ?? '-')),
+                    'issue_gold_gm' => (float) ($row['weight_gm'] ?? 0),
+                    'payable_amount' => (float) ($row['amount'] ?? 0),
+                    'details' => 'Fine: ' . number_format((float) ($row['fine_weight_gm'] ?? 0), 3) . ' gm',
+                    'notes' => (string) ($row['notes'] ?? ''),
+                    'file_path' => (string) ($row['attachment_path'] ?? ''),
+                ]);
+            }
+        }
+
+        if ($db->tableExists('gold_inventory_return_headers') && $db->tableExists('gold_inventory_return_lines')) {
+            $returnRows = $db->table('gold_inventory_return_headers h')
+                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.weight_gm),0) as weight_gm, COALESCE(SUM(l.fine_weight_gm),0) as fine_weight_gm, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->join('gold_inventory_return_lines l', 'l.return_id = h.id', 'left')
+                ->join('orders o', 'o.id = h.order_id', 'left')
+                ->join('karigars k', 'k.id = h.karigar_id', 'left')
+                ->groupBy('h.id')
+                ->get()
+                ->getResultArray();
+            foreach ($returnRows as $row) {
+                $rows[] = $this->vendorTransactionRow([
+                    'transaction_date' => $row['return_date'] ?? '',
+                    'category' => 'Receive',
+                    'transaction_type' => 'Gold Receive',
+                    'material_type' => 'Gold',
+                    'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'GR#' . (int) ($row['id'] ?? 0)),
+                    'source_label' => 'Gold Return',
+                    'order_no' => (string) ($row['order_no'] ?? ''),
+                    'party_type' => 'karigar',
+                    'party_id' => (int) ($row['karigar_id'] ?? 0),
+                    'karigar_id' => (int) ($row['karigar_id'] ?? 0),
+                    'party_name' => (string) (($row['karigar_name'] ?? '') ?: ($row['return_from'] ?? '-')),
+                    'receive_gold_gm' => (float) ($row['weight_gm'] ?? 0),
+                    'paid_amount' => (float) ($row['amount'] ?? 0),
+                    'details' => 'Fine: ' . number_format((float) ($row['fine_weight_gm'] ?? 0), 3) . ' gm',
+                    'notes' => (string) ($row['notes'] ?? ''),
+                    'file_path' => (string) ($row['attachment_path'] ?? ''),
+                ]);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function diamondInventoryMovementRows(): array
+    {
+        $rows = [];
+        $db = db_connect();
+        if ($db->tableExists('issue_headers') && $db->tableExists('issue_lines')) {
+            $issueRows = $db->table('issue_headers h')
+                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.pcs),0) as pcs, COALESCE(SUM(l.carat),0) as cts, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->join('issue_lines l', 'l.issue_id = h.id', 'left')
+                ->join('orders o', 'o.id = h.order_id', 'left')
+                ->join('karigars k', 'k.id = h.karigar_id', 'left')
+                ->groupBy('h.id')
+                ->get()
+                ->getResultArray();
+            foreach ($issueRows as $row) {
+                $rows[] = $this->vendorTransactionRow([
+                    'transaction_date' => $row['issue_date'] ?? '',
+                    'category' => 'Issue',
+                    'transaction_type' => 'Diamond Issue',
+                    'material_type' => 'Diamond',
+                    'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'DI#' . (int) ($row['id'] ?? 0)),
+                    'source_label' => 'Diamond Issue',
+                    'order_no' => (string) ($row['order_no'] ?? ''),
+                    'party_type' => 'karigar',
+                    'party_id' => (int) ($row['karigar_id'] ?? 0),
+                    'karigar_id' => (int) ($row['karigar_id'] ?? 0),
+                    'party_name' => (string) (($row['karigar_name'] ?? '') ?: ($row['issue_to'] ?? '-')),
+                    'issue_pcs' => (float) ($row['pcs'] ?? 0),
+                    'issue_cts' => (float) ($row['cts'] ?? 0),
+                    'payable_amount' => (float) ($row['amount'] ?? 0),
+                    'details' => 'Diamond pcs: ' . number_format((float) ($row['pcs'] ?? 0), 0),
+                    'notes' => (string) ($row['notes'] ?? ''),
+                    'file_path' => (string) ($row['attachment_path'] ?? ''),
+                ]);
+            }
+        }
+
+        if ($db->tableExists('return_headers') && $db->tableExists('return_lines')) {
+            $returnRows = $db->table('return_headers h')
+                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.pcs),0) as pcs, COALESCE(SUM(l.carat),0) as cts, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->join('return_lines l', 'l.return_id = h.id', 'left')
+                ->join('orders o', 'o.id = h.order_id', 'left')
+                ->join('karigars k', 'k.id = h.karigar_id', 'left')
+                ->groupBy('h.id')
+                ->get()
+                ->getResultArray();
+            foreach ($returnRows as $row) {
+                $rows[] = $this->vendorTransactionRow([
+                    'transaction_date' => $row['return_date'] ?? '',
+                    'category' => 'Receive',
+                    'transaction_type' => 'Diamond Receive',
+                    'material_type' => 'Diamond',
+                    'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'DR#' . (int) ($row['id'] ?? 0)),
+                    'source_label' => 'Diamond Return',
+                    'order_no' => (string) ($row['order_no'] ?? ''),
+                    'party_type' => 'karigar',
+                    'party_id' => (int) ($row['karigar_id'] ?? 0),
+                    'karigar_id' => (int) ($row['karigar_id'] ?? 0),
+                    'party_name' => (string) (($row['karigar_name'] ?? '') ?: ($row['return_from'] ?? '-')),
+                    'receive_pcs' => (float) ($row['pcs'] ?? 0),
+                    'receive_cts' => (float) ($row['cts'] ?? 0),
+                    'paid_amount' => (float) ($row['amount'] ?? 0),
+                    'details' => 'Diamond pcs: ' . number_format((float) ($row['pcs'] ?? 0), 0),
+                    'notes' => (string) ($row['notes'] ?? ''),
+                    'file_path' => (string) ($row['attachment_path'] ?? ''),
+                ]);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function stoneInventoryMovementRows(): array
+    {
+        $rows = [];
+        $db = db_connect();
+        if ($db->tableExists('stone_inventory_issue_headers') && $db->tableExists('stone_inventory_issue_lines')) {
+            $issueRows = $db->table('stone_inventory_issue_headers h')
+                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.qty),0) as qty, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->join('stone_inventory_issue_lines l', 'l.issue_id = h.id', 'left')
+                ->join('orders o', 'o.id = h.order_id', 'left')
+                ->join('karigars k', 'k.id = h.karigar_id', 'left')
+                ->groupBy('h.id')
+                ->get()
+                ->getResultArray();
+            foreach ($issueRows as $row) {
+                $rows[] = $this->vendorTransactionRow([
+                    'transaction_date' => $row['issue_date'] ?? '',
+                    'category' => 'Issue',
+                    'transaction_type' => 'Stone Issue',
+                    'material_type' => 'Stone',
+                    'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'SI#' . (int) ($row['id'] ?? 0)),
+                    'source_label' => 'Stone Issue',
+                    'order_no' => (string) ($row['order_no'] ?? ''),
+                    'party_type' => 'karigar',
+                    'party_id' => (int) ($row['karigar_id'] ?? 0),
+                    'karigar_id' => (int) ($row['karigar_id'] ?? 0),
+                    'party_name' => (string) (($row['karigar_name'] ?? '') ?: ($row['issue_to'] ?? '-')),
+                    'issue_pcs' => (float) ($row['qty'] ?? 0),
+                    'payable_amount' => (float) ($row['amount'] ?? 0),
+                    'details' => 'Stone qty: ' . number_format((float) ($row['qty'] ?? 0), 0),
+                    'notes' => (string) ($row['notes'] ?? ''),
+                    'file_path' => (string) ($row['attachment_path'] ?? ''),
+                ]);
+            }
+        }
+
+        if ($db->tableExists('stone_inventory_return_headers') && $db->tableExists('stone_inventory_return_lines')) {
+            $returnRows = $db->table('stone_inventory_return_headers h')
+                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.qty),0) as qty, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->join('stone_inventory_return_lines l', 'l.return_id = h.id', 'left')
+                ->join('orders o', 'o.id = h.order_id', 'left')
+                ->join('karigars k', 'k.id = h.karigar_id', 'left')
+                ->groupBy('h.id')
+                ->get()
+                ->getResultArray();
+            foreach ($returnRows as $row) {
+                $rows[] = $this->vendorTransactionRow([
+                    'transaction_date' => $row['return_date'] ?? '',
+                    'category' => 'Receive',
+                    'transaction_type' => 'Stone Receive',
+                    'material_type' => 'Stone',
+                    'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'SR#' . (int) ($row['id'] ?? 0)),
+                    'source_label' => 'Stone Return',
+                    'order_no' => (string) ($row['order_no'] ?? ''),
+                    'party_type' => 'karigar',
+                    'party_id' => (int) ($row['karigar_id'] ?? 0),
+                    'karigar_id' => (int) ($row['karigar_id'] ?? 0),
+                    'party_name' => (string) (($row['karigar_name'] ?? '') ?: ($row['return_from'] ?? '-')),
+                    'receive_pcs' => (float) ($row['qty'] ?? 0),
+                    'paid_amount' => (float) ($row['amount'] ?? 0),
+                    'details' => 'Stone qty: ' . number_format((float) ($row['qty'] ?? 0), 0),
+                    'notes' => (string) ($row['notes'] ?? ''),
+                    'file_path' => (string) ($row['attachment_path'] ?? ''),
+                ]);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function vendorTransactionRow(array $data): array
+    {
+        return [
+            'transaction_date' => (string) ($data['transaction_date'] ?? ''),
+            'category' => (string) ($data['category'] ?? ''),
+            'transaction_type' => (string) ($data['transaction_type'] ?? ''),
+            'material_type' => (string) ($data['material_type'] ?? ''),
+            'reference_no' => (string) ($data['reference_no'] ?? ''),
+            'source_label' => (string) ($data['source_label'] ?? ''),
+            'order_no' => (string) ($data['order_no'] ?? ''),
+            'party_type' => (string) ($data['party_type'] ?? ''),
+            'party_id' => (int) ($data['party_id'] ?? 0),
+            'vendor_id' => (int) ($data['vendor_id'] ?? 0),
+            'karigar_id' => (int) ($data['karigar_id'] ?? 0),
+            'party_name' => (string) ($data['party_name'] ?? '-'),
+            'issue_gold_gm' => round((float) ($data['issue_gold_gm'] ?? 0), 3),
+            'receive_gold_gm' => round((float) ($data['receive_gold_gm'] ?? 0), 3),
+            'issue_pcs' => round((float) ($data['issue_pcs'] ?? 0), 3),
+            'receive_pcs' => round((float) ($data['receive_pcs'] ?? 0), 3),
+            'issue_cts' => round((float) ($data['issue_cts'] ?? 0), 3),
+            'receive_cts' => round((float) ($data['receive_cts'] ?? 0), 3),
+            'payable_amount' => round((float) ($data['payable_amount'] ?? 0), 2),
+            'paid_amount' => round((float) ($data['paid_amount'] ?? 0), 2),
+            'balance_amount' => round((float) ($data['balance_amount'] ?? 0), 2),
+            'payment_mode' => (string) ($data['payment_mode'] ?? ''),
+            'status' => (string) ($data['status'] ?? ''),
+            'details' => (string) ($data['details'] ?? ''),
+            'notes' => (string) ($data['notes'] ?? ''),
+            'file_path' => (string) ($data['file_path'] ?? ''),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private function uniqueColumnValues(array $rows, string $column): array
+    {
+        $values = array_values(array_unique(array_filter(array_map(static fn(array $row): string => (string) ($row[$column] ?? ''), $rows))));
+        sort($values);
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $filters
+     * @return list<array<string,mixed>>
+     */
+    private function filterVendorTransactionRows(array $rows, array $filters): array
+    {
+        return array_values(array_filter($rows, function (array $row) use ($filters): bool {
+            if (! $this->dateInRangeOrEmpty((string) ($row['transaction_date'] ?? ''), (string) ($filters['date_from'] ?? ''), (string) ($filters['date_to'] ?? ''))) {
+                return false;
+            }
+            foreach (['party_type', 'category', 'transaction_type', 'material_type'] as $key) {
+                if ((string) ($filters[$key] ?? '') !== '' && (string) ($row[$key] ?? '') !== (string) $filters[$key]) {
+                    return false;
+                }
+            }
+            if ((int) ($filters['vendor_id'] ?? 0) > 0 && (int) ($row['vendor_id'] ?? 0) !== (int) $filters['vendor_id']) {
+                return false;
+            }
+            if ((int) ($filters['karigar_id'] ?? 0) > 0 && (int) ($row['karigar_id'] ?? 0) !== (int) $filters['karigar_id']) {
+                return false;
+            }
+            if ((string) ($filters['reference_no'] ?? '') !== '' && stripos((string) ($row['reference_no'] ?? ''), (string) $filters['reference_no']) === false) {
+                return false;
+            }
+            if ((string) ($filters['search'] ?? '') !== '') {
+                $needle = strtolower((string) $filters['search']);
+                $haystack = strtolower(implode(' | ', [
+                    $row['category'] ?? '',
+                    $row['transaction_type'] ?? '',
+                    $row['material_type'] ?? '',
+                    $row['reference_no'] ?? '',
+                    $row['source_label'] ?? '',
+                    $row['order_no'] ?? '',
+                    $row['party_name'] ?? '',
+                    $row['details'] ?? '',
+                    $row['notes'] ?? '',
+                ]));
+                if (strpos($haystack, $needle) === false) {
+                    return false;
+                }
+            }
+            return true;
+        }));
+    }
+
+    /**
+     * @param array<string,mixed> $payment
+     */
+    private function paymentBillLabel(array $payment): string
+    {
+        if ((string) ($payment['bill_type'] ?? '') === 'labour') {
+            return (string) (($payment['bill_no'] ?? '') ?: ('Labour #' . (int) ($payment['labour_bill_id'] ?? 0)));
+        }
+        if ((string) ($payment['bill_type'] ?? '') === 'purchase') {
+            return ucfirst((string) ($payment['bill_source_type'] ?? 'purchase')) . ' #' . (int) ($payment['bill_source_id'] ?? 0);
+        }
+        return '';
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function ledgerRow(array $data): array
+    {
+        return [
+            'transaction_date' => (string) ($data['transaction_date'] ?? ''),
+            'transaction_type' => (string) ($data['transaction_type'] ?? ''),
+            'reference_no' => (string) ($data['reference_no'] ?? ''),
+            'party_type' => (string) ($data['party_type'] ?? ''),
+            'party_id' => (int) ($data['party_id'] ?? 0),
+            'party_name' => (string) ($data['party_name'] ?? '-'),
+            'bill_no' => (string) ($data['bill_no'] ?? ''),
+            'order_no' => (string) ($data['order_no'] ?? ''),
+            'debit_amount' => round((float) ($data['debit_amount'] ?? 0), 2),
+            'credit_amount' => round((float) ($data['credit_amount'] ?? 0), 2),
+            'balance_amount' => round((float) ($data['balance_amount'] ?? 0), 2),
+            'status' => (string) ($data['status'] ?? ''),
+            'payment_mode' => (string) ($data['payment_mode'] ?? ''),
+            'material_type' => (string) ($data['material_type'] ?? ''),
+            'details' => (string) ($data['details'] ?? ''),
+            'notes' => (string) ($data['notes'] ?? ''),
+            'file_path' => (string) ($data['file_path'] ?? ''),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $filters
+     * @return list<array<string,mixed>>
+     */
+    private function filterGeneralLedgerRows(array $rows, array $filters): array
+    {
+        return array_values(array_filter($rows, function (array $row) use ($filters): bool {
+            if (! $this->dateInRangeOrEmpty((string) ($row['transaction_date'] ?? ''), (string) ($filters['date_from'] ?? ''), (string) ($filters['date_to'] ?? ''))) {
+                return false;
+            }
+            foreach (['transaction_type', 'party_type', 'status'] as $key) {
+                if ((string) ($filters[$key] ?? '') !== '' && (string) ($row[$key] ?? '') !== (string) $filters[$key]) {
+                    return false;
+                }
+            }
+            if ((int) ($filters['customer_id'] ?? 0) > 0 && ((string) ($row['party_type'] ?? '') !== 'customer' || (int) ($row['party_id'] ?? 0) !== (int) $filters['customer_id'])) {
+                return false;
+            }
+            if ((int) ($filters['vendor_id'] ?? 0) > 0 && ((string) ($row['party_type'] ?? '') !== 'vendor' || (int) ($row['party_id'] ?? 0) !== (int) $filters['vendor_id'])) {
+                return false;
+            }
+            if ((int) ($filters['karigar_id'] ?? 0) > 0 && ((string) ($row['party_type'] ?? '') !== 'karigar' || (int) ($row['party_id'] ?? 0) !== (int) $filters['karigar_id'])) {
+                return false;
+            }
+            if ((string) ($filters['reference_no'] ?? '') !== '' && stripos((string) ($row['reference_no'] ?? ''), (string) $filters['reference_no']) === false) {
+                return false;
+            }
+            if ((string) ($filters['search'] ?? '') !== '') {
+                $needle = strtolower((string) $filters['search']);
+                $haystack = strtolower(implode(' | ', [
+                    $row['transaction_type'] ?? '',
+                    $row['reference_no'] ?? '',
+                    $row['party_name'] ?? '',
+                    $row['bill_no'] ?? '',
+                    $row['order_no'] ?? '',
+                    $row['details'] ?? '',
+                    $row['notes'] ?? '',
+                ]));
+                if (strpos($haystack, $needle) === false) {
+                    return false;
+                }
+            }
+            return true;
+        }));
+    }
+
+    private function dateInRangeOrEmpty(string $date, string $dateFrom, string $dateTo): bool
+    {
+        if ($date === '') {
+            return $dateFrom === '' && $dateTo === '';
+        }
+        return $this->dateInRange($date, $dateFrom, $dateTo);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function resolvePaymentBill(string $partyType, string $billRef): array
+    {
+        $empty = [
+            'selected' => $billRef !== '',
+            'found' => false,
+            'bill_type' => null,
+            'bill_source_type' => null,
+            'bill_source_id' => null,
+            'labour_bill_id' => null,
+            'order_id' => null,
+            'pending_amount' => 0.0,
+        ];
+
+        if ($billRef === '') {
+            $empty['found'] = true;
+            return $empty;
+        }
+
+        $parts = explode(':', $billRef);
+        if (count($parts) < 2) {
+            return $empty;
+        }
+
+        if ($partyType === 'karigar' && $parts[0] === 'labour') {
+            $billId = (int) $parts[1];
+            foreach ($this->labourBillsDataset() as $row) {
+                if ((int) ($row['id'] ?? 0) === $billId) {
+                    return [
+                        'selected' => true,
+                        'found' => true,
+                        'bill_type' => 'labour',
+                        'bill_source_type' => null,
+                        'bill_source_id' => null,
+                        'labour_bill_id' => $billId,
+                        'order_id' => $row['order_id'] ?? null,
+                        'pending_amount' => (float) ($row['pending_amount'] ?? 0),
+                    ];
+                }
+            }
+        }
+
+        if ($partyType === 'vendor' && $parts[0] === 'purchase' && count($parts) >= 3) {
+            $sourceType = (string) $parts[1];
+            $sourceId = (int) $parts[2];
+            foreach ($this->purchaseBillsDataset() as $row) {
+                if ((string) ($row['source_type'] ?? '') === $sourceType && (int) ($row['source_id'] ?? 0) === $sourceId) {
+                    return [
+                        'selected' => true,
+                        'found' => true,
+                        'bill_type' => 'purchase',
+                        'bill_source_type' => $sourceType,
+                        'bill_source_id' => $sourceId,
+                        'labour_bill_id' => null,
+                        'order_id' => null,
+                        'pending_amount' => (float) ($row['pending_amount'] ?? 0),
+                    ];
+                }
+            }
+        }
+
+        return $empty;
+    }
+
+    private function postLabourBillPayment(int $billId, float $amount, string $paymentDate, ?string $referenceNo, ?string $notes, bool $withLedger = true): void
+    {
+        $bill = db_connect()->table('labour_bills lb')
+            ->select('lb.*, COALESCE(SUM(lbp.amount),0) as paid_amount', false)
+            ->join('labour_bill_payments lbp', 'lbp.labour_bill_id = lb.id', 'left')
+            ->where('lb.id', $billId)
+            ->groupBy('lb.id')
+            ->get()
+            ->getRowArray();
+        if (! $bill) {
+            return;
+        }
+
+        $totalAmount = (float) ($bill['total_amount'] ?? 0);
+        $newPaid = round((float) ($bill['paid_amount'] ?? 0) + $amount, 2);
+        $status = $totalAmount <= 0 || $newPaid >= $totalAmount ? 'Paid' : ($newPaid > 0 ? 'Partial' : 'Pending');
+
+        $this->labourBillPaymentModel->insert([
+            'labour_bill_id' => $billId,
+            'payment_date' => $paymentDate,
+            'amount' => $amount,
+            'reference_no' => $referenceNo,
+            'notes' => $notes,
+            'created_by' => (int) session('admin_id'),
+        ]);
+        $this->labourBillModel->update($billId, ['payment_status' => $status]);
+
+        if ($withLedger && db_connect()->tableExists('karigar_payment_ledgers')) {
+            db_connect()->table('karigar_payment_ledgers')->insert([
+                'karigar_id' => (int) ($bill['karigar_id'] ?? 0),
+                'order_id' => isset($bill['order_id']) ? (int) $bill['order_id'] : null,
+                'entry_type' => 'payment',
+                'amount' => $amount,
+                'reference_no' => $referenceNo,
+                'notes' => $notes ?: 'Labour Bill Payment ' . (string) ($bill['bill_no'] ?? ''),
+                'created_by' => (int) session('admin_id'),
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+    }
+
+    private function postPurchaseBillPayment(string $sourceType, int $sourceId, float $amount, string $paymentDate, ?string $referenceNo, ?string $notes, bool $updateLegacyStatus = true): void
+    {
+        $totals = $this->resolvePurchaseBillTotals($sourceType, $sourceId);
+        if (! $totals['found']) {
+            return;
+        }
+
+        $this->purchaseBillPaymentModel->insert([
+            'source_type' => $sourceType,
+            'source_id' => $sourceId,
+            'payment_date' => $paymentDate,
+            'amount' => $amount,
+            'reference_no' => $referenceNo,
+            'notes' => $notes,
+            'created_by' => (int) session('admin_id'),
+        ]);
+
+        $db = db_connect();
+        if ($updateLegacyStatus && $sourceType === 'stone' && $db->tableExists('purchases') && $db->fieldExists('payment_status', 'purchases')) {
+            $newPaid = round((float) $totals['paid_amount'] + $amount, 2);
+            $status = $newPaid >= (float) $totals['total_amount'] ? 'Paid' : ($newPaid > 0 ? 'Partial' : 'Pending');
+            $db->table('purchases')->where('id', $sourceId)->update(['payment_status' => $status]);
+        }
+    }
+
+    /**
+     * @return array{ok:bool,message:string,file_path:?string,file_name:?string}
+     */
+    private function storePaymentReferenceUpload(): array
+    {
+        $file = $this->request->getFile('reference_file');
+        if (! $file || $file->getError() === UPLOAD_ERR_NO_FILE) {
+            return ['ok' => true, 'message' => '', 'file_path' => null, 'file_name' => null];
+        }
+        if (! $file->isValid()) {
+            return ['ok' => false, 'message' => 'Payment reference upload failed.', 'file_path' => null, 'file_name' => null];
+        }
+        if ($file->getSize() > 5 * 1024 * 1024) {
+            return ['ok' => false, 'message' => 'Payment reference file must be 5 MB or smaller.', 'file_path' => null, 'file_name' => null];
+        }
+
+        $allowed = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+        $extension = strtolower($file->getClientExtension());
+        if (! in_array($extension, $allowed, true)) {
+            return ['ok' => false, 'message' => 'Upload PDF, JPG, PNG, or WEBP payment reference only.', 'file_path' => null, 'file_name' => null];
+        }
+
+        $dir = FCPATH . 'uploads' . DIRECTORY_SEPARATOR . 'account_payments';
+        if (! is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
+        $newName = $file->getRandomName();
+        $file->move($dir, $newName);
+
+        return [
+            'ok' => true,
+            'message' => '',
+            'file_path' => 'uploads/account_payments/' . $newName,
+            'file_name' => $file->getClientName(),
+        ];
+    }
+
+    private function generateAccountPaymentNumber(): string
+    {
+        return 'PAY-' . date('Ymd') . '-' . str_pad((string) ($this->accountPaymentModel->countAllResults() + 1), 5, '0', STR_PAD_LEFT);
+    }
+
+    private function dateInRange(string $date, string $dateFrom, string $dateTo): bool
+    {
+        if ($date === '') {
+            return false;
+        }
+        if ($dateFrom !== '' && $date < $dateFrom) {
+            return false;
+        }
+        if ($dateTo !== '' && $date > $dateTo) {
+            return false;
+        }
+        return true;
     }
 
     private function firstValidationError(): string

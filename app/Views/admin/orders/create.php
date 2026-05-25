@@ -8,7 +8,10 @@ $showRepairFields = $selectedOrderType === 'Repair';
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0"><?= esc($title ?? 'Create Order') ?></h4>
-    <a href="<?= site_url($isRepairMode ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-primary">Back</a>
+    <div class="d-flex gap-2">
+        <a href="<?= site_url('order-request') ?>" target="_blank" class="btn btn-outline-success">Public Order Link</a>
+        <a href="<?= site_url($isRepairMode ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-primary">Back</a>
+    </div>
 </div>
 
 <div class="card">
@@ -51,6 +54,15 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     </select>
                 </div>
                 <div class="col-md-3 mb-3">
+                    <label class="form-label">Assign Karigar</label>
+                    <select name="assigned_karigar_id" class="form-control">
+                        <option value="">Assign later</option>
+                        <?php foreach (($karigars ?? []) as $karigar): ?>
+                            <option value="<?= (int) $karigar['id'] ?>" <?= (string) old('assigned_karigar_id') === (string) $karigar['id'] ? 'selected' : '' ?>><?= esc((string) $karigar['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Current Status</label>
                     <select name="status" class="form-control">
                         <?php foreach ($statuses as $status): ?>
@@ -61,6 +73,28 @@ $showRepairFields = $selectedOrderType === 'Repair';
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Due Date</label>
                     <input type="date" name="due_date" class="form-control" value="<?= esc((string) old('due_date')) ?>">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Priority Level</label>
+                    <input type="number" name="priority_level" min="0" max="10" class="form-control" value="<?= esc((string) old('priority_level', '0')) ?>">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">WhatsApp Notification No</label>
+                    <input type="tel" name="whatsapp_notification_number" class="form-control" value="<?= esc((string) old('whatsapp_notification_number')) ?>" placeholder="91XXXXXXXXXX">
+                </div>
+                <div class="col-md-3 mb-3 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input type="checkbox" name="whatsapp_notify_order_created" value="1" id="whatsapp-notify-order-created" class="form-check-input" <?= old('whatsapp_notify_order_created', '1') ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="whatsapp-notify-order-created">Queue WhatsApp on save</label>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Expected Diamond Details</label>
+                    <textarea name="expected_diamond_spec" class="form-control" rows="2" placeholder="Shape, color, clarity, pcs, size"><?= esc((string) old('expected_diamond_spec')) ?></textarea>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Expected Stone / Other Details</label>
+                    <textarea name="expected_stone_spec" class="form-control" rows="2" placeholder="Ruby, emerald, CZ, enamel, plating"><?= esc((string) old('expected_stone_spec')) ?></textarea>
                 </div>
                 <div class="col-12 mb-3">
                     <label class="form-label">Order Notes</label>

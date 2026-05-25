@@ -4,23 +4,29 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
-class VendorPaymentModel extends Model
+class AccountPaymentModel extends Model
 {
-    protected $table = 'vendor_payments';
+    protected $table = 'account_payments';
     protected $primaryKey = 'id';
     protected $returnType = 'array';
     protected $allowedFields = [
         'payment_no',
         'payment_date',
+        'party_type',
+        'karigar_id',
         'vendor_id',
-        'purchase_invoice_id',
         'amount',
         'payment_mode',
         'reference_no',
+        'reference_file_path',
+        'reference_file_name',
+        'bill_type',
+        'bill_source_type',
+        'bill_source_id',
+        'labour_bill_id',
         'notes',
         'created_by',
-        'created_at',
     ];
-    protected $useTimestamps = false;
+    protected $useTimestamps = true;
     protected $dateFormat = 'datetime';
 }

@@ -268,6 +268,7 @@ class OrderController extends BaseController
             'leads'       => $this->leadModel->where('status', 'Open')->orderBy('id', 'DESC')->findAll(),
             'designs'     => $this->designModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'goldPurities'=> $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
+            'karigars'    => $this->karigarModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'priorities'  => $this->jewelleryConfig->orderPriorities,
             'statuses'    => $this->jewelleryConfig->orderStatuses,
             'repairMode'  => $repairMode,
@@ -287,6 +288,12 @@ class OrderController extends BaseController
             'due_date'    => 'permit_empty|valid_date',
             'status'      => 'required',
             'order_notes' => 'permit_empty',
+            'assigned_karigar_id' => 'permit_empty|integer',
+            'whatsapp_notification_number' => 'permit_empty|max_length[40]',
+            'whatsapp_notify_order_created' => 'permit_empty|in_list[1]',
+            'expected_diamond_spec' => 'permit_empty',
+            'expected_stone_spec' => 'permit_empty',
+            'priority_level' => 'permit_empty|integer',
         ];
         if ($isRepairOrder) {
             $rules = $rules + [
@@ -337,10 +344,17 @@ class OrderController extends BaseController
                 'order_type'  => $isRepairOrder ? 'Repair' : $orderType,
                 'customer_id' => $this->nullableInt($this->request->getPost('customer_id')),
                 'lead_id'     => $this->nullableInt($this->request->getPost('lead_id')),
+                'assigned_karigar_id' => $this->nullableInt($this->request->getPost('assigned_karigar_id')),
+                'assigned_at' => $this->nullableInt($this->request->getPost('assigned_karigar_id')) ? date('Y-m-d H:i:s') : null,
                 'status'      => $status,
                 'priority'    => $priority,
                 'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
                 'order_notes' => trim((string) $this->request->getPost('order_notes')),
+                'whatsapp_notification_number' => $this->normalizeWhatsappNumber((string) $this->request->getPost('whatsapp_notification_number')),
+                'whatsapp_notify_order_created' => $this->request->getPost('whatsapp_notify_order_created') ? 1 : 0,
+                'expected_diamond_spec' => trim((string) $this->request->getPost('expected_diamond_spec')) ?: null,
+                'expected_stone_spec' => trim((string) $this->request->getPost('expected_stone_spec')) ?: null,
+                'priority_level' => max(0, (int) $this->request->getPost('priority_level')),
                 'repair_ornament_details' => $isRepairOrder ? trim((string) $this->request->getPost('repair_ornament_details')) : null,
                 'repair_work_details' => $isRepairOrder ? trim((string) $this->request->getPost('repair_work_details')) : null,
                 'repair_receive_weight_gm' => $isRepairOrder ? (float) $this->request->getPost('repair_receive_weight_gm') : null,
@@ -390,7 +404,9 @@ class OrderController extends BaseController
 
         $db->transComplete();
 
-        $this->dispatchWhatsappOrderCreated((int) $orderId);
+        if ($this->request->getPost('whatsapp_notify_order_created')) {
+            $this->dispatchWhatsappOrderCreated((int) $orderId);
+        }
 
         return redirect()->to(site_url('admin/orders/' . $orderId))->with('success', 'Order created successfully.');
     }
@@ -2476,6 +2492,12 @@ class OrderController extends BaseController
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    private function normalizeWhatsappNumber(string $number): ?string
+    {
+        $normalized = preg_replace('/[^0-9+]/', '', trim($number)) ?? '';
+        return $normalized === '' ? null : $normalized;
     }
 
     private function dispatchWhatsappStatusChanged(int $orderId, string $fromStatus, string $toStatus, string $remarks = ''): void

@@ -45,14 +45,19 @@ $isReportsGoldLedger = $isReports && ($segment3 === '' || $segment3 === 'gold-le
 $isReportsDiamondLedger = $isReports && $segment3 === 'diamond-ledger';
 $isReportsKarigarPerformance = $isReports && $segment3 === 'karigar-performance';
 $isReportsInventory = $isReports && $segment3 === 'inventory';
+$isReportsTransactions = $isReports && $segment3 === 'transactions';
 $isReportsStaffDirectory = $isReports && $segment3 === 'staff-directory';
 $isReportsDepartmentStaff = $isReports && $segment3 === 'department-staff';
 $isReportsDesignationStaff = $isReports && $segment3 === 'designation-staff';
 $isReportsStaffHierarchy = $isReports && $segment3 === 'staff-hierarchy';
 $isAccounts = $segment2 === 'accounts';
 $isAccountsDashboard = $isAccounts && $segment3 === '';
+$isAccountsGeneralLedger = $isAccounts && $segment3 === 'general-ledger';
+$isAccountsVendorTransactionLedger = $isAccounts && $segment3 === 'vendor-transaction-ledger';
 $isAccountsPurchaseBills = $isAccounts && $segment3 === 'purchase-bills';
 $isAccountsLabourBills = $isAccounts && $segment3 === 'labour-bills';
+$isAccountsLabourLedger = $isAccounts && $segment3 === 'labour-ledger';
+$isAccountsPayments = $isAccounts && $segment3 === 'payments';
 $isAccountsSaleBills = $isAccounts && $segment3 === 'sale-bills';
 $isAccountsDebitNotes = $isAccounts && $segment3 === 'debit-notes';
 $isAccountsCreditNotes = $isAccounts && $segment3 === 'credit-notes';
@@ -113,6 +118,11 @@ $canDiamondInventory = admin_can('diamond.inventory.read');
 $canStoneInventory = admin_can('stone.inventory.read');
 $canGoldInventory = admin_can('gold.inventory.read');
 $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read', 'access.users.read']);
+$canCrmOrdersMenu = $canLeads || $canCustomers || $canOrders;
+$canProductionMenu = $canKarigars || $canIssuements || $canDesigns;
+$canInventoryMenu = $canGoldInventory || $canDiamondInventory || $canStoneInventory || $canInventorySettings;
+$canShowroomMenu = $canShowroomMasters || $canShowroomStock || $canShowroomSales;
+$canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canCompanySettings || $canAccessControl;
 ?>
 <!DOCTYPE html>
 <html lang="en" data-layout="vertical" data-topbar="light" data-sidebar="light" data-sidebar-size="lg" data-sidebar-image="none">
@@ -503,6 +513,10 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                             <a href="<?= site_url('admin/dashboard') ?>"><i class="fe fe-home"></i> <span>Dashboard</span></a>
                         </li>
                         <?php endif; ?>
+
+                        <?php if ($canCrmOrdersMenu): ?>
+                        <li class="menu-title"><span>CRM & Orders</span></li>
+                        <?php endif; ?>
                         <?php if ($canLeads): ?>
                         <li class="<?= $isLeads ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/leads') ?>"><i class="fe fe-phone-call"></i> <span>Leads</span></a>
@@ -529,73 +543,142 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                             </ul>
                         </li>
                         <?php endif; ?>
-                        <?php if ($canIssuements): ?>
-                        <li class="<?= $isIssuements ? 'active' : '' ?>">
-                            <a href="<?= site_url('admin/issuements') ?>"><i class="fe fe-share-2"></i> <span>Issuement</span></a>
+
+                        <?php if ($canProductionMenu): ?>
+                        <li class="menu-title"><span>Production</span></li>
+                        <?php endif; ?>
+                        <?php if ($canKarigars): ?>
+                        <li class="<?= $isKarigars ? 'active' : '' ?>">
+                            <a href="<?= site_url('admin/karigars') ?>"><i class="fe fe-user-check"></i> <span>Karigars</span></a>
                         </li>
                         <?php endif; ?>
-                        <?php if ($canReports): ?>
-                        <li class="submenu <?= $isReports ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-bar-chart-2"></i> <span>Reports</span> <span class="menu-arrow"></span></a>
-                            <ul style="<?= $isReports ? 'display:block;' : 'display:none;' ?>">
-                                <li><a class="<?= $isReportsGoldLedger ? 'active' : '' ?>" href="<?= site_url('admin/reports/gold-ledger') ?>"><i class="fe fe-book"></i> Gold Ledger Report</a></li>
-                                <li><a class="<?= $isReportsDiamondLedger ? 'active' : '' ?>" href="<?= site_url('admin/reports/diamond-ledger') ?>"><i class="fe fe-disc"></i> Diamond Ledger Report</a></li>
-                                <li><a class="<?= $isReportsKarigarPerformance ? 'active' : '' ?>" href="<?= site_url('admin/reports/karigar-performance') ?>"><i class="fe fe-activity"></i> Karigar Performance</a></li>
-                                <li><a class="<?= $isReportsInventory ? 'active' : '' ?>" href="<?= site_url('admin/reports/inventory') ?>"><i class="fe fe-layers"></i> Inventory Report</a></li>
-                                <li><a class="<?= $isReportsStaffDirectory ? 'active' : '' ?>" href="<?= site_url('admin/reports/staff-directory') ?>"><i class="fe fe-users"></i> Staff Directory</a></li>
-                                <li><a class="<?= $isReportsDepartmentStaff ? 'active' : '' ?>" href="<?= site_url('admin/reports/department-staff') ?>"><i class="fe fe-grid"></i> Department Staff</a></li>
-                                <li><a class="<?= $isReportsDesignationStaff ? 'active' : '' ?>" href="<?= site_url('admin/reports/designation-staff') ?>"><i class="fe fe-award"></i> Designation Staff</a></li>
-                                <li><a class="<?= $isReportsStaffHierarchy ? 'active' : '' ?>" href="<?= site_url('admin/reports/staff-hierarchy') ?>"><i class="fe fe-git-branch"></i> Staff Hierarchy</a></li>
+                        <?php if ($canIssuements): ?>
+                        <li class="<?= $isIssuements ? 'active' : '' ?>">
+                            <a href="<?= site_url('admin/issuements') ?>"><i class="fe fe-share-2"></i> <span>Material Issue</span></a>
+                        </li>
+                        <?php endif; ?>
+                        <?php if ($canDesigns): ?>
+                        <li class="<?= $isDesigns ? 'active' : '' ?>">
+                            <a href="<?= site_url('admin/designs') ?>"><i class="fe fe-image"></i> <span>Designs</span></a>
+                        </li>
+                        <?php endif; ?>
+
+                        <?php if ($canInventoryMenu): ?>
+                        <li class="menu-title"><span>Inventory</span></li>
+                        <?php endif; ?>
+                        <?php if ($canGoldInventory): ?>
+                        <li class="submenu <?= $isGoldInventory ? 'active' : '' ?>">
+                            <a href="javascript:void(0);"><i class="fe fe-circle"></i> <span>Gold Inventory</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isGoldInventory ? 'display:block;' : 'display:none;' ?>">
+                                <li><a class="<?= $isGoldInventoryPurities ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/purities') ?>"><i class="fe fe-percent"></i> Purity Master</a></li>
+                                <li><a class="<?= $isGoldInventoryProducts ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/products') ?>"><i class="fe fe-package"></i> Product Master</a></li>
+                                <li><a class="<?= $isGoldInventoryPurchases ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/purchases') ?>"><i class="fe fe-shopping-bag"></i> Purchases</a></li>
+                                <li><a class="<?= $isGoldInventoryReturns ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/returns') ?>"><i class="fe fe-corner-up-left"></i> Returns</a></li>
+                                <li><a class="<?= $isGoldInventoryAdjustments ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/adjustments') ?>"><i class="fe fe-sliders"></i> Adjustments</a></li>
+                                <li><a class="<?= $isGoldInventoryStock ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/stock') ?>"><i class="fe fe-layers"></i> Stock</a></li>
+                                <li><a class="<?= $isGoldInventoryLedger ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/ledger') ?>"><i class="fe fe-book-open"></i> Ledger</a></li>
                             </ul>
                         </li>
                         <?php endif; ?>
+                        <?php if ($canDiamondInventory): ?>
+                        <li class="submenu <?= $isDiamondInventory ? 'active' : '' ?>">
+                            <a href="javascript:void(0);"><i class="fas fa-gem"></i> <span>Diamond Inventory</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isDiamondInventory ? 'display:block;' : 'display:none;' ?>">
+                                <li><a class="<?= $isDiamondInventoryItems ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/items') ?>"><i class="fe fe-tag"></i> Item Master</a></li>
+                                <li><a class="<?= $isDiamondInventoryPurchases ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/purchases') ?>"><i class="fe fe-shopping-bag"></i> Purchases</a></li>
+                                <li><a class="<?= $isDiamondInventoryReturns ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/returns') ?>"><i class="fe fe-corner-up-left"></i> Returns</a></li>
+                                <li><a class="<?= $isDiamondInventoryAdjustments ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/adjustments') ?>"><i class="fe fe-sliders"></i> Adjustments</a></li>
+                                <li><a class="<?= $isDiamondInventoryStock ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/stock') ?>"><i class="fe fe-layers"></i> Stock</a></li>
+                            </ul>
+                        </li>
+                        <?php endif; ?>
+                        <?php if ($canStoneInventory): ?>
+                        <li class="submenu <?= $isStoneInventory ? 'active' : '' ?>">
+                            <a href="javascript:void(0);"><i class="fe fe-disc"></i> <span>Stone Inventory</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isStoneInventory ? 'display:block;' : 'display:none;' ?>">
+                                <li><a class="<?= $isStoneInventoryItems ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/items') ?>"><i class="fe fe-tag"></i> Item Master</a></li>
+                                <li><a class="<?= $isStoneInventoryPurchases ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/purchases') ?>"><i class="fe fe-shopping-bag"></i> Purchases</a></li>
+                                <li><a class="<?= $isStoneInventoryReturns ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/returns') ?>"><i class="fe fe-corner-up-left"></i> Returns</a></li>
+                                <li><a class="<?= $isStoneInventoryAdjustments ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/adjustments') ?>"><i class="fe fe-sliders"></i> Adjustments</a></li>
+                                <li><a class="<?= $isStoneInventoryStock ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/stock') ?>"><i class="fe fe-layers"></i> Stock</a></li>
+                            </ul>
+                        </li>
+                        <?php endif; ?>
+                        <?php if ($canInventorySettings): ?>
+                        <li class="submenu <?= $isInventory ? 'active' : '' ?>">
+                            <a href="javascript:void(0);"><i class="fe fe-settings"></i> <span>Inventory Setup</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isInventory ? 'display:block;' : 'display:none;' ?>">
+                                <li><a class="<?= $isInventoryWarehouses ? 'active' : '' ?>" href="<?= site_url('admin/inventory/warehouses') ?>"><i class="fe fe-home"></i> Warehouse</a></li>
+                            </ul>
+                        </li>
+                        <?php endif; ?>
+
+                        <?php if ($canShowroomMenu): ?>
+                        <li class="menu-title"><span>Showroom</span></li>
+                        <li class="submenu <?= $isShowroomModule ? 'active' : '' ?>">
+                            <a href="javascript:void(0);"><i class="fe fe-shopping-bag"></i> <span>Retail Showroom</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isShowroomModule ? 'display:block;' : 'display:none;' ?>">
+                                <?php if ($canShowroomSales): ?><li><a class="<?= $isShowroomSales ? 'active' : '' ?>" href="<?= site_url('admin/showroom-sales') ?>"><i class="fe fe-credit-card"></i> Showroom Sales</a></li><?php endif; ?>
+                                <?php if ($canShowroomStock): ?><li><a class="<?= $isShowroomStock ? 'active' : '' ?>" href="<?= site_url('admin/showroom-stock') ?>"><i class="fe fe-layers"></i> Showroom Stock</a></li><?php endif; ?>
+                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowrooms ? 'active' : '' ?>" href="<?= site_url('admin/showrooms') ?>"><i class="fe fe-home"></i> Showrooms</a></li><?php endif; ?>
+                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomCounters ? 'active' : '' ?>" href="<?= site_url('admin/showroom-counters') ?>"><i class="fe fe-grid"></i> Counters</a></li><?php endif; ?>
+                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomStaff ? 'active' : '' ?>" href="<?= site_url('admin/showroom-staff') ?>"><i class="fe fe-users"></i> Staff Assignment</a></li><?php endif; ?>
+                            </ul>
+                        </li>
+                        <?php endif; ?>
+
                         <?php if ($canAccounts): ?>
+                        <li class="menu-title"><span>Accounts</span></li>
                         <li class="submenu <?= $isAccounts ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-file-text"></i> <span>Accounts</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isAccounts ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isAccountsDashboard ? 'active' : '' ?>" href="<?= site_url('admin/accounts') ?>"><i class="fe fe-grid"></i> Dashboard</a></li>
+                                <li><a class="<?= $isAccountsGeneralLedger ? 'active' : '' ?>" href="<?= site_url('admin/accounts/general-ledger') ?>"><i class="fe fe-list"></i> General Ledger</a></li>
+                                <li><a class="<?= $isAccountsVendorTransactionLedger ? 'active' : '' ?>" href="<?= site_url('admin/accounts/vendor-transaction-ledger') ?>"><i class="fe fe-repeat"></i> Issue Receive Ledger</a></li>
+                                <li><a class="<?= $isAccountsPayments ? 'active' : '' ?>" href="<?= site_url('admin/accounts/payments') ?>"><i class="fe fe-send"></i> Payments</a></li>
+                                <li><a class="<?= $isAccountsOutstanding ? 'active' : '' ?>" href="<?= site_url('admin/accounts/outstanding-summary') ?>"><i class="fe fe-bar-chart"></i> Outstanding Summary</a></li>
                                 <li><a class="<?= $isAccountsPurchaseBills ? 'active' : '' ?>" href="<?= site_url('admin/accounts/purchase-bills') ?>"><i class="fe fe-shopping-bag"></i> Purchase Bills</a></li>
+                                <li><a class="<?= $isAccountsLabourLedger ? 'active' : '' ?>" href="<?= site_url('admin/accounts/labour-ledger') ?>"><i class="fe fe-book-open"></i> Labour Ledger</a></li>
                                 <li><a class="<?= $isAccountsLabourBills ? 'active' : '' ?>" href="<?= site_url('admin/accounts/labour-bills') ?>"><i class="fe fe-tool"></i> Labour Bills</a></li>
                                 <li><a class="<?= $isAccountsSaleBills ? 'active' : '' ?>" href="<?= site_url('admin/accounts/sale-bills') ?>"><i class="fe fe-credit-card"></i> Sale Bills</a></li>
                                 <li><a class="<?= $isAccountsDebitNotes ? 'active' : '' ?>" href="<?= site_url('admin/accounts/debit-notes') ?>"><i class="fe fe-corner-down-right"></i> Debit Notes</a></li>
                                 <li><a class="<?= $isAccountsCreditNotes ? 'active' : '' ?>" href="<?= site_url('admin/accounts/credit-notes') ?>"><i class="fe fe-corner-up-left"></i> Credit Notes</a></li>
                                 <li><a class="<?= $isAccountsGstReport ? 'active' : '' ?>" href="<?= site_url('admin/accounts/gst-report') ?>"><i class="fe fe-percent"></i> GST Report</a></li>
-                                <li><a class="<?= $isAccountsOutstanding ? 'active' : '' ?>" href="<?= site_url('admin/accounts/outstanding-summary') ?>"><i class="fe fe-bar-chart"></i> Outstanding Summary</a></li>
                             </ul>
                         </li>
                         <?php endif; ?>
 
-                        <li class="menu-title"><span>Masters</span></li>
-                        <?php if ($canDesigns): ?>
-                        <li class="<?= $isDesigns ? 'active' : '' ?>">
-                            <a href="<?= site_url('admin/designs') ?>"><i class="fe fe-image"></i> <span>Design Master</span></a>
+                        <?php if ($canReports): ?>
+                        <li class="menu-title"><span>Reports</span></li>
+                        <li class="submenu <?= $isReports ? 'active' : '' ?>">
+                            <a href="javascript:void(0);"><i class="fe fe-bar-chart-2"></i> <span>Reports</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isReports ? 'display:block;' : 'display:none;' ?>">
+                                <li><a class="<?= $isReportsTransactions ? 'active' : '' ?>" href="<?= site_url('admin/reports/transactions') ?>"><i class="fe fe-repeat"></i> All Transactions</a></li>
+                                <li><a class="<?= $isReportsGoldLedger ? 'active' : '' ?>" href="<?= site_url('admin/reports/gold-ledger') ?>"><i class="fe fe-book"></i> Gold Ledger</a></li>
+                                <li><a class="<?= $isReportsDiamondLedger ? 'active' : '' ?>" href="<?= site_url('admin/reports/diamond-ledger') ?>"><i class="fe fe-disc"></i> Diamond Ledger</a></li>
+                                <li><a class="<?= $isReportsInventory ? 'active' : '' ?>" href="<?= site_url('admin/reports/inventory') ?>"><i class="fe fe-layers"></i> Inventory</a></li>
+                                <li><a class="<?= $isReportsKarigarPerformance ? 'active' : '' ?>" href="<?= site_url('admin/reports/karigar-performance') ?>"><i class="fe fe-activity"></i> Karigar Performance</a></li>
+                                <li><a class="<?= $isReportsStaffDirectory ? 'active' : '' ?>" href="<?= site_url('admin/reports/staff-directory') ?>"><i class="fe fe-users"></i> Staff Directory</a></li>
+                            </ul>
                         </li>
                         <?php endif; ?>
-                        <?php if ($canKarigars): ?>
-                        <li class="<?= $isKarigars ? 'active' : '' ?>">
-                            <a href="<?= site_url('admin/karigars') ?>"><i class="fe fe-user-check"></i> <span>Karigar Master</span></a>
+
+                        <?php if ($canAdminMenu): ?>
+                        <li class="menu-title"><span>Admin</span></li>
+                        <?php endif; ?>
+                        <?php if ($canVendors): ?>
+                        <li class="<?= $isVendors ? 'active' : '' ?>">
+                            <a href="<?= site_url('admin/vendors') ?>"><i class="fe fe-truck"></i> <span>Vendors</span></a>
                         </li>
                         <?php endif; ?>
                         <?php if ($canStaffHierarchy): ?>
                         <li class="submenu <?= $isStaffHierarchy ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-briefcase"></i> <span>Staff & Hierarchy</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);"><i class="fe fe-briefcase"></i> <span>Staff & Organization</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isStaffHierarchy ? 'display:block;' : 'display:none;' ?>">
-                                <?php if (admin_can('organization.departments.read')): ?><li><a class="<?= $isDepartments ? 'active' : '' ?>" href="<?= site_url('admin/departments') ?>"><i class="fe fe-grid"></i> Department Master</a></li><?php endif; ?>
-                                <?php if (admin_can('organization.designations.read')): ?><li><a class="<?= $isDesignations ? 'active' : '' ?>" href="<?= site_url('admin/designations') ?>"><i class="fe fe-award"></i> Designation Master</a></li><?php endif; ?>
-                                <?php if (admin_can('organization.employees.read')): ?><li><a class="<?= $isEmployees ? 'active' : '' ?>" href="<?= site_url('admin/employees') ?>"><i class="fe fe-user"></i> Employee Master</a></li><?php endif; ?>
+                                <?php if (admin_can('organization.departments.read')): ?><li><a class="<?= $isDepartments ? 'active' : '' ?>" href="<?= site_url('admin/departments') ?>"><i class="fe fe-grid"></i> Departments</a></li><?php endif; ?>
+                                <?php if (admin_can('organization.designations.read')): ?><li><a class="<?= $isDesignations ? 'active' : '' ?>" href="<?= site_url('admin/designations') ?>"><i class="fe fe-award"></i> Designations</a></li><?php endif; ?>
+                                <?php if (admin_can('organization.employees.read')): ?><li><a class="<?= $isEmployees ? 'active' : '' ?>" href="<?= site_url('admin/employees') ?>"><i class="fe fe-user"></i> Employees</a></li><?php endif; ?>
                                 <?php if (admin_can('organization.hierarchy.read')): ?><li><a class="<?= $isEmployeeHierarchy ? 'active' : '' ?>" href="<?= site_url('admin/employee-hierarchy') ?>"><i class="fe fe-git-branch"></i> Employee Hierarchy</a></li><?php endif; ?>
-                            </ul>
-                        </li>
-                        <?php endif; ?>
-                        <?php if ($canShowroomMasters || $canShowroomStock || $canShowroomSales): ?>
-                        <li class="submenu <?= $isShowroomModule ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-shopping-bag"></i> <span>Retail Showroom</span> <span class="menu-arrow"></span></a>
-                            <ul style="<?= $isShowroomModule ? 'display:block;' : 'display:none;' ?>">
-                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowrooms ? 'active' : '' ?>" href="<?= site_url('admin/showrooms') ?>"><i class="fe fe-home"></i> Showroom Master</a></li><?php endif; ?>
-                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomCounters ? 'active' : '' ?>" href="<?= site_url('admin/showroom-counters') ?>"><i class="fe fe-grid"></i> Counter Master</a></li><?php endif; ?>
-                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomStaff ? 'active' : '' ?>" href="<?= site_url('admin/showroom-staff') ?>"><i class="fe fe-users"></i> Staff Assignment</a></li><?php endif; ?>
-                                <?php if ($canShowroomStock): ?><li><a class="<?= $isShowroomStock ? 'active' : '' ?>" href="<?= site_url('admin/showroom-stock') ?>"><i class="fe fe-layers"></i> Showroom Stock</a></li><?php endif; ?>
-                                <?php if ($canShowroomSales): ?><li><a class="<?= $isShowroomSales ? 'active' : '' ?>" href="<?= site_url('admin/showroom-sales') ?>"><i class="fe fe-credit-card"></i> Sales Billing</a></li><?php endif; ?>
                             </ul>
                         </li>
                         <?php endif; ?>
@@ -610,11 +693,6 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                             </ul>
                         </li>
                         <?php endif; ?>
-                        <?php if ($canVendors): ?>
-                        <li class="<?= $isVendors ? 'active' : '' ?>">
-                            <a href="<?= site_url('admin/vendors') ?>"><i class="fe fe-truck"></i> <span>Vendors</span></a>
-                        </li>
-                        <?php endif; ?>
                         <?php if ($canCompanySettings): ?>
                         <li class="<?= $isCompanySettings ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/company-settings') ?>"><i class="fe fe-briefcase"></i> <span>Company Settings</span></a>
@@ -622,7 +700,7 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                         <?php endif; ?>
                         <?php if ($canAccessControl): ?>
                         <li class="submenu <?= $isAccess ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-shield"></i> <span>Access Control</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);"><i class="fe fe-shield"></i> <span>Users & Access</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isAccess ? 'display:block;' : 'display:none;' ?>">
                                 <?php if (admin_can('access.roles.read')): ?><li><a class="<?= $isAccessRoles ? 'active' : '' ?>" href="<?= site_url('admin/access/roles') ?>"><i class="fe fe-lock"></i> Roles</a></li><?php endif; ?>
                                 <?php if (admin_can('access.permissions.read')): ?><li><a class="<?= $isAccessPermissions ? 'active' : '' ?>" href="<?= site_url('admin/access/permissions') ?>"><i class="fe fe-key"></i> Permissions</a></li><?php endif; ?>
@@ -630,58 +708,6 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
                             </ul>
                         </li>
                         <?php endif; ?>
-                        <li class="menu-title"><span>Inventory</span></li>
-                        <?php if ($canInventorySettings): ?>
-                        <li class="submenu <?= $isInventory ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-settings"></i> <span>Inventory Settings</span> <span class="menu-arrow"></span></a>
-                            <ul style="<?= $isInventory ? 'display:block;' : 'display:none;' ?>">
-                                <li><a class="<?= $isInventoryWarehouses ? 'active' : '' ?>" href="<?= site_url('admin/inventory/warehouses') ?>"><i class="fe fe-home"></i> Warehouse</a></li>
-                            </ul>
-                        </li>
-                        <?php endif; ?>
-                        <?php if ($canDiamondInventory): ?>
-                        <li class="submenu <?= $isDiamondInventory ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fas fa-gem"></i> <span>Diamond Inventory</span> <span class="menu-arrow"></span></a>
-                            <ul style="<?= $isDiamondInventory ? 'display:block;' : 'display:none;' ?>">
-                                <li><a class="<?= $isDiamondInventoryItems ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/items') ?>"><i class="fe fe-tag"></i> Item Master</a></li>
-                                <li><a class="<?= $isDiamondInventoryPurchases ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/purchases') ?>"><i class="fe fe-shopping-bag"></i> Purchases</a></li>
-                                <li><a class="<?= $isDiamondInventoryReturns ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/returns') ?>"><i class="fe fe-corner-up-left"></i> Returns</a></li>
-                                <li><a class="<?= $isDiamondInventoryAdjustments ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/adjustments') ?>"><i class="fe fe-sliders"></i> Adjustments</a></li>
-                                <li><a class="<?= $isDiamondInventoryStock ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/stock') ?>"><i class="fe fe-layers"></i> Stock Summary</a></li>
-                            </ul>
-                        </li>
-                        <?php endif; ?>
-                        <?php if ($canStoneInventory): ?>
-                        <li class="submenu <?= $isStoneInventory ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-disc"></i> <span>Stone Inventory</span> <span class="menu-arrow"></span></a>
-                            <ul style="<?= $isStoneInventory ? 'display:block;' : 'display:none;' ?>">
-                                <li><a class="<?= $isStoneInventoryItems ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/items') ?>"><i class="fe fe-tag"></i> Item Master</a></li>
-                                <li><a class="<?= $isStoneInventoryPurchases ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/purchases') ?>"><i class="fe fe-shopping-bag"></i> Purchases</a></li>
-                                <li><a class="<?= $isStoneInventoryReturns ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/returns') ?>"><i class="fe fe-corner-up-left"></i> Returns</a></li>
-                                <li><a class="<?= $isStoneInventoryAdjustments ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/adjustments') ?>"><i class="fe fe-sliders"></i> Adjustments</a></li>
-                                <li><a class="<?= $isStoneInventoryStock ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/stock') ?>"><i class="fe fe-layers"></i> Stock Summary</a></li>
-                            </ul>
-                        </li>
-                        <?php endif; ?>
-                        <?php if ($canGoldInventory): ?>
-                        <li class="submenu <?= $isGoldInventory ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-circle"></i> <span>Gold Inventory</span> <span class="menu-arrow"></span></a>
-                            <ul style="<?= $isGoldInventory ? 'display:block;' : 'display:none;' ?>">
-                                <li><a class="<?= $isGoldInventoryPurities ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/purities') ?>"><i class="fe fe-percent"></i> Purity Master</a></li>
-                                <li><a class="<?= $isGoldInventoryProducts ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/products') ?>"><i class="fe fe-package"></i> Product Master</a></li>
-                                <li><a class="<?= $isGoldInventoryPurchases ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/purchases') ?>"><i class="fe fe-shopping-bag"></i> Purchases</a></li>
-                                <li><a class="<?= $isGoldInventoryReturns ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/returns') ?>"><i class="fe fe-corner-up-left"></i> Returns</a></li>
-                                <li><a class="<?= $isGoldInventoryAdjustments ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/adjustments') ?>"><i class="fe fe-sliders"></i> Adjustments</a></li>
-                                <li><a class="<?= $isGoldInventoryStock ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/stock') ?>"><i class="fe fe-layers"></i> Stock Summary</a></li>
-                                <li><a class="<?= $isGoldInventoryLedger ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/ledger') ?>"><i class="fe fe-book-open"></i> Ledger</a></li>
-                            </ul>
-                        </li>
-                        <?php endif; ?>
-
-                        <li class="menu-title"><span>Auth</span></li>
-                        <li>
-                            <a href="<?= site_url('admin/logout') ?>"><i class="fe fe-power"></i> <span>Logout</span></a>
-                        </li>
                     </ul>
                 </div>
             </div>

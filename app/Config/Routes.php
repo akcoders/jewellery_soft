@@ -6,6 +6,8 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 $routes->get('/', 'Home::index');
+$routes->get('order-request', 'PublicOrderRequestController::create');
+$routes->post('order-request', 'PublicOrderRequestController::store');
 
 $routes->group('admin', ['filter' => 'adminGuest'], static function ($routes): void {
     $routes->get('login', 'Admin\AuthController::login');
@@ -138,10 +140,15 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->get('reports/designation-staff', 'Admin\ReportController::designationStaff', ['filter' => 'permission:reports.read']);
     $routes->get('reports/staff-hierarchy', 'Admin\ReportController::staffHierarchy', ['filter' => 'permission:reports.read']);
     $routes->get('accounts', 'Admin\AccountsController::dashboard', ['filter' => 'permission:accounts.read']);
+    $routes->get('accounts/general-ledger', 'Admin\AccountsController::generalLedger', ['filter' => 'permission:accounts.read']);
+    $routes->get('accounts/vendor-transaction-ledger', 'Admin\AccountsController::vendorTransactionLedger', ['filter' => 'permission:accounts.read']);
     $routes->get('accounts/purchase-bills', 'Admin\AccountsController::purchaseBills', ['filter' => 'permission:accounts.read']);
     $routes->post('accounts/purchase-bills/payment', 'Admin\AccountsController::updatePurchaseBillPayment', ['filter' => 'permission:accounts.payments']);
     $routes->get('accounts/labour-bills', 'Admin\AccountsController::labourBills', ['filter' => 'permission:accounts.read']);
     $routes->post('accounts/labour-bills/payment', 'Admin\AccountsController::updateLabourBillPayment', ['filter' => 'permission:accounts.payments']);
+    $routes->get('accounts/labour-ledger', 'Admin\AccountsController::labourLedger', ['filter' => 'permission:accounts.read']);
+    $routes->get('accounts/payments', 'Admin\AccountsController::payments', ['filter' => 'permission:accounts.read']);
+    $routes->post('accounts/payments', 'Admin\AccountsController::storePayment', ['filter' => 'permission:accounts.payments']);
     $routes->get('accounts/sale-bills', 'Admin\AccountsController::saleBills', ['filter' => 'permission:accounts.read']);
     $routes->get('accounts/debit-notes', 'Admin\AccountsController::debitNotes', ['filter' => 'permission:accounts.read']);
     $routes->post('accounts/debit-notes', 'Admin\AccountsController::storeDebitNote', ['filter' => 'permission:accounts.payments']);

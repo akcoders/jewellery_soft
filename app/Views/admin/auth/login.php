@@ -20,7 +20,7 @@ $asset = rtrim((string) $assetBase, '/');
     <div class="main-wrapper login-body">
         <div class="login-wrapper">
             <div class="container">
-                <img class="img-fluid logo-dark mb-2 logo-color" src="<?= esc($asset) ?>/img/logo2.png" alt="Logo">
+                <img class="img-fluid logo-dark mb-2 logo-color" src="<?= esc($asset) ?>/img/logo.png" alt="Logo">
                 <img class="img-fluid logo-light mb-2" src="<?= esc($asset) ?>/img/logo2-white.png" alt="Logo">
 
                 <div class="loginbox">
