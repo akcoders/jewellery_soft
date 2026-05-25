@@ -30,11 +30,6 @@
         ['label' => 'Outstanding', 'url' => site_url('admin/accounts/outstanding-summary'), 'icon' => 'fe-bar-chart-2'],
     ];
 
-    $pendingSections = [
-        ['title' => 'Vendor Pending', 'type' => 'vendor', 'rows' => $vendorRows, 'empty' => 'No pending vendors', 'url' => site_url('admin/accounts/party-balances/vendor'), 'total' => $vendorBalance],
-        ['title' => 'Karigar Pending', 'type' => 'karigar', 'rows' => $karigarRows, 'empty' => 'No pending karigars', 'url' => site_url('admin/accounts/party-balances/karigar'), 'total' => $karigarBalance],
-        ['title' => 'Customer Pending', 'type' => 'customer', 'rows' => $customerRows, 'empty' => 'No pending customers', 'url' => site_url('admin/accounts/party-balances/customer'), 'total' => $customerBalance],
-    ];
 ?>
 
 <style>
@@ -136,8 +131,7 @@
         font-size: 12px;
         font-weight: 600;
     }
-    .action-card,
-    .pending-card {
+    .action-card {
         border: 1px solid var(--acc-line);
         border-radius: 16px;
         background: #fff;
@@ -165,91 +159,21 @@
     .action-tile:hover {
         transform: translateY(-1px);
         border-color: rgba(184, 15, 29, 0.35);
-        background: #fff7f8;
-        color: var(--acc-red-dark);
+        background: linear-gradient(135deg, var(--acc-red), var(--acc-red-dark));
+        color: #fff !important;
     }
     .action-tile.primary {
         border-color: transparent;
         background: linear-gradient(135deg, var(--acc-red), var(--acc-red-dark));
-        color: #fff;
+        color: #fff !important;
         box-shadow: 0 10px 20px rgba(184, 15, 29, 0.22);
     }
-    .pending-card .card-header {
-        padding: 16px 18px;
-        border-bottom: 1px solid var(--acc-line);
-        background: linear-gradient(180deg, #fff, #fbfcff);
-        border-radius: 16px 16px 0 0;
-    }
-    .pending-card h5 {
-        color: var(--acc-ink);
-        font-weight: 850;
-        letter-spacing: -0.025em;
-    }
-    .pending-total {
-        color: var(--acc-muted);
-        font-size: 12px;
-        font-weight: 700;
-    }
-    .pending-table-wrap {
-        max-height: 438px;
-        overflow: auto;
-    }
-    .pending-table {
-        min-width: 460px;
-        margin: 0;
-    }
-    .pending-table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        border: 0;
-        background: #f1f4fb;
-        color: #5c5870;
-        font-size: 11px;
-        font-weight: 850;
-        letter-spacing: 0.04em;
-        padding: 10px 14px;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
-    .pending-table tbody td {
-        border-top: 1px solid #eef2f7;
-        padding: 12px 14px;
-        vertical-align: middle;
-        background: #fff;
-    }
-    .pending-table tbody tr:nth-child(odd) td {
-        background: #fbfcff;
-    }
-    .pending-table tbody tr:hover td {
-        background: #fff7f8;
-    }
-    .party-link {
-        color: var(--acc-red);
-        font-weight: 800;
-    }
-    .party-link:hover {
-        color: var(--acc-red-dark);
-    }
-    .bill-pill {
-        display: inline-flex;
-        min-width: 34px;
-        justify-content: center;
-        padding: 4px 10px;
-        border-radius: 999px;
-        background: #eef2f8;
-        color: var(--acc-ink);
-        font-weight: 850;
-    }
-    .amount-strong {
-        color: var(--acc-ink);
-        font-weight: 850;
-        white-space: nowrap;
-    }
-    .empty-row {
-        height: 96px;
-        color: var(--acc-muted);
-        text-align: center;
+    .action-tile.primary:hover,
+    .action-tile:hover i,
+    .action-tile:hover span,
+    .action-tile.primary i,
+    .action-tile.primary span {
+        color: #fff !important;
     }
     @media (max-width: 1399px) {
         .action-grid {
@@ -341,50 +265,5 @@
         </div>
     </div>
 
-    <div class="row g-3">
-        <?php foreach ($pendingSections as $section): ?>
-            <div class="col-xl-4">
-                <div class="card pending-card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center gap-2">
-                        <div>
-                            <h5 class="mb-1"><?= esc((string) $section['title']) ?></h5>
-                            <div class="pending-total">Total: Rs <?= number_format((float) $section['total'], 2) ?></div>
-                        </div>
-                        <a href="<?= esc((string) $section['url']) ?>" class="btn btn-sm btn-outline-primary">View All</a>
-                    </div>
-                    <div class="pending-table-wrap">
-                        <table class="table pending-table" data-dt-skip="1">
-                            <thead>
-                                <tr>
-                                    <th>Party</th>
-                                    <th class="text-center">Bills</th>
-                                    <th class="text-end">Balance</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            <?php foreach (($section['rows'] ?? []) as $row): ?>
-                                <?php $partyId = (int) ($row['party_id'] ?? 0); ?>
-                                <tr>
-                                    <td>
-                                        <?php if ($partyId > 0): ?>
-                                            <a class="party-link" href="<?= site_url('admin/accounts/party-ledger/' . (string) $section['type'] . '/' . $partyId) ?>"><?= esc((string) ($row['party_name'] ?? '-')) ?></a>
-                                        <?php else: ?>
-                                            <span class="text-muted"><?= esc((string) ($row['party_name'] ?? '-')) ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td class="text-center"><span class="bill-pill"><?= (int) ($row['bill_count'] ?? 0) ?></span></td>
-                                    <td class="text-end"><span class="amount-strong">Rs <?= number_format((float) ($row['pending'] ?? 0), 2) ?></span></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            <?php if (($section['rows'] ?? []) === []): ?>
-                                <tr><td colspan="3" class="empty-row"><?= esc((string) $section['empty']) ?></td></tr>
-                            <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </div>
 </div>
 <?= $this->endSection() ?>
