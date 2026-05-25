@@ -54,6 +54,9 @@ $isAccounts = $segment2 === 'accounts';
 $isAccountsDashboard = $isAccounts && $segment3 === '';
 $isAccountsGeneralLedger = $isAccounts && $segment3 === 'general-ledger';
 $isAccountsVendorTransactionLedger = $isAccounts && $segment3 === 'vendor-transaction-ledger';
+$isAccountsJournalVouchers = $isAccounts && $segment3 === 'journal-vouchers';
+$isAccountsPartyBalances = $isAccounts && $segment3 === 'party-balances';
+$isAccountsPartyLedger = $isAccounts && $segment3 === 'party-ledger';
 $isAccountsPurchaseBills = $isAccounts && $segment3 === 'purchase-bills';
 $isAccountsLabourBills = $isAccounts && $segment3 === 'labour-bills';
 $isAccountsLabourLedger = $isAccounts && $segment3 === 'labour-ledger';
@@ -633,7 +636,9 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                             <a href="javascript:void(0);"><i class="fe fe-file-text"></i> <span>Accounts</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isAccounts ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isAccountsDashboard ? 'active' : '' ?>" href="<?= site_url('admin/accounts') ?>"><i class="fe fe-grid"></i> Dashboard</a></li>
-                                <li><a class="<?= $isAccountsGeneralLedger ? 'active' : '' ?>" href="<?= site_url('admin/accounts/general-ledger') ?>"><i class="fe fe-list"></i> General Ledger</a></li>
+                                <li><a class="<?= $isAccountsJournalVouchers ? 'active' : '' ?>" href="<?= site_url('admin/accounts/journal-vouchers') ?>"><i class="fe fe-edit-3"></i> Journal Voucher</a></li>
+                                <li><a class="<?= ($isAccountsPartyBalances || $isAccountsPartyLedger) ? 'active' : '' ?>" href="<?= site_url('admin/accounts/party-balances/vendor') ?>"><i class="fe fe-users"></i> Pending Parties</a></li>
+                                <li><a class="<?= $isAccountsGeneralLedger ? 'active' : '' ?>" href="<?= site_url('admin/accounts/general-ledger') ?>"><i class="fe fe-list"></i> All Ledgers</a></li>
                                 <li><a class="<?= $isAccountsVendorTransactionLedger ? 'active' : '' ?>" href="<?= site_url('admin/accounts/vendor-transaction-ledger') ?>"><i class="fe fe-repeat"></i> Issue Receive Ledger</a></li>
                                 <li><a class="<?= $isAccountsPayments ? 'active' : '' ?>" href="<?= site_url('admin/accounts/payments') ?>"><i class="fe fe-send"></i> Payments</a></li>
                                 <li><a class="<?= $isAccountsOutstanding ? 'active' : '' ?>" href="<?= site_url('admin/accounts/outstanding-summary') ?>"><i class="fe fe-bar-chart"></i> Outstanding Summary</a></li>

@@ -33,7 +33,7 @@
                 <?php $partyType = (string) ($filters['party_type'] ?? ''); ?>
                 <select name="party_type" class="form-select">
                     <option value="">All</option>
-                    <?php foreach (['customer' => 'Customer', 'vendor' => 'Vendor', 'karigar' => 'Karigar'] as $value => $label): ?>
+                    <?php foreach (['customer' => 'Customer', 'vendor' => 'Vendor', 'karigar' => 'Karigar', 'expense' => 'Expense'] as $value => $label): ?>
                         <option value="<?= esc($value) ?>" <?= $partyType === $value ? 'selected' : '' ?>><?= esc($label) ?></option>
                     <?php endforeach; ?>
                 </select>

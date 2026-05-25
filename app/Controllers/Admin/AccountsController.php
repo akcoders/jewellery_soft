@@ -3,6 +3,7 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
+use App\Models\AccountJournalVoucherModel;
 use App\Models\AccountPaymentModel;
 use App\Models\CreditNoteModel;
 use App\Models\DebitNoteModel;
@@ -14,6 +15,7 @@ use App\Models\VendorPaymentModel;
 class AccountsController extends BaseController
 {
     private AccountPaymentModel $accountPaymentModel;
+    private AccountJournalVoucherModel $accountJournalVoucherModel;
     private PurchaseBillPaymentModel $purchaseBillPaymentModel;
     private LabourBillModel $labourBillModel;
     private LabourBillPaymentModel $labourBillPaymentModel;
@@ -25,6 +27,7 @@ class AccountsController extends BaseController
     {
         helper(['form', 'url']);
         $this->accountPaymentModel = new AccountPaymentModel();
+        $this->accountJournalVoucherModel = new AccountJournalVoucherModel();
         $this->purchaseBillPaymentModel = new PurchaseBillPaymentModel();
         $this->labourBillModel = new LabourBillModel();
         $this->labourBillPaymentModel = new LabourBillPaymentModel();
@@ -35,85 +38,16 @@ class AccountsController extends BaseController
 
     public function dashboard(): string
     {
-        $db = db_connect();
-        $purchaseRows = $this->purchaseBillsDataset();
-        $labourRows = $this->labourBillsDataset();
-        $saleRows = $this->saleBillsDataset();
-        $debitRows = $this->debitNotesDataset();
-        $creditRows = $this->creditNotesDataset();
         $outstanding = $this->outstandingSummaryDataset();
-        $gstData = $this->gstReportDataset('', '');
-
-        $cards = [
-            'purchase_total' => 0.0,
-            'purchase_pending' => 0.0,
-            'purchase_overdue' => 0.0,
-            'labour_total' => 0.0,
-            'labour_pending' => 0.0,
-            'labour_overdue' => 0.0,
-            'sales_total' => 0.0,
-            'sales_received' => 0.0,
-            'sales_pending' => 0.0,
-            'debit_total' => 0.0,
-            'credit_total' => 0.0,
-            'net_gst_payable' => (float) ($gstData['summary']['net_gst_payable'] ?? 0),
-            'input_gst' => (float) ($gstData['summary']['purchase_gst'] ?? 0),
-            'output_gst' => (float) ($gstData['summary']['sales_gst'] ?? 0),
-            'customer_outstanding' => (float) ($outstanding['summary']['customer_outstanding'] ?? 0),
-            'vendor_outstanding' => (float) ($outstanding['summary']['vendor_outstanding'] ?? 0),
-            'karigar_outstanding' => (float) ($outstanding['summary']['karigar_outstanding'] ?? 0),
-        ];
-
-        foreach ($purchaseRows as $row) {
-            $cards['purchase_total'] += (float) ($row['amount'] ?? 0);
-            $cards['purchase_pending'] += (float) ($row['pending_amount'] ?? 0);
-            if (stripos((string) ($row['days_left'] ?? ''), 'overdue') !== false) {
-                $cards['purchase_overdue'] += (float) ($row['pending_amount'] ?? 0);
-            }
-        }
-
-        foreach ($labourRows as $row) {
-            $cards['labour_total'] += (float) ($row['total_amount'] ?? 0);
-            $cards['labour_pending'] += (float) ($row['pending_amount'] ?? 0);
-            if (stripos((string) ($row['days_left'] ?? ''), 'overdue') !== false) {
-                $cards['labour_overdue'] += (float) ($row['pending_amount'] ?? 0);
-            }
-        }
-
-        foreach ($saleRows as $row) {
-            $cards['sales_total'] += (float) ($row['total_amount'] ?? 0);
-            $cards['sales_received'] += (float) ($row['paid_amount'] ?? 0);
-            $cards['sales_pending'] += (float) ($row['pending_amount'] ?? 0);
-        }
-
-        foreach ($debitRows as $row) {
-            $cards['debit_total'] += (float) ($row['total_amount'] ?? 0);
-        }
-
-        foreach ($creditRows as $row) {
-            $cards['credit_total'] += (float) ($row['total_amount'] ?? 0);
-        }
-
-        $monthlySales = [];
-        if ($db->tableExists('showroom_sales')) {
-            $monthlySales = $db->table('showroom_sales')
-                ->select("DATE_FORMAT(sale_date, '%Y-%m') as ym, COUNT(*) as sale_count, COALESCE(SUM(total_amount),0) as total_amount, COALESCE(SUM(received_amount),0) as received_amount", false)
-                ->groupBy("DATE_FORMAT(sale_date, '%Y-%m')", false)
-                ->orderBy('ym', 'DESC')
-                ->get(6)
-                ->getResultArray();
-            $monthlySales = array_reverse($monthlySales);
-        }
+        $journalSummary = $this->journalVoucherSummary();
 
         return view('admin/accounts/dashboard', [
             'title' => 'Accounts Dashboard',
-            'cards' => $cards,
-            'purchaseRows' => array_slice($purchaseRows, 0, 8),
-            'labourRows' => array_slice($labourRows, 0, 8),
-            'saleRows' => array_slice($saleRows, 0, 8),
-            'debitRows' => array_slice($debitRows, 0, 5),
-            'creditRows' => array_slice($creditRows, 0, 5),
-            'monthlySales' => $monthlySales,
+            'summary' => $outstanding['summary'],
+            'vendorRows' => array_slice($outstanding['vendor_rows'], 0, 8),
+            'karigarRows' => array_slice($outstanding['karigar_rows'], 0, 8),
+            'customerRows' => array_slice($outstanding['customer_rows'], 0, 8),
+            'journalSummary' => $journalSummary,
         ]);
     }
 
@@ -249,6 +183,139 @@ class AccountsController extends BaseController
             'labourBills' => $labourBills,
             'purchaseBills' => $purchaseBills,
             'rows' => $this->accountPaymentsDataset(),
+        ]);
+    }
+
+    public function journalVouchers(): string
+    {
+        return view('admin/accounts/journal_vouchers', [
+            'title' => 'Journal Vouchers',
+            'tableEnabled' => db_connect()->tableExists('account_journal_vouchers'),
+            'customers' => $this->customerOptions(),
+            'vendors' => $this->vendorOptions(),
+            'karigars' => $this->karigarOptions(),
+            'rows' => $this->journalVouchersDataset(),
+        ]);
+    }
+
+    public function storeJournalVoucher()
+    {
+        $db = db_connect();
+        if (! $db->tableExists('account_journal_vouchers')) {
+            return redirect()->back()->withInput()->with('error', 'Journal voucher table not available. Run migration.');
+        }
+
+        $rules = [
+            'voucher_date' => 'required|valid_date',
+            'voucher_type' => 'required|in_list[party_to_party,expenditure]',
+            'from_party_type' => 'permit_empty|in_list[customer,vendor,karigar]',
+            'from_party_id' => 'permit_empty|integer',
+            'to_party_type' => 'permit_empty|in_list[customer,vendor,karigar]',
+            'to_party_id' => 'permit_empty|integer',
+            'expense_head' => 'permit_empty|max_length[120]',
+            'amount' => 'required|decimal|greater_than[0]',
+            'payment_mode' => 'permit_empty|max_length[30]',
+            'reference_no' => 'permit_empty|max_length[80]',
+            'status' => 'permit_empty|in_list[Posted,Draft]',
+            'notes' => 'permit_empty',
+        ];
+        if (! $this->validate($rules)) {
+            return redirect()->back()->withInput()->with('error', $this->firstValidationError());
+        }
+
+        $voucherType = (string) $this->request->getPost('voucher_type');
+        $fromPartyType = $this->nullableString($this->request->getPost('from_party_type'));
+        $fromPartyId = $this->nullableInt($this->request->getPost('from_party_id'));
+        $toPartyType = $this->nullableString($this->request->getPost('to_party_type'));
+        $toPartyId = $this->nullableInt($this->request->getPost('to_party_id'));
+        $expenseHead = $this->nullableString($this->request->getPost('expense_head'));
+
+        if ($voucherType === 'party_to_party') {
+            if ($fromPartyType === null || $fromPartyId === null || $toPartyType === null || $toPartyId === null) {
+                return redirect()->back()->withInput()->with('error', 'From party and to party are required for party-to-party voucher.');
+            }
+            if ($fromPartyType === $toPartyType && $fromPartyId === $toPartyId) {
+                return redirect()->back()->withInput()->with('error', 'From party and to party must be different.');
+            }
+        }
+
+        if ($voucherType === 'expenditure' && $expenseHead === null) {
+            return redirect()->back()->withInput()->with('error', 'Expense head is required for expenditure voucher.');
+        }
+
+        $id = (int) $this->accountJournalVoucherModel->insert([
+            'voucher_no' => $this->generateJournalVoucherNumber(),
+            'voucher_date' => (string) $this->request->getPost('voucher_date'),
+            'voucher_type' => $voucherType,
+            'from_party_type' => $fromPartyType,
+            'from_party_id' => $fromPartyId,
+            'to_party_type' => $toPartyType,
+            'to_party_id' => $toPartyId,
+            'expense_head' => $expenseHead,
+            'amount' => round((float) $this->request->getPost('amount'), 2),
+            'payment_mode' => $this->nullableString($this->request->getPost('payment_mode')),
+            'reference_no' => $this->nullableString($this->request->getPost('reference_no')),
+            'status' => $this->nullableString($this->request->getPost('status')) ?: 'Posted',
+            'notes' => $this->nullableString($this->request->getPost('notes')),
+            'created_by' => (int) session('admin_id'),
+        ], true);
+
+        if ($id <= 0) {
+            return redirect()->back()->withInput()->with('error', 'Unable to save journal voucher right now.');
+        }
+
+        return redirect()->to(site_url('admin/accounts/journal-vouchers'))->with('success', 'Journal voucher saved.');
+    }
+
+    public function partyBalances(string $type): string
+    {
+        $type = strtolower(trim($type));
+        if (! in_array($type, ['vendor', 'karigar', 'customer'], true)) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Invalid party balance type.');
+        }
+
+        $data = $this->outstandingSummaryDataset();
+        $rows = $data[$type . '_rows'] ?? [];
+        $rows = array_values(array_filter($rows, static fn(array $row): bool => (float) ($row['pending'] ?? 0) > 0));
+
+        return view('admin/accounts/party_balances', [
+            'title' => $this->partyTypeLabel($type) . ' Pending Balances',
+            'type' => $type,
+            'rows' => $rows,
+            'summary' => $this->summarizePartyRows($rows),
+        ]);
+    }
+
+    public function partyLedger(string $type, int $id): string
+    {
+        $type = strtolower(trim($type));
+        if (! in_array($type, ['vendor', 'karigar', 'customer'], true) || $id <= 0) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Invalid party ledger.');
+        }
+
+        $filters = [
+            'date_from' => trim((string) ($this->request->getGet('date_from') ?? '')),
+            'date_to' => trim((string) ($this->request->getGet('date_to') ?? '')),
+            'transaction_type' => '',
+            'party_type' => $type,
+            'customer_id' => $type === 'customer' ? $id : 0,
+            'vendor_id' => $type === 'vendor' ? $id : 0,
+            'karigar_id' => $type === 'karigar' ? $id : 0,
+            'status' => '',
+            'reference_no' => '',
+            'search' => '',
+        ];
+        $data = $this->generalLedgerDataset($filters);
+        $partyName = $this->partyName($type, $id);
+
+        return view('admin/accounts/party_ledger', [
+            'title' => $partyName . ' Ledger',
+            'type' => $type,
+            'partyId' => $id,
+            'partyName' => $partyName,
+            'filters' => $filters,
+            'rows' => $data['rows'],
+            'summary' => $data['summary'],
         ]);
     }
 
@@ -1074,9 +1141,10 @@ class AccountsController extends BaseController
     {
         $customerMap = [];
         foreach ($this->saleBillsDataset() as $row) {
-            $key = trim((string) ($row['customer_name'] ?? '-'));
+            $partyId = (int) ($row['customer_id'] ?? 0);
+            $key = $partyId > 0 ? (string) $partyId : trim((string) ($row['customer_name'] ?? '-'));
             if (! isset($customerMap[$key])) {
-                $customerMap[$key] = ['party_name' => $key, 'bill_count' => 0, 'amount' => 0.0, 'paid' => 0.0, 'pending' => 0.0];
+                $customerMap[$key] = ['party_id' => $partyId, 'party_type' => 'customer', 'party_name' => trim((string) ($row['customer_name'] ?? '-')), 'bill_count' => 0, 'amount' => 0.0, 'paid' => 0.0, 'pending' => 0.0];
             }
             $customerMap[$key]['bill_count']++;
             $customerMap[$key]['amount'] += (float) ($row['total_amount'] ?? 0);
@@ -1086,9 +1154,10 @@ class AccountsController extends BaseController
 
         $vendorMap = [];
         foreach ($this->purchaseBillsDataset() as $row) {
-            $key = trim((string) ($row['supplier_name'] ?? '-'));
+            $partyId = (int) ($row['vendor_id'] ?? 0);
+            $key = $partyId > 0 ? (string) $partyId : trim((string) ($row['supplier_name'] ?? '-'));
             if (! isset($vendorMap[$key])) {
-                $vendorMap[$key] = ['party_name' => $key, 'bill_count' => 0, 'amount' => 0.0, 'paid' => 0.0, 'pending' => 0.0];
+                $vendorMap[$key] = ['party_id' => $partyId, 'party_type' => 'vendor', 'party_name' => trim((string) ($row['supplier_name'] ?? '-')), 'bill_count' => 0, 'amount' => 0.0, 'paid' => 0.0, 'pending' => 0.0];
             }
             $vendorMap[$key]['bill_count']++;
             $vendorMap[$key]['amount'] += (float) ($row['amount'] ?? 0);
@@ -1098,9 +1167,10 @@ class AccountsController extends BaseController
 
         $karigarMap = [];
         foreach ($this->labourBillsDataset() as $row) {
-            $key = trim((string) ($row['karigar_name'] ?? '-'));
+            $partyId = (int) ($row['karigar_id'] ?? 0);
+            $key = $partyId > 0 ? (string) $partyId : trim((string) ($row['karigar_name'] ?? '-'));
             if (! isset($karigarMap[$key])) {
-                $karigarMap[$key] = ['party_name' => $key, 'bill_count' => 0, 'amount' => 0.0, 'paid' => 0.0, 'pending' => 0.0];
+                $karigarMap[$key] = ['party_id' => $partyId, 'party_type' => 'karigar', 'party_name' => trim((string) ($row['karigar_name'] ?? '-')), 'bill_count' => 0, 'amount' => 0.0, 'paid' => 0.0, 'pending' => 0.0];
             }
             $karigarMap[$key]['bill_count']++;
             $karigarMap[$key]['amount'] += (float) ($row['total_amount'] ?? 0);
@@ -1714,6 +1784,128 @@ class AccountsController extends BaseController
     /**
      * @return list<array<string,mixed>>
      */
+    private function journalVouchersDataset(): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('account_journal_vouchers')) {
+            return [];
+        }
+
+        $rows = $db->table('account_journal_vouchers')
+            ->orderBy('voucher_date', 'DESC')
+            ->orderBy('id', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $row['from_party_name'] = $this->partyName((string) ($row['from_party_type'] ?? ''), (int) ($row['from_party_id'] ?? 0));
+            $row['to_party_name'] = $this->partyName((string) ($row['to_party_type'] ?? ''), (int) ($row['to_party_id'] ?? 0));
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string,float|int>
+     */
+    private function journalVoucherSummary(): array
+    {
+        $summary = [
+            'voucher_count' => 0,
+            'party_to_party_amount' => 0.0,
+            'expenditure_amount' => 0.0,
+        ];
+
+        foreach ($this->journalVouchersDataset() as $row) {
+            $summary['voucher_count']++;
+            if ((string) ($row['status'] ?? 'Posted') !== 'Posted') {
+                continue;
+            }
+            if ((string) ($row['voucher_type'] ?? '') === 'expenditure') {
+                $summary['expenditure_amount'] += (float) ($row['amount'] ?? 0);
+            } else {
+                $summary['party_to_party_amount'] += (float) ($row['amount'] ?? 0);
+            }
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function journalVoucherLedgerRows(): array
+    {
+        $rows = [];
+        foreach ($this->journalVouchersDataset() as $voucher) {
+            $amount = (float) ($voucher['amount'] ?? 0);
+            $referenceNo = (string) (($voucher['reference_no'] ?? '') ?: ($voucher['voucher_no'] ?? ''));
+            $status = (string) ($voucher['status'] ?? 'Posted');
+            if ($status !== 'Posted') {
+                continue;
+            }
+
+            if ((string) ($voucher['voucher_type'] ?? '') === 'party_to_party') {
+                $rows[] = $this->ledgerRow([
+                    'transaction_date' => $voucher['voucher_date'] ?? '',
+                    'transaction_type' => 'Journal Voucher',
+                    'reference_no' => $referenceNo,
+                    'party_type' => (string) ($voucher['to_party_type'] ?? ''),
+                    'party_id' => (int) ($voucher['to_party_id'] ?? 0),
+                    'party_name' => (string) ($voucher['to_party_name'] ?? '-'),
+                    'debit_amount' => $amount,
+                    'credit_amount' => 0,
+                    'balance_amount' => 0,
+                    'status' => $status,
+                    'payment_mode' => (string) ($voucher['payment_mode'] ?? ''),
+                    'material_type' => 'Accounts',
+                    'details' => 'Party transfer from ' . (string) ($voucher['from_party_name'] ?? '-'),
+                    'notes' => (string) ($voucher['notes'] ?? ''),
+                ]);
+                $rows[] = $this->ledgerRow([
+                    'transaction_date' => $voucher['voucher_date'] ?? '',
+                    'transaction_type' => 'Journal Voucher',
+                    'reference_no' => $referenceNo,
+                    'party_type' => (string) ($voucher['from_party_type'] ?? ''),
+                    'party_id' => (int) ($voucher['from_party_id'] ?? 0),
+                    'party_name' => (string) ($voucher['from_party_name'] ?? '-'),
+                    'debit_amount' => 0,
+                    'credit_amount' => $amount,
+                    'balance_amount' => 0,
+                    'status' => $status,
+                    'payment_mode' => (string) ($voucher['payment_mode'] ?? ''),
+                    'material_type' => 'Accounts',
+                    'details' => 'Party transfer to ' . (string) ($voucher['to_party_name'] ?? '-'),
+                    'notes' => (string) ($voucher['notes'] ?? ''),
+                ]);
+                continue;
+            }
+
+            $rows[] = $this->ledgerRow([
+                'transaction_date' => $voucher['voucher_date'] ?? '',
+                'transaction_type' => 'Expenditure',
+                'reference_no' => $referenceNo,
+                'party_type' => 'expense',
+                'party_id' => 0,
+                'party_name' => (string) (($voucher['expense_head'] ?? '') ?: 'Expenditure'),
+                'debit_amount' => $amount,
+                'credit_amount' => 0,
+                'balance_amount' => 0,
+                'status' => $status,
+                'payment_mode' => (string) ($voucher['payment_mode'] ?? ''),
+                'material_type' => 'Expense',
+                'details' => (string) ($voucher['to_party_name'] ?? ''),
+                'notes' => (string) ($voucher['notes'] ?? ''),
+            ]);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
     private function karigarOptionsWithBalance(): array
     {
         $balances = [];
@@ -1926,6 +2118,8 @@ class AccountsController extends BaseController
                 'file_path' => (string) ($payment['reference_file_path'] ?? ''),
             ]);
         }
+
+        $rows = array_merge($rows, $this->journalVoucherLedgerRows());
 
         $transactionTypes = array_values(array_unique(array_filter(array_map(static fn(array $row): string => (string) ($row['transaction_type'] ?? ''), $rows))));
         sort($transactionTypes);
@@ -2707,6 +2901,56 @@ class AccountsController extends BaseController
     private function generateAccountPaymentNumber(): string
     {
         return 'PAY-' . date('Ymd') . '-' . str_pad((string) ($this->accountPaymentModel->countAllResults() + 1), 5, '0', STR_PAD_LEFT);
+    }
+
+    private function generateJournalVoucherNumber(): string
+    {
+        return 'JV-' . date('Ymd') . '-' . str_pad((string) ($this->accountJournalVoucherModel->countAllResults() + 1), 5, '0', STR_PAD_LEFT);
+    }
+
+    private function partyTypeLabel(string $type): string
+    {
+        return [
+            'vendor' => 'Vendor',
+            'karigar' => 'Karigar',
+            'customer' => 'Customer',
+            'expense' => 'Expense',
+        ][$type] ?? ucfirst($type);
+    }
+
+    private function partyName(string $type, int $id): string
+    {
+        if ($id <= 0) {
+            return $type === 'expense' ? 'Expense' : '-';
+        }
+
+        $table = [
+            'customer' => 'customers',
+            'vendor' => 'vendors',
+            'karigar' => 'karigars',
+        ][$type] ?? null;
+        if ($table === null || ! db_connect()->tableExists($table)) {
+            return '-';
+        }
+
+        $field = $type === 'karigar' ? 'name' : 'name';
+        $row = db_connect()->table($table)->select($field)->where('id', $id)->get()->getRowArray();
+        return (string) (($row[$field] ?? '') ?: '-');
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array<string,float|int>
+     */
+    private function summarizePartyRows(array $rows): array
+    {
+        return [
+            'party_count' => count($rows),
+            'bill_count' => array_sum(array_column($rows, 'bill_count')),
+            'amount' => array_sum(array_column($rows, 'amount')),
+            'paid' => array_sum(array_column($rows, 'paid')),
+            'pending' => array_sum(array_column($rows, 'pending')),
+        ];
     }
 
     private function dateInRange(string $date, string $dateFrom, string $dateTo): bool
