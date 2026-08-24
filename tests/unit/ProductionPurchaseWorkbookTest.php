@@ -39,5 +39,23 @@ final class ProductionPurchaseWorkbookTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(815349.58, array_sum(array_column($purchases, 'gst_amount')), 0.01);
         $this->assertEqualsWithDelta(30549888.07, array_sum(array_column($purchases, 'invoice_total')), 0.01);
         $this->assertEqualsWithDelta(964763.00, array_sum(array_column($purchases, 'paid_amount')), 0.01);
+
+        $goldPurchases = array_values(array_filter(
+            $purchases,
+            static fn(array $purchase): bool => strtolower((string) $purchase['category_label']) === 'gold'
+        ));
+        $this->assertCount(18, $goldPurchases);
+        $this->assertSame(19, array_sum(array_map(
+            static fn(array $purchase): int => count($purchase['line_items']),
+            $goldPurchases
+        )));
+        $this->assertEqualsWithDelta(1669.942, array_sum(array_map(
+            static fn(array $purchase): float => array_sum(array_column($purchase['line_items'], 'quantity')),
+            $goldPurchases
+        )), 0.001);
+        $this->assertEqualsWithDelta(24753214.34, array_sum(array_column($goldPurchases, 'taxable_amount')), 0.01);
+        $this->assertEqualsWithDelta(742596.43, array_sum(array_column($goldPurchases, 'gst_amount')), 0.01);
+        $this->assertEqualsWithDelta(25495811.00, array_sum(array_column($goldPurchases, 'invoice_total')), 0.01);
+        $this->assertSame(0.0, array_sum(array_column($goldPurchases, 'paid_amount')));
     }
 }

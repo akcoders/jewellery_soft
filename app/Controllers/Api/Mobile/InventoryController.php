@@ -243,10 +243,21 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('gold_inventory_purchase_headers gph')
-            ->select('gph.id, gph.purchase_date, gph.supplier_name, gph.invoice_no, gph.notes, gph.created_at')
+            ->select('gph.*, COALESCE(v.name, gph.supplier_name) as vendor_name, COUNT(gpl.id) as line_count, COALESCE(SUM(gpl.weight_gm),0) as total_weight_gm, COALESCE(SUM(gpl.line_value),0) as line_taxable_amount', false)
+            ->join('gold_inventory_purchase_lines gpl', 'gpl.purchase_id = gph.id', 'left')
+            ->join('vendors v', 'v.id = gph.vendor_id', 'left')
+            ->groupBy('gph.id')
             ->orderBy('gph.id', 'DESC')
             ->get(200)
             ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $documentId = (int) ($row['production_document_id'] ?? 0);
+            $row['invoice_document_url'] = $documentId > 0
+                ? base_url('admin/accounts/production-document/' . $documentId)
+                : null;
+        }
+        unset($row);
 
         return $this->ok($rows);
     }

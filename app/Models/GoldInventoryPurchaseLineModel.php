@@ -12,6 +12,9 @@ class GoldInventoryPurchaseLineModel extends Model
     protected $allowedFields = [
         'purchase_id',
         'item_id',
+        'description',
+        'hsn_sac',
+        'unit',
         'weight_gm',
         'fine_weight_gm',
         'rate_per_gm',
@@ -21,4 +24,3 @@ class GoldInventoryPurchaseLineModel extends Model
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
 }
-

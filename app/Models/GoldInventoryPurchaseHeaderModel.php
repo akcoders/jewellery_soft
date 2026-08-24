@@ -11,8 +11,31 @@ class GoldInventoryPurchaseHeaderModel extends Model
     protected $returnType = 'array';
     protected $allowedFields = [
         'purchase_date',
+        'vendor_id',
+        'production_document_id',
         'supplier_name',
+        'supplier_address',
+        'supplier_gstin',
+        'supplier_phone',
+        'supplier_email',
         'invoice_no',
+        'due_date',
+        'place_of_supply',
+        'purchase_description',
+        'taxable_amount',
+        'cgst_rate',
+        'cgst_amount',
+        'sgst_rate',
+        'sgst_amount',
+        'igst_rate',
+        'igst_amount',
+        'gst_amount',
+        'round_off_amount',
+        'invoice_total',
+        'payment_status',
+        'paid_amount',
+        'payment_date',
+        'stock_posted',
         'location_id',
         'notes',
         'created_by',
@@ -21,4 +44,3 @@ class GoldInventoryPurchaseHeaderModel extends Model
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
 }
-

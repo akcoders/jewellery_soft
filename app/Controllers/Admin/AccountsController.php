@@ -121,6 +121,24 @@ class AccountsController extends BaseController
             $db->table('purchases')->where('id', $sourceId)->update([
                 'payment_status' => $status,
             ]);
+        } elseif ($sourceType === 'gold' && $db->tableExists('gold_inventory_purchase_headers')) {
+            $newPaid = round($totals['paid_amount'] + $payAmount, 2);
+            $status = $newPaid >= $totals['total_amount'] ? 'Paid' : 'Partial';
+            $paymentDate = (string) $this->request->getPost('payment_date');
+            $header = $db->table('gold_inventory_purchase_headers')->select('production_document_id')->where('id', $sourceId)->get()->getRowArray();
+            $db->table('gold_inventory_purchase_headers')->where('id', $sourceId)->update([
+                'paid_amount' => $newPaid,
+                'payment_status' => $status,
+                'payment_date' => $paymentDate,
+            ]);
+            if ((int) ($header['production_document_id'] ?? 0) > 0 && $db->tableExists('production_purchase_documents')) {
+                $db->table('production_purchase_documents')->where('id', (int) $header['production_document_id'])->update([
+                    'paid_amount' => $newPaid,
+                    'payment_status' => $status,
+                    'payment_date' => $paymentDate,
+                    'reconciliation_status' => 'Payment updated in application',
+                ]);
+            }
         } elseif ($sourceType === 'production_document' && $db->tableExists('production_purchase_documents')) {
             $newPaid = round($totals['paid_amount'] + $payAmount, 2);
             $status = $newPaid >= $totals['total_amount'] ? 'Paid' : 'Partial';
@@ -747,8 +765,10 @@ class AccountsController extends BaseController
 
         if ($db->tableExists('gold_inventory_purchase_headers') && $db->tableExists('gold_inventory_purchase_lines')) {
             $goldRows = $db->table('gold_inventory_purchase_headers ph')
-                ->select('ph.id, ph.purchase_date, MAX(ph.invoice_no) as invoice_no, MAX(ph.supplier_name) as supplier_name, COUNT(pl.id) as qty, COALESCE(SUM(pl.weight_gm), 0) as total_weight, COALESCE(SUM(pl.line_value), 0) as total_value', false)
+                ->select('ph.*, COALESCE(MAX(v.name), ph.supplier_name) as resolved_vendor_name, MAX(d.original_name) as invoice_file_name, COUNT(pl.id) as qty, COALESCE(SUM(pl.weight_gm), 0) as total_weight, COALESCE(SUM(pl.line_value), 0) as total_value', false)
                 ->join('gold_inventory_purchase_lines pl', 'pl.purchase_id = ph.id', 'left')
+                ->join('vendors v', 'v.id = ph.vendor_id', 'left')
+                ->join('production_purchase_documents d', 'd.id = ph.production_document_id', 'left')
                 ->groupBy('ph.id')
                 ->orderBy('ph.id', 'DESC')
                 ->get()
@@ -756,27 +776,44 @@ class AccountsController extends BaseController
 
             foreach ($goldRows as $row) {
                 $sourceId = (int) ($row['id'] ?? 0);
-                $total = (float) ($row['total_value'] ?? 0);
-                $paid = (float) ($paymentMap['gold:' . $sourceId] ?? 0);
-                $statusInfo = $this->paymentStatusInfo($total, $paid, true);
+                $total = (float) ($row['invoice_total'] ?? 0);
+                if ($total <= 0) {
+                    $total = (float) ($row['total_value'] ?? 0);
+                }
+                $paid = max((float) ($row['paid_amount'] ?? 0), (float) ($paymentMap['gold:' . $sourceId] ?? 0));
+                $statusInfo = $this->paymentStatusInfo($total, $paid, false);
+                $documentId = (int) ($row['production_document_id'] ?? 0);
 
                 $rows[] = [
                     'source_type' => 'gold',
                     'source_id' => $sourceId,
-                    'vendor_id' => 0,
-                    'supplier_name' => trim((string) ($row['supplier_name'] ?: '-')),
+                    'vendor_id' => (int) ($row['vendor_id'] ?? 0),
+                    'supplier_name' => trim((string) ($row['resolved_vendor_name'] ?: $row['supplier_name'] ?: '-')),
+                    'vendor_address' => (string) ($row['supplier_address'] ?? ''),
+                    'vendor_gstin' => (string) ($row['supplier_gstin'] ?? ''),
                     'purchase_date' => (string) ($row['purchase_date'] ?? ''),
+                    'invoice_no' => (string) ($row['invoice_no'] ?? ''),
                     'category' => 'Gold',
                     'qty' => (float) ($row['qty'] ?? 0),
                     'weight_value' => (float) ($row['total_weight'] ?? 0),
                     'weight_unit' => 'gm',
                     'amount' => round($total, 2),
-                    'due_date' => '',
-                    'days_left' => '-',
+                    'taxable_amount' => (float) ($row['taxable_amount'] ?? 0),
+                    'cgst_amount' => (float) ($row['cgst_amount'] ?? 0),
+                    'sgst_amount' => (float) ($row['sgst_amount'] ?? 0),
+                    'igst_amount' => (float) ($row['igst_amount'] ?? 0),
+                    'gst_amount' => (float) ($row['gst_amount'] ?? 0),
+                    'round_off_amount' => (float) ($row['round_off_amount'] ?? 0),
+                    'due_date' => (string) ($row['due_date'] ?? ''),
+                    'days_left' => $this->daysLeftLabel((string) ($row['due_date'] ?? ''), $statusInfo['status']),
                     'payment_status' => $statusInfo['status'],
                     'paid_amount' => $statusInfo['paid_amount'],
                     'pending_amount' => $statusInfo['pending_amount'],
-                    'attachment' => null,
+                    'attachment' => $documentId > 0 ? [
+                        'count' => 1,
+                        'url' => site_url('admin/accounts/production-document/' . $documentId),
+                        'file_name' => (string) (($row['invoice_file_name'] ?? '') ?: 'Gold purchase invoice.pdf'),
+                    ] : null,
                     'view_url' => site_url('admin/gold-inventory/purchases/view/' . $sourceId),
                 ];
             }
@@ -868,6 +905,7 @@ class AccountsController extends BaseController
             $documentRows = $db->table('production_purchase_documents d')
                 ->select('d.*, v.name as resolved_vendor_name', false)
                 ->join('vendors v', 'v.id = d.vendor_id', 'left')
+                ->where('d.category !=', 'gold')
                 ->orderBy('d.document_date', 'DESC')
                 ->orderBy('d.id', 'DESC')
                 ->get()->getResultArray();
@@ -1628,6 +1666,7 @@ class AccountsController extends BaseController
         $db = db_connect();
 
         $total = 0.0;
+        $sourcePaid = 0.0;
         $found = false;
         $defaultPaid = false;
 
@@ -1648,7 +1687,7 @@ class AccountsController extends BaseController
             }
         } elseif ($sourceType === 'gold' && $db->tableExists('gold_inventory_purchase_headers') && $db->tableExists('gold_inventory_purchase_lines')) {
             $row = $db->table('gold_inventory_purchase_headers ph')
-                ->select('ph.id, COALESCE(SUM(pl.line_value),0) as total_value', false)
+                ->select('ph.id, MAX(ph.invoice_total) as invoice_total, MAX(ph.paid_amount) as paid_amount, COALESCE(SUM(pl.line_value),0) as total_value', false)
                 ->join('gold_inventory_purchase_lines pl', 'pl.purchase_id = ph.id', 'left')
                 ->where('ph.id', $sourceId)
                 ->groupBy('ph.id')
@@ -1656,8 +1695,11 @@ class AccountsController extends BaseController
                 ->getRowArray();
             if ($row) {
                 $found = true;
-                $total = (float) ($row['total_value'] ?? 0);
-                $defaultPaid = true;
+                $total = (float) ($row['invoice_total'] ?? 0);
+                if ($total <= 0) {
+                    $total = (float) ($row['total_value'] ?? 0);
+                }
+                $sourcePaid = (float) ($row['paid_amount'] ?? 0);
             }
         } elseif ($sourceType === 'stone' && $db->tableExists('stone_inventory_purchase_headers') && $db->tableExists('stone_inventory_purchase_lines')) {
             $row = $db->table('stone_inventory_purchase_headers ph')
@@ -1706,14 +1748,15 @@ class AccountsController extends BaseController
             return ['found' => false, 'total_amount' => 0, 'paid_amount' => 0];
         }
 
-        $paid = 0.0;
+        $paid = $sourcePaid;
         if ($db->tableExists('purchase_bill_payments')) {
-            $paid = (float) ($db->table('purchase_bill_payments')
+            $recordedPaid = (float) ($db->table('purchase_bill_payments')
                 ->select('COALESCE(SUM(amount),0) as paid_amount', false)
                 ->where('source_type', $sourceType)
                 ->where('source_id', $sourceId)
                 ->get()
                 ->getRowArray()['paid_amount'] ?? 0);
+            $paid = max($paid, $recordedPaid);
         }
 
         if ($defaultPaid && $paid <= 0 && $total > 0) {
@@ -3089,6 +3132,23 @@ class AccountsController extends BaseController
             $newPaid = round((float) $totals['paid_amount'] + $amount, 2);
             $status = $newPaid >= (float) $totals['total_amount'] ? 'Paid' : ($newPaid > 0 ? 'Partial' : 'Pending');
             $db->table('purchases')->where('id', $sourceId)->update(['payment_status' => $status]);
+        } elseif ($sourceType === 'gold' && $db->tableExists('gold_inventory_purchase_headers')) {
+            $newPaid = round((float) $totals['paid_amount'] + $amount, 2);
+            $status = $newPaid >= (float) $totals['total_amount'] ? 'Paid' : ($newPaid > 0 ? 'Partial' : 'Pending');
+            $header = $db->table('gold_inventory_purchase_headers')->select('production_document_id')->where('id', $sourceId)->get()->getRowArray();
+            $db->table('gold_inventory_purchase_headers')->where('id', $sourceId)->update([
+                'paid_amount' => $newPaid,
+                'payment_status' => $status,
+                'payment_date' => $paymentDate,
+            ]);
+            if ((int) ($header['production_document_id'] ?? 0) > 0 && $db->tableExists('production_purchase_documents')) {
+                $db->table('production_purchase_documents')->where('id', (int) $header['production_document_id'])->update([
+                    'paid_amount' => $newPaid,
+                    'payment_status' => $status,
+                    'payment_date' => $paymentDate,
+                    'reconciliation_status' => 'Payment updated in application',
+                ]);
+            }
         } elseif ($sourceType === 'production_document' && $db->tableExists('production_purchase_documents')) {
             $newPaid = round((float) $totals['paid_amount'] + $amount, 2);
             $status = $newPaid >= (float) $totals['total_amount'] ? 'Paid' : ($newPaid > 0 ? 'Partial' : 'Pending');

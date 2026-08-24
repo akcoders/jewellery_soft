@@ -37,35 +37,58 @@
                         <th>Date</th>
                         <th>Supplier</th>
                         <th>Invoice</th>
-                        <th>Location</th>
-                        <th>Lines</th>
-                        <th>Total Weight</th>
-                        <th>Total Value</th>
+                        <th>Weight</th>
+                        <th>Taxable</th>
+                        <th>GST</th>
+                        <th>Invoice Total</th>
+                        <th>Payment</th>
+                        <th>PDF</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (($purchases ?? []) === []): ?>
-                        <tr><td colspan="9" class="text-center text-muted">No purchase records found.</td></tr>
+                        <tr><td colspan="11" class="text-center text-muted">No purchase records found.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($purchases ?? []) as $purchase): ?>
                         <tr>
                             <td><?= (int) $purchase['id'] ?></td>
                             <td><?= esc((string) $purchase['purchase_date']) ?></td>
-                            <td><?= esc((string) ($purchase['supplier_name'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($purchase['invoice_no'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($purchase['location_name'] ?? '-')) ?></td>
-                            <td><?= (int) $purchase['line_count'] ?></td>
+                            <td>
+                                <div class="fw-semibold"><?= esc((string) ($purchase['resolved_supplier_name'] ?? $purchase['supplier_name'] ?? '-')) ?></div>
+                                <?php if (! empty($purchase['supplier_gstin'])): ?><div class="small text-muted">GSTIN: <?= esc((string) $purchase['supplier_gstin']) ?></div><?php endif; ?>
+                            </td>
+                            <td>
+                                <div><?= esc((string) ($purchase['invoice_no'] ?? '-')) ?></div>
+                                <div class="small text-muted"><?= esc((string) ($purchase['location_name'] ?? '-')) ?></div>
+                            </td>
                             <td><?= number_format((float) $purchase['total_weight'], 3) ?> gm</td>
-                            <td><?= number_format((float) $purchase['total_value'], 2) ?></td>
+                            <td>₹<?= number_format((float) ($purchase['taxable_amount'] ?? $purchase['total_value']), 2) ?></td>
+                            <td>₹<?= number_format((float) ($purchase['gst_amount'] ?? 0), 2) ?></td>
+                            <td class="fw-semibold">₹<?= number_format((float) ($purchase['invoice_total'] ?? $purchase['total_value']), 2) ?></td>
+                            <td>
+                                <?php $status = (string) ($purchase['payment_status'] ?? 'Pending'); ?>
+                                <span class="badge <?= $status === 'Paid' ? 'bg-success' : ($status === 'Partial' ? 'bg-info text-dark' : 'bg-warning text-dark') ?>"><?= esc($status) ?></span>
+                            </td>
+                            <td>
+                                <?php if ((int) ($purchase['production_document_id'] ?? 0) > 0): ?>
+                                    <a href="<?= site_url('admin/accounts/production-document/' . (int) $purchase['production_document_id']) ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fe fe-paperclip"></i></a>
+                                <?php else: ?>
+                                    <span class="text-muted">-</span>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <div class="d-flex gap-1">
                                     <a href="<?= site_url('admin/gold-inventory/purchases/view/' . $purchase['id']) ?>" class="btn btn-sm btn-outline-primary"><i class="fe fe-eye"></i></a>
-                                    <a href="<?= site_url('admin/gold-inventory/purchases/' . $purchase['id'] . '/edit') ?>" class="btn btn-sm btn-outline-info"><i class="fe fe-edit"></i></a>
-                                    <form method="post" action="<?= site_url('admin/gold-inventory/purchases/' . $purchase['id'] . '/delete') ?>" onsubmit="return confirm('Delete this purchase?');">
-                                        <?= csrf_field() ?>
-                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fe fe-trash-2"></i></button>
-                                    </form>
+                                    <?php if ((int) ($purchase['production_document_id'] ?? 0) <= 0): ?>
+                                        <a href="<?= site_url('admin/gold-inventory/purchases/' . $purchase['id'] . '/edit') ?>" class="btn btn-sm btn-outline-info"><i class="fe fe-edit"></i></a>
+                                        <form method="post" action="<?= site_url('admin/gold-inventory/purchases/' . $purchase['id'] . '/delete') ?>" onsubmit="return confirm('Delete this purchase?');">
+                                            <?= csrf_field() ?>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fe fe-trash-2"></i></button>
+                                        </form>
+                                    <?php else: ?>
+                                        <span class="badge bg-light text-dark align-self-center">Verified</span>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
@@ -76,4 +99,3 @@
     </div>
 </div>
 <?= $this->endSection() ?>
-

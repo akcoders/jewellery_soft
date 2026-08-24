@@ -8,6 +8,7 @@ use App\Models\GoldInventoryPurchaseHeaderModel;
 use App\Models\GoldInventoryPurchaseLineModel;
 use App\Models\GoldPurityModel;
 use App\Models\InventoryLocationModel;
+use App\Models\VendorModel;
 use App\Services\GoldInventory\StockService;
 use Throwable;
 
@@ -18,6 +19,7 @@ class PurchasesController extends BaseController
     private GoldInventoryItemModel $itemModel;
     private GoldPurityModel $purityModel;
     private InventoryLocationModel $locationModel;
+    private VendorModel $vendorModel;
 
     public function __construct()
     {
@@ -27,6 +29,7 @@ class PurchasesController extends BaseController
         $this->itemModel = new GoldInventoryItemModel();
         $this->purityModel = new GoldPurityModel();
         $this->locationModel = new InventoryLocationModel();
+        $this->vendorModel = new VendorModel();
     }
 
     public function index(): string
@@ -35,9 +38,10 @@ class PurchasesController extends BaseController
         $to = trim((string) $this->request->getGet('to'));
 
         $builder = db_connect()->table('gold_inventory_purchase_headers ph')
-            ->select('ph.*, il.name as location_name, COUNT(pl.id) as line_count, COALESCE(SUM(pl.weight_gm), 0) as total_weight, COALESCE(SUM(pl.line_value), 0) as total_value', false)
+            ->select('ph.*, il.name as location_name, COALESCE(MAX(v.name), ph.supplier_name) as resolved_supplier_name, COUNT(pl.id) as line_count, COALESCE(SUM(pl.weight_gm), 0) as total_weight, COALESCE(SUM(pl.line_value), 0) as total_value', false)
             ->join('gold_inventory_purchase_lines pl', 'pl.purchase_id = ph.id', 'left')
             ->join('inventory_locations il', 'il.id = ph.location_id', 'left')
+            ->join('vendors v', 'v.id = ph.vendor_id', 'left')
             ->groupBy('ph.id')
             ->orderBy('ph.id', 'DESC');
 
@@ -63,6 +67,7 @@ class PurchasesController extends BaseController
             'items' => $this->itemOptions(),
             'purities' => $this->purityOptions(),
             'locations' => $this->locationOptions(),
+            'vendors' => $this->vendorOptions(),
             'purchase' => null,
             'lines' => [],
             'action' => site_url('admin/gold-inventory/purchases'),
@@ -91,12 +96,8 @@ class PurchasesController extends BaseController
 
             $purchaseDate = (string) $this->request->getPost('purchase_date');
             $locationId = (int) $this->request->getPost('location_id');
-            $purchaseId = (int) $this->headerModel->insert([
-                'purchase_date' => $purchaseDate,
-                'supplier_name' => trim((string) $this->request->getPost('supplier_name')) ?: null,
-                'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
-                'location_id' => $locationId,
-                'notes' => trim((string) $this->request->getPost('notes')) ?: null,
+            $purchaseId = (int) $this->headerModel->insert($this->headerValuesFromRequest($parsed['lines']) + [
+                'stock_posted' => 1,
                 'created_by' => (int) session('admin_id'),
             ], true);
 
@@ -109,6 +110,9 @@ class PurchasesController extends BaseController
                 $this->lineModel->insert([
                     'purchase_id' => $purchaseId,
                     'item_id' => $itemId,
+                    'description' => $line['description'],
+                    'hsn_sac' => $line['hsn_sac'],
+                    'unit' => $line['unit'],
                     'weight_gm' => $line['weight_gm'],
                     'fine_weight_gm' => $service->calculateFineWeightForItem($itemId, (float) $line['weight_gm']),
                     'rate_per_gm' => $line['rate_per_gm'],
@@ -136,8 +140,10 @@ class PurchasesController extends BaseController
     public function view(int $id)
     {
         $purchase = db_connect()->table('gold_inventory_purchase_headers ph')
-            ->select('ph.*, il.name as location_name')
+            ->select('ph.*, il.name as location_name, COALESCE(v.name, ph.supplier_name) as resolved_supplier_name, d.original_name as invoice_file_name', false)
             ->join('inventory_locations il', 'il.id = ph.location_id', 'left')
+            ->join('vendors v', 'v.id = ph.vendor_id', 'left')
+            ->join('production_purchase_documents d', 'd.id = ph.production_document_id', 'left')
             ->where('ph.id', $id)
             ->get()
             ->getRowArray();
@@ -145,7 +151,6 @@ class PurchasesController extends BaseController
         if (! $purchase) {
             return redirect()->to(site_url('admin/gold-inventory/purchases'))->with('error', 'Purchase not found.');
         }
-
         return view('admin/gold_inventory/purchases/view', [
             'title' => 'View Gold Purchase',
             'purchase' => $purchase,
@@ -160,12 +165,17 @@ class PurchasesController extends BaseController
         if (! $purchase) {
             return redirect()->to(site_url('admin/gold-inventory/purchases'))->with('error', 'Purchase not found.');
         }
+        if ((int) ($purchase['production_document_id'] ?? 0) > 0) {
+            return redirect()->to(site_url('admin/gold-inventory/purchases/view/' . $id))
+                ->with('error', 'Verified imported invoices are read-only.');
+        }
 
         return view('admin/gold_inventory/purchases/edit', [
             'title' => 'Edit Gold Purchase',
             'items' => $this->itemOptions(),
             'purities' => $this->purityOptions(),
             'locations' => $this->locationOptions(),
+            'vendors' => $this->vendorOptions(),
             'purchase' => $purchase,
             'lines' => $this->lineRows($id),
             'action' => site_url('admin/gold-inventory/purchases/' . $id . '/update'),
@@ -177,6 +187,10 @@ class PurchasesController extends BaseController
         $purchase = $this->headerModel->find($id);
         if (! $purchase) {
             return redirect()->to(site_url('admin/gold-inventory/purchases'))->with('error', 'Purchase not found.');
+        }
+        if ((int) ($purchase['production_document_id'] ?? 0) > 0) {
+            return redirect()->to(site_url('admin/gold-inventory/purchases/view/' . $id))
+                ->with('error', 'Verified imported invoices are read-only.');
         }
 
         $validationError = $this->validateHeader();
@@ -205,13 +219,7 @@ class PurchasesController extends BaseController
 
             $purchaseDate = (string) $this->request->getPost('purchase_date');
             $locationId = (int) $this->request->getPost('location_id');
-            $this->headerModel->update($id, [
-                'purchase_date' => $purchaseDate,
-                'supplier_name' => trim((string) $this->request->getPost('supplier_name')) ?: null,
-                'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
-                'location_id' => $locationId,
-                'notes' => trim((string) $this->request->getPost('notes')) ?: null,
-            ]);
+            $this->headerModel->update($id, $this->headerValuesFromRequest($parsed['lines']));
 
             $this->lineModel->where('purchase_id', $id)->delete();
             foreach ($parsed['lines'] as $line) {
@@ -223,6 +231,9 @@ class PurchasesController extends BaseController
                 $this->lineModel->insert([
                     'purchase_id' => $id,
                     'item_id' => $itemId,
+                    'description' => $line['description'],
+                    'hsn_sac' => $line['hsn_sac'],
+                    'unit' => $line['unit'],
                     'weight_gm' => $line['weight_gm'],
                     'fine_weight_gm' => $service->calculateFineWeightForItem($itemId, (float) $line['weight_gm']),
                     'rate_per_gm' => $line['rate_per_gm'],
@@ -252,6 +263,10 @@ class PurchasesController extends BaseController
         $purchase = $this->headerModel->find($id);
         if (! $purchase) {
             return redirect()->to(site_url('admin/gold-inventory/purchases'))->with('error', 'Purchase not found.');
+        }
+        if ((int) ($purchase['production_document_id'] ?? 0) > 0) {
+            return redirect()->to(site_url('admin/gold-inventory/purchases/view/' . $id))
+                ->with('error', 'Verified imported invoices cannot be deleted.');
         }
 
         $db = db_connect();
@@ -288,8 +303,11 @@ class PurchasesController extends BaseController
         $forms = (array) $this->request->getPost('form_type');
         $weights = (array) $this->request->getPost('weight_gm');
         $rates = (array) $this->request->getPost('rate_per_gm');
+        $descriptions = (array) $this->request->getPost('line_description');
+        $hsnCodes = (array) $this->request->getPost('hsn_sac');
+        $units = (array) $this->request->getPost('unit');
 
-        $max = max(count($itemIds), count($purityIds), count($colors), count($forms), count($weights), count($rates));
+        $max = max(count($itemIds), count($purityIds), count($colors), count($forms), count($weights), count($rates), count($descriptions), count($hsnCodes), count($units));
         $lines = [];
 
         for ($i = 0; $i < $max; $i++) {
@@ -341,8 +359,11 @@ class PurchasesController extends BaseController
 
             $lines[] = [
                 'item_id' => $itemId,
+                'description' => trim((string) ($descriptions[$i] ?? '')) ?: null,
+                'hsn_sac' => trim((string) ($hsnCodes[$i] ?? '')) ?: null,
+                'unit' => strtoupper(trim((string) ($units[$i] ?? 'GMS'))) ?: 'GMS',
                 'weight_gm' => round($weight, 3),
-                'rate_per_gm' => round($rate, 2),
+                'rate_per_gm' => round($rate, 3),
                 'line_value' => round($weight * $rate, 2),
                 'signature' => $signature,
             ];
@@ -355,8 +376,26 @@ class PurchasesController extends BaseController
     {
         if (! $this->validate([
             'purchase_date' => 'required|valid_date',
+            'vendor_id' => 'permit_empty|integer',
             'supplier_name' => 'permit_empty|max_length[120]',
+            'supplier_gstin' => 'permit_empty|max_length[25]',
+            'supplier_phone' => 'permit_empty|max_length[50]',
+            'supplier_email' => 'permit_empty|valid_email|max_length[150]',
             'invoice_no' => 'permit_empty|max_length[80]',
+            'due_date' => 'permit_empty|valid_date',
+            'place_of_supply' => 'permit_empty|max_length[100]',
+            'taxable_amount' => 'permit_empty|decimal',
+            'cgst_rate' => 'permit_empty|decimal',
+            'cgst_amount' => 'permit_empty|decimal',
+            'sgst_rate' => 'permit_empty|decimal',
+            'sgst_amount' => 'permit_empty|decimal',
+            'igst_rate' => 'permit_empty|decimal',
+            'igst_amount' => 'permit_empty|decimal',
+            'round_off_amount' => 'permit_empty|decimal',
+            'invoice_total' => 'permit_empty|decimal',
+            'payment_status' => 'permit_empty|in_list[Pending,Partial,Paid]',
+            'paid_amount' => 'permit_empty|decimal',
+            'payment_date' => 'permit_empty|valid_date',
             'location_id' => 'required|integer',
             'notes' => 'permit_empty',
         ])) {
@@ -367,6 +406,10 @@ class PurchasesController extends BaseController
         $locationId = (int) $this->request->getPost('location_id');
         if (! $this->locationModel->where('is_active', 1)->find($locationId)) {
             return 'Selected location was not found.';
+        }
+        $vendorId = (int) $this->request->getPost('vendor_id');
+        if ($vendorId > 0 && ! $this->vendorModel->where('is_active', 1)->find($vendorId)) {
+            return 'Selected vendor was not found.';
         }
 
         return null;
@@ -402,6 +445,86 @@ class PurchasesController extends BaseController
     private function locationOptions(): array
     {
         return $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll();
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function vendorOptions(): array
+    {
+        return $this->vendorModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll();
+    }
+
+    /** @param list<array<string,mixed>> $lines */
+    private function headerValuesFromRequest(array $lines): array
+    {
+        $vendorId = (int) $this->request->getPost('vendor_id');
+        $vendor = $vendorId > 0 ? $this->vendorModel->find($vendorId) : null;
+        $taxable = $this->decimalPost('taxable_amount');
+        if ($taxable <= 0) {
+            $taxable = round(array_sum(array_column($lines, 'line_value')), 2);
+        }
+        $cgst = $this->decimalPost('cgst_amount');
+        $sgst = $this->decimalPost('sgst_amount');
+        $igst = $this->decimalPost('igst_amount');
+        $roundOff = $this->decimalPost('round_off_amount');
+        $invoiceTotal = $this->decimalPost('invoice_total');
+        if ($invoiceTotal <= 0) {
+            $invoiceTotal = round($taxable + $cgst + $sgst + $igst + $roundOff, 2);
+        }
+        $status = trim((string) $this->request->getPost('payment_status')) ?: 'Pending';
+        $paid = max(0, $this->decimalPost('paid_amount'));
+        if ($status === 'Paid' && $paid <= 0) {
+            $paid = $invoiceTotal;
+        }
+        if ($paid > $invoiceTotal) {
+            $paid = $invoiceTotal;
+        }
+        if ($paid >= $invoiceTotal && $invoiceTotal > 0) {
+            $status = 'Paid';
+        } elseif ($paid > 0) {
+            $status = 'Partial';
+        } else {
+            $status = 'Pending';
+        }
+
+        return [
+            'purchase_date' => (string) $this->request->getPost('purchase_date'),
+            'vendor_id' => $vendorId > 0 ? $vendorId : null,
+            'supplier_name' => trim((string) $this->request->getPost('supplier_name')) ?: ($vendor['name'] ?? null),
+            'supplier_address' => trim((string) $this->request->getPost('supplier_address')) ?: ($vendor['address'] ?? null),
+            'supplier_gstin' => strtoupper(trim((string) $this->request->getPost('supplier_gstin'))) ?: ($vendor['gstin'] ?? null),
+            'supplier_phone' => trim((string) $this->request->getPost('supplier_phone')) ?: ($vendor['phone'] ?? null),
+            'supplier_email' => trim((string) $this->request->getPost('supplier_email')) ?: ($vendor['email'] ?? null),
+            'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
+            'due_date' => trim((string) $this->request->getPost('due_date')) ?: null,
+            'place_of_supply' => trim((string) $this->request->getPost('place_of_supply')) ?: null,
+            'purchase_description' => trim((string) $this->request->getPost('purchase_description')) ?: null,
+            'taxable_amount' => $taxable,
+            'cgst_rate' => $this->nullableDecimalPost('cgst_rate'),
+            'cgst_amount' => $cgst,
+            'sgst_rate' => $this->nullableDecimalPost('sgst_rate'),
+            'sgst_amount' => $sgst,
+            'igst_rate' => $this->nullableDecimalPost('igst_rate'),
+            'igst_amount' => $igst,
+            'gst_amount' => round($cgst + $sgst + $igst, 2),
+            'round_off_amount' => $roundOff,
+            'invoice_total' => $invoiceTotal,
+            'payment_status' => $status,
+            'paid_amount' => $paid,
+            'payment_date' => trim((string) $this->request->getPost('payment_date')) ?: null,
+            'location_id' => (int) $this->request->getPost('location_id'),
+            'notes' => trim((string) $this->request->getPost('notes')) ?: null,
+        ];
+    }
+
+    private function decimalPost(string $key): float
+    {
+        return round((float) str_replace([',', '₹'], '', (string) $this->request->getPost($key)), 2);
+    }
+
+    private function nullableDecimalPost(string $key): ?float
+    {
+        $value = trim((string) $this->request->getPost($key));
+        return $value === '' ? null : round((float) $value, 3);
     }
 
     /**

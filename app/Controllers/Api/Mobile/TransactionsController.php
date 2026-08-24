@@ -861,6 +861,9 @@ class TransactionsController extends MobileBaseController
             'purchase' => $purchase,
             'lines' => $lines,
             'totals' => $totals,
+            'invoice_document_url' => (int) ($purchase['production_document_id'] ?? 0) > 0
+                ? base_url('admin/accounts/production-document/' . (int) $purchase['production_document_id'])
+                : null,
         ]);
     }
 
