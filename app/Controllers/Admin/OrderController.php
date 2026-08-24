@@ -4,6 +4,7 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\CustomerModel;
+use App\Models\CustomerUserModel;
 use App\Models\DiamondBagItemModel;
 use App\Models\DiamondBagModel;
 use App\Models\DiamondIssueModel;
@@ -474,9 +475,10 @@ class OrderController extends BaseController
         $this->syncCompletedOrdersFromReceive();
 
         $orders = $this->orderModel
-            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm')
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm, sales_person.name as sales_person_name, sales_person.mobile as sales_person_mobile')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
-            ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left');
+            ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
+            ->join('customer_users sales_person', 'sales_person.id = orders.sales_person_user_id', 'left');
 
         if ($mode === 'repair') {
             $orders->where('orders.order_type', 'Repair');
@@ -533,6 +535,7 @@ class OrderController extends BaseController
             'designs'     => $this->designModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'goldPurities'=> $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
             'karigars'    => $this->karigarModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'salesPeople' => (new CustomerUserModel())->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'priorities'  => $this->jewelleryConfig->orderPriorities,
             'statuses'    => $this->jewelleryConfig->orderStatuses,
             'repairMode'  => $repairMode,
@@ -548,6 +551,8 @@ class OrderController extends BaseController
             'order_type'  => 'required|max_length[30]',
             'order_from'  => 'permit_empty|max_length[150]',
             'customer_id' => 'permit_empty|integer',
+            'sales_person_user_id' => 'permit_empty|integer',
+            'order_design_type' => 'required|in_list[Fresh,Repeat]',
             'priority'    => 'required',
             'due_date'    => 'permit_empty|valid_date',
             'status'      => 'required',
@@ -573,9 +578,16 @@ class OrderController extends BaseController
         }
 
         $customerId = $this->nullableInt($this->request->getPost('customer_id'));
+        $salesPersonUserId = $this->nullableInt($this->request->getPost('sales_person_user_id'));
         $assignedKarigarId = $this->nullableInt($this->request->getPost('assigned_karigar_id'));
         if ($assignedKarigarId !== null && $customerId === null) {
             return redirect()->back()->withInput()->with('error', 'Please select a customer before assigning a karigar.');
+        }
+        if ($salesPersonUserId !== null) {
+            if ($customerId === null || (new CustomerUserModel())->where('id', $salesPersonUserId)
+                ->where('customer_id', $customerId)->where('role', 'sales_person')->where('is_active', 1)->countAllResults() === 0) {
+                return redirect()->back()->withInput()->with('error', 'Selected sales person does not belong to the selected customer.');
+            }
         }
 
         $status = (string) $this->request->getPost('status');
@@ -589,6 +601,23 @@ class OrderController extends BaseController
         }
 
         $items = $this->collectItemsFromRequest();
+        $designType = (string) $this->request->getPost('order_design_type');
+        if ($designType === 'Fresh') {
+            foreach ($items as &$freshItem) {
+                $freshItem['design_id'] = null;
+            }
+            unset($freshItem);
+        }
+        if ($designType === 'Repeat' && array_filter($items, static fn(array $item): bool => empty($item['design_id'])) !== []) {
+            return redirect()->back()->withInput()->with('error', 'Every repeat-order item must have a unique design code selected.');
+        }
+        if ($designType === 'Repeat') {
+            $designIds = array_values(array_unique(array_map(static fn(array $item): int => (int) $item['design_id'], $items)));
+            $validDesigns = $designIds === [] ? 0 : $this->designModel->whereIn('id', $designIds)->where('is_active', 1)->countAllResults();
+            if ($validDesigns !== count($designIds)) {
+                return redirect()->back()->withInput()->with('error', 'One or more repeat designs are not available.');
+            }
+        }
         if ($items === [] && ! $isRepairOrder) {
             return redirect()->back()->withInput()->with('error', 'At least one order item is required.');
         }
@@ -612,8 +641,10 @@ class OrderController extends BaseController
             $orderId = $this->orderModel->insert([
                 'order_no'    => $orderNo,
                 'order_type'  => $isRepairOrder ? 'Repair' : $orderType,
+                'order_design_type' => $designType,
                 'order_from'  => trim((string) $this->request->getPost('order_from')) ?: null,
                 'customer_id' => $customerId,
+                'sales_person_user_id' => $salesPersonUserId,
                 'lead_id'     => null,
                 'assigned_karigar_id' => $assignedKarigarId,
                 'assigned_at' => $assignedKarigarId !== null ? date('Y-m-d H:i:s') : null,
@@ -1389,6 +1420,8 @@ class OrderController extends BaseController
             'file_path' => 'uploads/orders/' . $newName,
             'uploaded_by' => (int) (session('admin_id') ?? 0),
         ]);
+
+        $this->finishedJewelleryService->createForCompletedOrder($id, (int) (session('admin_id') ?? 0));
 
         return redirect()->to(site_url('admin/orders/' . $id . '/ornament-details'))->with('success', 'Finish photo updated.');
     }

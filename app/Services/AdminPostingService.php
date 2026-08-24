@@ -107,6 +107,14 @@ class AdminPostingService
 
         $warehouseCode = $this->warehouseCodeFromLocation((string) ($location['location_type'] ?? ''), $locationId);
         $warehouse = $this->warehouseModel->where('warehouse_code', $warehouseCode)->first();
+        // Older installations may already have the location represented by a warehouse
+        // with a legacy code (for example MAIN instead of STORE). Reuse the same named
+        // warehouse instead of attempting to create a duplicate unique name.
+        if (! $warehouse && trim((string) ($location['name'] ?? '')) !== '') {
+            $warehouse = $this->warehouseModel
+                ->where('name', trim((string) $location['name']))
+                ->first();
+        }
         if (! $warehouse) {
             $warehouseId = (int) $this->warehouseModel->insert([
                 'warehouse_code' => $warehouseCode,

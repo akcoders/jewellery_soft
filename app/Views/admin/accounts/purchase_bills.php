@@ -1,21 +1,46 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Purchase Bills</h4>
+<?php
+$billCount = count($rows ?? []);
+$totalValue = 0.0;
+$totalPaid = 0.0;
+$totalPending = 0.0;
+foreach (($rows ?? []) as $summaryRow) {
+    if (($summaryRow['amount_available'] ?? true) === false) {
+        continue;
+    }
+    $totalValue += (float) ($summaryRow['amount'] ?? 0);
+    $totalPaid += (float) ($summaryRow['paid_amount'] ?? 0);
+    $totalPending += (float) ($summaryRow['pending_amount'] ?? 0);
+}
+?>
+<div class="erp-page-toolbar flex-wrap mb-3">
+    <div>
+        <span class="erp-eyebrow">Accounts payable</span>
+        <h4 class="mb-1">Purchase Bills</h4>
+        <p class="mb-0">Gold, diamond and stone invoices with GST, attachments and payment position.</p>
+    </div>
     <a href="<?= site_url('admin/accounts/production-purchase-register') ?>" class="btn btn-outline-primary">
         <i class="fe fe-download me-1"></i>Download Verified Excel
     </a>
+</div>
+
+<div class="erp-finance-summary mb-3">
+    <div class="erp-finance-metric blue"><i class="fe fe-file-text"></i><span><small>Total Bills</small><strong><?= number_format($billCount) ?></strong></span></div>
+    <div class="erp-finance-metric"><i class="fe fe-shopping-bag"></i><span><small>Invoice Value</small><strong>₹<?= number_format($totalValue, 2) ?></strong></span></div>
+    <div class="erp-finance-metric success"><i class="fe fe-check-circle"></i><span><small>Paid</small><strong>₹<?= number_format($totalPaid, 2) ?></strong></span></div>
+    <div class="erp-finance-metric danger"><i class="fe fe-clock"></i><span><small>Pending</small><strong>₹<?= number_format($totalPending, 2) ?></strong></span></div>
 </div>
 
 <?php if (! $paymentTableEnabled): ?>
     <div class="alert alert-warning">Purchase payment table not available. Run migration to enable payment updates.</div>
 <?php endif; ?>
 
-<div class="card">
-    <div class="card-body">
+<div class="card erp-table-card">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-bordered table-striped align-middle mb-0">
+            <table class="table datatable table-bordered table-striped align-middle mb-0 erp-responsive-wide">
                 <thead>
                     <tr>
                         <th>Supplier Name</th>

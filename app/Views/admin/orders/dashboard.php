@@ -221,7 +221,7 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     <?php endforeach; ?>
 </div>
 
-<div class="card overflow-hidden">
+<div class="card erp-table-card overflow-hidden">
     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
         <div>
             <h5 class="card-title mb-1">Order Status Register</h5>
@@ -238,7 +238,7 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-hover align-middle mb-0" data-dt-page-length="25">
+            <table class="table datatable table-hover align-middle mb-0 erp-responsive-wide" data-dt-page-length="25">
                 <thead>
                     <tr>
                         <th>Order</th>

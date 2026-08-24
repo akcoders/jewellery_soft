@@ -4,6 +4,7 @@
 <?php
 $isRepairMode = (bool) ($repairMode ?? false);
 $selectedOrderType = (string) old('order_type', $isRepairMode ? 'Repair' : 'Sales');
+$selectedDesignType = (string) old('order_design_type', 'Fresh');
 $showRepairFields = $selectedOrderType === 'Repair';
 ?>
 <div class="erp-page-toolbar mb-3">
@@ -25,10 +26,17 @@ $showRepairFields = $selectedOrderType === 'Repair';
             <div class="row">
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Order Type</label>
-                    <select name="order_type" id="order-type-select" class="form-control" required>
+                    <select name="order_type" id="order-type-select" class="form-control js-searchable-select" required>
                         <option value="Sales" <?= $selectedOrderType === 'Sales' ? 'selected' : '' ?>>Sales</option>
                         <option value="Manufacturing" <?= $selectedOrderType === 'Manufacturing' ? 'selected' : '' ?>>Manufacturing</option>
                         <option value="Repair" <?= $selectedOrderType === 'Repair' ? 'selected' : '' ?>>Repair</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Fresh / Repeat</label>
+                    <select name="order_design_type" id="order-design-type" class="form-control js-searchable-select" required>
+                        <option value="Fresh" <?= $selectedDesignType === 'Fresh' ? 'selected' : '' ?>>Fresh Order</option>
+                        <option value="Repeat" <?= $selectedDesignType === 'Repeat' ? 'selected' : '' ?>>Repeat Existing Design</option>
                     </select>
                 </div>
                 <div class="col-md-3 mb-3">
@@ -37,7 +45,7 @@ $showRepairFields = $selectedOrderType === 'Repair';
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Customer</label>
-                    <select name="customer_id" class="form-control">
+                    <select name="customer_id" id="order-customer-select" class="form-control js-searchable-select" data-placeholder="Search customer">
                         <option value="">Select customer</option>
                         <?php foreach ($customers as $customer): ?>
                             <option value="<?= esc((string) $customer['id']) ?>" <?= (string) old('customer_id') === (string) $customer['id'] ? 'selected' : '' ?>><?= esc($customer['name']) ?></option>
@@ -45,8 +53,18 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     </select>
                 </div>
                 <div class="col-md-3 mb-3">
+                    <label class="form-label">Sales Person</label>
+                    <select name="sales_person_user_id" id="order-sales-person" class="form-control js-searchable-select" data-placeholder="Search sales person">
+                        <option value=""></option>
+                        <?php foreach (($salesPeople ?? []) as $person): ?>
+                            <option value="<?= (int) $person['id'] ?>" data-customer-id="<?= (int) $person['customer_id'] ?>" data-mobile="<?= esc((string) ($person['mobile'] ?? ''), 'attr') ?>" <?= (string) old('sales_person_user_id') === (string) $person['id'] ? 'selected' : '' ?>><?= esc($person['name'] . ' · ' . (($person['mobile'] ?? '') ?: 'No mobile')) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div id="sales-person-mobile" class="form-text"></div>
+                </div>
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Priority</label>
-                    <select name="priority" class="form-control">
+                    <select name="priority" class="form-control js-searchable-select">
                         <?php foreach ($priorities as $priority): ?>
                             <option value="<?= esc($priority) ?>" <?= (string) old('priority', 'Medium') === (string) $priority ? 'selected' : '' ?>><?= esc($priority) ?></option>
                         <?php endforeach; ?>
@@ -54,7 +72,7 @@ $showRepairFields = $selectedOrderType === 'Repair';
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Assign Karigar</label>
-                    <select name="assigned_karigar_id" class="form-control">
+                    <select name="assigned_karigar_id" class="form-control js-searchable-select">
                         <option value="">Assign later</option>
                         <?php foreach (($karigars ?? []) as $karigar): ?>
                             <option value="<?= (int) $karigar['id'] ?>" <?= (string) old('assigned_karigar_id') === (string) $karigar['id'] ? 'selected' : '' ?>><?= esc((string) $karigar['name']) ?></option>
@@ -63,7 +81,7 @@ $showRepairFields = $selectedOrderType === 'Repair';
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Current Status</label>
-                    <select name="status" class="form-control">
+                    <select name="status" class="form-control js-searchable-select">
                         <?php foreach ($statuses as $status): ?>
                             <option value="<?= esc($status) ?>" <?= (string) old('status', 'Confirmed') === (string) $status ? 'selected' : '' ?>><?= esc($status) ?></option>
                         <?php endforeach; ?>
@@ -147,7 +165,7 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     <tbody>
                         <tr>
                             <td>
-                                <select name="design_id[]" class="form-control">
+                                <select name="design_id[]" class="form-control js-item-searchable js-design-select">
                                     <option value="">Select design</option>
                                     <?php foreach ($designs as $design): ?>
                                         <option value="<?= esc((string) $design['id']) ?>"><?= esc($design['design_code'] . ' - ' . $design['name']) ?></option>
@@ -155,7 +173,7 @@ $showRepairFields = $selectedOrderType === 'Repair';
                                 </select>
                             </td>
                             <td>
-                                <select name="gold_purity_id[]" class="form-control">
+                                <select name="gold_purity_id[]" class="form-control js-item-searchable">
                                     <option value="">Select purity</option>
                                     <?php foreach ($goldPurities as $purity): ?>
                                         <option value="<?= esc((string) $purity['id']) ?>">
@@ -183,7 +201,7 @@ $showRepairFields = $selectedOrderType === 'Repair';
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Attachment Type</label>
-                    <select name="file_type" class="form-control">
+                    <select name="file_type" class="form-control js-searchable-select">
                         <option value="reference" <?= old('file_type') === 'reference' ? 'selected' : '' ?>>Reference</option>
                         <option value="cad" <?= old('file_type') === 'cad' ? 'selected' : '' ?>>CAD</option>
                         <option value="photo" <?= old('file_type') === 'photo' ? 'selected' : '' ?>>Photo</option>
@@ -207,6 +225,10 @@ $showRepairFields = $selectedOrderType === 'Repair';
         const repairWork = document.getElementById('repair-work-details');
         const repairWeight = document.getElementById('repair-receive-weight');
         const repairDate = document.getElementById('repair-received-at');
+        const designType = document.getElementById('order-design-type');
+        const customerSelect = document.getElementById('order-customer-select');
+        const salesPersonSelect = document.getElementById('order-sales-person');
+        const salesMobile = document.getElementById('sales-person-mobile');
 
         function toggleRepairFields() {
             if (!orderTypeSelect || !repairWrap) return;
@@ -226,14 +248,66 @@ $showRepairFields = $selectedOrderType === 'Repair';
 
         const addBtn = document.getElementById('add-item-row');
         const tableBody = document.querySelector('#items-table tbody');
+        const rowTemplate = tableBody && tableBody.querySelector('tr') ? tableBody.querySelector('tr').cloneNode(true) : null;
         const hasDt = typeof jQuery !== 'undefined' && typeof jQuery.fn.DataTable !== 'undefined' && jQuery.fn.DataTable.isDataTable('#items-table');
         const dt = hasDt ? jQuery('#items-table').DataTable() : null;
         if (!addBtn || !tableBody) return;
 
+        function initItemSearch(selects) {
+            if (typeof jQuery === 'undefined' || !jQuery.fn.select2) return;
+            jQuery(selects).each(function () {
+                if (!jQuery(this).hasClass('select2-hidden-accessible')) {
+                    jQuery(this).select2({width: '100%', allowClear: true, placeholder: 'Search and select'});
+                }
+            });
+        }
+
+        function toggleDesignSelection() {
+            const repeat = designType && designType.value === 'Repeat';
+            document.querySelectorAll('.js-design-select').forEach(function (select) {
+                select.required = repeat;
+                select.disabled = !repeat;
+                if (!repeat) {
+                    select.value = '';
+                    if (typeof jQuery !== 'undefined') jQuery(select).trigger('change');
+                }
+            });
+        }
+
+        function filterSalesPeople() {
+            if (!salesPersonSelect || !customerSelect) return;
+            const customerId = customerSelect.value;
+            Array.from(salesPersonSelect.options).forEach(function (option) {
+                if (!option.value) return;
+                option.hidden = !customerId || option.dataset.customerId !== customerId;
+                option.disabled = option.hidden;
+            });
+            const selected = salesPersonSelect.options[salesPersonSelect.selectedIndex];
+            if (selected && selected.disabled) salesPersonSelect.value = '';
+            if (typeof jQuery !== 'undefined') jQuery(salesPersonSelect).trigger('change.select2');
+        }
+
+        if (designType) {
+            if (typeof jQuery !== 'undefined') jQuery(designType).on('change', toggleDesignSelection);
+            else designType.addEventListener('change', toggleDesignSelection);
+        }
+        if (customerSelect) {
+            if (typeof jQuery !== 'undefined') jQuery(customerSelect).on('change', filterSalesPeople);
+            else customerSelect.addEventListener('change', filterSalesPeople);
+        }
+        if (salesPersonSelect && typeof jQuery !== 'undefined') {
+            jQuery(salesPersonSelect).on('change', function () {
+                const option = salesPersonSelect.options[salesPersonSelect.selectedIndex];
+                if (salesMobile) salesMobile.textContent = option && option.value ? 'Mobile: ' + (option.dataset.mobile || 'Not available') : '';
+            });
+        }
+        initItemSearch(document.querySelectorAll('.js-item-searchable'));
+        filterSalesPeople();
+        toggleDesignSelection();
+
         addBtn.addEventListener('click', function () {
-            const firstRow = tableBody.querySelector('tr');
-            if (!firstRow) return;
-            const clone = firstRow.cloneNode(true);
+            if (!rowTemplate) return;
+            const clone = rowTemplate.cloneNode(true);
             clone.querySelectorAll('input').forEach(function (input) {
                 if (input.name === 'qty[]') input.value = '1';
                 else if (input.name === 'gold_required_gm[]' || input.name === 'diamond_required_cts[]') input.value = '0';
@@ -248,6 +322,8 @@ $showRepairFields = $selectedOrderType === 'Repair';
             } else {
                 tableBody.appendChild(clone);
             }
+            initItemSearch(clone.querySelectorAll('.js-item-searchable'));
+            toggleDesignSelection();
         });
 
         tableBody.addEventListener('click', function (event) {

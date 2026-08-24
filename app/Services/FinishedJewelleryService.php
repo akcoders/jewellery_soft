@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use CodeIgniter\Database\BaseConnection;
-use RuntimeException;
 
 class FinishedJewelleryService
 {
@@ -17,15 +16,16 @@ class FinishedJewelleryService
         if ($orderId <= 0 || ! $this->db->tableExists('fg_items') || ! $this->db->fieldExists('studded_details_json', 'fg_items')) {
             return null;
         }
+        $order = $this->db->table('orders')->where('id', $orderId)->get()->getRowArray();
+        if (! $order || (string) ($order['status'] ?? '') !== 'Completed') {
+            return null;
+        }
         $existing = $this->db->table('fg_items')->select('id')->where('order_id', $orderId)->get()->getRowArray();
         if ($existing) {
+            $this->syncFinishedPhoto((int) $existing['id'], $orderId);
+            $this->syncDesignForCompletedOrder($orderId, $createdBy);
             return (int) $existing['id'];
         }
-        $order = $this->db->table('orders')->where('id', $orderId)->get()->getRowArray();
-        if (! $order) {
-            throw new RuntimeException('Completed order was not found for finished jewellery creation.');
-        }
-
         $summary = $this->db->table('order_receive_summaries')->where('order_id', $orderId)->orderBy('id', 'DESC')->get()->getRowArray() ?? [];
         if ($summary === []) {
             $movement = $this->db->table('order_material_movements')
@@ -73,6 +73,7 @@ class FinishedJewelleryService
             $tagNo .= '-' . $orderId;
         }
         $now = date('Y-m-d H:i:s');
+        $finishPhoto = $this->latestFinishPhoto($orderId);
         $this->db->table('fg_items')->insert([
             'tag_no' => substr($tagNo, 0, 80),
             'order_id' => $orderId,
@@ -86,6 +87,7 @@ class FinishedJewelleryService
             'diamond_cts' => (float) (($summary['diamond_weight_cts'] ?? 0) ?: ($orderItem['diamond_required_cts'] ?? 0)),
             'stone_wt' => (float) ($summary['stone_weight_cts'] ?? 0),
             'studded_details_json' => json_encode($studded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'source_image_path' => $finishPhoto['file_path'] ?? null,
             'status' => 'AVAILABLE',
             'warehouse_id' => $warehouseId > 0 ? $warehouseId : null,
             'bin_id' => $bin ? (int) $bin['id'] : null,
@@ -106,6 +108,169 @@ class FinishedJewelleryService
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+        $this->syncDesignForCompletedOrder($orderId, $createdBy);
         return $fgItemId;
+    }
+
+    /**
+     * A fresh completed design is saved only after a finish photo exists. Repeat orders
+     * already carry a design_id; matching photo hashes also reuse the original design.
+     */
+    public function syncDesignForCompletedOrder(int $orderId, int $createdBy = 0): ?int
+    {
+        if ($orderId <= 0
+            || ! $this->db->tableExists('design_masters')
+            || ! $this->db->fieldExists('source_image_sha256', 'design_masters')) {
+            return null;
+        }
+        $order = $this->db->table('orders')->where('id', $orderId)->get()->getRowArray();
+        if (! $order || (string) ($order['status'] ?? '') !== 'Completed') {
+            return null;
+        }
+        $items = $this->db->table('order_items')->where('order_id', $orderId)->orderBy('id', 'ASC')->get()->getResultArray();
+        if ($items === []) {
+            return null;
+        }
+        $summary = $this->db->table('order_receive_summaries')->where('order_id', $orderId)->orderBy('id', 'DESC')->get()->getRowArray() ?? [];
+        $movementId = (int) ($summary['movement_id'] ?? 0);
+        $details = $movementId > 0
+            ? $this->db->table('order_receive_details')->where('movement_id', $movementId)->orderBy('id', 'ASC')->get()->getResultArray()
+            : [];
+        $studded = array_map(static fn(array $row): array => [
+            'type' => (string) ($row['component_type'] ?? ''),
+            'name' => (string) ($row['component_name'] ?? ''),
+            'pcs' => (float) ($row['pcs'] ?? 0),
+            'weight_cts' => (float) ($row['weight_cts'] ?? 0),
+            'weight_gm' => (float) ($row['weight_gm'] ?? 0),
+            'rate' => (float) ($row['rate'] ?? 0),
+            'amount' => (float) ($row['line_total'] ?? 0),
+        ], $details);
+
+        $firstDesignId = null;
+        $generalPhotoUsed = false;
+        foreach ($items as $item) {
+            if ((int) ($item['design_id'] ?? 0) > 0) {
+                $firstDesignId ??= (int) $item['design_id'];
+                continue;
+            }
+            $photo = $this->latestFinishPhoto($orderId, (int) $item['id']);
+            if (! $photo && ! $generalPhotoUsed) {
+                $photo = $this->latestFinishPhoto($orderId);
+                $generalPhotoUsed = $photo !== null;
+            }
+            if (! $photo) {
+                continue;
+            }
+            $absolutePath = FCPATH . ltrim((string) $photo['file_path'], '/');
+            $imageHash = is_file($absolutePath) ? hash_file('sha256', $absolutePath) : false;
+            if (! is_string($imageHash) || $imageHash === '') {
+                continue;
+            }
+            $sameDesign = $this->db->table('design_masters')->select('id')
+                ->where('source_image_sha256', $imageHash)->get()->getRowArray();
+            if ($sameDesign) {
+                $designId = (int) $sameDesign['id'];
+                $this->db->table('order_items')->where('id', (int) $item['id'])->update([
+                    'design_id' => $designId,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+                $firstDesignId ??= $designId;
+                continue;
+            }
+
+            $purity = null;
+            if ((int) ($item['gold_purity_id'] ?? 0) > 0) {
+                $purityRow = $this->db->table('gold_purities')->select('purity_code')
+                    ->where('id', (int) $item['gold_purity_id'])->get()->getRowArray();
+                $purity = (string) ($purityRow['purity_code'] ?? '');
+            }
+            $diamondCts = (float) (($summary['diamond_weight_cts'] ?? 0) ?: ($item['diamond_required_cts'] ?? 0));
+            $category = stripos((string) $purity, 'silver') !== false ? 'Silver' : ($diamondCts > 0 ? 'Diamond' : 'Gold');
+            $name = trim((string) ($item['item_description'] ?? '')) ?: (string) $order['order_no'];
+            $subcategory = $this->inferSubcategory($name);
+            $baseCode = 'AUTO-' . preg_replace('/[^A-Z0-9]+/', '-', strtoupper((string) $order['order_no']));
+            $code = substr($baseCode . (count($items) > 1 ? '-' . (int) $item['id'] : ''), 0, 40);
+            if ($this->db->table('design_masters')->where('design_code', $code)->countAllResults() > 0) {
+                $code = substr($code, 0, 32) . '-' . (int) $item['id'];
+            }
+            $now = date('Y-m-d H:i:s');
+            $this->db->table('design_masters')->insert([
+                'design_code' => $code,
+                'name' => $name,
+                'category' => $category,
+                'subcategory' => $subcategory,
+                'image_path' => (string) $photo['file_path'],
+                'source_order_id' => $orderId,
+                'source_order_item_id' => (int) $item['id'],
+                'source_karigar_id' => (int) ($order['assigned_karigar_id'] ?? 0) ?: null,
+                'purity_label' => $purity ?: null,
+                'gross_weight_gm' => (float) ($summary['gross_weight_gm'] ?? 0),
+                'net_gold_weight_gm' => (float) (($summary['net_gold_weight_gm'] ?? 0) ?: ($item['gold_required_gm'] ?? 0)),
+                'pure_gold_weight_gm' => (float) ($summary['pure_gold_weight_gm'] ?? 0),
+                'diamond_weight_cts' => $diamondCts,
+                'stone_weight_cts' => (float) ($summary['stone_weight_cts'] ?? 0),
+                'studded_details_json' => json_encode($studded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'source_image_sha256' => $imageHash,
+                'source_type' => 'completed_order',
+                'is_active' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $designId = (int) $this->db->insertID();
+            $this->db->table('order_items')->where('id', (int) $item['id'])->update([
+                'design_id' => $designId,
+                'updated_at' => $now,
+            ]);
+            $firstDesignId ??= $designId;
+        }
+
+        return $firstDesignId;
+    }
+
+    private function syncFinishedPhoto(int $fgItemId, int $orderId): void
+    {
+        $photo = $this->latestFinishPhoto($orderId);
+        if (! $photo) {
+            return;
+        }
+        $this->db->table('fg_items')->where('id', $fgItemId)->update([
+            'source_image_path' => (string) $photo['file_path'],
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /** @return array<string,mixed>|null */
+    private function latestFinishPhoto(int $orderId, int $orderItemId = 0): ?array
+    {
+        if (! $this->db->tableExists('order_attachments')) {
+            return null;
+        }
+        $builder = $this->db->table('order_attachments')
+            ->where('order_id', $orderId)
+            ->where('LOWER(file_type)', 'finish_photo');
+        if ($orderItemId > 0) {
+            $builder->where('order_item_id', $orderItemId);
+        }
+        $row = $builder->orderBy('id', 'DESC')->get()->getRowArray();
+        return $row ?: null;
+    }
+
+    private function inferSubcategory(string $name): string
+    {
+        $normalized = strtoupper($name);
+        $map = [
+            'WAIST BELT' => 'Waist Belt', 'BELT' => 'Waist Belt', 'JHUMKI' => 'Jhumki',
+            'JHUMKA' => 'Jhumki', 'HAARAM' => 'Haaram', 'HARAM' => 'Haaram',
+            'CHOKER' => 'Choker', 'NECKLACE' => 'Necklace', 'BANGLE' => 'Bangle',
+            'BRACELET' => 'Bracelet', 'RING' => 'Ring', 'EARRING' => 'Earrings',
+            'STUD' => 'Stud Earrings', 'CHAIN' => 'Chain', 'PENDANT' => 'Pendant',
+            'MANG' => 'Maang Tikka', 'TIKKA' => 'Maang Tikka',
+        ];
+        foreach ($map as $needle => $label) {
+            if (str_contains($normalized, $needle)) {
+                return $label;
+            }
+        }
+        return 'Jewellery';
     }
 }

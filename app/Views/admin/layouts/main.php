@@ -274,6 +274,116 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             font-weight: 650;
             padding: 6px 10px;
         }
+        .table-responsive {
+            -webkit-overflow-scrolling: touch;
+            scrollbar-color: #c8ced8 transparent;
+            scrollbar-width: thin;
+        }
+        .table-responsive::-webkit-scrollbar {
+            height: 7px;
+        }
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: #c8ced8;
+            border-radius: 999px;
+        }
+        .erp-responsive-wide {
+            min-width: 980px;
+        }
+        .erp-table-card {
+            overflow: hidden;
+        }
+        .erp-table-card .dataTables_wrapper > .row:first-child,
+        .erp-table-card .dataTables_wrapper > .row:last-child {
+            margin-left: 0;
+            margin-right: 0;
+            padding: 14px 8px;
+        }
+        .erp-table-card .table-responsive > .dataTables_wrapper {
+            min-width: 100%;
+        }
+        .erp-form-card {
+            border-top: 3px solid var(--erp-gold);
+        }
+        .erp-detail-card {
+            border-top: 3px solid var(--erp-red);
+            overflow: hidden;
+        }
+        .erp-detail-card .row > [class*="col-"] {
+            border-bottom: 1px solid #edf0f4;
+            color: #344054;
+            line-height: 1.55;
+            padding-bottom: 11px;
+            padding-top: 11px;
+        }
+        .erp-detail-card .row > [class*="col-"] > strong:first-child {
+            color: #8a94a5;
+            display: block;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: .055em;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+        .erp-finance-card {
+            background: linear-gradient(145deg, #fffdf7, #fff);
+            border-color: #ede2c3;
+        }
+        .erp-finance-card .row > [class*="col-"] {
+            border-right: 1px solid #eee7d4;
+            min-height: 64px;
+        }
+        .erp-finance-card .row > [class*="col-"]:last-child {
+            border-right: 0;
+        }
+        .erp-finance-summary {
+            display: grid;
+            gap: 13px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+        .erp-finance-metric {
+            align-items: center;
+            background: #fff;
+            border: 1px solid var(--erp-border);
+            border-radius: 13px;
+            box-shadow: var(--erp-shadow);
+            display: flex;
+            gap: 13px;
+            min-height: 100px;
+            padding: 16px;
+        }
+        .erp-finance-metric > i {
+            align-items: center;
+            background: var(--erp-gold-soft);
+            border-radius: 11px;
+            color: var(--erp-gold-dark);
+            display: inline-flex;
+            flex: 0 0 44px;
+            font-size: 18px;
+            height: 44px;
+            justify-content: center;
+        }
+        .erp-finance-metric.danger > i { background: var(--erp-red-soft); color: var(--erp-red); }
+        .erp-finance-metric.success > i { background: #e9f8ef; color: #18834d; }
+        .erp-finance-metric.blue > i { background: #e9f2ff; color: #2764b8; }
+        .erp-finance-metric small { color: var(--erp-muted); display: block; font-size: 11px; font-weight: 700; }
+        .erp-finance-metric strong { color: var(--erp-ink); display: block; font-size: 20px; margin-top: 3px; }
+        .erp-design-thumb {
+            align-items: center;
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            display: inline-flex;
+            height: 54px;
+            justify-content: center;
+            overflow: hidden;
+            width: 54px;
+        }
+        .erp-design-thumb img {
+            height: 100%;
+            object-fit: cover;
+            width: 100%;
+        }
+        .erp-design-thumb-empty { color: #98a2b3; }
         .erp-page-toolbar {
             align-items: center;
             background: rgba(255, 255, 255, 0.88);
@@ -603,6 +713,31 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                 align-items: flex-start;
                 flex-direction: column;
                 max-width: 100%;
+                padding: 16px;
+                width: 100%;
+            }
+            .erp-page-toolbar > .d-flex {
+                width: 100%;
+            }
+            .erp-page-toolbar > .d-flex > .btn,
+            .erp-page-toolbar > .btn {
+                flex: 1 1 auto;
+            }
+            .erp-finance-summary {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .erp-detail-card .card-body,
+            .erp-form-card .card-body {
+                padding: 16px;
+            }
+            .erp-finance-card .row > [class*="col-"] {
+                border-bottom: 1px solid #eee7d4;
+                border-right: 0;
+                padding-bottom: 12px;
+                padding-top: 12px;
+            }
+            .erp-table-card .card-body {
+                padding: 0;
             }
             .erp-section-card .card-header {
                 align-items: flex-start;
@@ -614,7 +749,15 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             }
             .table.datatable thead th,
             .table.datatable tbody td {
-                white-space: normal;
+                white-space: nowrap;
+            }
+        }
+        @media (max-width: 480px) {
+            .erp-finance-summary {
+                grid-template-columns: 1fr;
+            }
+            .erp-finance-metric {
+                min-height: 88px;
             }
         }
         .sidebar .sidebar-inner {
@@ -1307,6 +1450,18 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                 });
             });
         })();
+    </script>
+    <script>
+        jQuery(function ($) {
+            $('.js-searchable-select').each(function () {
+                if ($(this).hasClass('select2-hidden-accessible')) return;
+                $(this).select2({
+                    width: '100%',
+                    allowClear: !this.required,
+                    placeholder: $(this).data('placeholder') || 'Search and select'
+                });
+            });
+        });
     </script>
     <?= $this->renderSection('scripts') ?>
 </body>

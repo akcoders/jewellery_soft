@@ -5,22 +5,29 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\CustomerAddressModel;
 use App\Models\CustomerModel;
+use App\Models\CustomerUserModel;
+use Throwable;
 
 class CustomerController extends BaseController
 {
     private CustomerModel $customerModel;
     private CustomerAddressModel $addressModel;
+    private CustomerUserModel $customerUserModel;
 
     public function __construct()
     {
         helper(['form', 'url']);
         $this->customerModel = new CustomerModel();
         $this->addressModel  = new CustomerAddressModel();
+        $this->customerUserModel = new CustomerUserModel();
     }
 
     public function index(): string
     {
-        $customers = $this->customerModel->orderBy('id', 'DESC')->findAll();
+        $customers = $this->customerModel
+            ->select('customers.*, (SELECT COUNT(*) FROM customer_users cu WHERE cu.customer_id = customers.id AND cu.is_active = 1) AS portal_user_count, (SELECT COUNT(*) FROM customer_users cu WHERE cu.customer_id = customers.id AND cu.role = "sales_person" AND cu.is_active = 1) AS sales_person_count', false)
+            ->orderBy('customers.id', 'DESC')
+            ->findAll();
 
         return view('admin/customers/index', [
             'title'     => 'Customers',
@@ -40,7 +47,9 @@ class CustomerController extends BaseController
         $rules = [
             'name'       => 'required|min_length[2]|max_length[150]',
             'phone'      => 'permit_empty|max_length[20]',
-            'email'      => 'permit_empty|valid_email',
+            'email'      => 'required|valid_email|is_unique[customers.email]|is_unique[customer_users.email]',
+            'password'   => 'required|min_length[8]|max_length[72]',
+            'password_confirm' => 'required|matches[password]',
             'gstin'      => 'permit_empty|max_length[25]',
             'terms_text' => 'permit_empty',
         ];
@@ -51,20 +60,40 @@ class CustomerController extends BaseController
 
         $customerCode = 'CU' . date('ymdHis') . random_int(10, 99);
 
-        $customerId = $this->customerModel->insert([
-            'customer_code' => $customerCode,
-            'name'          => trim((string) $this->request->getPost('name')),
-            'phone'         => trim((string) $this->request->getPost('phone')),
-            'email'         => trim((string) $this->request->getPost('email')),
-            'gstin'         => trim((string) $this->request->getPost('gstin')),
-            'terms_text'    => trim((string) $this->request->getPost('terms_text')),
-            'is_active'     => 1,
-        ], true);
+        $db = db_connect();
+        $db->transException(true)->transStart();
+        try {
+            $name = trim((string) $this->request->getPost('name'));
+            $phone = trim((string) $this->request->getPost('phone'));
+            $email = strtolower(trim((string) $this->request->getPost('email')));
+            $customerId = $this->customerModel->insert([
+                'customer_code' => $customerCode,
+                'name'          => $name,
+                'phone'         => $phone,
+                'email'         => $email,
+                'gstin'         => trim((string) $this->request->getPost('gstin')),
+                'terms_text'    => trim((string) $this->request->getPost('terms_text')),
+                'is_active'     => 1,
+            ], true);
 
-        $this->storeAddress((int) $customerId, 'Billing', 'billing_');
-        $this->storeAddress((int) $customerId, 'Shipping', 'shipping_');
+            $this->customerUserModel->insert([
+                'customer_id' => (int) $customerId,
+                'name' => $name,
+                'mobile' => $phone ?: null,
+                'email' => $email,
+                'password_hash' => password_hash((string) $this->request->getPost('password'), PASSWORD_DEFAULT),
+                'role' => 'customer_admin',
+                'is_active' => 1,
+            ]);
+            $this->storeAddress((int) $customerId, 'Billing', 'billing_');
+            $this->storeAddress((int) $customerId, 'Shipping', 'shipping_');
+        } catch (Throwable $e) {
+            $db->transRollback();
+            return redirect()->back()->withInput()->with('error', 'Could not create customer user: ' . $e->getMessage());
+        }
+        $db->transComplete();
 
-        return redirect()->to(site_url('admin/customers'))->with('success', 'Customer created successfully.');
+        return redirect()->to(site_url('admin/customers'))->with('success', 'Customer and portal login created successfully.');
     }
 
     private function storeAddress(int $customerId, string $type, string $prefix): void
@@ -97,4 +126,3 @@ class CustomerController extends BaseController
         return $errors === [] ? 'Validation failed.' : (string) array_values($errors)[0];
     }
 }
-

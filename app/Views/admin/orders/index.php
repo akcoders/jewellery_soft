@@ -32,15 +32,16 @@
     </div>
 </div>
 
-<div class="card">
-    <div class="card-body">
+<div class="card erp-table-card">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0">
+            <table class="table datatable table-hover mb-0 erp-responsive-wide">
                 <thead>
                     <tr>
                         <th>Order No</th>
                         <th>Order From</th>
                         <th>Customer</th>
+                        <th>Sales Person</th>
                         <th>Karigar</th>
                         <th>Type</th>
                         <th>Status</th>
@@ -51,7 +52,7 @@
                 </thead>
                 <tbody>
                     <?php if ($orders === []): ?>
-                        <tr><td colspan="9" class="text-center text-muted">No orders found.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted py-5">No orders found.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($orders as $order): ?>
                         <?php
@@ -63,6 +64,10 @@
                             <td><?= esc($order['order_no']) ?></td>
                             <td><?= esc((string) (($order['order_from'] ?? '') ?: '-')) ?></td>
                             <td><?= esc($order['customer_name'] ?: '-') ?></td>
+                            <td>
+                                <div><?= esc((string) (($order['sales_person_name'] ?? '') ?: '-')) ?></div>
+                                <?php if (! empty($order['sales_person_mobile'])): ?><small class="text-muted"><?= esc((string) $order['sales_person_mobile']) ?></small><?php endif; ?>
+                            </td>
                             <td>
                                 <?php if (! empty($order['karigar_name'])): ?>
                                     <span class="badge bg-success-light text-success"><?= esc($order['karigar_name']) ?></span>

@@ -1,18 +1,22 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Labour Bills</h4>
+<div class="erp-page-toolbar flex-wrap mb-3">
+    <div>
+        <span class="erp-eyebrow">Karigar accounts</span>
+        <h4 class="mb-1">Labour Bills</h4>
+        <p class="mb-0">Order-wise labour charges, payments and outstanding balances.</p>
+    </div>
 </div>
 
 <?php if (! $labourTableEnabled): ?>
     <div class="alert alert-warning">Labour bill tables not available. Run migration to enable labour billing.</div>
 <?php endif; ?>
 
-<div class="card">
-    <div class="card-body">
+<div class="card erp-table-card">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-bordered table-striped align-middle mb-0">
+            <table class="table datatable table-bordered table-striped align-middle mb-0 erp-responsive-wide">
                 <thead>
                     <tr>
                         <th>Bill No</th>

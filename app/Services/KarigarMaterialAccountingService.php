@@ -95,7 +95,8 @@ class KarigarMaterialAccountingService
         float $diamondPcs,
         float $diamondCts,
         string $remarks,
-        int $createdBy = 0
+        int $createdBy = 0,
+        ?string $voucherDate = null
     ): int {
         if ($karigarId <= 0) {
             throw new RuntimeException('An assigned karigar is required before receiving jewellery.');
@@ -128,7 +129,7 @@ class KarigarMaterialAccountingService
 
         $result = $this->postingService->postVoucher([
             'voucher_type' => 'JEWELLERY_RECEIVE',
-            'voucher_date' => date('Y-m-d'),
+            'voucher_date' => $voucherDate ?: date('Y-m-d'),
             'order_id' => $orderId,
             'party_id' => $karigarId,
             'to_warehouse_id' => $warehouse['warehouse_id'],

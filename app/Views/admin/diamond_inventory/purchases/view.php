@@ -2,9 +2,13 @@
 
 <?= $this->section('content') ?>
 <?php $isImported = (int) ($purchase['production_document_id'] ?? 0) > 0 || trim((string) ($purchase['source_sheet'] ?? '')) !== ''; ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Purchase #<?= (int) $purchase['id'] ?></h4>
-    <div class="d-flex gap-2">
+<div class="erp-page-toolbar flex-wrap mb-3">
+    <div>
+        <span class="erp-eyebrow">Diamond purchase invoice</span>
+        <h4 class="mb-1">Purchase #<?= (int) $purchase['id'] ?></h4>
+        <p class="mb-0"><?= esc((string) ($purchase['vendor_name'] ?: $purchase['supplier_name'] ?: 'Supplier')) ?> · <?= esc((string) ($purchase['invoice_no'] ?: 'No invoice number')) ?></p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
         <?php if (! $isImported): ?>
             <a href="<?= site_url('admin/diamond-inventory/purchases/' . $purchase['id'] . '/edit') ?>" class="btn btn-outline-info">
                 <i class="fe fe-edit"></i> Edit
@@ -19,7 +23,7 @@
     </div>
 </div>
 
-<div class="card mb-3">
+<div class="card erp-detail-card mb-3">
     <div class="card-body">
         <?php if ($isImported): ?>
             <div class="alert alert-light border mb-3">
@@ -27,7 +31,7 @@
                 · <?= esc((string) ($purchase['verification_status'] ?? 'Imported')) ?>
             </div>
         <?php endif; ?>
-        <div class="row">
+        <div class="row g-3">
             <div class="col-md-3"><strong>Date:</strong> <?= esc((string) $purchase['purchase_date']) ?></div>
             <div class="col-md-3"><strong>Supplier:</strong> <?= esc((string) ($purchase['vendor_name'] ?: $purchase['supplier_name'] ?: '-')) ?></div>
             <div class="col-md-3"><strong>Invoice:</strong> <?= esc((string) ($purchase['invoice_no'] ?: '-')) ?></div>
@@ -50,10 +54,10 @@
     </div>
 </div>
 
-<div class="card">
-    <div class="card-body">
+<div class="card erp-table-card">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0">
+            <table class="table datatable table-hover mb-0 erp-responsive-wide">
                 <thead>
                     <tr>
                         <th>Item</th>

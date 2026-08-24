@@ -9,6 +9,16 @@ $routes->get('/', 'Home::index');
 $routes->get('order-request', 'PublicOrderRequestController::create');
 $routes->post('order-request', 'PublicOrderRequestController::store', ['filter' => 'csrf']);
 
+$routes->get('customer/login', 'Customer\AuthController::login');
+$routes->post('customer/login', 'Customer\AuthController::attemptLogin', ['filter' => 'csrf']);
+$routes->group('customer', ['filter' => 'customerAuth'], static function ($routes): void {
+    $routes->get('orders', 'Customer\OrdersController::index');
+    $routes->get('orders/create', 'Customer\OrdersController::create');
+    $routes->post('orders', 'Customer\OrdersController::store', ['filter' => 'csrf']);
+    $routes->post('sales-people', 'Customer\OrdersController::storeSalesPerson', ['filter' => 'csrf']);
+    $routes->get('logout', 'Customer\AuthController::logout');
+});
+
 $routes->group('admin', ['filter' => 'adminGuest'], static function ($routes): void {
     $routes->get('login', 'Admin\AuthController::login');
     $routes->post('login', 'Admin\AuthController::attemptLogin');

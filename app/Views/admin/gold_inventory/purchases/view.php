@@ -1,9 +1,13 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Purchase #<?= (int) $purchase['id'] ?></h4>
-    <div class="d-flex gap-2">
+<div class="erp-page-toolbar flex-wrap mb-3">
+    <div>
+        <span class="erp-eyebrow">Gold purchase invoice</span>
+        <h4 class="mb-1">Purchase #<?= (int) $purchase['id'] ?></h4>
+        <p class="mb-0"><?= esc((string) ($purchase['resolved_supplier_name'] ?: 'Supplier')) ?> · <?= esc((string) ($purchase['invoice_no'] ?: 'No invoice number')) ?></p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
         <?php if ((int) ($purchase['production_document_id'] ?? 0) <= 0): ?>
             <a href="<?= site_url('admin/gold-inventory/purchases/' . $purchase['id'] . '/edit') ?>" class="btn btn-outline-info">
                 <i class="fe fe-edit"></i> Edit
@@ -17,7 +21,7 @@
     </div>
 </div>
 
-<div class="card mb-3">
+<div class="card erp-detail-card mb-3">
     <div class="card-body">
         <div class="row g-3">
             <div class="col-md-3"><strong>Date:</strong> <?= esc((string) $purchase['purchase_date']) ?></div>
@@ -40,7 +44,7 @@
     </div>
 </div>
 
-<div class="card mb-3">
+<div class="card erp-finance-card mb-3">
     <div class="card-header"><h6 class="mb-0">Invoice Tax Summary</h6></div>
     <div class="card-body">
         <div class="row g-3">
@@ -54,10 +58,10 @@
     </div>
 </div>
 
-<div class="card">
-    <div class="card-body">
+<div class="card erp-table-card">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0">
+            <table class="table datatable table-hover mb-0 erp-responsive-wide">
                 <thead>
                     <tr>
                         <th>Purity</th>

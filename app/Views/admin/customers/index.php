@@ -12,10 +12,10 @@
     <?php endif; ?>
 </div>
 
-<div class="card">
-    <div class="card-body">
+<div class="card erp-table-card">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0">
+            <table class="table datatable table-hover mb-0 erp-responsive-wide">
                 <thead>
                     <tr>
                         <th>Code</th>
@@ -23,11 +23,13 @@
                         <th>Phone</th>
                         <th>Email</th>
                         <th>GSTIN</th>
+                        <th>Portal Access</th>
+                        <th>Sales Team</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ($customers === []): ?>
-                        <tr><td colspan="5" class="text-center text-muted">No customers found.</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-5">No customers found.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($customers as $customer): ?>
                         <tr>
@@ -36,6 +38,14 @@
                             <td><?= esc($customer['phone'] ?: '-') ?></td>
                             <td><?= esc($customer['email'] ?: '-') ?></td>
                             <td><?= esc($customer['gstin'] ?: '-') ?></td>
+                            <td>
+                                <?php if ((int) ($customer['portal_user_count'] ?? 0) > 0): ?>
+                                    <span class="badge bg-success"><i class="fe fe-check-circle me-1"></i>Enabled</span>
+                                <?php else: ?>
+                                    <span class="badge bg-light text-dark border">Not created</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><strong><?= (int) ($customer['sales_person_count'] ?? 0) ?></strong> salesperson<?= (int) ($customer['sales_person_count'] ?? 0) === 1 ? '' : 's' ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -44,4 +54,3 @@
     </div>
 </div>
 <?= $this->endSection() ?>
-

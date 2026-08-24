@@ -1,8 +1,12 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Diamond Purchases</h4>
+<div class="erp-page-toolbar flex-wrap mb-3">
+    <div>
+        <span class="erp-eyebrow">Diamond inventory</span>
+        <h4 class="mb-1">Diamond Purchases</h4>
+        <p class="mb-0">Invoice-level carats, grading, tax and supplier details.</p>
+    </div>
     <a href="<?= site_url('admin/diamond-inventory/purchases/create') ?>" class="btn btn-primary">
         <i class="fe fe-plus"></i> Create Purchase
     </a>
@@ -27,10 +31,10 @@
     </div>
 </div>
 
-<div class="card">
-    <div class="card-body">
+<div class="card erp-table-card">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0">
+            <table class="table datatable table-hover mb-0 erp-responsive-wide">
                 <thead>
                     <tr>
                         <th>ID</th>
