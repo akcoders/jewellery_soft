@@ -142,6 +142,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->get('accounts/party-ledger/(:segment)/(:num)', 'Admin\AccountsController::partyLedger/$1/$2', ['filter' => 'permission:accounts.read']);
     $routes->get('accounts/purchase-bills', 'Admin\AccountsController::purchaseBills', ['filter' => 'permission:accounts.read']);
     $routes->get('accounts/production-document/(:num)', 'Admin\ProductionImportController::document/$1', ['filter' => 'permission:accounts.read']);
+    $routes->get('accounts/production-purchase-register', 'Admin\ProductionImportController::purchaseRegister', ['filter' => 'permission:accounts.read']);
     $routes->post('accounts/purchase-bills/payment', 'Admin\AccountsController::updatePurchaseBillPayment', ['filter' => 'permission:accounts.payments']);
     $routes->get('accounts/labour-bills', 'Admin\AccountsController::labourBills', ['filter' => 'permission:accounts.read']);
     $routes->post('accounts/labour-bills/payment', 'Admin\AccountsController::updateLabourBillPayment', ['filter' => 'permission:accounts.payments']);

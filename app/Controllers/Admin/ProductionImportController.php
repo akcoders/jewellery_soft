@@ -4,6 +4,7 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Services\ProductionDataImportService;
+use App\Services\ProductionPurchaseWorkbookService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use Throwable;
 
@@ -107,5 +108,15 @@ class ProductionImportController extends BaseController
         }
 
         return $this->response->download($fullPath, null)->setFileName((string) $document['original_name']);
+    }
+
+    public function purchaseRegister()
+    {
+        $path = (new ProductionPurchaseWorkbookService())->workbookPath();
+        if (! is_file($path)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return $this->response->download($path, null)->setFileName('verified-production-purchase-register.xlsx');
     }
 }

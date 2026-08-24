@@ -3,6 +3,9 @@
 <?= $this->section('content') ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Purchase Bills</h4>
+    <a href="<?= site_url('admin/accounts/production-purchase-register') ?>" class="btn btn-outline-primary">
+        <i class="fe fe-download me-1"></i>Download Verified Excel
+    </a>
 </div>
 
 <?php if (! $paymentTableEnabled): ?>
@@ -53,8 +56,21 @@
                             $attachment = is_array($row['attachment'] ?? null) ? $row['attachment'] : null;
                         ?>
                         <tr>
-                            <td><?= esc((string) ($row['supplier_name'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($row['purchase_date'] ?: '-')) ?></td>
+                            <td>
+                                <div class="fw-semibold"><?= esc((string) ($row['supplier_name'] ?? '-')) ?></div>
+                                <?php if (! empty($row['vendor_gstin'])): ?>
+                                    <div class="small text-muted">GSTIN: <?= esc((string) $row['vendor_gstin']) ?></div>
+                                <?php endif; ?>
+                                <?php if (! empty($row['vendor_address'])): ?>
+                                    <div class="small text-muted" style="max-width: 260px"><?= esc((string) $row['vendor_address']) ?></div>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <div><?= esc((string) ($row['purchase_date'] ?: '-')) ?></div>
+                                <?php if (! empty($row['invoice_no'])): ?>
+                                    <div class="small text-muted">Invoice: <?= esc((string) $row['invoice_no']) ?></div>
+                                <?php endif; ?>
+                            </td>
                             <td><span class="badge <?= esc($badgeClass) ?>"><?= esc($category) ?></span></td>
                             <td><?= number_format((float) ($row['qty'] ?? 0), 3) ?></td>
                             <td><?= number_format((float) ($row['weight_value'] ?? 0), 3) ?> <?= esc((string) ($row['weight_unit'] ?? '')) ?></td>
@@ -62,7 +78,16 @@
                                 <?php if (($row['amount_available'] ?? true) === false): ?>
                                     <span class="text-muted">Not supplied</span>
                                 <?php else: ?>
-                                    ₹ <?= number_format((float) ($row['amount'] ?? 0), 2) ?>
+                                    <div class="fw-semibold">₹ <?= number_format((float) ($row['amount'] ?? 0), 2) ?></div>
+                                    <?php if (array_key_exists('taxable_amount', $row)): ?>
+                                        <div class="small text-muted">
+                                            Taxable: ₹<?= number_format((float) ($row['taxable_amount'] ?? 0), 2) ?><br>
+                                            <?php if ((float) ($row['cgst_amount'] ?? 0) !== 0.0): ?>CGST: ₹<?= number_format((float) $row['cgst_amount'], 2) ?><br><?php endif; ?>
+                                            <?php if ((float) ($row['sgst_amount'] ?? 0) !== 0.0): ?>SGST: ₹<?= number_format((float) $row['sgst_amount'], 2) ?><br><?php endif; ?>
+                                            <?php if ((float) ($row['igst_amount'] ?? 0) !== 0.0): ?>IGST: ₹<?= number_format((float) $row['igst_amount'], 2) ?><br><?php endif; ?>
+                                            <?php if ((float) ($row['round_off_amount'] ?? 0) !== 0.0): ?>Round off: ₹<?= number_format((float) $row['round_off_amount'], 2) ?><?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </td>
                             <td><?= esc((string) (($row['due_date'] ?? '') !== '' ? $row['due_date'] : '-')) ?></td>
@@ -79,8 +104,9 @@
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php if ($attachment !== null && ($attachment['file_path'] ?? '') !== ''): ?>
-                                    <a class="btn btn-sm btn-outline-primary" href="<?= base_url((string) $attachment['file_path']) ?>" target="_blank">
+                                <?php if ($attachment !== null && (($attachment['file_path'] ?? '') !== '' || ($attachment['url'] ?? '') !== '')): ?>
+                                    <?php $attachmentUrl = ($attachment['url'] ?? '') !== '' ? (string) $attachment['url'] : base_url((string) $attachment['file_path']); ?>
+                                    <a class="btn btn-sm btn-outline-primary" href="<?= esc($attachmentUrl) ?>" target="_blank">
                                         <i class="fe fe-paperclip me-1"></i>Open<?= (int) ($attachment['count'] ?? 0) > 1 ? ' (+' . ((int) $attachment['count'] - 1) . ')' : '' ?>
                                     </a>
                                 <?php else: ?>

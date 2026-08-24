@@ -131,6 +131,7 @@ class ProductionDataImportService
         $readyImages = $this->extractReadyWorkbookImages($paths['PL-2026-2027 order ready.xlsx'], $importRoot);
         $this->parseReadyWorkbook($paths['PL-2026-2027 order ready.xlsx'], $parsed, $readyImages);
         $this->parseDocuments($files, $sourceRoot, $importRoot, $parsed);
+        $parsed['documents'] = (new ProductionPurchaseWorkbookService())->enrichDocuments($parsed['documents']);
 
         return $parsed;
     }
@@ -1637,13 +1638,59 @@ class ProductionDataImportService
     {
         $now = date('Y-m-d H:i:s');
         foreach ($documents as $document) {
-            $vendorId = $this->ensureVendor((string) $document['vendor_name']);
-            $this->db->table('production_purchase_documents')->insert($document + [
+            $vendorId = $this->ensurePurchaseVendor($document);
+            $record = $document;
+            unset($record['vendor_key'], $record['category_label']);
+            $this->db->table('production_purchase_documents')->insert($record + [
                 'batch_id' => $batchId,
                 'vendor_id' => $vendorId,
                 'created_at' => $now,
             ]);
+            $documentId = (int) $this->db->insertID();
+            if ((string) ($document['payment_status'] ?? '') === 'Paid' && (float) ($document['paid_amount'] ?? 0) > 0) {
+                $this->insertImportedVendorPayment($documentId, $vendorId, $document);
+            }
         }
+    }
+
+    private function insertImportedVendorPayment(int $documentId, int $vendorId, array $document): void
+    {
+        $amount = round((float) ($document['paid_amount'] ?? 0), 2);
+        $date = (string) (($document['payment_date'] ?? '') ?: ($document['document_date'] ?? date('Y-m-d')));
+        $paymentNo = 'IMP-PD-' . str_pad((string) $documentId, 8, '0', STR_PAD_LEFT);
+        $notes = 'Full payment imported because the verified source PDF filename is marked PAID.';
+        $this->db->table('account_payments')->insert([
+            'payment_no' => $paymentNo,
+            'payment_date' => $date,
+            'party_type' => 'vendor',
+            'karigar_id' => null,
+            'vendor_id' => $vendorId,
+            'amount' => $amount,
+            'payment_mode' => 'Source Record',
+            'reference_no' => substr((string) ($document['invoice_no'] ?? $paymentNo), 0, 80),
+            'bill_type' => 'purchase',
+            'bill_source_type' => 'production_document',
+            'bill_source_id' => $documentId,
+            'labour_bill_id' => null,
+            'notes' => $notes,
+            'created_by' => $this->adminId,
+            'created_at' => $date . ' 18:10:00',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        $accountPaymentId = (int) $this->db->insertID();
+        $this->db->table('vendor_payments')->insert([
+            'payment_no' => $paymentNo,
+            'payment_date' => $date,
+            'vendor_id' => $vendorId,
+            'purchase_invoice_id' => null,
+            'amount' => $amount,
+            'payment_mode' => 'Source Record',
+            'reference_no' => substr((string) ($document['invoice_no'] ?? $paymentNo), 0, 80),
+            'notes' => $notes,
+            'created_by' => $this->adminId,
+            'created_at' => $date . ' 18:10:00',
+        ]);
+        $this->db->table('production_purchase_documents')->where('id', $documentId)->update(['account_payment_id' => $accountPaymentId]);
     }
 
     private function insertGoldInventoryLedger(
@@ -1938,6 +1985,44 @@ class ProductionDataImportService
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
         return $this->vendorIds[$key] = (int) $this->db->insertID();
+    }
+
+    private function ensurePurchaseVendor(array $document): int
+    {
+        $key = strtoupper(trim((string) ($document['vendor_key'] ?? $document['vendor_name'] ?? '')));
+        $gstin = strtoupper(trim((string) ($document['vendor_gstin'] ?? '')));
+        $name = trim((string) ($document['vendor_name'] ?? 'Unknown Supplier'));
+        if (isset($this->vendorIds[$key])) {
+            $vendorId = $this->vendorIds[$key];
+        } else {
+            $row = $gstin !== '' ? $this->db->table('vendors')->where('gstin', $gstin)->get()->getRowArray() : null;
+            if (! $row) {
+                $row = $this->db->table('vendors')->where('name', $name)->get()->getRowArray();
+            }
+            if ($row) {
+                $vendorId = (int) $row['id'];
+            } else {
+                $this->db->table('vendors')->insert([
+                    'name' => $name,
+                    'is_active' => 1,
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+                $vendorId = (int) $this->db->insertID();
+            }
+            $this->vendorIds[$key] = $vendorId;
+        }
+        $this->db->table('vendors')->where('id', $vendorId)->update([
+            'name' => $name,
+            'address' => trim((string) ($document['vendor_address'] ?? '')) ?: null,
+            'gstin' => $gstin ?: null,
+            'phone' => trim((string) ($document['vendor_phone'] ?? '')) ?: null,
+            'email' => trim((string) ($document['vendor_email'] ?? '')) ?: null,
+            'is_active' => 1,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return $vendorId;
     }
 
     private function ensureDiamondItem(string $bucket): int

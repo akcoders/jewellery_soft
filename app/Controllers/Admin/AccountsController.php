@@ -70,7 +70,7 @@ class AccountsController extends BaseController
         }
 
         $rules = [
-            'source_type' => 'required|in_list[diamond,gold,stone]',
+            'source_type' => 'required|in_list[diamond,gold,stone,production_document]',
             'source_id' => 'required|integer|greater_than[0]',
             'payment_date' => 'required|valid_date',
             'amount' => 'required|decimal|greater_than[0]',
@@ -120,6 +120,15 @@ class AccountsController extends BaseController
 
             $db->table('purchases')->where('id', $sourceId)->update([
                 'payment_status' => $status,
+            ]);
+        } elseif ($sourceType === 'production_document' && $db->tableExists('production_purchase_documents')) {
+            $newPaid = round($totals['paid_amount'] + $payAmount, 2);
+            $status = $newPaid >= $totals['total_amount'] ? 'Paid' : 'Partial';
+            $db->table('production_purchase_documents')->where('id', $sourceId)->update([
+                'paid_amount' => $newPaid,
+                'payment_status' => $status,
+                'payment_date' => (string) $this->request->getPost('payment_date'),
+                'reconciliation_status' => 'Payment updated in application',
             ]);
         }
 
@@ -863,6 +872,19 @@ class AccountsController extends BaseController
                 ->orderBy('d.id', 'DESC')
                 ->get()->getResultArray();
             foreach ($documentRows as $row) {
+                $lineItems = json_decode((string) ($row['line_items_json'] ?? ''), true);
+                if (! is_array($lineItems)) {
+                    $lineItems = [];
+                }
+                $weight = 0.0;
+                $units = [];
+                foreach ($lineItems as $line) {
+                    $unit = trim((string) ($line['unit'] ?? ''));
+                    if ($unit !== '' && strcasecmp($unit, 'service') !== 0) {
+                        $weight += (float) ($line['quantity'] ?? 0);
+                        $units[strtolower($unit)] = $unit;
+                    }
+                }
                 $amountAvailable = $row['invoice_amount'] !== null;
                 $amount = $amountAvailable ? (float) $row['invoice_amount'] : 0.0;
                 $paidAvailable = $row['paid_amount'] !== null;
@@ -873,23 +895,36 @@ class AccountsController extends BaseController
                     'source_id' => (int) $row['id'],
                     'vendor_id' => (int) ($row['vendor_id'] ?? 0),
                     'supplier_name' => (string) (($row['resolved_vendor_name'] ?? '') ?: ($row['vendor_name'] ?? '-')),
+                    'vendor_address' => (string) ($row['vendor_address'] ?? ''),
+                    'vendor_gstin' => (string) ($row['vendor_gstin'] ?? ''),
                     'purchase_date' => (string) ($row['document_date'] ?? ''),
                     'invoice_no' => (string) (($row['invoice_no'] ?? '') ?: ($row['original_name'] ?? '')),
-                    'category' => (string) ($row['category'] ?? '') === 'gold' ? 'Gold' : 'Diamond / Stone',
-                    'qty' => 1,
-                    'weight_value' => 0,
-                    'weight_unit' => '',
+                    'category' => ucfirst((string) ($row['category'] ?? 'Purchase')),
+                    'qty' => count($lineItems),
+                    'weight_value' => round($weight, 3),
+                    'weight_unit' => count($units) === 1 ? (string) reset($units) : (count($units) > 1 ? 'mixed' : ''),
                     'amount' => $amount,
                     'amount_available' => $amountAvailable,
-                    'due_date' => '',
-                    'days_left' => '-',
+                    'taxable_amount' => (float) ($row['taxable_amount'] ?? 0),
+                    'cgst_amount' => (float) ($row['cgst_amount'] ?? 0),
+                    'sgst_amount' => (float) ($row['sgst_amount'] ?? 0),
+                    'igst_amount' => (float) ($row['igst_amount'] ?? 0),
+                    'gst_amount' => (float) ($row['gst_amount'] ?? 0),
+                    'round_off_amount' => (float) ($row['round_off_amount'] ?? 0),
+                    'due_date' => (string) ($row['due_date'] ?? ''),
+                    'days_left' => $this->daysLeftLabel((string) ($row['due_date'] ?? ''), $status),
                     'payment_status' => $status,
                     'paid_amount' => $paid,
                     'paid_amount_available' => $paidAvailable,
                     'pending_amount' => $amountAvailable ? max(0, $amount - $paid) : 0,
-                    'attachment' => null,
+                    'attachment' => [
+                        'count' => 1,
+                        'url' => site_url('admin/accounts/production-document/' . (int) $row['id']),
+                        'file_name' => (string) ($row['original_name'] ?? 'Purchase invoice.pdf'),
+                    ],
                     'view_url' => site_url('admin/accounts/production-document/' . (int) $row['id']),
                     'reconciliation_status' => (string) ($row['reconciliation_status'] ?? ''),
+                    'verification_status' => (string) ($row['verification_status'] ?? ''),
                 ];
             }
         }
@@ -1105,6 +1140,13 @@ class AccountsController extends BaseController
             $purchaseRows = array_merge($purchaseRows, $builder->orderBy('pi.invoice_date', 'DESC')->get()->getResultArray());
         }
 
+        if ($db->tableExists('production_purchase_documents') && $db->fieldExists('taxable_amount', 'production_purchase_documents')) {
+            $builder = $db->table('production_purchase_documents d')
+                ->select("'Verified Production Purchase' as source_label, d.invoice_no, d.document_date as invoice_date, d.vendor_name as party_name, d.vendor_gstin as gstin, d.taxable_amount, COALESCE(d.cgst_rate,0) + COALESCE(d.sgst_rate,0) + COALESCE(d.igst_rate,0) as gst_percent, d.gst_amount, d.invoice_amount as total_amount", false);
+            $this->applyDateFilter($builder, 'd.document_date', $dateFrom, $dateTo);
+            $purchaseRows = array_merge($purchaseRows, $builder->orderBy('d.document_date', 'DESC')->get()->getResultArray());
+        }
+
         $adjustmentRows = array_merge(
             $this->gstAdjustmentRows('debit', $dateFrom, $dateTo),
             $this->gstAdjustmentRows('credit', $dateFrom, $dateTo)
@@ -1294,6 +1336,7 @@ class AccountsController extends BaseController
             ->select('d.*, v.name as resolved_vendor_name', false)
             ->join('vendors v', 'v.id = d.vendor_id', 'left')
             ->where('d.payment_status', 'Paid')
+            ->where('d.account_payment_id IS NULL', null, false)
             ->orderBy('d.payment_date', 'DESC')
             ->get()->getResultArray();
         $result = [];
@@ -1644,6 +1687,18 @@ class AccountsController extends BaseController
                 if (strcasecmp((string) ($row['payment_status'] ?? ''), 'paid') === 0) {
                     $defaultPaid = true;
                 }
+            }
+        } elseif ($sourceType === 'production_document' && $db->tableExists('production_purchase_documents')) {
+            $row = $db->table('production_purchase_documents')
+                ->select('id, invoice_amount, paid_amount')
+                ->where('id', $sourceId)
+                ->get()->getRowArray();
+            if ($row) {
+                return [
+                    'found' => true,
+                    'total_amount' => round((float) ($row['invoice_amount'] ?? 0), 2),
+                    'paid_amount' => round((float) ($row['paid_amount'] ?? 0), 2),
+                ];
             }
         }
 
@@ -3034,6 +3089,15 @@ class AccountsController extends BaseController
             $newPaid = round((float) $totals['paid_amount'] + $amount, 2);
             $status = $newPaid >= (float) $totals['total_amount'] ? 'Paid' : ($newPaid > 0 ? 'Partial' : 'Pending');
             $db->table('purchases')->where('id', $sourceId)->update(['payment_status' => $status]);
+        } elseif ($sourceType === 'production_document' && $db->tableExists('production_purchase_documents')) {
+            $newPaid = round((float) $totals['paid_amount'] + $amount, 2);
+            $status = $newPaid >= (float) $totals['total_amount'] ? 'Paid' : ($newPaid > 0 ? 'Partial' : 'Pending');
+            $db->table('production_purchase_documents')->where('id', $sourceId)->update([
+                'paid_amount' => $newPaid,
+                'payment_status' => $status,
+                'payment_date' => $paymentDate,
+                'reconciliation_status' => 'Payment updated in application',
+            ]);
         }
     }
 
