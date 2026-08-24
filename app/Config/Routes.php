@@ -7,7 +7,7 @@ use CodeIgniter\Router\RouteCollection;
  */
 $routes->get('/', 'Home::index');
 $routes->get('order-request', 'PublicOrderRequestController::create');
-$routes->post('order-request', 'PublicOrderRequestController::store');
+$routes->post('order-request', 'PublicOrderRequestController::store', ['filter' => 'csrf']);
 
 $routes->group('admin', ['filter' => 'adminGuest'], static function ($routes): void {
     $routes->get('login', 'Admin\AuthController::login');
@@ -19,15 +19,6 @@ $routes->group('admin', ['filter' => 'adminGuest'], static function ($routes): v
 $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): void {
     $routes->get('dashboard', 'Admin\DashboardController::index', ['filter' => 'permission:dashboard.read']);
     $routes->get('logout', 'Admin\AuthController::logout');
-
-    $routes->get('leads', 'Admin\LeadController::index', ['filter' => 'permission:leads.read']);
-    $routes->get('leads/create', 'Admin\LeadController::create', ['filter' => 'permission:leads.create']);
-    $routes->post('leads', 'Admin\LeadController::store', ['filter' => 'permission:leads.create']);
-    $routes->get('leads/(:num)', 'Admin\LeadController::show/$1', ['filter' => 'permission:leads.read']);
-    $routes->post('leads/(:num)/notes', 'Admin\LeadController::addNote/$1', ['filter' => 'permission:leads.edit']);
-    $routes->post('leads/(:num)/followups', 'Admin\LeadController::addFollowup/$1', ['filter' => 'permission:leads.edit']);
-    $routes->post('leads/(:num)/stage', 'Admin\LeadController::updateStage/$1', ['filter' => 'permission:leads.edit']);
-    $routes->post('leads/(:num)/images', 'Admin\LeadController::addImage/$1', ['filter' => 'permission:leads.edit']);
 
     $routes->get('customers', 'Admin\CustomerController::index', ['filter' => 'permission:customers.read']);
     $routes->get('customers/create', 'Admin\CustomerController::create', ['filter' => 'permission:customers.create']);
@@ -164,6 +155,8 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('vendors', 'Admin\VendorController::store', ['filter' => 'permission:masters.vendors.manage']);
     $routes->get('company-settings', 'Admin\CompanySettingsController::index', ['filter' => 'permission:company-settings.read']);
     $routes->post('company-settings', 'Admin\CompanySettingsController::update', ['filter' => 'permission:company-settings.manage']);
+    $routes->get('system/database-update', 'Admin\DatabaseUpdateController::index', ['filter' => 'permission:company-settings.manage']);
+    $routes->post('system/database-update', 'Admin\DatabaseUpdateController::run', ['filter' => 'permission:company-settings.manage']);
     $routes->get('purchases', 'Admin\PurchaseController::index', ['filter' => 'permission:gold.inventory.read,stone.inventory.read']);
     $routes->get('purchases/gold/create', 'Admin\PurchaseController::createGold', ['filter' => 'permission:gold.inventory.manage']);
     $routes->post('purchases/gold', 'Admin\PurchaseController::storeGold', ['filter' => 'permission:gold.inventory.manage']);
@@ -337,6 +330,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('gold-inventory/products/(:num)/delete', 'Admin\GoldInventory\ProductsController::delete/$1', ['filter' => 'permission:gold.inventory.manage']);
 
     $routes->get('orders', 'Admin\OrderController::index', ['filter' => 'permission:orders.read']);
+    $routes->get('orders/dashboard', 'Admin\OrderController::dashboard', ['filter' => 'permission:orders.read']);
     $routes->get('orders/followups', 'Admin\OrderController::followups', ['filter' => 'permission:orders.read']);
     $routes->get('orders/fresh', 'Admin\OrderController::fresh', ['filter' => 'permission:orders.read']);
     $routes->get('orders/ready', 'Admin\OrderController::ready', ['filter' => 'permission:orders.read']);
@@ -346,6 +340,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('orders', 'Admin\OrderController::store', ['filter' => 'permission:orders.create']);
     $routes->get('orders/(:num)/edit', 'Admin\OrderController::edit/$1', ['filter' => 'permission:orders.edit']);
     $routes->post('orders/(:num)/update', 'Admin\OrderController::update/$1', ['filter' => 'permission:orders.edit']);
+    $routes->get('orders/(:num)/timeline', 'Admin\OrderController::timeline/$1', ['filter' => 'permission:orders.read']);
     $routes->get('orders/(:num)', 'Admin\OrderController::show/$1', ['filter' => 'permission:orders.read']);
     $routes->post('orders/(:num)/status', 'Admin\OrderController::updateStatus/$1', ['filter' => 'permission:orders.status']);
     $routes->post('orders/(:num)/cancel', 'Admin\OrderController::cancel/$1', ['filter' => 'permission:orders.status']);

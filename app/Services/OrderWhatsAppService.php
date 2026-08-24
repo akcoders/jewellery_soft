@@ -400,7 +400,7 @@ class OrderWhatsAppService
     private function orderContext(int $orderId): ?array
     {
         $row = db_connect()->table('orders o')
-            ->select('o.id as order_id, o.order_no, o.order_type, o.status, o.priority, o.due_date, o.order_notes, o.whatsapp_notification_number, o.expected_diamond_spec, o.expected_stone_spec, o.assigned_karigar_id, o.created_at, c.id as customer_id, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, l.id as lead_id, l.name as lead_name, l.phone as lead_phone, k.name as karigar_name', false)
+            ->select('o.id as order_id, o.order_no, o.order_type, o.order_from, o.status, o.priority, o.due_date, o.order_notes, o.whatsapp_notification_number, o.expected_diamond_spec, o.expected_stone_spec, o.assigned_karigar_id, o.created_at, c.id as customer_id, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, l.id as lead_id, l.name as lead_name, l.phone as lead_phone, k.name as karigar_name', false)
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('leads l', 'l.id = o.lead_id', 'left')
             ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
@@ -460,7 +460,7 @@ class OrderWhatsAppService
                 ->getRowArray()['total_carat'] ?? 0));
         }
 
-        $row['customer_display_name'] = trim((string) ($row['customer_name'] ?: $row['lead_name'] ?: 'Customer'));
+        $row['customer_display_name'] = trim((string) ($row['customer_name'] ?: $row['lead_name'] ?: $row['order_from'] ?: 'Customer'));
         $row['customer_phone_display'] = trim((string) ($row['whatsapp_notification_number'] ?: $row['customer_phone'] ?: $row['lead_phone'] ?: ''));
         $row['due_date_display'] = $this->formatDate((string) ($row['due_date'] ?? ''));
         $row['created_at_display'] = $this->formatDateTime((string) ($row['created_at'] ?? ''));

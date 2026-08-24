@@ -34,14 +34,14 @@
 
         <div class="form-card">
             <div class="p-4">
-                <form method="post" action="<?= site_url('order-request') ?>">
+                <form method="post" action="<?= site_url('order-request') ?>" enctype="multipart/form-data">
                     <?= csrf_field() ?>
 
-                    <div class="section-title">Customer Details</div>
+                    <div class="section-title">Order Source & Contact</div>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
-                            <label class="form-label">Customer Name</label>
-                            <input type="text" name="customer_name" class="form-control" value="<?= esc((string) old('customer_name')) ?>" required>
+                            <label class="form-label">Order From</label>
+                            <input type="text" name="order_from" class="form-control" value="<?= esc((string) old('order_from')) ?>" required>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Phone</label>
@@ -50,14 +50,6 @@
                         <div class="col-md-3">
                             <label class="form-label">WhatsApp Notification No</label>
                             <input type="tel" name="whatsapp_notification_number" class="form-control" value="<?= esc((string) old('whatsapp_notification_number')) ?>" placeholder="Leave blank to use phone">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Email</label>
-                            <input type="email" name="email" class="form-control" value="<?= esc((string) old('email')) ?>">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">City</label>
-                            <input type="text" name="city" class="form-control" value="<?= esc((string) old('city')) ?>">
                         </div>
                     </div>
 
@@ -127,6 +119,28 @@
                         </div>
                     </div>
 
+                    <div class="border rounded p-3 mb-4">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                            <div>
+                                <div class="section-title mb-1">Design / Reference Images</div>
+                                <div class="small text-muted">Attach up to 10 JPG, PNG, or WebP images. Maximum 5 MB each.</div>
+                            </div>
+                            <button type="button" id="add-reference-image" class="btn btn-sm btn-outline-primary">
+                                <span aria-hidden="true">+</span> Add More
+                            </button>
+                        </div>
+                        <div id="reference-image-fields" class="d-grid gap-2">
+                            <div class="input-group reference-image-row">
+                                <input
+                                    type="file"
+                                    name="reference_images[]"
+                                    class="form-control"
+                                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                                <button type="button" class="btn btn-outline-danger remove-reference-image" aria-label="Remove image field">Remove</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <button type="submit" class="btn btn-primary w-100">Submit Order Request</button>
                 </form>
             </div>
@@ -137,12 +151,56 @@
         (function () {
             const type = document.getElementById('public-order-type');
             const repair = document.getElementById('public-repair-fields');
+            const imageFields = document.getElementById('reference-image-fields');
+            const addImageButton = document.getElementById('add-reference-image');
+            const maxImages = 10;
+
             function toggleRepair() {
                 if (!type || !repair) return;
                 repair.style.display = type.value === 'Repair' ? '' : 'none';
             }
+
+            function updateImageControls() {
+                if (!imageFields || !addImageButton) return;
+                const rows = imageFields.querySelectorAll('.reference-image-row');
+                rows.forEach(function (row) {
+                    const removeButton = row.querySelector('.remove-reference-image');
+                    if (removeButton) removeButton.classList.toggle('d-none', rows.length === 1);
+                });
+                addImageButton.disabled = rows.length >= maxImages;
+            }
+
+            function addImageField() {
+                if (!imageFields || imageFields.querySelectorAll('.reference-image-row').length >= maxImages) return;
+
+                const row = document.createElement('div');
+                row.className = 'input-group reference-image-row';
+                row.innerHTML = ''
+                    + '<input type="file" name="reference_images[]" class="form-control" '
+                    + 'accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">'
+                    + '<button type="button" class="btn btn-outline-danger remove-reference-image" '
+                    + 'aria-label="Remove image field">Remove</button>';
+                imageFields.appendChild(row);
+                updateImageControls();
+            }
+
             if (type) type.addEventListener('change', toggleRepair);
+            if (addImageButton) addImageButton.addEventListener('click', addImageField);
+            if (imageFields) {
+                imageFields.addEventListener('click', function (event) {
+                    const target = event.target instanceof Element ? event.target : null;
+                    const removeButton = target ? target.closest('.remove-reference-image') : null;
+                    if (!removeButton) return;
+
+                    const row = removeButton.closest('.reference-image-row');
+                    if (row && imageFields.querySelectorAll('.reference-image-row').length > 1) {
+                        row.remove();
+                        updateImageControls();
+                    }
+                });
+            }
             toggleRepair();
+            updateImageControls();
         })();
     </script>
 </body>

@@ -563,7 +563,7 @@ $isLockedOrder = $isCancelledOrder || $isCompletedOrder;
                     <div class="row g-3">
                         <div class="col-md-6">
                             <p class="mb-2"><span class="order-dot bg-primary"></span><strong>Customer:</strong> <?= esc($order['customer_name'] ?: '-') ?></p>
-                            <p class="mb-2"><span class="order-dot bg-success"></span><strong>Lead:</strong> <?= esc($order['lead_name'] ?: '-') ?></p>
+                            <p class="mb-2"><span class="order-dot bg-secondary"></span><strong>Order From:</strong> <?= esc((string) (($order['order_from'] ?? '') ?: '-')) ?></p>
                             <p class="mb-2"><span class="order-dot bg-info"></span><strong>Priority:</strong> <?= esc($order['priority']) ?></p>
                             <p class="mb-2"><span class="order-dot bg-warning"></span><strong>Status:</strong> <?= esc($order['status']) ?></p>
                         </div>

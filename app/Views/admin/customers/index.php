@@ -1,10 +1,14 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Customers</h4>
+<div class="erp-page-toolbar mb-3">
+    <div>
+        <span class="erp-eyebrow">Customer directory</span>
+        <h4 class="mb-1">Customers</h4>
+        <p class="mb-0">Manage billing profiles and customer contact details.</p>
+    </div>
     <?php if (admin_can('customers.create')): ?>
-        <a href="<?= site_url('admin/customers/create') ?>" class="btn btn-primary">Add Customer</a>
+        <a href="<?= site_url('admin/customers/create') ?>" class="btn btn-primary"><i class="fe fe-user-plus me-1"></i> Add Customer</a>
     <?php endif; ?>
 </div>
 
@@ -27,8 +31,8 @@
                     <?php endif; ?>
                     <?php foreach ($customers as $customer): ?>
                         <tr>
-                            <td><?= esc($customer['customer_code'] ?? '-') ?></td>
-                            <td><?= esc($customer['name']) ?></td>
+                            <td><span class="badge bg-light text-dark border"><?= esc($customer['customer_code'] ?? '-') ?></span></td>
+                            <td class="fw-semibold"><?= esc($customer['name']) ?></td>
                             <td><?= esc($customer['phone'] ?: '-') ?></td>
                             <td><?= esc($customer['email'] ?: '-') ?></td>
                             <td><?= esc($customer['gstin'] ?: '-') ?></td>
@@ -40,5 +44,4 @@
     </div>
 </div>
 <?= $this->endSection() ?>
-
 

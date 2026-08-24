@@ -12,6 +12,7 @@ class OrderModel extends Model
     protected $allowedFields = [
         'order_no',
         'order_type',
+        'order_from',
         'customer_id',
         'lead_id',
         'quotation_id',

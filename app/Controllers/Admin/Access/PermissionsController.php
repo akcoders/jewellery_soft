@@ -25,6 +25,12 @@ class PermissionsController extends BaseController
             ->orderBy('sort_order', 'ASC')
             ->orderBy('name', 'ASC')
             ->findAll();
+        $rows = array_values(array_filter($rows, static function (array $row): bool {
+            $module = trim((string) ($row['module_group'] ?? ''));
+            $code = strtolower(trim((string) ($row['code'] ?? '')));
+
+            return strcasecmp($module, 'Leads') !== 0 && ! str_starts_with($code, 'leads.');
+        }));
 
         return view('admin/access/permissions/index', [
             'title' => 'Permission Master',
@@ -138,7 +144,7 @@ class PermissionsController extends BaseController
     private function moduleOptions(): array
     {
         $modules = $this->permissionModel->select('module_group')->distinct()->orderBy('module_group', 'ASC')->findColumn('module_group') ?: [];
-        return array_values(array_filter(array_map('strval', $modules)));
+        return array_values(array_filter(array_map('strval', $modules), static fn(string $module): bool => strcasecmp(trim($module), 'Leads') !== 0));
     }
 
     private function firstValidationError(): string

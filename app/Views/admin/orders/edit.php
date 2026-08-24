@@ -5,9 +5,13 @@
 $orderTypeValue = (string) old('order_type', (string) ($order['order_type'] ?? 'Sales'));
 $showRepairFields = $orderTypeValue === 'Repair';
 ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Edit Order: <?= esc($order['order_no']) ?></h4>
-    <a href="<?= site_url((string) ($order['order_type'] ?? '') === 'Repair' ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-primary">Back</a>
+<div class="erp-page-toolbar mb-3">
+    <div>
+        <span class="erp-eyebrow">Production workflow</span>
+        <h4 class="mb-1">Edit Order: <?= esc($order['order_no']) ?></h4>
+        <p class="mb-0">Update the customer, source and order requirements.</p>
+    </div>
+    <a href="<?= site_url((string) ($order['order_type'] ?? '') === 'Repair' ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-primary"><i class="fe fe-arrow-left me-1"></i> Back</a>
 </div>
 
 <div class="card">
@@ -24,23 +28,16 @@ $showRepairFields = $orderTypeValue === 'Repair';
                     </select>
                 </div>
                 <div class="col-md-3 mb-3">
+                    <label class="form-label">Order From</label>
+                    <input type="text" name="order_from" class="form-control" maxlength="150" value="<?= esc((string) old('order_from', (string) ($order['order_from'] ?? ''))) ?>" placeholder="Website, WhatsApp, showroom, reference">
+                </div>
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Customer</label>
                     <select name="customer_id" class="form-control">
                         <option value="">Select customer</option>
                         <?php foreach ($customers as $customer): ?>
                             <option value="<?= esc((string) $customer['id']) ?>" <?= (string) old('customer_id', (string) ($order['customer_id'] ?? '')) === (string) $customer['id'] ? 'selected' : '' ?>>
                                 <?= esc($customer['name']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Lead</label>
-                    <select name="lead_id" class="form-control">
-                        <option value="">Select lead</option>
-                        <?php foreach ($leads as $lead): ?>
-                            <option value="<?= esc((string) $lead['id']) ?>" <?= (string) old('lead_id', (string) ($order['lead_id'] ?? '')) === (string) $lead['id'] ? 'selected' : '' ?>>
-                                <?= esc(($lead['lead_no'] ?? '') . ' - ' . $lead['name']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>

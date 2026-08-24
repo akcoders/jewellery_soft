@@ -1,9 +1,13 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Add Customer</h4>
-    <a href="<?= site_url('admin/customers') ?>" class="btn btn-outline-primary">Back</a>
+<div class="erp-page-toolbar mb-3">
+    <div>
+        <span class="erp-eyebrow">Customer directory</span>
+        <h4 class="mb-1">Add Customer</h4>
+        <p class="mb-0">Create a customer profile for order assignment and billing.</p>
+    </div>
+    <a href="<?= site_url('admin/customers') ?>" class="btn btn-outline-primary"><i class="fe fe-arrow-left me-1"></i> Back</a>
 </div>
 
 <div class="card">
@@ -60,4 +64,3 @@
     </div>
 </div>
 <?= $this->endSection() ?>
-

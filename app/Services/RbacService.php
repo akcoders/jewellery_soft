@@ -121,6 +121,10 @@ class RbacService
         $grouped = [];
         foreach ($rows as $row) {
             $group = trim((string) ($row['module_group'] ?? 'General')) ?: 'General';
+            $code = strtolower(trim((string) ($row['code'] ?? '')));
+            if (strcasecmp($group, 'Leads') === 0 || str_starts_with($code, 'leads.')) {
+                continue;
+            }
             $grouped[$group][] = $row;
         }
 

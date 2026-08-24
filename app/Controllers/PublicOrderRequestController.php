@@ -2,16 +2,26 @@
 
 namespace App\Controllers;
 
-use App\Models\CustomerModel;
-use App\Models\LeadModel;
+use App\Models\OrderAttachmentModel;
 use App\Models\OrderItemModel;
 use App\Models\OrderModel;
 use App\Models\OrderStatusHistoryModel;
 use App\Services\OrderWhatsAppService;
+use CodeIgniter\HTTP\Files\UploadedFile;
+use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 
 class PublicOrderRequestController extends BaseController
 {
+    private const MAX_REFERENCE_IMAGES = 10;
+    private const MAX_REFERENCE_IMAGE_BYTES = 5 * 1024 * 1024;
+    private const REFERENCE_IMAGE_EXTENSIONS = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+
     public function create(): string
     {
         return view('public/order_request', [
@@ -23,11 +33,9 @@ class PublicOrderRequestController extends BaseController
     public function store()
     {
         $rules = [
-            'customer_name' => 'required|max_length[150]',
+            'order_from' => 'required|max_length[150]',
             'phone' => 'required|max_length[20]',
             'whatsapp_notification_number' => 'permit_empty|max_length[40]',
-            'email' => 'permit_empty|valid_email|max_length[191]',
-            'city' => 'permit_empty|max_length[120]',
             'order_type' => 'required|in_list[Sales,Manufacturing,Repair]',
             'product_name' => 'required|max_length[180]',
             'size_label' => 'permit_empty|max_length[30]',
@@ -47,16 +55,22 @@ class PublicOrderRequestController extends BaseController
             return redirect()->back()->withInput()->with('error', $this->firstValidationError());
         }
 
-        $customerModel = new CustomerModel();
-        $leadModel = new LeadModel();
+        try {
+            $referenceImages = $this->validatedReferenceImages();
+        } catch (InvalidArgumentException $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+
+        $attachmentModel = new OrderAttachmentModel();
         $orderModel = new OrderModel();
         $orderItemModel = new OrderItemModel();
         $historyModel = new OrderStatusHistoryModel();
         $db = db_connect();
+        $movedImagePaths = [];
         $db->transStart();
 
         try {
-            $name = trim((string) $this->request->getPost('customer_name'));
+            $orderFrom = trim((string) $this->request->getPost('order_from'));
             $phone = $this->normalizePhone((string) $this->request->getPost('phone'));
             if ($phone === null) {
                 throw new \InvalidArgumentException('Valid phone number is required.');
@@ -66,38 +80,15 @@ class PublicOrderRequestController extends BaseController
                 $whatsappNumber = $phone;
             }
 
-            $customer = $customerModel->where('phone', $phone)->first();
-            if (! $customer) {
-                $customerId = (int) $customerModel->insert([
-                    'customer_code' => 'WEB-' . date('ymdHis') . random_int(10, 99),
-                    'name' => $name,
-                    'phone' => $phone,
-                    'email' => trim((string) $this->request->getPost('email')) ?: null,
-                    'is_active' => 1,
-                ], true);
-            } else {
-                $customerId = (int) $customer['id'];
-            }
-
-            $leadId = (int) $leadModel->insert([
-                'lead_no' => 'WEB-LD-' . date('ymdHis') . random_int(10, 99),
-                'name' => $name,
-                'phone' => $phone,
-                'email' => trim((string) $this->request->getPost('email')) ?: null,
-                'city' => trim((string) $this->request->getPost('city')) ?: null,
-                'requirement_text' => trim((string) $this->request->getPost('product_name')) . "\n" . trim((string) $this->request->getPost('order_notes')),
-                'stage' => 'New',
-                'status' => 'Open',
-            ], true);
-
             $orderNo = 'WEB-OR' . date('ymdHis') . random_int(10, 99);
             $orderType = (string) $this->request->getPost('order_type');
             $isRepair = $orderType === 'Repair';
             $orderId = (int) $orderModel->insert([
                 'order_no' => $orderNo,
                 'order_type' => $orderType,
-                'customer_id' => $customerId,
-                'lead_id' => $leadId,
+                'order_from' => $orderFrom,
+                'customer_id' => null,
+                'lead_id' => null,
                 'status' => 'Confirmed',
                 'priority' => 'Medium',
                 'due_date' => $this->nullableDate((string) $this->request->getPost('due_date')),
@@ -126,14 +117,21 @@ class PublicOrderRequestController extends BaseController
                 'order_id' => $orderId,
                 'from_status' => null,
                 'to_status' => 'Confirmed',
-                'remarks' => 'Order request submitted from public link.',
+                'remarks' => 'Order request submitted from public link. Order from: ' . $orderFrom,
             ]);
+
+            $movedImagePaths = $this->storeReferenceImages($referenceImages, $orderId, $attachmentModel);
         } catch (Throwable $e) {
             $db->transRollback();
+            $this->removeMovedImages($movedImagePaths);
             return redirect()->back()->withInput()->with('error', 'Could not submit order request: ' . $e->getMessage());
         }
 
         $db->transComplete();
+        if (! $db->transStatus()) {
+            $this->removeMovedImages($movedImagePaths);
+            return redirect()->back()->withInput()->with('error', 'Could not submit order request. Please try again.');
+        }
 
         try {
             (new OrderWhatsAppService())->notifyOrderCreated($orderId);
@@ -163,5 +161,109 @@ class PublicOrderRequestController extends BaseController
     {
         $date = trim($date);
         return $date === '' ? null : $date;
+    }
+
+    /**
+     * @return list<UploadedFile>
+     */
+    private function validatedReferenceImages(): array
+    {
+        $files = $this->request->getFileMultiple('reference_images');
+        if (! is_array($files)) {
+            return [];
+        }
+
+        $images = [];
+        foreach ($files as $file) {
+            if (! $file instanceof UploadedFile || $file->getError() === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+
+            if (count($images) >= self::MAX_REFERENCE_IMAGES) {
+                throw new InvalidArgumentException('You can attach a maximum of 10 images.');
+            }
+
+            if (! $file->isValid()) {
+                throw new InvalidArgumentException('One of the selected images could not be uploaded.');
+            }
+
+            if ($file->getSize() > self::MAX_REFERENCE_IMAGE_BYTES) {
+                throw new InvalidArgumentException('Each image must be 5 MB or smaller.');
+            }
+
+            $mimeType = strtolower((string) $file->getMimeType());
+            if (! array_key_exists($mimeType, self::REFERENCE_IMAGE_EXTENSIONS)) {
+                throw new InvalidArgumentException('Only JPG, PNG, and WebP images are allowed.');
+            }
+
+            $images[] = $file;
+        }
+
+        return $images;
+    }
+
+    /**
+     * @param list<UploadedFile> $images
+     * @return list<string>
+     */
+    private function storeReferenceImages(
+        array $images,
+        int $orderId,
+        OrderAttachmentModel $attachmentModel
+    ): array {
+        if ($images === []) {
+            return [];
+        }
+
+        $uploadDir = FCPATH . 'uploads/orders';
+        if (! is_dir($uploadDir) && ! mkdir($uploadDir, 0775, true) && ! is_dir($uploadDir)) {
+            throw new RuntimeException('Order image directory could not be created.');
+        }
+
+        $movedPaths = [];
+        try {
+            foreach ($images as $file) {
+                $mimeType = strtolower((string) $file->getMimeType());
+                $extension = self::REFERENCE_IMAGE_EXTENSIONS[$mimeType] ?? null;
+                if ($extension === null) {
+                    throw new RuntimeException('Unsupported order image type.');
+                }
+
+                $storedName = bin2hex(random_bytes(16)) . '.' . $extension;
+                $file->move($uploadDir, $storedName);
+
+                $absolutePath = $uploadDir . DIRECTORY_SEPARATOR . $storedName;
+                $movedPaths[] = $absolutePath;
+
+                $inserted = $attachmentModel->insert([
+                    'order_id' => $orderId,
+                    'file_type' => 'reference_image',
+                    'file_name' => substr($file->getClientName(), 0, 255),
+                    'file_path' => 'uploads/orders/' . $storedName,
+                    'uploaded_by' => null,
+                ]);
+
+                if ($inserted === false) {
+                    throw new RuntimeException('Order image details could not be saved.');
+                }
+            }
+        } catch (Throwable $e) {
+            $this->removeMovedImages($movedPaths);
+            throw $e;
+        }
+
+        return $movedPaths;
+    }
+
+    /**
+     * @param list<string> $paths
+     */
+    private function removeMovedImages(array $paths): void
+    {
+        foreach ($paths as $path) {
+            if (is_file($path)) {
+                @unlink($path);
+            }
+        }
     }
 }

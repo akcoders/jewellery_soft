@@ -7,10 +7,10 @@ $segment4   = (string) ($segments[3] ?? '');
 $assetBasePath = ((string) ($segments[0] ?? '') === 'public') ? 'public/template/assets' : 'template/assets';
 $assetBase = base_url($assetBasePath);
 $isDash     = $segment2 === 'dashboard';
-$isLeads    = $segment2 === 'leads';
 $isCustomers= $segment2 === 'customers';
 $isOrders   = $segment2 === 'orders';
 $isOrdersAll   = $isOrders && ($segment3 === '' || ctype_digit($segment3));
+$isOrdersDashboard = $isOrders && $segment3 === 'dashboard';
 $isOrdersFresh = $isOrders && $segment3 === 'fresh';
 $isOrdersReady = $isOrders && $segment3 === 'ready';
 $isOrdersRepair = $isOrders && $segment3 === 'repair';
@@ -68,6 +68,7 @@ $isAccountsGstReport = $isAccounts && $segment3 === 'gst-report';
 $isAccountsOutstanding = $isAccounts && $segment3 === 'outstanding-summary';
 $isVendors  = $segment2 === 'vendors';
 $isCompanySettings = $segment2 === 'company-settings';
+$isDatabaseUpdate = $segment2 === 'system' && $segment3 === 'database-update';
 $isInventory= $segment2 === 'inventory';
 $isInventoryStock = $isInventory && ($segment3 === '' || $segment3 === 'stock');
 $isInventoryWarehouses = $isInventory && $segment3 === 'warehouses';
@@ -100,7 +101,6 @@ $isGoldInventoryLedger = $isGoldInventory && $segment3 === 'ledger';
 $isGoldInventoryPurities = $isGoldInventory && $segment3 === 'purities';
 $isGoldInventoryProducts = $isGoldInventory && $segment3 === 'products';
 $canDashboard = admin_can('dashboard.read');
-$canLeads = admin_can('leads.read');
 $canCustomers = admin_can('customers.read');
 $canOrders = admin_can('orders.read');
 $canOrdersCreate = admin_can('orders.create');
@@ -121,7 +121,7 @@ $canDiamondInventory = admin_can('diamond.inventory.read');
 $canStoneInventory = admin_can('stone.inventory.read');
 $canGoldInventory = admin_can('gold.inventory.read');
 $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read', 'access.users.read']);
-$canCrmOrdersMenu = $canLeads || $canCustomers || $canOrders;
+$canCrmOrdersMenu = $canCustomers || $canOrders;
 $canProductionMenu = $canKarigars || $canIssuements || $canDesigns;
 $canInventoryMenu = $canGoldInventory || $canDiamondInventory || $canStoneInventory || $canInventorySettings;
 $canShowroomMenu = $canShowroomMasters || $canShowroomStock || $canShowroomSales;
@@ -152,11 +152,359 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             --erp-gold: #c89b1e;
             --erp-gold-dark: #a67f14;
             --erp-gold-soft: #fff5d7;
+            --erp-ink: #18202f;
+            --erp-muted: #667085;
+            --erp-border: #e6e9ef;
+            --erp-bg: #f5f6f8;
+            --erp-surface: #ffffff;
+            --erp-shadow: 0 10px 30px rgba(31, 41, 55, 0.06);
+        }
+        body {
+            background:
+                radial-gradient(circle at 82% 5%, rgba(200, 155, 30, 0.08), transparent 24rem),
+                var(--erp-bg);
+            color: var(--erp-ink);
+        }
+        .header.header-one {
+            background: rgba(255, 255, 255, 0.96);
+            border-bottom: 1px solid var(--erp-border);
+            box-shadow: 0 4px 20px rgba(31, 41, 55, 0.04);
+            backdrop-filter: blur(12px);
+        }
+        .sidebar {
+            border-right: 1px solid var(--erp-border);
+            box-shadow: 8px 0 24px rgba(31, 41, 55, 0.035);
+        }
+        .page-wrapper {
+            background: transparent;
+        }
+        .content.container-fluid {
+            padding: 26px 28px 32px;
+        }
+        .page-header {
+            margin-bottom: 18px;
+        }
+        .content-page-header {
+            align-items: center;
+        }
+        .content-page-header h5 {
+            color: var(--erp-ink);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            margin: 0;
+            text-transform: uppercase;
         }
         .card {
-            border: 1px solid #e8edf3;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(16, 24, 40, 0.04);
+            background: var(--erp-surface);
+            border: 1px solid var(--erp-border);
+            border-radius: 14px;
+            box-shadow: var(--erp-shadow);
+        }
+        .card-header {
+            background: transparent;
+            border-bottom: 1px solid var(--erp-border);
+            padding: 18px 20px;
+        }
+        .card-body {
+            padding: 20px;
+        }
+        .btn {
+            border-radius: 9px;
+            font-weight: 600;
+            min-height: 38px;
+            padding: 8px 15px;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+        .btn-sm {
+            border-radius: 8px;
+            min-height: 32px;
+            padding: 5px 10px;
+        }
+        .form-control,
+        .form-select,
+        .select2-container--default .select2-selection--single {
+            border-color: #d9dee8;
+            border-radius: 9px;
+            min-height: 42px;
+        }
+        textarea.form-control {
+            min-height: auto;
+        }
+        .form-label {
+            color: #344054;
+            font-size: 13px;
+            font-weight: 650;
+            margin-bottom: 7px;
+        }
+        .table > :not(caption) > * > * {
+            border-bottom-color: #edf0f4;
+            padding: 13px 14px;
+            vertical-align: middle;
+        }
+        .table thead th {
+            background: #f8f9fb;
+            color: #475467;
+            font-size: 11px;
+            font-weight: 750;
+            letter-spacing: 0.045em;
+            text-transform: uppercase;
+        }
+        .table-hover > tbody > tr:hover > * {
+            background: #fffaf0;
+            color: var(--erp-ink);
+        }
+        .modal-content {
+            border: 0;
+            border-radius: 16px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
+        }
+        .modal-header,
+        .modal-footer {
+            border-color: var(--erp-border);
+            padding: 17px 20px;
+        }
+        .badge {
+            border-radius: 999px;
+            font-weight: 650;
+            padding: 6px 10px;
+        }
+        .erp-page-toolbar {
+            align-items: center;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid var(--erp-border);
+            border-radius: 14px;
+            box-shadow: 0 6px 22px rgba(31, 41, 55, 0.045);
+            display: flex;
+            gap: 18px;
+            justify-content: space-between;
+            padding: 18px 20px;
+        }
+        .erp-page-toolbar h4 {
+            color: var(--erp-ink);
+            font-size: 20px;
+            font-weight: 750;
+        }
+        .erp-page-toolbar p {
+            color: var(--erp-muted);
+            font-size: 12px;
+        }
+        .erp-dashboard-hero {
+            align-items: center;
+            background:
+                radial-gradient(circle at 88% 5%, rgba(255, 255, 255, 0.16), transparent 12rem),
+                linear-gradient(125deg, #86101a 0%, var(--erp-red) 54%, #c58e15 150%);
+            border-radius: 18px;
+            box-shadow: 0 18px 42px rgba(143, 13, 24, 0.2);
+            color: #fff;
+            display: flex;
+            justify-content: space-between;
+            min-height: 166px;
+            overflow: hidden;
+            padding: 28px 30px;
+            position: relative;
+        }
+        .erp-dashboard-hero h2 {
+            color: #fff;
+            font-size: clamp(24px, 3vw, 34px);
+            font-weight: 750;
+        }
+        .erp-dashboard-hero p {
+            color: rgba(255, 255, 255, 0.76);
+            max-width: 660px;
+        }
+        .erp-dashboard-hero .btn-outline-light {
+            border-color: rgba(255, 255, 255, 0.8) !important;
+            color: #fff !important;
+        }
+        .erp-dashboard-hero .btn-outline-light:hover,
+        .erp-dashboard-hero .btn-outline-light:focus {
+            background: #fff !important;
+            color: var(--erp-red-dark) !important;
+        }
+        .erp-eyebrow {
+            color: var(--erp-gold-dark);
+            display: block;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .erp-dashboard-hero .erp-eyebrow {
+            color: #f9d77a;
+        }
+        .erp-kpi-card {
+            align-items: center;
+            background: #fff;
+            border: 1px solid var(--erp-border);
+            border-radius: 14px;
+            box-shadow: var(--erp-shadow);
+            color: var(--erp-ink) !important;
+            display: flex;
+            gap: 15px;
+            height: 100%;
+            min-height: 132px;
+            padding: 20px;
+            position: relative;
+            text-decoration: none;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+        .erp-kpi-card:hover {
+            border-color: rgba(179, 18, 31, 0.24);
+            box-shadow: 0 16px 36px rgba(31, 41, 55, 0.1);
+            color: var(--erp-ink) !important;
+            transform: translateY(-3px);
+        }
+        .erp-kpi-card > span:last-child {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .erp-kpi-card small {
+            color: var(--erp-muted);
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 650;
+        }
+        .erp-kpi-card strong {
+            color: var(--erp-ink);
+            font-size: 28px;
+            line-height: 1.18;
+            margin: 4px 0 3px;
+        }
+        .erp-kpi-card em {
+            color: #98a2b3;
+            font-size: 11px;
+            font-style: normal;
+        }
+        .erp-kpi-icon {
+            align-items: center;
+            border-radius: 13px;
+            display: inline-flex;
+            flex: 0 0 52px;
+            font-size: 22px;
+            height: 52px;
+            justify-content: center;
+        }
+        .erp-kpi-danger .erp-kpi-icon { background: #fce9eb; color: var(--erp-red); }
+        .erp-kpi-gold .erp-kpi-icon { background: #fff5d7; color: #9a7410; }
+        .erp-kpi-blue .erp-kpi-icon { background: #e9f2ff; color: #2764b8; }
+        .erp-kpi-green .erp-kpi-icon { background: #e9f8ef; color: #18834d; }
+        .erp-metal-card {
+            align-items: flex-start;
+            background: linear-gradient(145deg, #fffdf7, #fff);
+            border: 1px solid #eee4c7;
+            border-radius: 14px;
+            box-shadow: var(--erp-shadow);
+            display: flex;
+            gap: 15px;
+            padding: 20px;
+        }
+        .erp-metal-icon,
+        .erp-order-mark {
+            align-items: center;
+            background: var(--erp-gold-soft);
+            border-radius: 11px;
+            color: var(--erp-gold-dark);
+            display: inline-flex;
+            flex: 0 0 44px;
+            height: 44px;
+            justify-content: center;
+        }
+        .erp-metal-card span {
+            color: var(--erp-muted);
+            display: block;
+            font-size: 12px;
+            font-weight: 650;
+        }
+        .erp-metal-card strong {
+            color: var(--erp-ink);
+            display: block;
+            font-size: 23px;
+            line-height: 1.2;
+            margin: 5px 0;
+        }
+        .erp-metal-card strong small {
+            color: var(--erp-muted);
+            font-size: 12px;
+        }
+        .erp-metal-card p {
+            color: var(--erp-muted);
+            font-size: 11px;
+            margin: 0;
+        }
+        .erp-section-card {
+            overflow: hidden;
+        }
+        .erp-section-card .card-header {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+        }
+        .erp-empty-state {
+            align-items: center;
+            color: var(--erp-muted);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 250px;
+            padding: 30px;
+            text-align: center;
+        }
+        .erp-empty-state i {
+            color: #c3c9d2;
+            font-size: 34px;
+            margin-bottom: 10px;
+        }
+        .erp-empty-state strong {
+            color: #344054;
+            margin-bottom: 4px;
+        }
+        .erp-empty-state span {
+            font-size: 12px;
+        }
+        .erp-data-link {
+            color: var(--erp-red) !important;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .erp-activity-list {
+            display: flex;
+            flex-direction: column;
+        }
+        .erp-activity-item {
+            align-items: center;
+            border-bottom: 1px solid #edf0f4;
+            color: var(--erp-ink) !important;
+            display: flex;
+            gap: 12px;
+            padding: 14px 18px;
+            text-decoration: none;
+            transition: background-color 0.16s ease;
+        }
+        .erp-activity-item:last-child {
+            border-bottom: 0;
+        }
+        .erp-activity-item:hover {
+            background: #fffaf0;
+            color: var(--erp-ink) !important;
+        }
+        .erp-activity-item strong,
+        .erp-activity-item small {
+            display: block;
+        }
+        .erp-activity-item small {
+            color: var(--erp-muted);
+            font-size: 11px;
+            margin-top: 2px;
+        }
+        .erp-activity-item .badge {
+            font-size: 10px;
+            white-space: nowrap;
         }
         .table.datatable {
             width: 100% !important;
@@ -215,6 +563,53 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             margin-left: 2px;
         }
         @media (max-width: 767px) {
+            html,
+            body,
+            .main-wrapper,
+            .page-wrapper {
+                max-width: 100%;
+                overflow-x: hidden;
+            }
+            .page-wrapper {
+                margin-left: 0;
+                width: 100%;
+            }
+            .content.container-fluid {
+                max-width: 100%;
+                padding: 18px 14px 26px;
+            }
+            .erp-dashboard-hero {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 20px;
+                max-width: 100%;
+                padding: 24px 20px;
+                width: 100%;
+            }
+            .erp-dashboard-hero > div {
+                max-width: 100%;
+                min-width: 0;
+            }
+            .erp-dashboard-hero p {
+                max-width: 100%;
+                overflow-wrap: anywhere;
+            }
+            .erp-dashboard-hero > .d-flex {
+                width: 100%;
+            }
+            .erp-page-toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+                max-width: 100%;
+            }
+            .erp-section-card .card-header {
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .erp-activity-item {
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
             .table.datatable thead th,
             .table.datatable tbody td {
                 white-space: normal;
@@ -518,12 +913,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php endif; ?>
 
                         <?php if ($canCrmOrdersMenu): ?>
-                        <li class="menu-title"><span>CRM & Orders</span></li>
-                        <?php endif; ?>
-                        <?php if ($canLeads): ?>
-                        <li class="<?= $isLeads ? 'active' : '' ?>">
-                            <a href="<?= site_url('admin/leads') ?>"><i class="fe fe-phone-call"></i> <span>Leads</span></a>
-                        </li>
+                        <li class="menu-title"><span>Customers & Orders</span></li>
                         <?php endif; ?>
                         <?php if ($canCustomers): ?>
                         <li class="<?= $isCustomers ? 'active' : '' ?>">
@@ -534,6 +924,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <li class="submenu <?= $isOrders ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-clipboard"></i> <span>Orders</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isOrders ? 'display:block;' : 'display:none;' ?>">
+                                <li><a class="<?= $isOrdersDashboard ? 'active' : '' ?>" href="<?= site_url('admin/orders/dashboard') ?>"><i class="fe fe-pie-chart"></i> Order Dashboard</a></li>
                                 <li><a class="<?= ($isOrdersAll || $isOrdersCreate) ? 'active' : '' ?>" href="<?= site_url('admin/orders') ?>"><i class="fe fe-list"></i> All Orders</a></li>
                                 <?php if ($canOrdersCreate): ?>
                                 <li><a class="<?= $isOrdersFresh ? 'active' : '' ?>" href="<?= site_url('admin/orders/fresh') ?>"><i class="fe fe-plus-square"></i> Fresh Orders</a></li>
@@ -701,6 +1092,11 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php if ($canCompanySettings): ?>
                         <li class="<?= $isCompanySettings ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/company-settings') ?>"><i class="fe fe-briefcase"></i> <span>Company Settings</span></a>
+                        </li>
+                        <?php endif; ?>
+                        <?php if (admin_can('company-settings.manage')): ?>
+                        <li class="<?= $isDatabaseUpdate ? 'active' : '' ?>">
+                            <a href="<?= site_url('admin/system/database-update') ?>"><i class="fe fe-database"></i> <span>Database Update</span></a>
                         </li>
                         <?php endif; ?>
                         <?php if ($canAccessControl): ?>
@@ -894,7 +1290,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         language: {
                             search: '',
                             searchPlaceholder: 'Search records...',
-                            lengthMenu: 'Show _MENU_ entries',
+                            lengthMenu: '_MENU_',
                             emptyTable: 'No records available'
                         }
                     });

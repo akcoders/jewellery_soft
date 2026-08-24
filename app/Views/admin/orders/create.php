@@ -6,8 +6,12 @@ $isRepairMode = (bool) ($repairMode ?? false);
 $selectedOrderType = (string) old('order_type', $isRepairMode ? 'Repair' : 'Sales');
 $showRepairFields = $selectedOrderType === 'Repair';
 ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0"><?= esc($title ?? 'Create Order') ?></h4>
+<div class="erp-page-toolbar mb-3">
+    <div>
+        <span class="erp-eyebrow">Production workflow</span>
+        <h4 class="mb-1"><?= esc($title ?? 'Create Order') ?></h4>
+        <p class="mb-0">Capture customer, product and manufacturing requirements.</p>
+    </div>
     <div class="d-flex gap-2">
         <a href="<?= site_url('order-request') ?>" target="_blank" class="btn btn-outline-success">Public Order Link</a>
         <a href="<?= site_url($isRepairMode ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-primary">Back</a>
@@ -28,20 +32,15 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     </select>
                 </div>
                 <div class="col-md-3 mb-3">
+                    <label class="form-label">Order From</label>
+                    <input type="text" name="order_from" class="form-control" maxlength="150" value="<?= esc((string) old('order_from')) ?>" placeholder="Website, WhatsApp, showroom, reference">
+                </div>
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Customer</label>
                     <select name="customer_id" class="form-control">
                         <option value="">Select customer</option>
                         <?php foreach ($customers as $customer): ?>
                             <option value="<?= esc((string) $customer['id']) ?>" <?= (string) old('customer_id') === (string) $customer['id'] ? 'selected' : '' ?>><?= esc($customer['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Lead</label>
-                    <select name="lead_id" class="form-control">
-                        <option value="">Select lead</option>
-                        <?php foreach ($leads as $lead): ?>
-                            <option value="<?= esc((string) $lead['id']) ?>" <?= (string) old('lead_id') === (string) $lead['id'] ? 'selected' : '' ?>><?= esc($lead['lead_no'] . ' - ' . $lead['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -269,4 +268,3 @@ $showRepairFields = $selectedOrderType === 'Repair';
     })();
 </script>
 <?= $this->endSection() ?>
-

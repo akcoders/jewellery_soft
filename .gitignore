@@ -126,3 +126,6 @@ _modules/*
 /phpunit*.xml
 release.zip
 
+# Runtime web files
+public/null/
+public/uploads/orders/*

@@ -17,7 +17,6 @@ use App\Models\InventoryTransactionModel;
 use App\Models\JobCardModel;
 use App\Models\KarigarModel;
 use App\Models\LabourBillModel;
-use App\Models\LeadModel;
 use App\Models\OrderAttachmentModel;
 use App\Models\OrderFollowupModel;
 use App\Models\OrderItemModel;
@@ -57,7 +56,6 @@ class OrderController extends BaseController
     private LabourBillModel $labourBillModel;
     private CompanySettingModel $companySettingModel;
     private CustomerModel $customerModel;
-    private LeadModel $leadModel;
     private DesignMasterModel $designModel;
     private GoldPurityModel $goldPurityModel;
     private InventoryLocationModel $locationModel;
@@ -90,7 +88,6 @@ class OrderController extends BaseController
         $this->labourBillModel = new LabourBillModel();
         $this->companySettingModel = new CompanySettingModel();
         $this->customerModel   = new CustomerModel();
-        $this->leadModel       = new LeadModel();
         $this->designModel     = new DesignMasterModel();
         $this->goldPurityModel = new GoldPurityModel();
         $this->locationModel   = new InventoryLocationModel();
@@ -105,6 +102,260 @@ class OrderController extends BaseController
     public function index(): string
     {
         return $this->renderOrderList('all');
+    }
+
+    public function dashboard(): string
+    {
+        $this->syncCompletedOrdersFromReceive();
+
+        $orders = $this->orderModel
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
+            ->orderBy('orders.id', 'DESC')
+            ->findAll();
+
+        $orderIds = array_values(array_filter(array_map(
+            static fn(array $order): int => (int) ($order['id'] ?? 0),
+            $orders
+        ), static fn(int $id): bool => $id > 0));
+
+        $latestFollowupByOrder = [];
+        $itemsByOrder = [];
+        $designUsage = [];
+
+        if ($orderIds !== []) {
+            $latestSubquery = db_connect()->table('order_followups')
+                ->select('MAX(id) AS id')
+                ->whereIn('order_id', $orderIds)
+                ->groupBy('order_id')
+                ->getCompiledSelect();
+
+            $latestFollowups = db_connect()->table('order_followups ofu')
+                ->select('ofu.*, admin_users.name AS followup_taken_by_name')
+                ->join('(' . $latestSubquery . ') latest', 'latest.id = ofu.id', 'inner', false)
+                ->join('admin_users', 'admin_users.id = ofu.followup_taken_by', 'left')
+                ->get()
+                ->getResultArray();
+
+            foreach ($latestFollowups as $followup) {
+                $latestFollowupByOrder[(int) ($followup['order_id'] ?? 0)] = $followup;
+            }
+
+            $items = db_connect()->table('order_items oi')
+                ->select('oi.order_id, oi.design_id, oi.item_description, dm.design_code, dm.name AS design_name')
+                ->join('design_masters dm', 'dm.id = oi.design_id', 'left')
+                ->whereIn('oi.order_id', $orderIds)
+                ->orderBy('oi.id', 'ASC')
+                ->get()
+                ->getResultArray();
+
+            foreach ($items as $item) {
+                $orderId = (int) ($item['order_id'] ?? 0);
+                $designId = (int) ($item['design_id'] ?? 0);
+                $description = preg_replace('/\s+/', ' ', trim((string) ($item['item_description'] ?? ''))) ?: '';
+
+                if ($designId > 0) {
+                    $designKey = 'design:' . $designId;
+                    $designLabel = trim((string) ($item['design_name'] ?? ''));
+                    if ($designLabel === '') {
+                        $designLabel = trim((string) ($item['design_code'] ?? '')) ?: ('Design #' . $designId);
+                    }
+                } elseif ($description !== '') {
+                    $normalized = function_exists('mb_strtolower') ? mb_strtolower($description) : strtolower($description);
+                    $designKey = 'description:' . $normalized;
+                    $designLabel = $description;
+                } else {
+                    continue;
+                }
+
+                $itemsByOrder[$orderId][$designKey] = $designLabel;
+                $designUsage[$designKey]['label'] = $designLabel;
+                $designUsage[$designKey]['order_ids'][$orderId] = true;
+            }
+        }
+
+        $repeatDesignCount = 0;
+        foreach ($designUsage as &$usage) {
+            $usage['count'] = count($usage['order_ids'] ?? []);
+            if ($usage['count'] > 1) {
+                $repeatDesignCount++;
+            }
+        }
+        unset($usage);
+
+        $statusCounts = [];
+        foreach ($this->jewelleryConfig->orderStatuses as $status) {
+            $statusCounts[$status] = 0;
+        }
+        $statusCounts['Cancelled'] = 0;
+
+        $today = new \DateTimeImmutable('today');
+        $terminalStatuses = ['Completed', 'Cancelled', 'Dispatched'];
+        $delayedCount = 0;
+        $repeatOrderCount = 0;
+
+        foreach ($orders as &$order) {
+            $orderId = (int) ($order['id'] ?? 0);
+            $status = trim((string) ($order['status'] ?? '')) ?: 'Unknown';
+            if (! array_key_exists($status, $statusCounts)) {
+                $statusCounts[$status] = 0;
+            }
+            $statusCounts[$status]++;
+
+            $repeatDesigns = [];
+            foreach (($itemsByOrder[$orderId] ?? []) as $designKey => $designLabel) {
+                $repeatCount = (int) ($designUsage[$designKey]['count'] ?? 0);
+                if ($repeatCount > 1) {
+                    $repeatDesigns[] = [
+                        'name' => $designLabel,
+                        'count' => $repeatCount,
+                    ];
+                }
+            }
+            usort($repeatDesigns, static fn(array $a, array $b): int => $b['count'] <=> $a['count']);
+            $order['repeat_designs'] = $repeatDesigns;
+            $order['is_repeat_design'] = $repeatDesigns !== [];
+            if ($repeatDesigns !== []) {
+                $repeatOrderCount++;
+            }
+
+            $dueDate = trim((string) ($order['due_date'] ?? ''));
+            $due = $dueDate !== '' ? \DateTimeImmutable::createFromFormat('!Y-m-d', $dueDate) : false;
+            $isDelayed = $due instanceof \DateTimeImmutable
+                && $due < $today
+                && ! in_array($status, $terminalStatuses, true);
+
+            $order['is_delayed'] = $isDelayed;
+            $order['delay_days'] = $isDelayed ? (int) $due->diff($today)->days : 0;
+            $latestFollowup = $latestFollowupByOrder[$orderId] ?? null;
+            $reason = trim((string) ($latestFollowup['description'] ?? ''));
+            $order['delay_reason'] = $reason !== '' ? $reason : 'No delay reason recorded.';
+            $order['delay_reason_recorded'] = $reason !== '';
+            $order['latest_followup_stage'] = (string) ($latestFollowup['stage'] ?? '');
+            $order['latest_followup_at'] = (string) ($latestFollowup['followup_taken_on'] ?? '');
+
+            if ($isDelayed) {
+                $delayedCount++;
+            }
+        }
+        unset($order);
+
+        $selectedStatus = trim((string) $this->request->getGet('status'));
+        $selectedView = trim((string) $this->request->getGet('view'));
+        $filteredOrders = array_values(array_filter($orders, static function (array $order) use ($selectedStatus, $selectedView): bool {
+            if ($selectedStatus !== '' && $selectedStatus !== 'all' && (string) ($order['status'] ?? '') !== $selectedStatus) {
+                return false;
+            }
+            if ($selectedView === 'delayed' && ! (bool) ($order['is_delayed'] ?? false)) {
+                return false;
+            }
+            if ($selectedView === 'repeat' && ! (bool) ($order['is_repeat_design'] ?? false)) {
+                return false;
+            }
+
+            return true;
+        }));
+
+        return view('admin/orders/dashboard', [
+            'title' => 'Order Dashboard',
+            'orders' => $filteredOrders,
+            'statusCounts' => $statusCounts,
+            'summary' => [
+                'total_orders' => count($orders),
+                'delayed_orders' => $delayedCount,
+                'repeat_orders' => $repeatOrderCount,
+                'repeat_designs' => $repeatDesignCount,
+            ],
+            'selectedStatus' => $selectedStatus,
+            'selectedView' => $selectedView,
+            'publicOrderRequestUrl' => site_url('order-request'),
+        ]);
+    }
+
+    public function timeline(int $id)
+    {
+        $order = $this->orderModel
+            ->select('orders.id, orders.order_no, orders.order_from, orders.status, orders.due_date, orders.created_at, customers.name AS customer_name, karigars.name AS karigar_name')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
+            ->find($id);
+
+        if (! $order) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'status' => 'error',
+                'message' => 'Order not found.',
+            ]);
+        }
+
+        $followups = $this->followupModel
+            ->select('order_followups.*, admin_users.name AS followup_taken_by_name')
+            ->join('admin_users', 'admin_users.id = order_followups.followup_taken_by', 'left')
+            ->where('order_followups.order_id', $id)
+            ->orderBy('order_followups.followup_taken_on', 'DESC')
+            ->orderBy('order_followups.id', 'DESC')
+            ->findAll();
+
+        $history = $this->historyModel
+            ->select('order_status_history.*, admin_users.name AS changed_by_name')
+            ->join('admin_users', 'admin_users.id = order_status_history.changed_by', 'left')
+            ->where('order_status_history.order_id', $id)
+            ->orderBy('order_status_history.id', 'DESC')
+            ->findAll();
+
+        $attachments = $this->attachmentModel
+            ->where('order_id', $id)
+            ->orderBy('id', 'DESC')
+            ->findAll();
+
+        $imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        $images = [];
+        foreach ($attachments as $attachment) {
+            $path = trim((string) ($attachment['file_path'] ?? ''));
+            $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            if ($path === '' || ! in_array($extension, $imageExtensions, true)) {
+                continue;
+            }
+            $images[] = [
+                'name' => (string) ($attachment['file_name'] ?? basename($path)),
+                'type' => (string) ($attachment['file_type'] ?? 'image'),
+                'url' => base_url(ltrim($path, '/')),
+                'created_at' => (string) ($attachment['created_at'] ?? ''),
+            ];
+        }
+
+        $followupRows = array_map(static function (array $followup): array {
+            $imagePath = trim((string) ($followup['image_path'] ?? ''));
+
+            return [
+                'id' => (int) ($followup['id'] ?? 0),
+                'stage' => (string) ($followup['stage'] ?? '-'),
+                'description' => (string) ($followup['description'] ?? ''),
+                'next_followup_date' => (string) ($followup['next_followup_date'] ?? ''),
+                'taken_by' => (string) (($followup['followup_taken_by_name'] ?? '') ?: 'Admin'),
+                'taken_on' => (string) ($followup['followup_taken_on'] ?? ''),
+                'image_name' => (string) ($followup['image_name'] ?? ''),
+                'image_url' => $imagePath !== '' ? base_url(ltrim($imagePath, '/')) : '',
+            ];
+        }, $followups);
+
+        $historyRows = array_map(static fn(array $row): array => [
+            'from_status' => (string) (($row['from_status'] ?? '') ?: 'Created'),
+            'to_status' => (string) ($row['to_status'] ?? '-'),
+            'remarks' => (string) ($row['remarks'] ?? ''),
+            'changed_by' => (string) (($row['changed_by_name'] ?? '') ?: 'System'),
+            'created_at' => (string) ($row['created_at'] ?? ''),
+        ], $history);
+
+        return $this->response->setJSON([
+            'status' => 'ok',
+            'data' => [
+                'order' => $order,
+                'followups' => $followupRows,
+                'status_history' => $historyRows,
+                'images' => $images,
+            ],
+        ]);
     }
 
     public function fresh(): string
@@ -244,7 +495,9 @@ class OrderController extends BaseController
             'title'    => $title,
             'orders'   => $rows,
             'orderMode'=> $mode,
+            'publicOrderRequestUrl' => site_url('order-request'),
             'karigars' => $this->karigarModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'customers'=> $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'locations'=> $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'statuses' => $this->jewelleryConfig->orderStatuses,
         ]);
@@ -265,7 +518,6 @@ class OrderController extends BaseController
         return view('admin/orders/create', [
             'title'       => $repairMode ? 'Create Repair Order' : 'Create Order',
             'customers'   => $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
-            'leads'       => $this->leadModel->where('status', 'Open')->orderBy('id', 'DESC')->findAll(),
             'designs'     => $this->designModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'goldPurities'=> $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
             'karigars'    => $this->karigarModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
@@ -282,8 +534,8 @@ class OrderController extends BaseController
 
         $rules = [
             'order_type'  => 'required|max_length[30]',
+            'order_from'  => 'permit_empty|max_length[150]',
             'customer_id' => 'permit_empty|integer',
-            'lead_id'     => 'permit_empty|integer',
             'priority'    => 'required',
             'due_date'    => 'permit_empty|valid_date',
             'status'      => 'required',
@@ -306,6 +558,12 @@ class OrderController extends BaseController
 
         if (! $this->validate($rules)) {
             return redirect()->back()->withInput()->with('error', $this->firstValidationError());
+        }
+
+        $customerId = $this->nullableInt($this->request->getPost('customer_id'));
+        $assignedKarigarId = $this->nullableInt($this->request->getPost('assigned_karigar_id'));
+        if ($assignedKarigarId !== null && $customerId === null) {
+            return redirect()->back()->withInput()->with('error', 'Please select a customer before assigning a karigar.');
         }
 
         $status = (string) $this->request->getPost('status');
@@ -342,10 +600,11 @@ class OrderController extends BaseController
             $orderId = $this->orderModel->insert([
                 'order_no'    => $orderNo,
                 'order_type'  => $isRepairOrder ? 'Repair' : $orderType,
-                'customer_id' => $this->nullableInt($this->request->getPost('customer_id')),
-                'lead_id'     => $this->nullableInt($this->request->getPost('lead_id')),
-                'assigned_karigar_id' => $this->nullableInt($this->request->getPost('assigned_karigar_id')),
-                'assigned_at' => $this->nullableInt($this->request->getPost('assigned_karigar_id')) ? date('Y-m-d H:i:s') : null,
+                'order_from'  => trim((string) $this->request->getPost('order_from')) ?: null,
+                'customer_id' => $customerId,
+                'lead_id'     => null,
+                'assigned_karigar_id' => $assignedKarigarId,
+                'assigned_at' => $assignedKarigarId !== null ? date('Y-m-d H:i:s') : null,
                 'status'      => $status,
                 'priority'    => $priority,
                 'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
@@ -416,9 +675,8 @@ class OrderController extends BaseController
         $this->syncCompletedOrdersFromReceive([$id]);
 
         $order = $this->orderModel
-            ->select('orders.*, customers.name as customer_name, leads.name as lead_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm')
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
-            ->join('leads', 'leads.id = orders.lead_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
             ->find($id);
 
@@ -738,7 +996,6 @@ class OrderController extends BaseController
             'title'      => 'Edit Order',
             'order'      => $order,
             'customers'  => $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
-            'leads'      => $this->leadModel->where('status', 'Open')->orWhere('id', (int) ($order['lead_id'] ?? 0))->orderBy('id', 'DESC')->findAll(),
             'priorities' => $this->jewelleryConfig->orderPriorities,
         ]);
     }
@@ -764,8 +1021,8 @@ class OrderController extends BaseController
 
         $rules = [
             'order_type'  => 'required|max_length[30]',
+            'order_from'  => 'permit_empty|max_length[150]',
             'customer_id' => 'permit_empty|integer',
-            'lead_id'     => 'permit_empty|integer',
             'priority'    => 'required',
             'due_date'    => 'permit_empty|valid_date',
             'order_notes' => 'permit_empty',
@@ -790,8 +1047,8 @@ class OrderController extends BaseController
 
         $this->orderModel->update($id, [
             'order_type'  => $isRepairOrder ? 'Repair' : $orderType,
+            'order_from'  => trim((string) $this->request->getPost('order_from')) ?: null,
             'customer_id' => $this->nullableInt($this->request->getPost('customer_id')),
-            'lead_id'     => $this->nullableInt($this->request->getPost('lead_id')),
             'priority'    => $priority,
             'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
             'order_notes' => trim((string) $this->request->getPost('order_notes')),
@@ -815,8 +1072,17 @@ class OrderController extends BaseController
         }
 
         $karigarId = (int) ($this->request->getPost('karigar_id') ?? 0);
+        $customerId = (int) ($this->request->getPost('customer_id') ?? 0);
+        if ($customerId <= 0) {
+            return redirect()->back()->with('error', 'Please select a customer before assigning the order.');
+        }
         if ($karigarId <= 0) {
             return redirect()->back()->with('error', 'Please select a karigar.');
+        }
+
+        $customer = $this->customerModel->where('is_active', 1)->find($customerId);
+        if (! $customer) {
+            return redirect()->back()->with('error', 'Selected customer not found.');
         }
 
         $karigar = $this->karigarModel->where('is_active', 1)->find($karigarId);
@@ -832,11 +1098,12 @@ class OrderController extends BaseController
         }
 
         $this->orderModel->update($id, [
+            'customer_id' => $customerId,
             'assigned_karigar_id' => $karigarId,
             'assigned_at'         => date('Y-m-d H:i:s'),
         ]);
 
-        return redirect()->back()->with('success', 'Karigar assigned successfully.');
+        return redirect()->back()->with('success', 'Customer selected and karigar assigned successfully.');
     }
 
     public function karigarSummary(int $id)

@@ -4,32 +4,30 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\CustomerModel;
-use App\Models\LeadFollowupModel;
-use App\Models\LeadModel;
 use App\Models\OrderModel;
 
 class DashboardController extends BaseController
 {
     public function index(): string
     {
-        $leadModel       = new LeadModel();
         $customerModel   = new CustomerModel();
         $orderModel      = new OrderModel();
-        $followupModel   = new LeadFollowupModel();
-        $todayDateTime   = date('Y-m-d H:i:s');
 
         $todayStart = date('Y-m-d 00:00:00');
         $todayEnd   = date('Y-m-d 23:59:59');
+        $activeWorkStatuses = ['Confirmed', 'In Production', 'QC', 'Ready', 'Packed'];
 
         $counts = [
-            'openLeads'       => $leadModel->where('status', 'Open')->countAllResults(),
+            'unassignedOrders'=> $orderModel
+                ->whereIn('status', $activeWorkStatuses)
+                ->where('assigned_karigar_id', null)
+                ->countAllResults(),
             'customers'       => $customerModel->where('is_active', 1)->countAllResults(),
-            'activeOrders'    => $orderModel->whereIn('status', ['Confirmed', 'In Production', 'QC', 'Ready', 'Packed'])->countAllResults(),
+            'activeOrders'    => $orderModel->whereIn('status', $activeWorkStatuses)->countAllResults(),
             'dispatchedToday' => $orderModel->where('status', 'Dispatched')->where('updated_at >=', $todayStart)->where('updated_at <=', $todayEnd)->countAllResults(),
         ];
 
         $db = db_connect();
-        $activeWorkStatuses = ['Confirmed', 'In Production', 'QC', 'Ready', 'Packed'];
 
         $fineGoldAll = 0.0;
         if ($db->tableExists('gold_inventory_stock') && $db->tableExists('gold_inventory_items')) {
@@ -169,16 +167,17 @@ class DashboardController extends BaseController
             }
         }
 
-        $overdueFollowups = $followupModel
-            ->select('lead_followups.*, leads.name as lead_name, leads.phone as lead_phone')
-            ->join('leads', 'leads.id = lead_followups.lead_id', 'left')
-            ->where('lead_followups.status', 'Pending')
-            ->where('lead_followups.followup_at <', $todayDateTime)
-            ->orderBy('lead_followups.followup_at', 'ASC')
-            ->findAll(10);
+        $ordersNeedingAssignment = $orderModel
+            ->select('orders.id, orders.order_no, orders.order_from, orders.order_type, orders.priority, orders.due_date, orders.status, customers.name as customer_name')
+            ->join('customers', 'customers.id = orders.customer_id', 'left')
+            ->whereIn('orders.status', $activeWorkStatuses)
+            ->where('orders.assigned_karigar_id', null)
+            ->orderBy('orders.priority_level', 'DESC')
+            ->orderBy('orders.id', 'DESC')
+            ->findAll(8);
 
         $recentOrders = $orderModel
-            ->select('orders.*, customers.name as customer_name')
+            ->select('orders.id, orders.order_no, orders.order_from, orders.status, orders.created_at, customers.name as customer_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->orderBy('orders.id', 'DESC')
             ->findAll(8);
@@ -193,7 +192,7 @@ class DashboardController extends BaseController
                 'minus_karigar_count' => (int) $minusKarigarCount,
                 'minus_karigar_gold' => round($minusKarigarGold, 3),
             ],
-            'overdueFollowups' => $overdueFollowups,
+            'ordersNeedingAssignment' => $ordersNeedingAssignment,
             'recentOrders'   => $recentOrders,
         ]);
     }

@@ -4,9 +4,25 @@
 <?php $orderMode = (string) ($orderMode ?? 'all'); ?>
 <?php $isReadyMode = $orderMode === 'ready'; ?>
 <?php $isAllMode = $orderMode === 'all'; ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0"><?= esc($title ?? 'Orders') ?></h4>
-    <div class="d-flex gap-2">
+<?php $publicOrderRequestUrl = (string) ($publicOrderRequestUrl ?? site_url('order-request')); ?>
+<div class="erp-page-toolbar flex-wrap mb-3">
+    <div>
+        <span class="erp-eyebrow">Production workflow</span>
+        <h4 class="mb-1"><?= esc($title ?? 'Orders') ?></h4>
+        <p class="mb-0">Track customer orders, assignments, production and delivery status.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <?php if (admin_can('orders.create')): ?>
+            <button
+                type="button"
+                id="copy-public-order-link"
+                class="btn btn-outline-secondary"
+                data-copy-url="<?= esc($publicOrderRequestUrl, 'attr') ?>"
+                title="Copy the external order creation link">
+                <i class="fe fe-copy me-1" aria-hidden="true"></i>
+                <span class="js-copy-label">Copy External Order Link</span>
+            </button>
+        <?php endif; ?>
         <?php if (admin_can('orders.create') && ! in_array($orderMode, ['repair', 'ready'], true)): ?>
             <a href="<?= site_url('admin/orders/create') ?>" class="btn btn-primary"><i class="fe fe-plus"></i> Create Order</a>
         <?php endif; ?>
@@ -23,6 +39,7 @@
                 <thead>
                     <tr>
                         <th>Order No</th>
+                        <th>Order From</th>
                         <th>Customer</th>
                         <th>Karigar</th>
                         <th>Type</th>
@@ -34,7 +51,7 @@
                 </thead>
                 <tbody>
                     <?php if ($orders === []): ?>
-                        <tr><td colspan="8" class="text-center text-muted">No orders found.</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted">No orders found.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($orders as $order): ?>
                         <?php
@@ -44,6 +61,7 @@
                         ?>
                         <tr>
                             <td><?= esc($order['order_no']) ?></td>
+                            <td><?= esc((string) (($order['order_from'] ?? '') ?: '-')) ?></td>
                             <td><?= esc($order['customer_name'] ?: '-') ?></td>
                             <td>
                                 <?php if (! empty($order['karigar_name'])): ?>
@@ -99,6 +117,8 @@
                                                         class="btn btn-sm btn-outline-success js-assign-btn"
                                                         data-order-id="<?= esc((string) $order['id']) ?>"
                                                         data-order-no="<?= esc($order['order_no']) ?>"
+                                                        data-order-from="<?= esc((string) ($order['order_from'] ?? ''), 'attr') ?>"
+                                                        data-customer-id="<?= esc((string) ($order['customer_id'] ?? '')) ?>"
                                                         data-bs-toggle="modal"
                                                         data-bs-target="#assignKarigarModal"
                                                         title="Assign Karigar">
@@ -159,6 +179,22 @@
             <form id="assign-karigar-form" method="post">
                 <?= csrf_field() ?>
                 <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Order From</label>
+                        <input type="text" id="assign-order-from" class="form-control" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Select Customer <span class="text-danger">*</span></label>
+                        <select class="form-control" id="assign-customer-select" name="customer_id" required>
+                            <option value="">Choose customer...</option>
+                            <?php foreach ($customers as $customer): ?>
+                                <option value="<?= esc((string) $customer['id']) ?>">
+                                    <?= esc($customer['name'] . (! empty($customer['phone']) ? ' - ' . $customer['phone'] : '')) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text">Customer must be selected before assigning this order.</div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Select Karigar</label>
                         <select class="form-control" id="assign-karigar-select" name="karigar_id" required>
@@ -397,6 +433,8 @@
     (function () {
         const assignForm = document.getElementById('assign-karigar-form');
         const orderLabel = document.getElementById('assign-order-label');
+        const orderFromInput = document.getElementById('assign-order-from');
+        const customerSelect = document.getElementById('assign-customer-select');
         const karigarSelect = document.getElementById('assign-karigar-select');
         const totalGoldEl = document.getElementById('kg-total-gold');
         const pendingOrdersEl = document.getElementById('kg-pending-orders');
@@ -572,10 +610,7 @@
 
         function setSummaryLoading(loading) {
             if (summaryLoaderEl) summaryLoaderEl.classList.toggle('d-none', !loading);
-            if (assignSubmitBtn) {
-                const hasKarigar = !!(karigarSelect && karigarSelect.value);
-                assignSubmitBtn.disabled = loading || !hasKarigar;
-            }
+            updateAssignSubmitState(loading);
             if (!loading) return;
             if (totalGoldEl) totalGoldEl.textContent = '...';
             if (pendingOrdersEl) pendingOrdersEl.textContent = '...';
@@ -590,10 +625,17 @@
             if (totalGoldEl) totalGoldEl.textContent = '0.000';
             if (pendingOrdersEl) pendingOrdersEl.textContent = '0';
             if (pendingGoldEl) pendingGoldEl.textContent = '0.000';
-            if (assignSubmitBtn) assignSubmitBtn.disabled = !(karigarSelect && karigarSelect.value);
+            updateAssignSubmitState(false);
             if (orderDetailsEl) {
                 orderDetailsEl.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Select karigar to view details.</td></tr>';
             }
+        }
+
+        function updateAssignSubmitState(loading) {
+            if (!assignSubmitBtn) return;
+            const hasKarigar = !!(karigarSelect && karigarSelect.value);
+            const hasCustomer = !!(customerSelect && customerSelect.value);
+            assignSubmitBtn.disabled = !!loading || !hasKarigar || !hasCustomer;
         }
 
         function renderOrderDetails(orders) {
@@ -633,6 +675,8 @@
             if (btn.classList.contains('js-assign-btn')) {
                 if (assignForm && orderId) assignForm.setAttribute('action', assignBase + '/' + orderId + '/assign');
                 if (orderLabel) orderLabel.textContent = orderNo;
+                if (orderFromInput) orderFromInput.value = btn.getAttribute('data-order-from') || '';
+                if (customerSelect) customerSelect.value = btn.getAttribute('data-customer-id') || '';
                 if (karigarSelect) karigarSelect.value = '';
                 resetKarigarSummary();
             }
@@ -702,6 +746,11 @@
             });
             if (assignSubmitBtn) assignSubmitBtn.disabled = true;
         }
+        if (customerSelect) {
+            customerSelect.addEventListener('change', function () {
+                updateAssignSubmitState(false);
+            });
+        }
 
         if (receiveModal) {
             receiveModal.addEventListener('click', function (event) {
@@ -747,5 +796,80 @@
     })();
 </script>
 <?php endif; ?>
-<?= $this->endSection() ?>
+<?php if (admin_can('orders.create')): ?>
+<script>
+    (function () {
+        const copyButton = document.getElementById('copy-public-order-link');
+        if (!copyButton) return;
 
+        const label = copyButton.querySelector('.js-copy-label');
+        const originalLabel = label ? label.textContent : '';
+        let resetTimer = null;
+
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+
+            const copied = document.execCommand('copy');
+            textarea.remove();
+
+            if (!copied) {
+                throw new Error('Clipboard copy was blocked.');
+            }
+        }
+
+        async function copyText(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+
+            fallbackCopy(text);
+        }
+
+        function showCopiedState() {
+            if (resetTimer) window.clearTimeout(resetTimer);
+            copyButton.classList.remove('btn-outline-secondary');
+            copyButton.classList.add('btn-success');
+            if (label) label.textContent = 'Link Copied';
+
+            resetTimer = window.setTimeout(function () {
+                copyButton.classList.remove('btn-success');
+                copyButton.classList.add('btn-outline-secondary');
+                if (label) label.textContent = originalLabel;
+            }, 2200);
+        }
+
+        copyButton.addEventListener('click', async function () {
+            const url = copyButton.getAttribute('data-copy-url') || '';
+            if (!url) return;
+
+            try {
+                await copyText(url);
+                showCopiedState();
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'External order link copied',
+                        text: url,
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 2400,
+                        timerProgressBar: true
+                    });
+                }
+            } catch (error) {
+                window.prompt('Copy this external order link:', url);
+            }
+        });
+    })();
+</script>
+<?php endif; ?>
+<?= $this->endSection() ?>
