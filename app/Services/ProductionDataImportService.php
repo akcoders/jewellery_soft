@@ -54,7 +54,12 @@ class ProductionDataImportService
 
     private int $adminId = 0;
     private int $locationId = 0;
+    private int $warehouseId = 0;
+    private int $binId = 0;
     private string $adminPasswordHash = '';
+
+    /** @var array<string,int> */
+    private array $accountIds = [];
 
     public function __construct(?BaseConnection $db = null)
     {
@@ -123,7 +128,8 @@ class ProductionDataImportService
         $this->parseGoldWorkbook($paths['BABU GOLD -26-27.xlsx'], $parsed);
         $this->parseDiamondLedger($paths['DIA.STOCK LEDGER (26-27).xlsx'], $parsed);
         $this->parseDiamondIssuements($paths['issument.xls'], $parsed);
-        $this->parseReadyWorkbook($paths['PL-2026-2027 order ready.xlsx'], $parsed);
+        $readyImages = $this->extractReadyWorkbookImages($paths['PL-2026-2027 order ready.xlsx'], $importRoot);
+        $this->parseReadyWorkbook($paths['PL-2026-2027 order ready.xlsx'], $parsed, $readyImages);
         $this->parseDocuments($files, $sourceRoot, $importRoot, $parsed);
 
         return $parsed;
@@ -344,7 +350,8 @@ class ProductionDataImportService
         $spreadsheet->disconnectWorksheets();
     }
 
-    private function parseReadyWorkbook(string $path, array &$parsed): void
+    /** @param array<string,string> $imageMap */
+    private function parseReadyWorkbook(string $path, array &$parsed, array $imageMap): void
     {
         $spreadsheet = IOFactory::load($path);
         foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
@@ -425,6 +432,15 @@ class ProductionDataImportService
                 }
                 $reference = $this->text($this->cell($sheet, 4, $row));
 
+                $statusNote = implode(', ', array_keys($statusParts));
+                $paymentDate = null;
+                foreach (array_keys($statusParts) as $statusPart) {
+                    $candidate = $this->dateValue($statusPart);
+                    if ($candidate !== null) {
+                        $paymentDate = $candidate;
+                    }
+                }
+
                 $parsed['ready_items'][] = [
                     'karigar_name' => $karigar,
                     'ready_group' => $sheet->getTitle() . '-' . str_pad((string) max(1, $group), 3, '0', STR_PAD_LEFT),
@@ -440,13 +456,143 @@ class ProductionDataImportService
                     'labour_charges' => $this->number($this->cell($sheet, 14, $row)),
                     'total_value' => $this->number($this->cell($sheet, 15, $row)),
                     'stones_json' => json_encode($stones, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                    'status_note' => implode(', ', array_keys($statusParts)),
+                    'image_path' => $imageMap[$sheet->getTitle() . ':' . $row] ?? null,
+                    'status_note' => $statusNote,
+                    'payment_status' => str_contains(strtoupper($statusNote), 'PAID') ? 'Paid' : 'Pending',
+                    'payment_date' => $paymentDate,
                     'source_sheet' => $sheet->getTitle(),
                     'source_row' => $row,
                 ];
             }
         }
         $spreadsheet->disconnectWorksheets();
+    }
+
+    /**
+     * Excel stores these product photographs in drawing XML that PhpSpreadsheet does not expose.
+     * Read the OOXML relationships directly and retain one authenticated image per ready-item row.
+     *
+     * @return array<string,string> sheet:row => path relative to WRITEPATH
+     */
+    private function extractReadyWorkbookImages(string $path, string $importRoot): array
+    {
+        $zip = new ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new RuntimeException('The ready-order workbook could not be opened for image extraction.');
+        }
+
+        $imageDir = $importRoot . '/ready-images';
+        $this->ensureDirectory($imageDir);
+        $sheetNames = [];
+        $spreadsheet = IOFactory::load($path);
+        foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
+            $sheetNames[] = $sheet->getTitle();
+        }
+        $spreadsheet->disconnectWorksheets();
+
+        $result = [];
+        foreach ($sheetNames as $sheetIndex => $sheetName) {
+            $sheetNumber = $sheetIndex + 1;
+            $sheetRelsName = 'xl/worksheets/_rels/sheet' . $sheetNumber . '.xml.rels';
+            $sheetRelsRaw = $zip->getFromName($sheetRelsName);
+            if (! is_string($sheetRelsRaw)) {
+                continue;
+            }
+            $sheetRels = @simplexml_load_string($sheetRelsRaw);
+            if ($sheetRels === false) {
+                continue;
+            }
+
+            $drawingTarget = '';
+            foreach ($sheetRels->children('http://schemas.openxmlformats.org/package/2006/relationships')->Relationship as $relationship) {
+                $attributes = $relationship->attributes();
+                if (str_ends_with((string) ($attributes['Type'] ?? ''), '/drawing')) {
+                    $drawingTarget = (string) ($attributes['Target'] ?? '');
+                    break;
+                }
+            }
+            if ($drawingTarget === '') {
+                continue;
+            }
+
+            $drawingName = $this->normalizeZipPath('xl/worksheets/' . $drawingTarget);
+            $drawingRaw = $zip->getFromName($drawingName);
+            $drawingRelsName = dirname($drawingName) . '/_rels/' . basename($drawingName) . '.rels';
+            $drawingRelsRaw = $zip->getFromName($drawingRelsName);
+            if (! is_string($drawingRaw) || ! is_string($drawingRelsRaw)) {
+                continue;
+            }
+
+            $relationships = [];
+            $drawingRels = @simplexml_load_string($drawingRelsRaw);
+            if ($drawingRels !== false) {
+                foreach ($drawingRels->children('http://schemas.openxmlformats.org/package/2006/relationships')->Relationship as $relationship) {
+                    $attributes = $relationship->attributes();
+                    $relationships[(string) ($attributes['Id'] ?? '')] = (string) ($attributes['Target'] ?? '');
+                }
+            }
+
+            $drawing = @simplexml_load_string($drawingRaw);
+            if ($drawing === false) {
+                continue;
+            }
+            $drawing->registerXPathNamespace('xdr', 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing');
+            $drawing->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
+            $drawing->registerXPathNamespace('r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships');
+            $anchors = $drawing->xpath('//xdr:twoCellAnchor | //xdr:oneCellAnchor') ?: [];
+            foreach ($anchors as $anchorIndex => $anchor) {
+                $anchor->registerXPathNamespace('xdr', 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing');
+                $anchor->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
+                $rows = $anchor->xpath('./xdr:from/xdr:row') ?: [];
+                $blips = $anchor->xpath('.//a:blip') ?: [];
+                if ($rows === [] || $blips === []) {
+                    continue;
+                }
+                $readyRow = ((int) $rows[0]) + 1;
+                $embedAttributes = $blips[0]->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships');
+                $relationshipId = (string) ($embedAttributes['embed'] ?? '');
+                $target = $relationships[$relationshipId] ?? '';
+                if ($target === '') {
+                    continue;
+                }
+
+                $mediaName = $this->normalizeZipPath(dirname($drawingName) . '/' . $target);
+                $contents = $zip->getFromName($mediaName);
+                if (! is_string($contents) || $contents === '') {
+                    continue;
+                }
+                $extension = strtolower(pathinfo($mediaName, PATHINFO_EXTENSION));
+                if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                    continue;
+                }
+                $safeSheet = trim(preg_replace('/[^a-z0-9]+/i', '-', $sheetName) ?? '', '-');
+                $filename = strtolower($safeSheet ?: 'sheet') . '-r' . $readyRow . '-' . ($anchorIndex + 1) . '.' . $extension;
+                $destination = $imageDir . '/' . $filename;
+                if (file_put_contents($destination, $contents) === false) {
+                    throw new RuntimeException('A ready-order image could not be stored.');
+                }
+                $result[$sheetName . ':' . $readyRow] = ltrim(str_replace('\\', '/', substr($destination, strlen(WRITEPATH))), '/');
+            }
+        }
+        $zip->close();
+
+        return $result;
+    }
+
+    private function normalizeZipPath(string $path): string
+    {
+        $parts = [];
+        foreach (explode('/', str_replace('\\', '/', $path)) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $part;
+        }
+        return implode('/', $parts);
     }
 
     private function parseDocuments(array $files, string $sourceRoot, string $importRoot, array &$parsed): void
@@ -461,15 +607,22 @@ class ProductionDataImportService
             $lowerPath = strtolower($relative);
             $category = str_contains($lowerPath, '/gold/') ? 'gold' : 'diamond_and_stone';
             $filename = basename($path);
+            $documentDate = $this->dateFromFilename($filename);
+            $isPaid = str_contains(strtoupper($filename), 'PAID');
             $parsed['documents'][] = [
                 'category' => $category,
                 'vendor_name' => $this->canonicalVendor($vendorName),
                 'original_name' => $filename,
                 'source_path' => $relative,
                 'stored_path' => ltrim(str_replace('\\', '/', substr($path, strlen(WRITEPATH))), '/'),
-                'document_date' => $this->dateFromFilename($filename),
-                'invoice_no' => null,
-                'payment_status' => str_contains(strtoupper($filename), 'PAID') ? 'Paid' : 'Unknown',
+                'document_date' => $documentDate,
+                'invoice_no' => pathinfo($filename, PATHINFO_FILENAME),
+                'invoice_amount' => null,
+                'payment_status' => $isPaid ? 'Paid' : 'Unverified',
+                'paid_amount' => null,
+                'payment_date' => $isPaid ? $documentDate : null,
+                'account_payment_id' => null,
+                'reconciliation_status' => $isPaid ? 'Paid in source; amount not supplied' : 'Source document recorded; amount not supplied',
                 'file_size' => filesize($path) ?: 0,
                 'sha256' => hash_file('sha256', $path) ?: '',
                 'metadata_json' => json_encode([
@@ -506,8 +659,9 @@ class ProductionDataImportService
             $this->insertGoldMovements($batchId, $parsed['gold_movements'], (float) $parsed['gold_closing_24k']);
             $this->insertDiamondMovements($batchId, $parsed['diamond_movements'], $parsed['diamond_closing']);
             $this->insertDiamondIssueLines($batchId, $parsed['diamond_issue_lines']);
-            $this->insertReadyItems($batchId, $parsed['ready_items']);
+            $readySummary = $this->insertReadyItems($batchId, $parsed['ready_items'], $parsed['gold_movements']);
             $this->insertDocuments($batchId, $parsed['documents']);
+            $this->completeAllProductionOrders();
 
             $summary = [
                 'source_rows' => count($parsed['source_rows']),
@@ -516,6 +670,10 @@ class ProductionDataImportService
                 'diamond_movements' => count($parsed['diamond_movements']),
                 'diamond_issue_lines' => count($parsed['diamond_issue_lines']),
                 'ready_items' => count($parsed['ready_items']),
+                'ready_images' => $readySummary['images'],
+                'finished_jewellery_items' => (int) $this->db->table('fg_items')->countAllResults(),
+                'labour_bills' => $readySummary['labour_bills'],
+                'karigar_payments' => $readySummary['karigar_payments'],
                 'vendors' => count($this->vendorIds),
                 'karigars' => count($this->karigarIds),
                 'orders' => count($this->orderIds),
@@ -614,6 +772,7 @@ class ProductionDataImportService
             'updated_at' => $now,
         ]);
         $warehouseId = (int) $this->db->insertID();
+        $this->warehouseId = $warehouseId;
         $this->db->table('bins')->insert([
             'warehouse_id' => $warehouseId,
             'bin_code' => 'MAIN',
@@ -622,6 +781,7 @@ class ProductionDataImportService
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+        $this->binId = (int) $this->db->insertID();
         $this->db->table('inventory_locations')->insert([
             'name' => 'Main Production Store',
             'location_type' => 'Store',
@@ -682,6 +842,7 @@ class ProductionDataImportService
     {
         usort($movements, static fn(array $a, array $b): int => strcmp((string) $a['movement_date'], (string) $b['movement_date']));
         $now = date('Y-m-d H:i:s');
+        $ledgerBalances = [];
         foreach ($movements as $movement) {
             $karigarId = null;
             if (in_array($movement['movement_type'], ['issue', 'receive'], true)) {
@@ -702,6 +863,7 @@ class ProductionDataImportService
                 'source_row' => $movement['source_row'],
                 'created_at' => $now,
             ]);
+            $productionMovementId = (int) $this->db->insertID();
 
             if ($movement['movement_type'] === 'stock_in') {
                 if (strtoupper((string) $movement['reference_no']) !== 'OPENING') {
@@ -727,11 +889,46 @@ class ProductionDataImportService
                         'updated_at' => $now,
                     ]);
                 }
+                $itemId = $this->goldItemIds['24K'];
+                $ledgerBalances[$itemId] = round(($ledgerBalances[$itemId] ?? 0) + (float) $movement['weight_24k_gm'], 3);
+                $this->insertGoldInventoryLedger(
+                    $movement,
+                    $productionMovementId,
+                    $itemId,
+                    null,
+                    (float) $movement['weight_24k_gm'],
+                    0,
+                    $ledgerBalances[$itemId]
+                );
+                $this->postMaterialAccountEntry(
+                    'receive',
+                    'GOLD_STOCK_IN',
+                    (string) $movement['movement_date'],
+                    0,
+                    null,
+                    'GOLD-' . $this->goldPurityIds['24K'] . '-YG-BAR',
+                    'GOLD',
+                    0,
+                    (float) $movement['weight_24k_gm'],
+                    (float) $movement['weight_24k_gm'],
+                    $this->goldPurityIds['24K'],
+                    'Imported gold stock receipt: ' . (string) $movement['party_name'],
+                    'IMP-GSTK-' . $productionMovementId
+                );
                 continue;
             }
 
+            $orderReference = (string) $movement['reference_no'];
+            if ($this->normalizeReference($orderReference) === '') {
+                $orderReference = sprintf(
+                    'GOLD/%s/%s/%d',
+                    strtoupper((string) $movement['movement_type']),
+                    strtoupper((string) preg_replace('/[^A-Z0-9]+/i', '-', (string) $movement['source_sheet'])),
+                    (int) $movement['source_row']
+                );
+            }
             $orderId = $this->ensureProductionOrder(
-                (string) $movement['reference_no'],
+                $orderReference,
                 (string) $movement['movement_date'],
                 (string) $movement['description'],
                 $karigarId
@@ -767,7 +964,67 @@ class ProductionDataImportService
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
+                $itemId = $this->goldItemIds['24K'];
+                $ledgerBalances[$itemId] = round(($ledgerBalances[$itemId] ?? 0) - (float) $movement['weight_24k_gm'], 3);
+                $this->insertGoldInventoryLedger($movement, $issueId, $itemId, $orderId, 0, (float) $movement['weight_24k_gm'], $ledgerBalances[$itemId], 'gold_inventory_issue_headers');
+                $this->postMaterialAccountEntry(
+                    'issue',
+                    'GOLD_ISSUE',
+                    (string) $movement['movement_date'],
+                    $karigarId ?: 0,
+                    $orderId,
+                    'GOLD-' . $this->goldPurityIds['24K'] . '-YG-BAR',
+                    'GOLD',
+                    0,
+                    (float) $movement['weight_24k_gm'],
+                    (float) $movement['weight_24k_gm'],
+                    $this->goldPurityIds['24K'],
+                    (string) $movement['description'],
+                    'IMP-GISS-' . $productionMovementId
+                );
             } else {
+                $this->db->table('gold_inventory_return_headers')->insert([
+                    'return_date' => $movement['movement_date'],
+                    'order_id' => $orderId,
+                    'karigar_id' => $karigarId,
+                    'location_id' => $this->locationId,
+                    'return_from' => $movement['party_name'],
+                    'purpose' => 'Finished jewellery receipt',
+                    'notes' => $movement['description'],
+                    'created_by' => $this->adminId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                    'voucher_no' => $movement['reference_no'] ?: ('GOLD-RECEIVE-' . $orderId),
+                ]);
+                $returnId = (int) $this->db->insertID();
+                $returnItemId = $this->goldItemIds[$purityCode] ?? $this->goldItemIds['18K'];
+                $this->db->table('gold_inventory_return_lines')->insert([
+                    'return_id' => $returnId,
+                    'item_id' => $returnItemId,
+                    'weight_gm' => $movement['received_weight_gm'],
+                    'fine_weight_gm' => $movement['weight_24k_gm'],
+                    'rate_per_gm' => 0,
+                    'line_value' => 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $ledgerBalances[$returnItemId] = round(($ledgerBalances[$returnItemId] ?? 0) + (float) $movement['received_weight_gm'], 3);
+                $this->insertGoldInventoryLedger($movement, $returnId, $returnItemId, $orderId, (float) $movement['received_weight_gm'], 0, $ledgerBalances[$returnItemId], 'gold_inventory_return_headers');
+                $this->postMaterialAccountEntry(
+                    'return',
+                    'GOLD_RECEIVE',
+                    (string) $movement['movement_date'],
+                    $karigarId ?: 0,
+                    $orderId,
+                    'GOLD-' . $purityId . '-YG-BAR',
+                    'GOLD',
+                    0,
+                    (float) $movement['received_weight_gm'],
+                    (float) $movement['weight_24k_gm'],
+                    $purityId,
+                    (string) $movement['description'],
+                    'IMP-GREC-' . $productionMovementId
+                );
                 $this->db->table('orders')->where('id', $orderId)->update(['status' => 'Ready', 'updated_at' => $now]);
             }
 
@@ -823,14 +1080,31 @@ class ProductionDataImportService
                 'source_row' => $movement['source_row'],
                 'created_at' => $now,
             ]);
+            $productionMovementId = (int) $this->db->insertID();
 
             $key = $movement['source_sheet'] . ':' . $movement['source_row'];
             if ($movement['movement_type'] === 'purchase') {
                 $purchases[$key]['header'] = $movement;
-                $purchases[$key]['lines'][] = ['item_id' => $itemId, 'carat' => $movement['received_cts']];
+                $purchases[$key]['lines'][] = ['item_id' => $itemId, 'carat' => $movement['received_cts'], 'bucket' => $movement['quality_bucket'], 'production_id' => $productionMovementId];
             } elseif ($movement['movement_type'] === 'issue' && (float) $movement['issued_cts'] !== 0.0) {
                 $issues[$key]['header'] = $movement;
-                $issues[$key]['lines'][] = ['item_id' => $itemId, 'carat' => $movement['issued_cts']];
+                $issues[$key]['lines'][] = ['item_id' => $itemId, 'carat' => $movement['issued_cts'], 'bucket' => $movement['quality_bucket'], 'production_id' => $productionMovementId];
+            } elseif (in_array($movement['movement_type'], ['opening', 'receive'], true) && (float) $movement['received_cts'] !== 0.0) {
+                $this->postMaterialAccountEntry(
+                    'receive',
+                    strtoupper((string) $movement['movement_type']) . '_DIAMOND',
+                    (string) $movement['movement_date'],
+                    0,
+                    null,
+                    'DIAMOND-' . strtoupper((string) preg_replace('/[^A-Z0-9]+/', '-', (string) $movement['quality_bucket'])),
+                    'DIAMOND',
+                    (float) $movement['received_cts'],
+                    0,
+                    0,
+                    null,
+                    (string) $movement['description'],
+                    'IMP-DREC-' . $productionMovementId
+                );
             }
         }
 
@@ -860,6 +1134,21 @@ class ProductionDataImportService
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
+                $this->postMaterialAccountEntry(
+                    'receive',
+                    'DIAMOND_PURCHASE',
+                    (string) $header['movement_date'],
+                    0,
+                    null,
+                    'DIAMOND-' . strtoupper((string) preg_replace('/[^A-Z0-9]+/', '-', (string) $line['bucket'])),
+                    'DIAMOND',
+                    (float) $line['carat'],
+                    0,
+                    0,
+                    null,
+                    'Imported diamond purchase from ' . (string) $header['party_name'],
+                    'IMP-DPUR-' . (int) $line['production_id']
+                );
             }
         }
 
@@ -902,6 +1191,21 @@ class ProductionDataImportService
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
+                $this->postMaterialAccountEntry(
+                    'issue',
+                    'DIAMOND_ISSUE',
+                    (string) $header['movement_date'],
+                    $karigarId,
+                    $orderId,
+                    'DIAMOND-' . strtoupper((string) preg_replace('/[^A-Z0-9]+/', '-', (string) $line['bucket'])),
+                    'DIAMOND',
+                    (float) $line['carat'],
+                    0,
+                    0,
+                    null,
+                    (string) $header['description'],
+                    'IMP-DISS-' . (int) $line['production_id']
+                );
             }
             $this->db->table('order_material_movements')->insert([
                 'order_id' => $orderId,
@@ -961,32 +1265,320 @@ class ProductionDataImportService
         }
     }
 
-    private function insertReadyItems(int $batchId, array $items): void
+    /**
+     * Turn every ready-workbook group into a labour bill and every row into finished jewellery.
+     * Ready groups are matched to gold receipts by karigar and exact returned net weight; unmatched
+     * groups receive a traceable synthetic production order rather than being left orphaned.
+     *
+     * @return array{images:int,fg_items:int,labour_bills:int,karigar_payments:int}
+     */
+    private function insertReadyItems(int $batchId, array $items, array $goldMovements): array
     {
-        $now = date('Y-m-d H:i:s');
+        $groups = [];
         foreach ($items as $item) {
-            $this->db->table('production_ready_items')->insert([
-                'batch_id' => $batchId,
-                'karigar_id' => $this->ensureKarigar((string) $item['karigar_name']),
-                'ready_group' => $item['ready_group'],
-                'ready_date' => $item['ready_date'],
-                'serial_no' => $item['serial_no'] ?: null,
-                'design_name' => $item['design_name'] ?: null,
-                'reference_no' => $item['reference_no'] ?: null,
-                'purity_label' => $item['purity_label'] ?: null,
-                'gross_weight_gm' => $item['gross_weight_gm'],
-                'net_weight_gm' => $item['net_weight_gm'],
-                'pure_weight_gm' => $item['pure_weight_gm'],
-                'gold_amount' => $item['gold_amount'],
-                'labour_charges' => $item['labour_charges'],
-                'total_value' => $item['total_value'],
-                'stones_json' => $item['stones_json'],
-                'status_note' => $item['status_note'] ?: null,
-                'source_sheet' => $item['source_sheet'],
-                'source_row' => $item['source_row'],
-                'created_at' => $now,
-            ]);
+            $groups[(string) $item['ready_group']][] = $item;
         }
+
+        $receives = array_values(array_filter(
+            $goldMovements,
+            static fn(array $movement): bool => (string) ($movement['movement_type'] ?? '') === 'receive'
+        ));
+        $usedReceives = [];
+        $now = date('Y-m-d H:i:s');
+        $summary = ['images' => 0, 'fg_items' => 0, 'labour_bills' => 0, 'karigar_payments' => 0];
+
+        foreach ($groups as $groupKey => $groupItems) {
+            $first = $groupItems[0];
+            $karigarName = (string) $first['karigar_name'];
+            $karigarId = $this->ensureKarigar($karigarName);
+            $readyDate = $this->firstNonEmptyColumn($groupItems, 'ready_date') ?: date('Y-m-d');
+            $groupNetWeight = array_sum(array_map(static fn(array $row): float => (float) $row['net_weight_gm'], $groupItems));
+            $groupPureWeight = array_sum(array_map(static fn(array $row): float => (float) $row['pure_weight_gm'], $groupItems));
+            $matchedIndexes = $this->matchReadyReceipts($karigarName, $groupNetWeight, $groupPureWeight, $readyDate, $receives, $usedReceives);
+            $references = [];
+            foreach ($matchedIndexes as $index) {
+                $usedReceives[$index] = true;
+                $reference = $this->normalizeReference((string) ($receives[$index]['reference_no'] ?? ''));
+                if ($reference !== '') {
+                    $references[$reference] = true;
+                }
+            }
+
+            $reference = (string) array_key_first($references);
+            if ($reference === '') {
+                $reference = 'READY/' . strtoupper((string) preg_replace('/[^A-Z0-9]+/i', '-', $groupKey));
+            }
+            $orderId = $this->ensureProductionOrder($reference, $readyDate, 'Ready production group ' . $groupKey, $karigarId);
+            if ($orderId <= 0) {
+                throw new RuntimeException('Could not create an order for ready group ' . $groupKey . '.');
+            }
+            if ($references !== []) {
+                $this->db->table('orders')->where('id', $orderId)->update([
+                    'order_notes' => 'Ready group ' . $groupKey . '; source receipt references: ' . implode(', ', array_keys($references)),
+                    'updated_at' => $now,
+                ]);
+            }
+
+            $labourAmount = round(array_sum(array_map(static fn(array $row): float => (float) $row['labour_charges'], $groupItems)), 2);
+            $paymentStatus = $this->groupIsPaid($groupItems) ? 'Paid' : 'Pending';
+            $paymentDate = $this->firstNonEmptyColumn($groupItems, 'payment_date');
+            $billNo = 'IMP-LAB-' . strtoupper((string) preg_replace('/[^A-Z0-9]+/i', '-', $groupKey));
+            $this->db->table('labour_bills')->insert([
+                'bill_no' => substr($billNo, 0, 40),
+                'bill_date' => $readyDate,
+                'order_id' => $orderId,
+                'receive_movement_id' => null,
+                'karigar_id' => $karigarId,
+                'gold_weight_gm' => round($groupNetWeight, 3),
+                'rate_per_gm' => $groupNetWeight > 0 ? round($labourAmount / $groupNetWeight, 2) : 0,
+                'labour_amount' => $labourAmount,
+                'other_amount' => 0,
+                'total_amount' => $labourAmount,
+                'due_date' => null,
+                'payment_status' => $paymentStatus,
+                'notes' => 'Imported from ready workbook group ' . $groupKey,
+                'created_by' => $this->adminId,
+                'created_at' => $readyDate . ' 18:00:00',
+                'updated_at' => $now,
+            ]);
+            $labourBillId = (int) $this->db->insertID();
+            $summary['labour_bills']++;
+
+            if ($labourAmount > 0) {
+                $this->insertKarigarPaymentLedger($karigarId, $orderId, 'charge', $labourAmount, $billNo, 'Imported labour bill ' . $groupKey, $readyDate);
+            }
+            if ($paymentStatus === 'Paid' && $labourAmount > 0) {
+                $actualPaymentDate = $paymentDate ?: $readyDate;
+                $paymentNote = 'Imported paid marker for ready group ' . $groupKey;
+                if ($paymentDate === null) {
+                    $paymentNote .= '; source did not provide a payment date, so the ready date is used';
+                }
+                $this->insertKarigarPayment($labourBillId, $karigarId, $orderId, $labourAmount, $actualPaymentDate, $billNo, $paymentNote);
+                $summary['karigar_payments']++;
+            }
+
+            foreach ($groupItems as $item) {
+                $imagePath = $item['image_path'] ?: null;
+                $this->db->table('production_ready_items')->insert([
+                    'batch_id' => $batchId,
+                    'karigar_id' => $karigarId,
+                    'order_id' => $orderId,
+                    'fg_item_id' => null,
+                    'ready_group' => $item['ready_group'],
+                    'ready_date' => $item['ready_date'],
+                    'serial_no' => $item['serial_no'] ?: null,
+                    'design_name' => $item['design_name'] ?: null,
+                    'reference_no' => $item['reference_no'] ?: ($references !== [] ? implode(', ', array_keys($references)) : $reference),
+                    'purity_label' => $item['purity_label'] ?: null,
+                    'gross_weight_gm' => $item['gross_weight_gm'],
+                    'net_weight_gm' => $item['net_weight_gm'],
+                    'pure_weight_gm' => $item['pure_weight_gm'],
+                    'gold_amount' => $item['gold_amount'],
+                    'labour_charges' => $item['labour_charges'],
+                    'total_value' => $item['total_value'],
+                    'stones_json' => $item['stones_json'],
+                    'image_path' => $imagePath,
+                    'status_note' => $item['status_note'] ?: null,
+                    'payment_status' => $paymentStatus,
+                    'payment_date' => $paymentDate,
+                    'source_sheet' => $item['source_sheet'],
+                    'source_row' => $item['source_row'],
+                    'created_at' => $now,
+                ]);
+                $readyItemId = (int) $this->db->insertID();
+                $fgItemId = $this->createFinishedJewelleryItem($readyItemId, $orderId, $item, $readyDate);
+                $this->db->table('production_ready_items')->where('id', $readyItemId)->update(['fg_item_id' => $fgItemId]);
+                $summary['fg_items']++;
+                if ($imagePath !== null) {
+                    $summary['images']++;
+                }
+            }
+        }
+
+        return $summary;
+    }
+
+    /** @return list<int> */
+    private function matchReadyReceipts(string $karigarName, float $netWeight, float $pureWeight, string $readyDate, array $receives, array $used): array
+    {
+        $candidateIndexes = [];
+        foreach ($receives as $index => $receive) {
+            if (isset($used[$index]) || $this->canonicalKarigar((string) ($receive['party_name'] ?? '')) !== $this->canonicalKarigar($karigarName)) {
+                continue;
+            }
+            $candidateIndexes[] = $index;
+        }
+
+        $best = [];
+        $bestDateDistance = PHP_INT_MAX;
+        $candidateCount = count($candidateIndexes);
+        for ($size = 1; $size <= min(3, $candidateCount); $size++) {
+            foreach ($this->combinations($candidateIndexes, $size) as $combination) {
+                $net = 0.0;
+                $pure = 0.0;
+                $dateDistance = 0;
+                foreach ($combination as $index) {
+                    $net += (float) ($receives[$index]['received_weight_gm'] ?? 0);
+                    $pure += (float) ($receives[$index]['weight_24k_gm'] ?? 0);
+                    $dateDistance += abs((int) ((strtotime($readyDate) - strtotime((string) $receives[$index]['movement_date'])) / 86400));
+                }
+                $netMatches = abs($net - $netWeight) <= 0.012;
+                $pureMatches = $pureWeight <= 0 || abs($pure - $pureWeight) <= 0.012;
+                if ($netMatches && $pureMatches && $dateDistance < $bestDateDistance) {
+                    $best = $combination;
+                    $bestDateDistance = $dateDistance;
+                }
+            }
+            if ($best !== []) {
+                break;
+            }
+        }
+        return $best;
+    }
+
+    /** @return list<list<int>> */
+    private function combinations(array $values, int $size): array
+    {
+        if ($size === 0) {
+            return [[]];
+        }
+        if (count($values) < $size) {
+            return [];
+        }
+        $result = [];
+        foreach ($values as $offset => $value) {
+            $tail = array_slice($values, $offset + 1);
+            foreach ($this->combinations($tail, $size - 1) as $combination) {
+                $result[] = array_merge([$value], $combination);
+            }
+        }
+        return $result;
+    }
+
+    private function groupIsPaid(array $items): bool
+    {
+        foreach ($items as $item) {
+            if (strcasecmp((string) ($item['payment_status'] ?? ''), 'Paid') === 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function firstNonEmptyColumn(array $rows, string $column): ?string
+    {
+        foreach ($rows as $row) {
+            $value = trim((string) ($row[$column] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+        return null;
+    }
+
+    private function createFinishedJewelleryItem(int $readyItemId, int $orderId, array $item, string $readyDate): int
+    {
+        $stones = json_decode((string) ($item['stones_json'] ?? '[]'), true);
+        $diamondCts = 0.0;
+        $stoneWeight = 0.0;
+        foreach (is_array($stones) ? $stones : [] as $stone) {
+            $weight = (float) ($stone['weight'] ?? 0);
+            $name = strtoupper((string) ($stone['name'] ?? ''));
+            if (preg_match('/DIA|DIAMOND|CVD|POLKI|EMD|BRD|ROUND/', $name) === 1) {
+                $diamondCts += $weight;
+            } else {
+                $stoneWeight += $weight;
+            }
+        }
+        $jobCard = $this->db->table('job_cards')->select('id')->where('order_id', $orderId)->orderBy('id', 'ASC')->get()->getRowArray();
+        $tagNo = 'PROD-' . str_pad((string) $readyItemId, 6, '0', STR_PAD_LEFT);
+        $this->db->table('fg_items')->insert([
+            'tag_no' => $tagNo,
+            'order_id' => $orderId,
+            'job_card_id' => $jobCard ? (int) $jobCard['id'] : null,
+            'production_ready_item_id' => $readyItemId,
+            'product_id' => null,
+            'variant_id' => null,
+            'design_name' => $item['design_name'] ?: null,
+            'purity_label' => $item['purity_label'] ?: null,
+            'qty' => 1,
+            'gross_wt' => $item['gross_weight_gm'],
+            'net_gold_wt' => $item['net_weight_gm'],
+            'diamond_cts' => round($diamondCts, 3),
+            'stone_wt' => round($stoneWeight, 3),
+            'studded_details_json' => $item['stones_json'],
+            'source_image_path' => $item['image_path'] ?: null,
+            'status' => 'AVAILABLE',
+            'warehouse_id' => $this->warehouseId,
+            'bin_id' => $this->binId,
+            'showroom_id' => null,
+            'showroom_counter_id' => null,
+            'showroom_stock_status' => 'FG_STORE',
+            'inventory_remarks' => 'Created from completed imported order; ready group ' . $item['ready_group'],
+            'terminal_at' => null,
+            'created_by' => $this->adminId,
+            'created_at' => $readyDate . ' 18:00:00',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        $fgItemId = (int) $this->db->insertID();
+        $this->db->table('showroom_fg_movements')->insert([
+            'fg_item_id' => $fgItemId,
+            'movement_type' => 'ORDER_COMPLETED_TO_FG',
+            'reference_type' => 'production_ready_items',
+            'reference_id' => $readyItemId,
+            'remarks' => 'Finished jewellery created from ready workbook row ' . $item['source_sheet'] . ':' . $item['source_row'],
+            'created_by' => $this->adminId,
+            'created_at' => $readyDate . ' 18:00:00',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        return $fgItemId;
+    }
+
+    private function insertKarigarPaymentLedger(int $karigarId, int $orderId, string $entryType, float $amount, string $reference, string $notes, string $date): void
+    {
+        $this->db->table('karigar_payment_ledgers')->insert([
+            'karigar_id' => $karigarId,
+            'order_id' => $orderId,
+            'entry_type' => $entryType,
+            'amount' => $amount,
+            'reference_no' => substr($reference, 0, 80),
+            'notes' => $notes,
+            'created_by' => $this->adminId,
+            'created_at' => $date . ' 18:00:00',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    private function insertKarigarPayment(int $billId, int $karigarId, int $orderId, float $amount, string $date, string $reference, string $notes): void
+    {
+        $paymentNo = 'IMP-KPAY-' . str_pad((string) $billId, 6, '0', STR_PAD_LEFT);
+        $this->db->table('labour_bill_payments')->insert([
+            'labour_bill_id' => $billId,
+            'payment_date' => $date,
+            'amount' => $amount,
+            'reference_no' => substr($reference, 0, 80),
+            'notes' => $notes,
+            'created_by' => $this->adminId,
+            'created_at' => $date . ' 18:05:00',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        $this->db->table('account_payments')->insert([
+            'payment_no' => $paymentNo,
+            'payment_date' => $date,
+            'party_type' => 'karigar',
+            'karigar_id' => $karigarId,
+            'vendor_id' => null,
+            'amount' => $amount,
+            'payment_mode' => 'Source Record',
+            'reference_no' => substr($reference, 0, 80),
+            'bill_type' => 'labour',
+            'labour_bill_id' => $billId,
+            'notes' => $notes,
+            'created_by' => $this->adminId,
+            'created_at' => $date . ' 18:05:00',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        $this->insertKarigarPaymentLedger($karigarId, $orderId, 'payment', $amount, $reference, $notes, $date);
     }
 
     private function insertDocuments(int $batchId, array $documents): void
@@ -999,6 +1591,196 @@ class ProductionDataImportService
                 'vendor_id' => $vendorId,
                 'created_at' => $now,
             ]);
+        }
+    }
+
+    private function insertGoldInventoryLedger(
+        array $movement,
+        int $referenceId,
+        int $itemId,
+        ?int $orderId,
+        float $debitWeight,
+        float $creditWeight,
+        float $balanceWeight,
+        string $referenceTable = 'production_gold_movements'
+    ): void {
+        $isDebit = $debitWeight > 0;
+        $fine = (float) ($movement['weight_24k_gm'] ?? 0);
+        $this->db->table('gold_inventory_ledger_entries')->insert([
+            'txn_date' => $movement['movement_date'],
+            'txn_type' => strtoupper((string) $movement['movement_type']),
+            'reference_table' => $referenceTable,
+            'reference_id' => $referenceId,
+            'order_id' => $orderId,
+            'karigar_id' => in_array($movement['movement_type'], ['issue', 'receive'], true) ? $this->ensureKarigar((string) $movement['party_name']) : null,
+            'location_id' => $this->locationId,
+            'item_id' => $itemId,
+            'debit_weight_gm' => round($debitWeight, 3),
+            'credit_weight_gm' => round($creditWeight, 3),
+            'debit_fine_gm' => $isDebit ? round($fine, 3) : 0,
+            'credit_fine_gm' => $isDebit ? 0 : round($fine, 3),
+            'balance_weight_gm' => round($balanceWeight, 3),
+            'balance_fine_gm' => 0,
+            'rate_per_gm' => 0,
+            'line_value' => 0,
+            'notes' => trim((string) ($movement['description'] ?? '')) ?: 'Imported production gold movement',
+            'created_by' => $this->adminId,
+            'created_at' => (string) $movement['movement_date'] . ' 12:00:00',
+        ]);
+    }
+
+    private function postMaterialAccountEntry(
+        string $direction,
+        string $voucherType,
+        string $date,
+        int $karigarId,
+        ?int $orderId,
+        string $itemKey,
+        string $itemType,
+        float $qtyCts,
+        float $qtyWeight,
+        float $fineGold,
+        ?int $goldPurityId,
+        string $remarks,
+        string $voucherNo
+    ): void {
+        $warehouseAccountId = $this->ensureImportAccount('WAREHOUSE', 'WH-' . $this->warehouseId, 'Main Production Store Warehouse', 'warehouses', $this->warehouseId);
+        if ($karigarId > 0) {
+            $karigar = $this->db->table('karigars')->select('name')->where('id', $karigarId)->get()->getRowArray();
+            $partyAccountId = $this->ensureImportAccount('KARIGAR', 'KARIGAR-' . $karigarId, 'Karigar - ' . (string) ($karigar['name'] ?? $karigarId), 'karigars', $karigarId);
+        } else {
+            $partyAccountId = $this->ensureImportAccount('SOURCE', 'PRODUCTION-SOURCE', 'Imported Production Source', null, null);
+        }
+
+        $isIssue = $direction === 'issue';
+        $debitAccountId = $isIssue ? $partyAccountId : $warehouseAccountId;
+        $creditAccountId = $isIssue ? $warehouseAccountId : $partyAccountId;
+        $this->db->table('vouchers')->insert([
+            'voucher_no' => substr($voucherNo, 0, 50),
+            'voucher_type' => substr(strtoupper($voucherType), 0, 40),
+            'voucher_date' => $date,
+            'voucher_datetime' => $date . ' 12:00:00',
+            'from_warehouse_id' => $isIssue ? $this->warehouseId : null,
+            'from_bin_id' => $isIssue ? $this->binId : null,
+            'to_warehouse_id' => $isIssue ? null : $this->warehouseId,
+            'to_bin_id' => $isIssue ? null : $this->binId,
+            'order_id' => $orderId,
+            'party_id' => $karigarId > 0 ? $karigarId : null,
+            'debit_account_id' => $debitAccountId,
+            'credit_account_id' => $creditAccountId,
+            'status' => 'Posted',
+            'remarks' => $remarks,
+            'created_by' => $this->adminId,
+            'created_at' => $date . ' 12:00:00',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        $voucherId = (int) $this->db->insertID();
+        $line = [
+            'voucher_id' => $voucherId,
+            'line_no' => 1,
+            'item_type' => $itemType,
+            'item_key' => substr($itemKey, 0, 160),
+            'material_name' => $itemType === 'GOLD' ? 'Gold' : 'Diamond',
+            'gold_purity_id' => $goldPurityId,
+            'qty_pcs' => 0,
+            'qty_cts' => round($qtyCts, 3),
+            'qty_weight' => round($qtyWeight, 3),
+            'fine_gold' => round($fineGold, 3),
+            'rate' => 0,
+            'amount' => 0,
+            'remarks' => $remarks,
+            'created_at' => $date . ' 12:00:00',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        $this->db->table('voucher_lines')->insert($line);
+        $this->db->table('ledger_entries')->insert([
+            'voucher_id' => $voucherId,
+            'line_no' => 1,
+            'debit_account_id' => $debitAccountId,
+            'credit_account_id' => $creditAccountId,
+            'item_type' => $itemType,
+            'item_key' => substr($itemKey, 0, 160),
+            'qty_pcs' => 0,
+            'qty_cts' => round($qtyCts, 3),
+            'qty_weight' => round($qtyWeight, 3),
+            'fine_gold_qty' => round($fineGold, 3),
+            'order_id' => $orderId,
+            'created_at' => $date . ' 12:00:00',
+        ]);
+        $this->adjustAccountMaterialBalance($debitAccountId, $itemType, $itemKey, $qtyCts, $qtyWeight, $fineGold, 1);
+        $this->adjustAccountMaterialBalance($creditAccountId, $itemType, $itemKey, $qtyCts, $qtyWeight, $fineGold, -1);
+    }
+
+    private function ensureImportAccount(string $type, string $code, string $name, ?string $referenceTable, ?int $referenceId): int
+    {
+        if (isset($this->accountIds[$code])) {
+            return $this->accountIds[$code];
+        }
+        $row = $this->db->table('accounts')->select('id')->where('account_code', $code)->get()->getRowArray();
+        if ($row) {
+            return $this->accountIds[$code] = (int) $row['id'];
+        }
+        $this->db->table('accounts')->insert([
+            'account_code' => $code,
+            'account_name' => $name,
+            'account_type' => $type,
+            'reference_table' => $referenceTable,
+            'reference_id' => $referenceId,
+            'is_active' => 1,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        return $this->accountIds[$code] = (int) $this->db->insertID();
+    }
+
+    private function adjustAccountMaterialBalance(int $accountId, string $itemType, string $itemKey, float $qtyCts, float $qtyWeight, float $fineGold, int $direction): void
+    {
+        $row = $this->db->table('account_balances')
+            ->where('account_id', $accountId)
+            ->where('item_type', $itemType)
+            ->where('item_key', substr($itemKey, 0, 160))
+            ->get()->getRowArray();
+        $values = [
+            'qty_pcs' => round((float) ($row['qty_pcs'] ?? 0), 3),
+            'qty_cts' => round((float) ($row['qty_cts'] ?? 0) + ($direction * $qtyCts), 3),
+            'qty_weight' => round((float) ($row['qty_weight'] ?? 0) + ($direction * $qtyWeight), 3),
+            'fine_gold_qty' => round((float) ($row['fine_gold_qty'] ?? 0) + ($direction * $fineGold), 3),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        if ($row) {
+            $this->db->table('account_balances')->where('id', (int) $row['id'])->update($values);
+            return;
+        }
+        $this->db->table('account_balances')->insert($values + [
+            'account_id' => $accountId,
+            'item_type' => $itemType,
+            'item_key' => substr($itemKey, 0, 160),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    private function completeAllProductionOrders(): void
+    {
+        $orders = $this->db->table('orders')->select('id, status')->get()->getResultArray();
+        $now = date('Y-m-d H:i:s');
+        foreach ($orders as $order) {
+            $orderId = (int) $order['id'];
+            $fromStatus = (string) $order['status'];
+            $this->db->table('orders')->where('id', $orderId)->update(['status' => 'Completed', 'updated_at' => $now]);
+            $this->db->table('order_items')->where('order_id', $orderId)->update(['item_status' => 'Completed', 'updated_at' => $now]);
+            $this->db->table('job_cards')->where('order_id', $orderId)->update(['status' => 'Completed', 'qc_status' => 'Passed', 'updated_at' => $now]);
+            if ($fromStatus !== 'Completed') {
+                $this->db->table('order_status_history')->insert([
+                    'order_id' => $orderId,
+                    'from_status' => $fromStatus,
+                    'to_status' => 'Completed',
+                    'remarks' => 'Completed during reconciled production import',
+                    'changed_by' => $this->adminId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+            (new FinishedJewelleryService($this->db))->createForCompletedOrder($orderId, $this->adminId);
         }
     }
 

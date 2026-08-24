@@ -504,4 +504,62 @@
         </div>
     </div>
 </div>
+
+<div class="card mt-3">
+    <div class="card-header"><h5 class="card-title mb-0">Imported Diamond Issuement Details</h5></div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table datatable table-hover mb-0" data-dt-page-length="25">
+                <thead><tr><th>Date</th><th>Group</th><th>Design</th><th>Quality</th><th>Shade</th><th>Size</th><th>Pcs</th><th>Cts</th><th>Bag</th><th>Source</th></tr></thead>
+                <tbody>
+                    <?php if (($sourceIssueLines ?? []) === []): ?><tr><td colspan="10" class="text-center text-muted">No imported issuement detail.</td></tr><?php endif; ?>
+                    <?php foreach (($sourceIssueLines ?? []) as $line): ?>
+                        <tr>
+                            <td><?= esc((string) ($line['issue_date'] ?? '-')) ?></td>
+                            <td><?= esc((string) ($line['issue_group'] ?? '-')) ?></td>
+                            <td><?= esc((string) ($line['design_no'] ?? '-')) ?></td>
+                            <td><?= esc((string) ($line['quality'] ?? '-')) ?></td>
+                            <td><?= esc((string) ($line['shade'] ?? '-')) ?></td>
+                            <td><?= esc((string) ($line['size_label'] ?? '-')) ?></td>
+                            <td><?= number_format((float) ($line['pcs'] ?? 0), 0) ?></td>
+                            <td><?= number_format((float) ($line['weight_cts'] ?? 0), 3) ?></td>
+                            <td><?= esc((string) ($line['bag_label'] ?? '-')) ?></td>
+                            <td><?= esc((string) (($line['source_sheet'] ?? '') . ':' . ($line['source_row'] ?? ''))) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Completed Jewellery</h5>
+        <a class="btn btn-sm btn-outline-primary" href="<?= site_url('admin/jewellery-inventory?karigar_id=' . (int) $karigar['id']) ?>">Open Jewellery Inventory</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table datatable table-hover mb-0" data-dt-page-length="25">
+                <thead><tr><th>Ready Date</th><th>Tag</th><th>Group</th><th>Design</th><th>Gross</th><th>Net Gold</th><th>Labour</th><th>Payment</th><th>Inventory</th></tr></thead>
+                <tbody>
+                    <?php if (($finishedItems ?? []) === []): ?><tr><td colspan="9" class="text-center text-muted">No completed jewellery.</td></tr><?php endif; ?>
+                    <?php foreach (($finishedItems ?? []) as $item): ?>
+                        <tr>
+                            <td><?= esc((string) ($item['ready_date'] ?? '-')) ?></td>
+                            <td><?= esc((string) ($item['tag_no'] ?? '-')) ?></td>
+                            <td><?= esc((string) ($item['ready_group'] ?? '-')) ?></td>
+                            <td><?= esc((string) ($item['design_name'] ?? '-')) ?></td>
+                            <td><?= number_format((float) ($item['gross_weight_gm'] ?? 0), 3) ?></td>
+                            <td><?= number_format((float) ($item['net_weight_gm'] ?? 0), 3) ?></td>
+                            <td>₹<?= number_format((float) ($item['labour_charges'] ?? 0), 2) ?></td>
+                            <td><span class="badge <?= (string) ($item['payment_status'] ?? '') === 'Paid' ? 'bg-success' : 'bg-warning text-dark' ?>"><?= esc((string) ($item['payment_status'] ?? 'Pending')) ?></span></td>
+                            <td><?= esc((string) (($item['showroom_stock_status'] ?? '') ?: ($item['inventory_status'] ?? '-'))) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 <?= $this->endSection() ?>

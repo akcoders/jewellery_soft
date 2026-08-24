@@ -175,6 +175,27 @@ class AccountsController extends BaseController
             static fn(array $row): bool => (float) ($row['pending_amount'] ?? 0) > 0
         ));
 
+        $paymentRows = $this->accountPaymentsDataset();
+        foreach ($this->productionDocumentPaymentRows() as $payment) {
+            $paymentRows[] = [
+                'payment_no' => $payment['reference_no'],
+                'payment_date' => $payment['payment_date'],
+                'party_type' => 'vendor',
+                'vendor_id' => $payment['vendor_id'],
+                'vendor_name' => $payment['vendor_name'],
+                'karigar_id' => null,
+                'karigar_name' => null,
+                'amount' => $payment['amount'],
+                'amount_available' => $payment['amount'] > 0,
+                'payment_mode' => 'Source Record',
+                'reference_no' => $payment['reference_no'],
+                'bill_type' => 'purchase',
+                'bill_source_type' => 'production document',
+                'bill_source_id' => (int) substr(strrchr($payment['reference_no'], '#') ?: '#0', 1),
+                'notes' => $payment['details'],
+            ];
+        }
+
         return view('admin/accounts/payments', [
             'title' => 'Payments',
             'tableEnabled' => $db->tableExists('account_payments'),
@@ -182,7 +203,7 @@ class AccountsController extends BaseController
             'vendors' => $this->vendorOptionsWithBalance(),
             'labourBills' => $labourBills,
             'purchaseBills' => $purchaseBills,
-            'rows' => $this->accountPaymentsDataset(),
+            'rows' => $paymentRows,
         ]);
     }
 
@@ -834,6 +855,45 @@ class AccountsController extends BaseController
             }
         }
 
+        if ($db->tableExists('production_purchase_documents') && $db->fieldExists('invoice_amount', 'production_purchase_documents')) {
+            $documentRows = $db->table('production_purchase_documents d')
+                ->select('d.*, v.name as resolved_vendor_name', false)
+                ->join('vendors v', 'v.id = d.vendor_id', 'left')
+                ->orderBy('d.document_date', 'DESC')
+                ->orderBy('d.id', 'DESC')
+                ->get()->getResultArray();
+            foreach ($documentRows as $row) {
+                $amountAvailable = $row['invoice_amount'] !== null;
+                $amount = $amountAvailable ? (float) $row['invoice_amount'] : 0.0;
+                $paidAvailable = $row['paid_amount'] !== null;
+                $paid = $paidAvailable ? (float) $row['paid_amount'] : 0.0;
+                $status = (string) ($row['payment_status'] ?? 'Unverified');
+                $rows[] = [
+                    'source_type' => 'production_document',
+                    'source_id' => (int) $row['id'],
+                    'vendor_id' => (int) ($row['vendor_id'] ?? 0),
+                    'supplier_name' => (string) (($row['resolved_vendor_name'] ?? '') ?: ($row['vendor_name'] ?? '-')),
+                    'purchase_date' => (string) ($row['document_date'] ?? ''),
+                    'invoice_no' => (string) (($row['invoice_no'] ?? '') ?: ($row['original_name'] ?? '')),
+                    'category' => (string) ($row['category'] ?? '') === 'gold' ? 'Gold' : 'Diamond / Stone',
+                    'qty' => 1,
+                    'weight_value' => 0,
+                    'weight_unit' => '',
+                    'amount' => $amount,
+                    'amount_available' => $amountAvailable,
+                    'due_date' => '',
+                    'days_left' => '-',
+                    'payment_status' => $status,
+                    'paid_amount' => $paid,
+                    'paid_amount_available' => $paidAvailable,
+                    'pending_amount' => $amountAvailable ? max(0, $amount - $paid) : 0,
+                    'attachment' => null,
+                    'view_url' => site_url('admin/accounts/production-document/' . (int) $row['id']),
+                    'reconciliation_status' => (string) ($row['reconciliation_status'] ?? ''),
+                ];
+            }
+        }
+
         usort($rows, static function (array $a, array $b): int {
             $dateCmp = strcmp((string) ($b['purchase_date'] ?? ''), (string) ($a['purchase_date'] ?? ''));
             if ($dateCmp !== 0) {
@@ -1221,6 +1281,37 @@ class AccountsController extends BaseController
         }
 
         return $map;
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function productionDocumentPaymentRows(): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('production_purchase_documents') || ! $db->fieldExists('paid_amount', 'production_purchase_documents')) {
+            return [];
+        }
+        $rows = $db->table('production_purchase_documents d')
+            ->select('d.*, v.name as resolved_vendor_name', false)
+            ->join('vendors v', 'v.id = d.vendor_id', 'left')
+            ->where('d.payment_status', 'Paid')
+            ->orderBy('d.payment_date', 'DESC')
+            ->get()->getResultArray();
+        $result = [];
+        foreach ($rows as $row) {
+            $amountAvailable = $row['paid_amount'] !== null;
+            $result[] = [
+                'payment_date' => (string) (($row['payment_date'] ?? '') ?: ($row['document_date'] ?? '')),
+                'reference_no' => 'SOURCE-PAID#' . (int) $row['id'],
+                'vendor_id' => (int) ($row['vendor_id'] ?? 0),
+                'vendor_name' => (string) (($row['resolved_vendor_name'] ?? '') ?: ($row['vendor_name'] ?? '-')),
+                'invoice_no' => (string) (($row['invoice_no'] ?? '') ?: ($row['original_name'] ?? '')),
+                'amount' => $amountAvailable ? (float) $row['paid_amount'] : 0.0,
+                'details' => $amountAvailable
+                    ? 'Paid amount imported from source document'
+                    : 'Source document is marked PAID; amount is not present in the supplied data',
+            ];
+        }
+        return $result;
     }
 
     /**
@@ -1975,6 +2066,7 @@ class AccountsController extends BaseController
         $rows = [];
 
         foreach ($this->purchaseBillsDataset() as $bill) {
+            $amountAvailable = (bool) ($bill['amount_available'] ?? true);
             $rows[] = $this->ledgerRow([
                 'transaction_date' => $bill['purchase_date'] ?? '',
                 'transaction_type' => 'Purchase Bill',
@@ -1990,7 +2082,9 @@ class AccountsController extends BaseController
                 'status' => (string) ($bill['payment_status'] ?? 'Pending'),
                 'payment_mode' => '',
                 'material_type' => (string) ($bill['category'] ?? 'Purchase'),
-                'details' => 'Paid: Rs ' . number_format((float) ($bill['paid_amount'] ?? 0), 2),
+                'details' => $amountAvailable
+                    ? 'Paid: Rs ' . number_format((float) ($bill['paid_amount'] ?? 0), 2)
+                    : ((string) ($bill['reconciliation_status'] ?? '') ?: 'Source bill recorded; amount not supplied'),
                 'notes' => '',
                 'file_path' => '',
             ]);
@@ -2119,6 +2213,28 @@ class AccountsController extends BaseController
             ]);
         }
 
+        foreach ($this->productionDocumentPaymentRows() as $payment) {
+            $rows[] = $this->ledgerRow([
+                'transaction_date' => $payment['payment_date'],
+                'transaction_type' => 'Vendor Payment',
+                'reference_no' => $payment['reference_no'],
+                'party_type' => 'vendor',
+                'party_id' => $payment['vendor_id'],
+                'party_name' => $payment['vendor_name'],
+                'bill_no' => $payment['invoice_no'],
+                'order_no' => '',
+                'debit_amount' => $payment['amount'],
+                'credit_amount' => 0,
+                'balance_amount' => 0,
+                'status' => 'Paid',
+                'payment_mode' => 'Source Record',
+                'material_type' => 'Accounts',
+                'details' => $payment['details'],
+                'notes' => $payment['details'],
+                'file_path' => '',
+            ]);
+        }
+
         $rows = array_merge($rows, $this->journalVoucherLedgerRows());
 
         $transactionTypes = array_values(array_unique(array_filter(array_map(static fn(array $row): string => (string) ($row['transaction_type'] ?? ''), $rows))));
@@ -2239,12 +2355,33 @@ class AccountsController extends BaseController
             ]);
         }
 
+        foreach ($this->productionDocumentPaymentRows() as $payment) {
+            $rows[] = $this->vendorTransactionRow([
+                'transaction_date' => $payment['payment_date'],
+                'category' => 'Payment',
+                'transaction_type' => 'Vendor Payment',
+                'material_type' => 'Money',
+                'reference_no' => $payment['reference_no'],
+                'source_label' => $payment['invoice_no'],
+                'party_type' => 'vendor',
+                'party_id' => $payment['vendor_id'],
+                'vendor_id' => $payment['vendor_id'],
+                'party_name' => $payment['vendor_name'],
+                'paid_amount' => $payment['amount'],
+                'payment_mode' => 'Source Record',
+                'status' => 'Paid',
+                'details' => $payment['details'],
+                'notes' => $payment['details'],
+            ]);
+        }
+
         $rows = array_merge(
             $rows,
             $this->materialMovementRows(),
             $this->goldInventoryMovementRows(),
             $this->diamondInventoryMovementRows(),
-            $this->stoneInventoryMovementRows()
+            $this->stoneInventoryMovementRows(),
+            $this->productionDetailedIssueRows()
         );
 
         $categories = $this->uniqueColumnValues($rows, 'category');
@@ -2318,6 +2455,46 @@ class AccountsController extends BaseController
         }
 
         return $result;
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function productionDetailedIssueRows(): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('production_diamond_issue_lines')) {
+            return [];
+        }
+        $list = $db->table('production_diamond_issue_lines p')
+            ->select('p.*, k.name as karigar_name', false)
+            ->join('karigars k', 'k.id = p.karigar_id', 'left')
+            ->orderBy('p.issue_date', 'DESC')
+            ->orderBy('p.id', 'DESC')
+            ->get()->getResultArray();
+        $rows = [];
+        foreach ($list as $row) {
+            $rows[] = $this->vendorTransactionRow([
+                'transaction_date' => (string) ($row['issue_date'] ?? ''),
+                'category' => 'Production Source Detail',
+                'transaction_type' => 'Diamond Issue Detail',
+                'material_type' => 'Diamond',
+                'reference_no' => (string) (($row['issue_group'] ?? '') . ':' . (int) ($row['source_row'] ?? 0)),
+                'source_label' => (string) ($row['bag_label'] ?? 'Issuement workbook'),
+                'party_type' => 'karigar',
+                'party_id' => (int) ($row['karigar_id'] ?? 0),
+                'karigar_id' => (int) ($row['karigar_id'] ?? 0),
+                'party_name' => (string) ($row['karigar_name'] ?? '-'),
+                'issue_cts' => (float) ($row['weight_cts'] ?? 0),
+                'details' => sprintf(
+                    '%s | %s | %s | %s pcs',
+                    (string) ($row['design_no'] ?? '-'),
+                    trim((string) (($row['quality'] ?? '') . ' ' . ($row['shade'] ?? '') . ' ' . ($row['size_label'] ?? ''))),
+                    (string) ($row['bag_label'] ?? '-'),
+                    number_format((float) ($row['pcs'] ?? 0), 0)
+                ),
+                'notes' => 'Exact source row ' . (string) ($row['source_sheet'] ?? '') . ':' . (int) ($row['source_row'] ?? 0),
+            ]);
+        }
+        return $rows;
     }
 
     /**

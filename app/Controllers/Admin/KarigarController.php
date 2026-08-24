@@ -246,6 +246,25 @@ class KarigarController extends BaseController
                 ->getResultArray();
         }
 
+        $sourceIssueLines = [];
+        if ($db->tableExists('production_diamond_issue_lines')) {
+            $sourceIssueLines = $db->table('production_diamond_issue_lines')
+                ->where('karigar_id', $id)
+                ->orderBy('issue_date', 'DESC')
+                ->orderBy('id', 'DESC')
+                ->get()->getResultArray();
+        }
+        $finishedItems = [];
+        if ($db->tableExists('production_ready_items') && $db->fieldExists('fg_item_id', 'production_ready_items')) {
+            $finishedItems = $db->table('production_ready_items p')
+                ->select('p.*, fg.tag_no, fg.status as inventory_status, fg.showroom_stock_status', false)
+                ->join('fg_items fg', 'fg.id = p.fg_item_id', 'left')
+                ->where('p.karigar_id', $id)
+                ->orderBy('p.ready_date', 'DESC')
+                ->orderBy('p.id', 'DESC')
+                ->get()->getResultArray();
+        }
+
         $goldStatement = $this->buildGoldLedgerStatement($goldLedgers);
         $diamondStatement = $this->buildQtyLedgerStatement($diamondLedgers, 'weight_cts');
         $stoneStatement = $this->buildQtyLedgerStatement($stoneLedgers, 'weight_cts');
@@ -281,6 +300,8 @@ class KarigarController extends BaseController
             'stoneLedgers' => $stoneLedgers,
             'stoneSummary' => $this->buildQtyWeightSummary($stoneLedgers, 'weight_cts'),
             'paymentLedgers' => $paymentLedgers,
+            'sourceIssueLines' => $sourceIssueLines,
+            'finishedItems' => $finishedItems,
             'paymentSummary' => $this->buildPaymentSummary($paymentLedgers),
             'paymentLedgerEnabled' => $paymentLedgerEnabled,
             'goldStatement' => $goldStatement,

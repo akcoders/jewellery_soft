@@ -28,6 +28,7 @@ use App\Models\OrderStatusHistoryModel;
 use App\Models\StoneLedgerEntryModel;
 use App\Models\DeliveryChallanModel;
 use App\Services\AdminPostingService;
+use App\Services\FinishedJewelleryService;
 use App\Services\GoldInventory\StockService as GoldInventoryStockService;
 use App\Services\OrderWhatsAppService;
 use App\Services\PdfService;
@@ -62,6 +63,7 @@ class OrderController extends BaseController
     private InventoryTransactionModel $inventoryTxnModel;
     private DeliveryChallanModel $deliveryChallanModel;
     private AdminPostingService $adminPostingService;
+    private FinishedJewelleryService $finishedJewelleryService;
     private OrderWhatsAppService $orderWhatsAppService;
     private PdfService $pdfService;
     private Jewellery $jewelleryConfig;
@@ -94,6 +96,7 @@ class OrderController extends BaseController
         $this->inventoryTxnModel = new InventoryTransactionModel();
         $this->deliveryChallanModel = new DeliveryChallanModel();
         $this->adminPostingService = new AdminPostingService();
+        $this->finishedJewelleryService = new FinishedJewelleryService();
         $this->orderWhatsAppService = new OrderWhatsAppService();
         $this->pdfService = new PdfService();
         $this->jewelleryConfig = config(Jewellery::class);
@@ -1630,6 +1633,9 @@ class OrderController extends BaseController
         if (in_array($newStatus, ['Ready', 'Completed'], true)) {
             $this->dispatchWhatsappOrderReady($id, $newStatus);
         }
+        if ($newStatus === 'Completed') {
+            $this->finishedJewelleryService->createForCompletedOrder($id, $adminId);
+        }
 
         return redirect()->back()->with('success', 'Order status updated.');
     }
@@ -2449,6 +2455,9 @@ class OrderController extends BaseController
                     'changed_by' => (int) session('admin_id'),
                     'remarks' => 'Auto-completed after receiving.',
                 ]);
+            }
+            if ($type === 'receive') {
+                $this->finishedJewelleryService->createForCompletedOrder($orderId, (int) session('admin_id'));
             }
 
             $db->transComplete();
@@ -3368,6 +3377,9 @@ class OrderController extends BaseController
             'item_status' => 'Completed',
             'updated_at' => $now,
         ])->update();
+        foreach ($toUpdate as $completedOrderId) {
+            $this->finishedJewelleryService->createForCompletedOrder($completedOrderId, (int) (session('admin_id') ?? 0));
+        }
         $db->transComplete();
     }
 

@@ -148,7 +148,7 @@
                         <td><?= esc((string) ($row['payment_no'] ?? '-')) ?></td>
                         <td><?= esc((string) ($row['payment_date'] ?? '-')) ?></td>
                         <td><span class="badge bg-secondary me-1"><?= esc(ucfirst((string) ($row['party_type'] ?? ''))) ?></span><?= esc($party) ?></td>
-                        <td>Rs <?= number_format((float) ($row['amount'] ?? 0), 2) ?></td>
+                        <td><?= ($row['amount_available'] ?? true) === false ? '<span class="text-muted">Not supplied</span>' : 'Rs ' . number_format((float) ($row['amount'] ?? 0), 2) ?></td>
                         <td><?= esc((string) (($row['payment_mode'] ?? '') ?: '-')) ?></td>
                         <td><?= esc((string) (($row['reference_no'] ?? '') ?: '-')) ?></td>
                         <td><?= esc($billLabel) ?></td>

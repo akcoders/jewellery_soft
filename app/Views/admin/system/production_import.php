@@ -63,6 +63,8 @@ $documents = is_array($documents ?? null) ? $documents : [];
                         <li class="mb-2">Gold and diamond stock movements are imported into inventory.</li>
                         <li class="mb-2">Internal production references become customerless manufacturing orders.</li>
                         <li class="mb-2">Ready-job valuations and detailed issuements are preserved exactly for audit.</li>
+                        <li class="mb-2">Completed orders create active tagged jewellery inventory with studded details and workbook pictures.</li>
+                        <li class="mb-2">Karigar bills/payments and vendor source-payment markers appear in party accounts and ledgers.</li>
                         <li>Purchase PDFs are grouped by supplier and available only to authenticated administrators.</li>
                     </ul>
                 </div>
@@ -91,6 +93,10 @@ $documents = is_array($documents ?? null) ? $documents : [];
                     'diamond_movements' => 'Diamond Movements',
                     'diamond_issue_lines' => 'Diamond Issue Lines',
                     'ready_items' => 'Ready Items',
+                    'ready_images' => 'Ready Pictures',
+                    'finished_jewellery_items' => 'Jewellery Inventory',
+                    'labour_bills' => 'Karigar Bills',
+                    'karigar_payments' => 'Karigar Payments',
                 ] as $key => $label): ?>
                     <div class="col-6 col-md-3">
                         <div class="border rounded p-3 h-100">

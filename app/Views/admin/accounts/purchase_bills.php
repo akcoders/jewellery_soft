@@ -58,15 +58,25 @@
                             <td><span class="badge <?= esc($badgeClass) ?>"><?= esc($category) ?></span></td>
                             <td><?= number_format((float) ($row['qty'] ?? 0), 3) ?></td>
                             <td><?= number_format((float) ($row['weight_value'] ?? 0), 3) ?> <?= esc((string) ($row['weight_unit'] ?? '')) ?></td>
-                            <td>₹ <?= number_format((float) ($row['amount'] ?? 0), 2) ?></td>
+                            <td>
+                                <?php if (($row['amount_available'] ?? true) === false): ?>
+                                    <span class="text-muted">Not supplied</span>
+                                <?php else: ?>
+                                    ₹ <?= number_format((float) ($row['amount'] ?? 0), 2) ?>
+                                <?php endif; ?>
+                            </td>
                             <td><?= esc((string) (($row['due_date'] ?? '') !== '' ? $row['due_date'] : '-')) ?></td>
                             <td><?= esc((string) ($row['days_left'] ?? '-')) ?></td>
                             <td>
                                 <span class="badge <?= esc($statusClass) ?>"><?= esc($status) ?></span>
-                                <div class="small text-muted mt-1">
-                                    Paid: ₹<?= number_format((float) ($row['paid_amount'] ?? 0), 2) ?><br>
-                                    Pending: ₹<?= number_format((float) ($row['pending_amount'] ?? 0), 2) ?>
-                                </div>
+                                <?php if (($row['amount_available'] ?? true) === false): ?>
+                                    <div class="small text-muted mt-1"><?= esc((string) ($row['reconciliation_status'] ?? 'Amount not supplied in source')) ?></div>
+                                <?php else: ?>
+                                    <div class="small text-muted mt-1">
+                                        Paid: ₹<?= number_format((float) ($row['paid_amount'] ?? 0), 2) ?><br>
+                                        Pending: ₹<?= number_format((float) ($row['pending_amount'] ?? 0), 2) ?>
+                                    </div>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <?php if ($attachment !== null && ($attachment['file_path'] ?? '') !== ''): ?>
@@ -195,4 +205,3 @@
     })();
 </script>
 <?= $this->endSection() ?>
-

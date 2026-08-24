@@ -28,8 +28,9 @@ $isShowrooms = $segment2 === 'showrooms';
 $isShowroomCounters = $segment2 === 'showroom-counters';
 $isShowroomStaff = $segment2 === 'showroom-staff';
 $isShowroomStock = $segment2 === 'showroom-stock';
+$isJewelleryInventory = $segment2 === 'jewellery-inventory';
 $isShowroomSales = $segment2 === 'showroom-sales';
-$isShowroomModule = $isShowrooms || $isShowroomCounters || $isShowroomStaff || $isShowroomStock || $isShowroomSales;
+$isShowroomModule = $isShowrooms || $isShowroomCounters || $isShowroomStaff || $isShowroomStock || $isJewelleryInventory || $isShowroomSales;
 $isPerformance = $segment2 === 'performance';
 $isPerformanceDashboard = $isPerformance && ($segment3 === 'dashboard' || $segment3 === '');
 $isPerformanceKpis = $isPerformance && $segment3 === 'kpis';
@@ -1015,6 +1016,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                             <ul style="<?= $isShowroomModule ? 'display:block;' : 'display:none;' ?>">
                                 <?php if ($canShowroomSales): ?><li><a class="<?= $isShowroomSales ? 'active' : '' ?>" href="<?= site_url('admin/showroom-sales') ?>"><i class="fe fe-credit-card"></i> Showroom Sales</a></li><?php endif; ?>
                                 <?php if ($canShowroomStock): ?><li><a class="<?= $isShowroomStock ? 'active' : '' ?>" href="<?= site_url('admin/showroom-stock') ?>"><i class="fe fe-layers"></i> Showroom Stock</a></li><?php endif; ?>
+                                <?php if ($canShowroomStock): ?><li><a class="<?= $isJewelleryInventory ? 'active' : '' ?>" href="<?= site_url('admin/jewellery-inventory') ?>"><i class="fas fa-gem"></i> Jewellery Inventory</a></li><?php endif; ?>
                                 <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowrooms ? 'active' : '' ?>" href="<?= site_url('admin/showrooms') ?>"><i class="fe fe-home"></i> Showrooms</a></li><?php endif; ?>
                                 <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomCounters ? 'active' : '' ?>" href="<?= site_url('admin/showroom-counters') ?>"><i class="fe fe-grid"></i> Counters</a></li><?php endif; ?>
                                 <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomStaff ? 'active' : '' ?>" href="<?= site_url('admin/showroom-staff') ?>"><i class="fe fe-users"></i> Staff Assignment</a></li><?php endif; ?>

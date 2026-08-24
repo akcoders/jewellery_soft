@@ -53,11 +53,12 @@
                                 <th>Phone</th>
                                 <th>Email</th>
                                 <th>GSTIN</th>
+                                <th>Account</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if ($vendors === []): ?>
-                                <tr><td colspan="5" class="text-muted text-center">No vendors found.</td></tr>
+                                <tr><td colspan="6" class="text-muted text-center">No vendors found.</td></tr>
                             <?php endif; ?>
                             <?php foreach ($vendors as $v): ?>
                                 <tr>
@@ -66,6 +67,7 @@
                                     <td><?= esc($v['phone'] ?: '-') ?></td>
                                     <td><?= esc($v['email'] ?: '-') ?></td>
                                     <td><?= esc($v['gstin'] ?: '-') ?></td>
+                                    <td><a class="btn btn-sm btn-outline-primary" href="<?= site_url('admin/accounts/party-ledger/vendor/' . (int) $v['id']) ?>"><i class="fe fe-book-open me-1"></i>Account &amp; Ledger</a></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
