@@ -102,10 +102,20 @@ class PurchasesController extends BaseController
                 'purchase_date' => (string) $this->request->getPost('purchase_date'),
                 'vendor_id' => $vendorId,
                 'supplier_name' => (string) ($vendor['name'] ?? ''),
+                'supplier_address' => $vendor['address'] ?? null,
+                'supplier_gstin' => $vendor['gstin'] ?? null,
+                'supplier_phone' => $vendor['phone'] ?? null,
+                'supplier_email' => $vendor['email'] ?? null,
                 'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
                 'due_date' => trim((string) $this->request->getPost('due_date')) ?: null,
+                'taxable_amount' => $totals['subtotal'],
+                'gst_amount' => $totals['tax_value'],
                 'tax_percentage' => $taxPercentage,
                 'invoice_total' => $totals['invoice_total'],
+                'payment_status' => 'Pending',
+                'paid_amount' => 0,
+                'stock_posted' => 1,
+                'verification_status' => 'Manual Entry',
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
             ], true);
 
@@ -143,15 +153,15 @@ class PurchasesController extends BaseController
     public function view(int $id)
     {
         $purchase = db_connect()->table('purchase_headers ph')
-            ->select('ph.*, v.name as vendor_name')
+            ->select('ph.*, v.name as vendor_name, d.original_name as invoice_file_name')
             ->join('vendors v', 'v.id = ph.vendor_id', 'left')
+            ->join('production_purchase_documents d', 'd.id = ph.production_document_id', 'left')
             ->where('ph.id', $id)
             ->get()
             ->getRowArray();
         if (! $purchase) {
             return redirect()->to(site_url('admin/diamond-inventory/purchases'))->with('error', 'Purchase not found.');
         }
-
         $lines = $this->lineRows($id);
         $totals = $this->lineTotals('purchase_lines', 'purchase_id', $id);
 
@@ -170,6 +180,10 @@ class PurchasesController extends BaseController
         if (! $purchase) {
             return redirect()->to(site_url('admin/diamond-inventory/purchases'))->with('error', 'Purchase not found.');
         }
+        if ($this->isImportedPurchase($purchase)) {
+            return redirect()->to(site_url('admin/diamond-inventory/purchases/view/' . $id))
+                ->with('error', 'Imported historical purchases are read-only to protect stock and ledger reconciliation.');
+        }
 
         return view('admin/diamond_inventory/purchases/edit', [
             'title' => 'Edit Diamond Purchase',
@@ -187,6 +201,10 @@ class PurchasesController extends BaseController
         $purchase = $this->headerModel->find($id);
         if (! $purchase) {
             return redirect()->to(site_url('admin/diamond-inventory/purchases'))->with('error', 'Purchase not found.');
+        }
+        if ($this->isImportedPurchase($purchase)) {
+            return redirect()->to(site_url('admin/diamond-inventory/purchases/view/' . $id))
+                ->with('error', 'Imported historical purchases are read-only to protect stock and ledger reconciliation.');
         }
 
         $validationError = $this->validateHeader();
@@ -221,10 +239,17 @@ class PurchasesController extends BaseController
                 'purchase_date' => (string) $this->request->getPost('purchase_date'),
                 'vendor_id' => $vendorId,
                 'supplier_name' => (string) ($vendor['name'] ?? ''),
+                'supplier_address' => $vendor['address'] ?? null,
+                'supplier_gstin' => $vendor['gstin'] ?? null,
+                'supplier_phone' => $vendor['phone'] ?? null,
+                'supplier_email' => $vendor['email'] ?? null,
                 'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
                 'due_date' => trim((string) $this->request->getPost('due_date')) ?: null,
+                'taxable_amount' => $totals['subtotal'],
+                'gst_amount' => $totals['tax_value'],
                 'tax_percentage' => $taxPercentage,
                 'invoice_total' => $totals['invoice_total'],
+                'stock_posted' => 1,
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
             ]);
 
@@ -265,6 +290,10 @@ class PurchasesController extends BaseController
         $purchase = $this->headerModel->find($id);
         if (! $purchase) {
             return redirect()->to(site_url('admin/diamond-inventory/purchases'))->with('error', 'Purchase not found.');
+        }
+        if ($this->isImportedPurchase($purchase)) {
+            return redirect()->to(site_url('admin/diamond-inventory/purchases/view/' . $id))
+                ->with('error', 'Imported historical purchases cannot be deleted because they are posted to stock and ledgers.');
         }
 
         $db = db_connect();
@@ -601,5 +630,12 @@ class PurchasesController extends BaseController
         }
 
         $this->attachmentModel->where('purchase_id', $purchaseId)->delete();
+    }
+
+    /** @param array<string,mixed> $purchase */
+    private function isImportedPurchase(array $purchase): bool
+    {
+        return (int) ($purchase['production_document_id'] ?? 0) > 0
+            || trim((string) ($purchase['source_sheet'] ?? '')) !== '';
     }
 }

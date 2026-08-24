@@ -2,28 +2,40 @@
 
 <?= $this->section('content') ?>
 <div class="row g-3 mb-3">
-    <div class="col-md-3">
+    <div class="col-md-2">
+        <div class="card"><div class="card-body py-2">
+            <small class="text-muted d-block">Opening (cts)</small>
+            <strong><?= number_format((float) ($cards['opening_cts'] ?? 0), 3) ?></strong>
+        </div></div>
+    </div>
+    <div class="col-md-2">
+        <div class="card"><div class="card-body py-2">
+            <small class="text-muted d-block">Purchased (cts)</small>
+            <strong><?= number_format((float) ($cards['purchase_cts'] ?? 0), 3) ?></strong>
+        </div></div>
+    </div>
+    <div class="col-md-2">
         <div class="card"><div class="card-body py-2">
             <small class="text-muted d-block">Issued (cts)</small>
             <strong><?= number_format((float) ($cards['issue_cts'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card"><div class="card-body py-2">
             <small class="text-muted d-block">Returned (cts)</small>
             <strong><?= number_format((float) ($cards['return_cts'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card"><div class="card-body py-2">
-            <small class="text-muted d-block">Balance (cts)</small>
-            <strong><?= number_format((float) ($cards['balance_cts'] ?? 0), 3) ?></strong>
+            <small class="text-muted d-block">Warehouse Stock (cts)</small>
+            <strong><?= number_format((float) ($cards['stock_balance_cts'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card"><div class="card-body py-2">
-            <small class="text-muted d-block">Balance (pcs)</small>
-            <strong><?= number_format((float) ($cards['balance_pcs'] ?? 0), 3) ?></strong>
+            <small class="text-muted d-block">With Karigars (cts)</small>
+            <strong><?= number_format((float) ($cards['balance_cts'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
 </div>

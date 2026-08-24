@@ -106,7 +106,7 @@ class ReportController extends BaseController
             ->join('issue_lines il', 'il.issue_id = ih.id', 'inner')
             ->join('items i', 'i.id = il.item_id', 'left')
             ->join('orders o', 'o.id = ih.order_id', 'left')
-            ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left');
+            ->join('karigars k', 'k.id = ih.karigar_id', 'left');
 
         if ($filters['from'] !== '') {
             $issueBuilder->where('ih.issue_date >=', $filters['from']);
@@ -118,7 +118,7 @@ class ReportController extends BaseController
             $issueBuilder->like('o.order_no', $filters['order_no']);
         }
         if ($filters['karigar_id'] > 0) {
-            $issueBuilder->groupStart()->where('o.assigned_karigar_id', $filters['karigar_id']);
+            $issueBuilder->groupStart()->where('ih.karigar_id', $filters['karigar_id']);
             if ($karigarName !== '') {
                 $issueBuilder->orLike('ih.issue_to', $karigarName);
             }
@@ -131,7 +131,7 @@ class ReportController extends BaseController
             ->join('return_lines rl', 'rl.return_id = rh.id', 'inner')
             ->join('items i', 'i.id = rl.item_id', 'left')
             ->join('orders o', 'o.id = rh.order_id', 'left')
-            ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left');
+            ->join('karigars k', 'k.id = rh.karigar_id', 'left');
 
         if ($filters['from'] !== '') {
             $returnBuilder->where('rh.return_date >=', $filters['from']);
@@ -143,7 +143,7 @@ class ReportController extends BaseController
             $returnBuilder->like('o.order_no', $filters['order_no']);
         }
         if ($filters['karigar_id'] > 0) {
-            $returnBuilder->groupStart()->where('o.assigned_karigar_id', $filters['karigar_id']);
+            $returnBuilder->groupStart()->where('rh.karigar_id', $filters['karigar_id']);
             if ($karigarName !== '') {
                 $returnBuilder->orLike('rh.return_from', $karigarName);
             }
@@ -151,8 +151,21 @@ class ReportController extends BaseController
         }
         $returnRows = $returnBuilder->get()->getResultArray();
 
+        $openingRows = [];
         $purchaseRows = [];
-        if ($filters['karigar_id'] <= 0) {
+        if ($filters['karigar_id'] <= 0 && $filters['order_no'] === '') {
+            if (db_connect()->tableExists('diamond_inventory_opening_balances')) {
+                $openingBuilder = db_connect()->table('diamond_inventory_opening_balances ob')
+                    ->select("ob.id as ref_id, ob.reference_no, ob.opening_date as txn_date, 'Opening' as txn_type, NULL as order_no, 'Opening Balance' as party_name, 'Stock Opening' as purpose, ob.notes, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, ob.pcs, ob.carat, ob.rate_per_carat, ob.line_value", false)
+                    ->join('items i', 'i.id = ob.item_id', 'left');
+                if ($filters['from'] !== '') {
+                    $openingBuilder->where('ob.opening_date >=', $filters['from']);
+                }
+                if ($filters['to'] !== '') {
+                    $openingBuilder->where('ob.opening_date <=', $filters['to']);
+                }
+                $openingRows = $openingBuilder->get()->getResultArray();
+            }
             $purchaseBuilder = db_connect()->table('purchase_headers ph')
                 ->select("ph.id as ref_id, COALESCE(NULLIF(ph.invoice_no,''), CONCAT('PUR#', ph.id)) as reference_no, ph.purchase_date as txn_date, 'Purchase' as txn_type, NULL as order_no, COALESCE(NULLIF(ph.supplier_name,''), '-') as party_name, '' as purpose, ph.notes, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, pl.pcs, pl.carat, pl.rate_per_carat, pl.line_value", false)
                 ->join('purchase_lines pl', 'pl.purchase_id = ph.id', 'inner')
@@ -166,7 +179,7 @@ class ReportController extends BaseController
             $purchaseRows = $purchaseBuilder->get()->getResultArray();
         }
 
-        $rows = array_merge($purchaseRows, $issueRows, $returnRows);
+        $rows = array_merge($openingRows, $purchaseRows, $issueRows, $returnRows);
         usort($rows, static function (array $a, array $b): int {
             $dateCompare = strcmp((string) ($b['txn_date'] ?? ''), (string) ($a['txn_date'] ?? ''));
             if ($dateCompare !== 0) {
@@ -176,12 +189,20 @@ class ReportController extends BaseController
         });
 
         $cards = [
+            'opening_cts' => 0.0,
+            'purchase_cts' => 0.0,
             'issue_pcs' => 0.0,
             'issue_cts' => 0.0,
             'return_pcs' => 0.0,
             'return_cts' => 0.0,
         ];
         foreach ($rows as $row) {
+            if ((string) ($row['txn_type'] ?? '') === 'Opening') {
+                $cards['opening_cts'] += (float) ($row['carat'] ?? 0);
+            }
+            if ((string) ($row['txn_type'] ?? '') === 'Purchase') {
+                $cards['purchase_cts'] += (float) ($row['carat'] ?? 0);
+            }
             if ((string) ($row['txn_type'] ?? '') === 'Issue') {
                 $cards['issue_pcs'] += (float) ($row['pcs'] ?? 0);
                 $cards['issue_cts'] += (float) ($row['carat'] ?? 0);
@@ -193,6 +214,7 @@ class ReportController extends BaseController
         }
         $cards['balance_pcs'] = $cards['issue_pcs'] - $cards['return_pcs'];
         $cards['balance_cts'] = $cards['issue_cts'] - $cards['return_cts'];
+        $cards['stock_balance_cts'] = $cards['opening_cts'] + $cards['purchase_cts'] + $cards['return_cts'] - $cards['issue_cts'];
 
         return view('admin/reports/diamond_ledger', [
             'title' => 'Diamond Ledger Report',
