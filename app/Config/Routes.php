@@ -347,6 +347,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('orders', 'Admin\OrderController::store', ['filter' => 'permission:orders.create']);
     $routes->get('orders/(:num)/edit', 'Admin\OrderController::edit/$1', ['filter' => 'permission:orders.edit']);
     $routes->post('orders/(:num)/update', 'Admin\OrderController::update/$1', ['filter' => 'permission:orders.edit']);
+    $routes->get('orders/ready-image/(:num)', 'Admin\JewelleryInventoryController::image/$1', ['filter' => 'permission:orders.read']);
     $routes->get('orders/(:num)/timeline', 'Admin\OrderController::timeline/$1', ['filter' => 'permission:orders.read']);
     $routes->get('orders/(:num)', 'Admin\OrderController::show/$1', ['filter' => 'permission:orders.read']);
     $routes->post('orders/(:num)/status', 'Admin\OrderController::updateStatus/$1', ['filter' => 'permission:orders.status']);

@@ -350,10 +350,13 @@ class ProductionDataImportService
         $spreadsheet->disconnectWorksheets();
     }
 
-    /** @param array<string,string> $imageMap */
+    /**
+     * @param array<string,list<array{key:string,start_row:int,end_row:int,path:string}>> $imageMap
+     */
     private function parseReadyWorkbook(string $path, array &$parsed, array $imageMap): void
     {
         $spreadsheet = IOFactory::load($path);
+        $usedImages = [];
         foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
             $this->collectSourceRows($sheet, basename($path), 'ready_job_raw', $parsed['source_rows']);
             $karigar = $this->canonicalKarigar($sheet->getTitle());
@@ -440,6 +443,12 @@ class ProductionDataImportService
                         $paymentDate = $candidate;
                     }
                 }
+                $imagePath = $this->matchReadyImage(
+                    $imageMap[$sheet->getTitle()] ?? [],
+                    $row,
+                    $endRow,
+                    $usedImages
+                );
 
                 $parsed['ready_items'][] = [
                     'karigar_name' => $karigar,
@@ -456,7 +465,7 @@ class ProductionDataImportService
                     'labour_charges' => $this->number($this->cell($sheet, 14, $row)),
                     'total_value' => $this->number($this->cell($sheet, 15, $row)),
                     'stones_json' => json_encode($stones, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                    'image_path' => $imageMap[$sheet->getTitle() . ':' . $row] ?? null,
+                    'image_path' => $imagePath,
                     'status_note' => $statusNote,
                     'payment_status' => str_contains(strtoupper($statusNote), 'PAID') ? 'Paid' : 'Pending',
                     'payment_date' => $paymentDate,
@@ -470,9 +479,9 @@ class ProductionDataImportService
 
     /**
      * Excel stores these product photographs in drawing XML that PhpSpreadsheet does not expose.
-     * Read the OOXML relationships directly and retain one authenticated image per ready-item row.
+     * Read the OOXML relationships directly and retain every image placement with its row span.
      *
-     * @return array<string,string> sheet:row => path relative to WRITEPATH
+     * @return array<string,list<array{key:string,start_row:int,end_row:int,path:string}>>
      */
     private function extractReadyWorkbookImages(string $path, string $importRoot): array
     {
@@ -544,11 +553,13 @@ class ProductionDataImportService
                 $anchor->registerXPathNamespace('xdr', 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing');
                 $anchor->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
                 $rows = $anchor->xpath('./xdr:from/xdr:row') ?: [];
+                $endRows = $anchor->xpath('./xdr:to/xdr:row') ?: [];
                 $blips = $anchor->xpath('.//a:blip') ?: [];
                 if ($rows === [] || $blips === []) {
                     continue;
                 }
                 $readyRow = ((int) $rows[0]) + 1;
+                $endRow = $endRows === [] ? $readyRow : ((int) $endRows[0]) + 1;
                 $embedAttributes = $blips[0]->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships');
                 $relationshipId = (string) ($embedAttributes['embed'] ?? '');
                 $target = $relationships[$relationshipId] ?? '';
@@ -571,12 +582,53 @@ class ProductionDataImportService
                 if (file_put_contents($destination, $contents) === false) {
                     throw new RuntimeException('A ready-order image could not be stored.');
                 }
-                $result[$sheetName . ':' . $readyRow] = ltrim(str_replace('\\', '/', substr($destination, strlen(WRITEPATH))), '/');
+                $result[$sheetName][] = [
+                    'key' => $sheetName . ':' . ($anchorIndex + 1),
+                    'start_row' => $readyRow,
+                    'end_row' => max($readyRow, $endRow),
+                    'path' => ltrim(str_replace('\\', '/', substr($destination, strlen(WRITEPATH))), '/'),
+                ];
             }
         }
         $zip->close();
 
         return $result;
+    }
+
+    /**
+     * Match a picture to the item row it visually covers in Excel. Pictures can start on the
+     * blank separator row immediately before an item, so an exact row-key lookup loses them.
+     *
+     * @param list<array{key:string,start_row:int,end_row:int,path:string}> $placements
+     * @param array<string,bool> $usedImages
+     */
+    private function matchReadyImage(array $placements, int $itemStartRow, int $itemEndRow, array &$usedImages): ?string
+    {
+        $matches = [];
+        foreach ($placements as $placement) {
+            if (isset($usedImages[$placement['key']])) {
+                continue;
+            }
+            $startsOnItem = $placement['start_row'] === $itemStartRow;
+            $startsInsideItem = $placement['start_row'] >= $itemStartRow && $placement['start_row'] <= $itemEndRow;
+            $overlapsItem = $placement['end_row'] >= $itemStartRow && $placement['start_row'] <= $itemEndRow;
+            if (! $overlapsItem) {
+                continue;
+            }
+            $matches[] = [
+                'placement' => $placement,
+                'rank' => $startsOnItem ? 0 : ($startsInsideItem ? 1 : 2),
+                'distance' => abs($placement['start_row'] - $itemStartRow),
+            ];
+        }
+        if ($matches === []) {
+            return null;
+        }
+        usort($matches, static fn(array $left, array $right): int => [$left['rank'], $left['distance']] <=> [$right['rank'], $right['distance']]);
+        $selected = $matches[0]['placement'];
+        $usedImages[$selected['key']] = true;
+
+        return $selected['path'];
     }
 
     private function normalizeZipPath(string $path): string

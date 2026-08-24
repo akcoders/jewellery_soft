@@ -326,6 +326,14 @@ class OrderController extends BaseController
                 'created_at' => (string) ($attachment['created_at'] ?? ''),
             ];
         }
+        foreach ($this->productionReadyImages($id) as $readyImage) {
+            $images[] = [
+                'name' => (string) (($readyImage['design_name'] ?? '') ?: ('Ready item ' . ($readyImage['serial_no'] ?? ''))),
+                'type' => 'Production ready',
+                'url' => site_url('admin/orders/ready-image/' . (int) $readyImage['id']),
+                'created_at' => (string) (($readyImage['ready_date'] ?? '') ?: ($readyImage['created_at'] ?? '')),
+            ];
+        }
 
         $followupRows = array_map(static function (array $followup): array {
             $imagePath = trim((string) ($followup['image_path'] ?? ''));
@@ -984,6 +992,7 @@ class OrderController extends BaseController
             'receiveLabourRate' => (float) ($order['karigar_rate_per_gm'] ?? 0),
             'receivePrefill' => $receivePrefill,
             'followups' => $followups,
+            'readyImages' => $this->productionReadyImages($id),
             'latestPacking' => is_array($latestPacking) ? $latestPacking : null,
         ]);
     }
@@ -3958,6 +3967,25 @@ class OrderController extends BaseController
         ];
 
         return isset($allowed[$from]) && $allowed[$from] === $to;
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function productionReadyImages(int $orderId): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('production_ready_items') || ! $db->fieldExists('image_path', 'production_ready_items')) {
+            return [];
+        }
+
+        return $db->table('production_ready_items')
+            ->select('id, serial_no, design_name, reference_no, ready_date, image_path, created_at')
+            ->where('order_id', $orderId)
+            ->where('image_path IS NOT NULL', null, false)
+            ->where('image_path !=', '')
+            ->orderBy('source_row', 'ASC')
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultArray();
     }
 
     private function isRepairType(string $orderType): bool

@@ -359,6 +359,10 @@ foreach ($attachments as $file) {
         $generalAttachments[] = $file;
     }
 }
+$readyImages = is_array($readyImages ?? null) ? $readyImages : [];
+if ($orderPhoto === null && $readyImages !== []) {
+    $orderPhoto = site_url('admin/orders/ready-image/' . (int) $readyImages[0]['id']);
+}
 $isCancelledOrder = (string) ($order['status'] ?? '') === 'Cancelled';
 $isCompletedOrder = (string) ($order['status'] ?? '') === 'Completed';
 $isLockedOrder = $isCancelledOrder || $isCompletedOrder;
@@ -620,6 +624,22 @@ $isLockedOrder = $isCancelledOrder || $isCompletedOrder;
                             </div>
                         <?php endif; ?>
                     </div>
+                    <?php if ($readyImages !== []): ?>
+                        <div class="mb-4">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <strong class="small">Production Ready Images</strong>
+                                <span class="badge bg-light text-dark border"><?= count($readyImages) ?></span>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <?php foreach ($readyImages as $readyImage): ?>
+                                    <?php $readyImageUrl = site_url('admin/orders/ready-image/' . (int) $readyImage['id']); ?>
+                                    <a href="<?= esc($readyImageUrl, 'attr') ?>" target="_blank" rel="noopener" title="<?= esc((string) (($readyImage['design_name'] ?? '') ?: 'Ready jewellery'), 'attr') ?>">
+                                        <img src="<?= esc($readyImageUrl, 'attr') ?>" alt="<?= esc((string) (($readyImage['design_name'] ?? '') ?: 'Ready jewellery'), 'attr') ?>" style="width:68px;height:68px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb">
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                     <div class="row g-3">
                         <div class="col-6">
                             <div class="order-metric-card p-3 text-center" style="background-color: #c8ffdc;border: solid, #39b36e;">

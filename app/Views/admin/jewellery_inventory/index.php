@@ -39,7 +39,7 @@
                             <td>
                                 <?php if ((int) ($row['production_ready_item_id'] ?? 0) > 0 && trim((string) ($row['source_image_path'] ?? '')) !== ''): ?>
                                     <a href="<?= site_url('admin/jewellery-inventory/image/' . (int) $row['production_ready_item_id']) ?>" target="_blank"><img src="<?= site_url('admin/jewellery-inventory/image/' . (int) $row['production_ready_item_id']) ?>" alt="<?= esc((string) ($row['design_name'] ?? 'Jewellery')) ?>" style="width:72px;height:72px;object-fit:cover;border-radius:10px"></a>
-                                <?php else: ?><span class="text-muted">No image</span><?php endif; ?>
+                                <?php else: ?><span class="text-muted">Source image not provided</span><?php endif; ?>
                             </td>
                             <td><strong><?= esc((string) ($row['tag_no'] ?? '-')) ?></strong><br><small class="text-muted"><?= esc((string) ($row['order_no'] ?? '-')) ?></small></td>
                             <td><?= esc((string) ($row['karigar_name'] ?? '-')) ?><br><small class="text-muted"><?= esc((string) ($row['ready_group'] ?? '-')) ?></small></td>
