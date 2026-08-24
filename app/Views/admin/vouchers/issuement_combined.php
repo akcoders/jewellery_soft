@@ -151,7 +151,6 @@
 <body>
 <?php
 $issueDate = isset($issue['issue_date']) ? (string) $issue['issue_date'] : '-';
-$orderNo = isset($issue['order_no']) && $issue['order_no'] !== '' ? (string) $issue['order_no'] : '-';
 $purpose = isset($issue['purpose']) && $issue['purpose'] !== '' ? (string) $issue['purpose'] : '-';
 $warehouseName = isset($issue['warehouse_name']) && $issue['warehouse_name'] !== '' ? (string) $issue['warehouse_name'] : '-';
 $notes = isset($issue['notes']) && trim((string) $issue['notes']) !== '' ? (string) $issue['notes'] : '-';
@@ -255,8 +254,8 @@ $blankRows = $minRows > count($rows) ? $minRows - count($rows) : 0;
                 <td><?= esc((string) ($voucherNo ?? '-')) ?></td>
             </tr>
             <tr>
-                <td class="lbl">Order No:</td>
-                <td><?= esc($orderNo) ?></td>
+                <td class="lbl">Karigar:</td>
+                <td><?= esc($supplierName) ?></td>
                 <td class="lbl">Material:</td>
                 <td><?= esc((string) ($materialType ?? '-')) ?></td>
             </tr>
@@ -330,12 +329,12 @@ $blankRows = $minRows > count($rows) ? $minRows - count($rows) : 0;
     </div>
 
     <div class="section">
-        <div class="line-head">Order Details</div>
+        <div class="line-head">Transaction Details</div>
         <table class="grid">
             <tbody>
                 <tr>
-                    <td style="width:20%;"><strong>Order No</strong></td>
-                    <td style="width:30%;"><?= esc($orderNo) ?></td>
+                    <td style="width:20%;"><strong>Material</strong></td>
+                    <td style="width:30%;"><?= esc((string) ($materialType ?? '-')) ?></td>
                     <td style="width:20%;"><strong>Purpose</strong></td>
                     <td style="width:30%;"><?= esc($purpose) ?></td>
                 </tr>

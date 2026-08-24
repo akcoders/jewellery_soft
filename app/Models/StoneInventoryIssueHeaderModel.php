@@ -21,9 +21,9 @@ class StoneInventoryIssueHeaderModel extends Model
         'attachment_name',
         'attachment_path',
         'created_by',
+        'account_voucher_id',
     ];
 
     protected $useTimestamps = true;
     protected $dateFormat = 'datetime';
 }
-

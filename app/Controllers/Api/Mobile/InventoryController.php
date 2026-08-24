@@ -133,7 +133,7 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('issue_headers ih')
-            ->select('ih.id, ih.voucher_no, ih.issue_date, ih.issue_to, ih.purpose, ih.notes, ih.created_at, ih.order_id, ih.karigar_id, k.name as karigar_name')
+            ->select('ih.id, ih.voucher_no, ih.issue_date, ih.issue_to, ih.purpose, ih.notes, ih.created_at, ih.karigar_id, k.name as karigar_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->orderBy('ih.id', 'DESC')
             ->get(200)
@@ -158,7 +158,7 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('return_headers rh')
-            ->select('rh.id, rh.voucher_no, rh.return_date, rh.return_from, rh.purpose, rh.notes, rh.created_at, rh.order_id, rh.issue_id, rh.karigar_id, k.name as karigar_name')
+            ->select('rh.id, rh.voucher_no, rh.return_date, rh.return_from, rh.purpose, rh.notes, rh.created_at, rh.issue_id, rh.karigar_id, k.name as karigar_name')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
             ->orderBy('rh.id', 'DESC')
             ->get(200)
@@ -196,7 +196,7 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('gold_inventory_issue_headers gih')
-            ->select('gih.id, gih.voucher_no, gih.issue_date, gih.order_id, gih.karigar_id, gih.issue_to, gih.purpose, gih.notes, gih.created_at, k.name as karigar_name')
+            ->select('gih.id, gih.voucher_no, gih.issue_date, gih.karigar_id, gih.issue_to, gih.purpose, gih.notes, gih.created_at, k.name as karigar_name')
             ->join('karigars k', 'k.id = gih.karigar_id', 'left')
             ->orderBy('gih.id', 'DESC')
             ->get(200)
@@ -221,7 +221,7 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('gold_inventory_return_headers grh')
-            ->select('grh.id, grh.voucher_no, grh.return_date, grh.order_id, grh.karigar_id, grh.return_from, grh.purpose, grh.notes, grh.created_at, k.name as karigar_name')
+            ->select('grh.id, grh.voucher_no, grh.return_date, grh.karigar_id, grh.return_from, grh.purpose, grh.notes, grh.created_at, k.name as karigar_name')
             ->join('karigars k', 'k.id = grh.karigar_id', 'left')
             ->orderBy('grh.id', 'DESC')
             ->get(200)
@@ -270,7 +270,7 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('stone_inventory_issue_headers sih')
-            ->select('sih.id, sih.voucher_no, sih.issue_date, sih.order_id, sih.karigar_id, sih.issue_to, sih.purpose, sih.notes, sih.created_at, k.name as karigar_name')
+            ->select('sih.id, sih.voucher_no, sih.issue_date, sih.karigar_id, sih.issue_to, sih.purpose, sih.notes, sih.created_at, k.name as karigar_name')
             ->join('karigars k', 'k.id = sih.karigar_id', 'left')
             ->orderBy('sih.id', 'DESC')
             ->get(200)
@@ -295,7 +295,7 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('stone_inventory_return_headers srh')
-            ->select('srh.id, srh.voucher_no, srh.return_date, srh.order_id, srh.karigar_id, srh.return_from, srh.purpose, srh.notes, srh.created_at, k.name as karigar_name')
+            ->select('srh.id, srh.voucher_no, srh.return_date, srh.karigar_id, srh.return_from, srh.purpose, srh.notes, srh.created_at, k.name as karigar_name')
             ->join('karigars k', 'k.id = srh.karigar_id', 'left')
             ->orderBy('srh.id', 'DESC')
             ->get(200)

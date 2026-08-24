@@ -76,15 +76,6 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Order</label>
-                <select name="order_id" class="form-select">
-                    <option value="">All</option>
-                    <?php foreach (($orderOptions ?? []) as $order): ?>
-                        <option value="<?= (int) $order['id'] ?>" <?= (string) ($filters['order_id'] ?? '') === (string) $order['id'] ? 'selected' : '' ?>><?= esc((string) $order['order_no']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-2">
                 <label class="form-label">Karigar</label>
                 <select name="karigar_id" class="form-select">
                     <option value="">All</option>
@@ -109,7 +100,6 @@
                     <tr>
                         <th>Date</th>
                         <th>Type</th>
-                        <th>Order</th>
                         <th>Karigar</th>
                         <th>Location</th>
                         <th>Item</th>
@@ -127,13 +117,12 @@
                 </thead>
                 <tbody>
                     <?php if (($rows ?? []) === []): ?>
-                        <tr><td colspan="16" class="text-center text-muted">No ledger entries found.</td></tr>
+                        <tr><td colspan="15" class="text-center text-muted">No ledger entries found.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($rows ?? []) as $row): ?>
                         <tr>
                             <td><?= esc((string) ($row['txn_date'] ?? '')) ?></td>
                             <td><?= esc((string) ($row['txn_type'] ?? '')) ?></td>
-                            <td><?= esc((string) ($row['order_no'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['karigar_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['location_name'] ?? '-')) ?></td>
                             <td><?= esc((($row['master_purity_code'] ?: $row['purity_code'] ?: 'NA') . ' / ' . ($row['color_name'] ?: 'NA') . ' / ' . ($row['form_type'] ?: 'Raw'))) ?></td>

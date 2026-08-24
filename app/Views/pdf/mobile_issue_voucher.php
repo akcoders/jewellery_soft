@@ -130,7 +130,7 @@
         <div class="section">
             <table class="meta">
                 <tr><td class="label">Date:</td><td><?= esc((string) ($issue['issue_date'] ?? '-')) ?></td><td class="label">IV No:</td><td><?= esc((string) ($issue['voucher_no'] ?? '-')) ?></td></tr>
-                <tr><td class="label">Order No:</td><td><?= esc((string) ($issue['order_no'] ?? '-')) ?></td><td class="label">Material:</td><td><?= esc($materialType) ?></td></tr>
+                <tr><td class="label">Karigar:</td><td><?= esc((string) ($issue['karigar_name'] ?? $issue['issue_to'] ?? '-')) ?></td><td class="label">Material:</td><td><?= esc($materialType) ?></td></tr>
             </table>
         </div>
 
@@ -168,10 +168,10 @@
         </div>
 
         <div class="section">
-            <div style="font-weight:700; margin-bottom:6px;">Order Details</div>
+            <div style="font-weight:700; margin-bottom:6px;">Transaction Details</div>
             <table>
                 <colgroup><col style="width:20%"><col style="width:30%"><col style="width:20%"><col style="width:30%"></colgroup>
-                <tr><td><strong>Order No</strong></td><td><?= esc((string) ($issue['order_no'] ?? '-')) ?></td><td><strong>Purpose</strong></td><td><?= esc((string) ($issue['purpose'] ?? '-')) ?></td></tr>
+                <tr><td><strong>Material</strong></td><td><?= esc($materialType) ?></td><td><strong>Purpose</strong></td><td><?= esc((string) ($issue['purpose'] ?? '-')) ?></td></tr>
                 <tr><td><strong>Warehouse</strong></td><td><?= esc((string) ($issue['warehouse_name'] ?? '-')) ?></td><td><strong>Issue To</strong></td><td><?= esc((string) ($issue['issue_to'] ?? $issue['karigar_name'] ?? '-')) ?></td></tr>
                 <tr><td><strong>Notes</strong></td><td colspan="3"><?= esc((string) ($issue['notes'] ?? '-')) ?></td></tr>
             </table>

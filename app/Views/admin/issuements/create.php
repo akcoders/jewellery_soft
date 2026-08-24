@@ -16,24 +16,7 @@
                     <label class="form-label">Issue Date <span class="text-danger">*</span></label>
                     <input type="date" name="issue_date" class="form-control" required value="<?= esc((string) old('issue_date', date('Y-m-d'))) ?>">
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Order <span class="text-danger">*</span></label>
-                    <select name="order_id" id="order_id" class="form-select js-select2" required>
-                        <option value="">Select order</option>
-                        <?php foreach (($orders ?? []) as $order): ?>
-                            <option
-                                value="<?= (int) $order['id'] ?>"
-                                data-karigar-id="<?= (int) ($order['assigned_karigar_id'] ?? 0) ?>"
-                                data-gold-budget="<?= esc(number_format((float) ($order['gold_budget_gm'] ?? 0), 3, '.', '')) ?>"
-                                data-diamond-budget="<?= esc(number_format((float) ($order['diamond_budget_cts'] ?? 0), 3, '.', '')) ?>"
-                                <?= (string) old('order_id') === (string) $order['id'] ? 'selected' : '' ?>
-                            >
-                                <?= esc((string) $order['order_no']) ?> - <?= esc((string) ($order['karigar_name'] ?? '')) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label class="form-label">Karigar <span class="text-danger">*</span></label>
                     <select name="karigar_id" id="karigar_id" class="form-select js-select2" required>
                         <option value="">Select karigar</option>
@@ -44,7 +27,7 @@
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-3">
                     <label class="form-label">Warehouse <span class="text-danger">*</span></label>
                     <select name="location_id" class="form-select" required>
                         <option value="">Select warehouse</option>
@@ -55,16 +38,12 @@
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-3">
                     <label class="form-label">Purpose <span class="text-danger">*</span></label>
                     <input type="text" name="purpose" id="purpose" class="form-control" required value="<?= esc((string) old('purpose', 'Jobwork')) ?>">
                 </div>
 
-                <div class="col-md-6">
-                    <label class="form-label">Order Budget</label>
-                    <div id="order_budget" class="form-control bg-light" style="height:auto;">Select order to view budget.</div>
-                </div>
-                <div class="col-md-6">
+                <div class="col-md-12">
                     <label class="form-label">Notes</label>
                     <input type="text" name="notes" class="form-control" value="<?= esc((string) old('notes')) ?>">
                 </div>
@@ -281,32 +260,6 @@
         body.appendChild(fragment);
     }
 
-    const orderSelect = document.getElementById('order_id');
-    const karigarSelect = document.getElementById('karigar_id');
-    const budgetEl = document.getElementById('order_budget');
-
-    function refreshOrderInfo() {
-        if (!orderSelect || !budgetEl) return;
-        const selected = orderSelect.options[orderSelect.selectedIndex];
-        if (!selected || !selected.value) {
-            budgetEl.textContent = 'Select order to view budget.';
-            return;
-        }
-
-        const karigarId = selected.getAttribute('data-karigar-id') || '';
-        const goldBudget = num(selected.getAttribute('data-gold-budget') || '0').toFixed(3);
-        const diamondBudget = num(selected.getAttribute('data-diamond-budget') || '0').toFixed(3);
-
-        if (karigarSelect && karigarId) {
-            karigarSelect.value = karigarId;
-            if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
-                window.jQuery(karigarSelect).trigger('change.select2');
-            }
-        }
-
-        budgetEl.textContent = 'Gold Budget: ' + goldBudget + ' gm | Diamond Budget: ' + diamondBudget + ' cts';
-    }
-
     document.getElementById('add-gold-line')?.addEventListener('click', function () {
         addRow('gold-lines-body', 'gold-line-template', function (row) {
             bindCommonRow(row, '.gold-weight', '.gold-rate', '.gold-value');
@@ -362,11 +315,6 @@
         window.jQuery('.js-select2').select2({ width: '100%' });
     }
 
-    if (orderSelect) {
-        orderSelect.addEventListener('change', refreshOrderInfo);
-    }
-
-    refreshOrderInfo();
 })();
 </script>
 <?= $this->endSection() ?>

@@ -18,7 +18,6 @@
     <div class="card-body">
         <div class="row">
             <div class="col-md-3"><strong>Voucher:</strong> <?= esc((string) ($issue['voucher_no'] ?? '-')) ?></div>
-            <div class="col-md-3"><strong>Order Ref:</strong> <?= esc((string) ($issue['order_no'] ?? '-')) ?></div>
             <div class="col-md-3"><strong>Date:</strong> <?= esc((string) $issue['issue_date']) ?></div>
             <div class="col-md-3"><strong>Karigar:</strong> <?= esc((string) ($issue['karigar_name'] ?: $issue['issue_to'] ?: '-')) ?></div>
             <div class="col-md-3 mt-2"><strong>Warehouse:</strong> <?= esc((string) ($issue['warehouse_name'] ?? '-')) ?></div>

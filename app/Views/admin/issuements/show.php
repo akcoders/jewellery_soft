@@ -14,7 +14,6 @@
         <div class="row g-3">
             <div class="col-md-3"><strong>Voucher No:</strong> <?= esc((string) ($voucherNo ?? '-')) ?></div>
             <div class="col-md-3"><strong>Date:</strong> <?= esc((string) ($issue['issue_date'] ?? '-')) ?></div>
-            <div class="col-md-3"><strong>Order:</strong> <?= esc((string) ($issue['order_no'] ?? '-')) ?></div>
             <div class="col-md-3"><strong>Type:</strong> <?= esc((string) ($materialType ?? '-')) ?></div>
             <div class="col-md-3"><strong>Issue To:</strong> <?= esc((string) ($supplierName ?? '-')) ?></div>
             <div class="col-md-3"><strong>Warehouse:</strong> <?= esc((string) ($issue['warehouse_name'] ?? '-')) ?></div>
@@ -131,4 +130,3 @@
 <?php endif; ?>
 
 <?= $this->endSection() ?>
-

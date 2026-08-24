@@ -18,7 +18,6 @@
     <div class="card-body">
         <div class="row">
             <div class="col-md-3"><strong>Receipt No:</strong> <?= esc((string) (($return['voucher_no'] ?? '') !== '' ? $return['voucher_no'] : ('RET#' . (int) $return['id']))) ?></div>
-            <div class="col-md-3"><strong>Order Ref:</strong> <?= esc((string) ($return['order_no'] ?? '-')) ?></div>
             <div class="col-md-3"><strong>Issue Ref:</strong> <?= esc((string) (($return['issue_voucher_no'] ?? '') !== '' ? $return['issue_voucher_no'] : '-')) ?></div>
             <div class="col-md-3"><strong>Date:</strong> <?= esc((string) $return['return_date']) ?></div>
             <div class="col-md-3"><strong>Return From:</strong> <?= esc((string) ($return['return_from'] ?: '-')) ?></div>

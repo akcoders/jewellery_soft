@@ -41,7 +41,6 @@
 $materialType = isset($materialType) ? (string) $materialType : 'Material';
 $returnDate = isset($return['return_date']) ? (string) $return['return_date'] : '-';
 $receiptNo = isset($return['voucher_no']) && $return['voucher_no'] !== '' ? (string) $return['voucher_no'] : (isset($return['id']) ? ('RET-' . $return['id']) : '-');
-$orderNo = isset($return['order_no']) && $return['order_no'] !== '' ? (string) $return['order_no'] : '-';
 $issueNo = isset($return['issue_voucher_no']) && $return['issue_voucher_no'] !== '' ? (string) $return['issue_voucher_no'] : '-';
 $issueDate = isset($return['issue_date']) && $return['issue_date'] !== '' ? (string) $return['issue_date'] : '-';
 $purpose = isset($return['purpose']) && $return['purpose'] !== '' ? (string) $return['purpose'] : '-';
@@ -133,8 +132,8 @@ $blankRows = $minRows > count($rows) ? $minRows - count($rows) : 0;
                 <td><?= esc($receiptNo) ?></td>
             </tr>
             <tr>
-                <td class="lbl">Order No:</td>
-                <td><?= esc($orderNo) ?></td>
+                <td class="lbl">Return From:</td>
+                <td><?= esc($partyName) ?></td>
                 <td class="lbl">Material:</td>
                 <td><?= esc($materialType) ?></td>
             </tr>
@@ -248,8 +247,8 @@ $blankRows = $minRows > count($rows) ? $minRows - count($rows) : 0;
         <table class="grid">
             <tbody>
                 <tr>
-                    <td style="width:20%;"><strong>Order No</strong></td>
-                    <td style="width:30%;"><?= esc($orderNo) ?></td>
+                    <td style="width:20%;"><strong>Material</strong></td>
+                    <td style="width:30%;"><?= esc($materialType) ?></td>
                     <td style="width:20%;"><strong>Issue Ref</strong></td>
                     <td style="width:30%;"><?= esc($issueNo) ?></td>
                 </tr>

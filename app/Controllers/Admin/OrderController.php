@@ -30,6 +30,7 @@ use App\Models\DeliveryChallanModel;
 use App\Services\AdminPostingService;
 use App\Services\FinishedJewelleryService;
 use App\Services\GoldInventory\StockService as GoldInventoryStockService;
+use App\Services\KarigarMaterialAccountingService;
 use App\Services\OrderWhatsAppService;
 use App\Services\PdfService;
 use Config\Jewellery;
@@ -702,264 +703,6 @@ class OrderController extends BaseController
             ->where('order_id', $id)
             ->findAll();
 
-        $summary = [
-            'gold_required_gm'     => 0.0,
-            'diamond_required_cts' => 0.0,
-        ];
-
-        foreach ($items as $item) {
-            $summary['gold_required_gm'] += (float) $item['gold_required_gm'];
-            $summary['diamond_required_cts'] += (float) $item['diamond_required_cts'];
-        }
-        $receivePurityInfo = $this->getOrderPurityInfo($id);
-
-        $db = db_connect();
-        $movements = [];
-        $goldLedgers = [];
-
-        if (
-            $db->tableExists('gold_inventory_ledger_entries')
-            && $db->tableExists('gold_inventory_items')
-        ) {
-            $goldLedgers = $db->table('gold_inventory_ledger_entries gle')
-                ->select("
-                    gle.txn_type as entry_type,
-                    k.name as karigar_name,
-                    iloc.name as location_name,
-                    gi.purity_code,
-                    gi.color_name,
-                    CASE
-                        WHEN COALESCE(gle.credit_weight_gm, 0) > 0 THEN gle.credit_weight_gm
-                        ELSE gle.debit_weight_gm
-                    END as weight_gm,
-                    CASE
-                        WHEN COALESCE(gle.credit_fine_gm, 0) > 0 THEN gle.credit_fine_gm
-                        ELSE gle.debit_fine_gm
-                    END as pure_gold_weight_gm,
-                    gle.reference_table as reference_type,
-                    gle.reference_id,
-                    gle.notes,
-                    gle.created_at
-                ", false)
-                ->join('karigars k', 'k.id = gle.karigar_id', 'left')
-                ->join('inventory_locations iloc', 'iloc.id = gle.location_id', 'left')
-                ->join('gold_inventory_items gi', 'gi.id = gle.item_id', 'left')
-                ->where('gle.order_id', $id)
-                ->orderBy('gle.id', 'DESC')
-                ->get()
-                ->getResultArray();
-        }
-
-        if ($goldLedgers === []) {
-            $goldLedgers = $this->goldLedgerModel
-                ->select('gold_ledger_entries.*, karigars.name as karigar_name, gold_purities.purity_code, gold_purities.color_name, inventory_locations.name as location_name')
-                ->join('karigars', 'karigars.id = gold_ledger_entries.karigar_id', 'left')
-                ->join('gold_purities', 'gold_purities.id = gold_ledger_entries.gold_purity_id', 'left')
-                ->join('inventory_locations', 'inventory_locations.id = gold_ledger_entries.location_id', 'left')
-                ->where('gold_ledger_entries.order_id', $id)
-                ->orderBy('gold_ledger_entries.id', 'DESC')
-                ->findAll();
-        }
-
-        if (
-            $db->tableExists('gold_inventory_issue_headers')
-            && $db->tableExists('gold_inventory_issue_lines')
-            && $db->tableExists('gold_inventory_return_headers')
-            && $db->tableExists('gold_inventory_return_lines')
-        ) {
-            $issueRows = $db->table('gold_inventory_issue_headers ih')
-                ->select("
-                    'issue' as movement_type,
-                    k.name as karigar_name,
-                    iloc.name as location_name,
-                    gi.purity_code,
-                    gi.color_name,
-                    0 as gross_weight_gm,
-                    0 as other_weight_gm,
-                    0 as diamond_weight_gm,
-                    COALESCE(SUM(il.weight_gm), 0) as gold_gm,
-                    0 as diamond_cts,
-                    COALESCE(SUM(il.fine_weight_gm), 0) as pure_gold_weight_gm,
-                    ih.notes,
-                    COALESCE(ih.created_at, CONCAT(ih.issue_date, ' 00:00:00')) as created_at
-                ", false)
-                ->join('gold_inventory_issue_lines il', 'il.issue_id = ih.id', 'inner')
-                ->join('gold_inventory_items gi', 'gi.id = il.item_id', 'left')
-                ->join('karigars k', 'k.id = ih.karigar_id', 'left')
-                ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
-                ->where('ih.order_id', $id)
-                ->groupBy('ih.id')
-                ->get()
-                ->getResultArray();
-
-            $returnRows = $db->table('gold_inventory_return_headers rh')
-                ->select("
-                    'receive' as movement_type,
-                    k.name as karigar_name,
-                    iloc.name as location_name,
-                    gi.purity_code,
-                    gi.color_name,
-                    0 as gross_weight_gm,
-                    0 as other_weight_gm,
-                    0 as diamond_weight_gm,
-                    COALESCE(SUM(rl.weight_gm), 0) as gold_gm,
-                    0 as diamond_cts,
-                    COALESCE(SUM(rl.fine_weight_gm), 0) as pure_gold_weight_gm,
-                    rh.notes,
-                    COALESCE(rh.created_at, CONCAT(rh.return_date, ' 00:00:00')) as created_at
-                ", false)
-                ->join('gold_inventory_return_lines rl', 'rl.return_id = rh.id', 'inner')
-                ->join('gold_inventory_items gi', 'gi.id = rl.item_id', 'left')
-                ->join('karigars k', 'k.id = rh.karigar_id', 'left')
-                ->join('inventory_locations iloc', 'iloc.id = rh.location_id', 'left')
-                ->where('rh.order_id', $id)
-                ->groupBy('rh.id')
-                ->get()
-                ->getResultArray();
-
-            $movements = array_merge($issueRows, $returnRows);
-            usort($movements, static function (array $a, array $b): int {
-                return strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? ''));
-            });
-        }
-
-        if ($movements === []) {
-            $movements = $this->movementModel
-                ->select('order_material_movements.*, karigars.name as karigar_name, gold_purities.purity_code, gold_purities.color_name, inventory_locations.name as location_name')
-                ->join('karigars', 'karigars.id = order_material_movements.karigar_id', 'left')
-                ->join('gold_purities', 'gold_purities.id = order_material_movements.gold_purity_id', 'left')
-                ->join('inventory_locations', 'inventory_locations.id = order_material_movements.location_id', 'left')
-                ->where('order_material_movements.order_id', $id)
-                ->orderBy('order_material_movements.id', 'DESC')
-                ->findAll();
-        }
-
-        $stoneLedgers = $this->stoneLedgerModel
-            ->select('stone_ledger_entries.*, karigars.name as karigar_name, inventory_locations.name as location_name')
-            ->join('karigars', 'karigars.id = stone_ledger_entries.karigar_id', 'left')
-            ->join('inventory_locations', 'inventory_locations.id = stone_ledger_entries.location_id', 'left')
-            ->where('stone_ledger_entries.order_id', $id)
-            ->orderBy('stone_ledger_entries.id', 'DESC')
-            ->findAll();
-
-        if (
-            $stoneLedgers === []
-            && $db->tableExists('stone_inventory_issue_headers')
-            && $db->tableExists('stone_inventory_issue_lines')
-        ) {
-            $issueLedgers = $db->table('stone_inventory_issue_headers ih')
-                ->select("
-                    'issue' as entry_type,
-                    k.name as karigar_name,
-                    iloc.name as location_name,
-                    i.product_name as stone_type,
-                    NULL as size,
-                    NULL as stone_item_type,
-                    NULL as color,
-                    NULL as quality,
-                    il.qty as pcs,
-                    il.qty as weight_cts,
-                    'stone_inventory_issue' as reference_type,
-                    ih.id as reference_id,
-                    ih.notes,
-                    COALESCE(ih.created_at, CONCAT(ih.issue_date, ' 00:00:00')) as created_at
-                ", false)
-                ->join('stone_inventory_issue_lines il', 'il.issue_id = ih.id', 'inner')
-                ->join('stone_inventory_items i', 'i.id = il.item_id', 'left')
-                ->join('karigars k', 'k.id = ih.karigar_id', 'left')
-                ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
-                ->where('ih.order_id', $id)
-                ->get()
-                ->getResultArray();
-
-            $returnLedgers = [];
-            if ($db->tableExists('stone_inventory_return_headers') && $db->tableExists('stone_inventory_return_lines')) {
-                $returnLedgers = $db->table('stone_inventory_return_headers rh')
-                    ->select("
-                        'receive' as entry_type,
-                        k.name as karigar_name,
-                        iloc.name as location_name,
-                        i.product_name as stone_type,
-                        NULL as size,
-                        NULL as stone_item_type,
-                        NULL as color,
-                        NULL as quality,
-                        rl.qty as pcs,
-                        rl.qty as weight_cts,
-                        'stone_inventory_return' as reference_type,
-                        rh.id as reference_id,
-                        rh.notes,
-                        COALESCE(rh.created_at, CONCAT(rh.return_date, ' 00:00:00')) as created_at
-                    ", false)
-                    ->join('stone_inventory_return_lines rl', 'rl.return_id = rh.id', 'inner')
-                    ->join('stone_inventory_items i', 'i.id = rl.item_id', 'left')
-                    ->join('karigars k', 'k.id = rh.karigar_id', 'left')
-                    ->join('inventory_locations iloc', 'iloc.id = rh.location_id', 'left')
-                    ->where('rh.order_id', $id)
-                    ->get()
-                    ->getResultArray();
-            }
-
-            $stoneLedgers = array_merge($issueLedgers, $returnLedgers);
-            usort($stoneLedgers, static function (array $a, array $b): int {
-                return strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? ''));
-            });
-        }
-
-        $issueTransactions = [];
-        if (db_connect()->tableExists('issue_headers') && db_connect()->tableExists('issue_lines')) {
-            $issueTransactions = db_connect()->table('issue_headers ih')
-                ->select("ih.id as header_id, ih.issue_date as txn_date, ih.issue_to as party_name, ih.purpose, ih.notes, il.id as line_id, il.pcs, il.carat, il.rate_per_carat, il.line_value, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, 'Issue' as txn_type", false)
-                ->join('issue_lines il', 'il.issue_id = ih.id')
-                ->join('items i', 'i.id = il.item_id', 'left')
-                ->where('ih.order_id', $id)
-                ->get()
-                ->getResultArray();
-        }
-
-        $returnTransactions = [];
-        if (db_connect()->tableExists('return_headers') && db_connect()->tableExists('return_lines')) {
-            $returnTransactions = db_connect()->table('return_headers rh')
-                ->select("rh.id as header_id, rh.return_date as txn_date, rh.return_from as party_name, rh.purpose, rh.notes, rl.id as line_id, rl.pcs, rl.carat, rl.rate_per_carat, rl.line_value, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, 'Return' as txn_type", false)
-                ->join('return_lines rl', 'rl.return_id = rh.id')
-                ->join('items i', 'i.id = rl.item_id', 'left')
-                ->where('rh.order_id', $id)
-                ->get()
-                ->getResultArray();
-        }
-
-        $diamondInventoryTransactions = array_merge($issueTransactions, $returnTransactions);
-        usort($diamondInventoryTransactions, static function (array $a, array $b): int {
-            $dateCompare = strcmp((string) ($b['txn_date'] ?? ''), (string) ($a['txn_date'] ?? ''));
-            if ($dateCompare !== 0) {
-                return $dateCompare;
-            }
-
-            return (int) ($b['header_id'] ?? 0) <=> (int) ($a['header_id'] ?? 0);
-        });
-
-        $diamondInventorySummary = [
-            'issue_pcs' => 0.0,
-            'issue_carat' => 0.0,
-            'return_pcs' => 0.0,
-            'return_carat' => 0.0,
-            'balance_pcs' => 0.0,
-            'balance_carat' => 0.0,
-        ];
-        foreach ($diamondInventoryTransactions as $txn) {
-            $pcs = (float) ($txn['pcs'] ?? 0);
-            $carat = (float) ($txn['carat'] ?? 0);
-            if ((string) ($txn['txn_type'] ?? '') === 'Issue') {
-                $diamondInventorySummary['issue_pcs'] += $pcs;
-                $diamondInventorySummary['issue_carat'] += $carat;
-            } else {
-                $diamondInventorySummary['return_pcs'] += $pcs;
-                $diamondInventorySummary['return_carat'] += $carat;
-            }
-        }
-        $diamondInventorySummary['balance_pcs'] = $diamondInventorySummary['issue_pcs'] - $diamondInventorySummary['return_pcs'];
-        $diamondInventorySummary['balance_carat'] = $diamondInventorySummary['issue_carat'] - $diamondInventorySummary['return_carat'];
-        $receivePrefill = $this->buildReceivePrefillData($id);
         $followups = $this->followupModel
             ->select('order_followups.*, admin_users.name as followup_taken_by_name')
             ->join('admin_users', 'admin_users.id = order_followups.followup_taken_by', 'left')
@@ -967,33 +710,30 @@ class OrderController extends BaseController
             ->orderBy('order_followups.id', 'DESC')
             ->findAll();
 
-        $latestPacking = db_connect()->table('packing_lists')
-            ->select('id, packing_no, packing_date, status')
+
+        $receiveSummary = $this->receiveSummaryModel
             ->where('order_id', $id)
             ->orderBy('id', 'DESC')
-            ->get()
-            ->getRowArray();
+            ->first();
+        $studdedDetails = [];
+        if ($receiveSummary) {
+            $studdedDetails = $this->receiveDetailModel
+                ->where('movement_id', (int) $receiveSummary['movement_id'])
+                ->orderBy('component_type', 'ASC')
+                ->orderBy('id', 'ASC')
+                ->findAll();
+        }
 
         return view('admin/orders/show', [
             'title'      => 'Order Details',
             'order'      => $order,
             'items'      => $items,
-            'summary'    => $summary,
-            'budgetMonitor' => $this->getBudgetMonitor($id, $summary),
-            'movements'  => $movements,
-            'goldLedgers'=> $goldLedgers,
-            'stoneLedgers' => $stoneLedgers,
-            'diamondInventoryTransactions' => $diamondInventoryTransactions,
-            'diamondInventorySummary' => $diamondInventorySummary,
             'attachments'=> $this->attachmentModel->where('order_id', $id)->orderBy('id', 'DESC')->findAll(),
-            'statuses'   => $this->jewelleryConfig->orderStatuses,
             'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
-            'receivePurityPercent' => (float) ($receivePurityInfo['avg_purity_percent'] ?? 100),
-            'receiveLabourRate' => (float) ($order['karigar_rate_per_gm'] ?? 0),
-            'receivePrefill' => $receivePrefill,
             'followups' => $followups,
             'readyImages' => $this->productionReadyImages($id),
-            'latestPacking' => is_array($latestPacking) ? $latestPacking : null,
+            'receiveSummary' => is_array($receiveSummary) ? $receiveSummary : [],
+            'studdedDetails' => $studdedDetails,
         ]);
     }
 
@@ -1142,8 +882,6 @@ class OrderController extends BaseController
         $db = db_connect();
         $pendingOrderGoldWeight = 0.0;
         $orderGoldMap = [];
-        $orderIssueMap = [];
-        $orderReceiveMap = [];
         $pendingOrderDetails = [];
 
         if ($orderIds !== []) {
@@ -1156,53 +894,9 @@ class OrderController extends BaseController
                 $orderGoldMap[(int) $row['order_id']] = (float) ($row['total_gold'] ?? 0);
             }
 
-            if ($db->tableExists('gold_inventory_issue_headers') && $db->tableExists('gold_inventory_issue_lines')) {
-                $issuedRows = $db->table('gold_inventory_issue_headers ih')
-                    ->select('ih.order_id, COALESCE(SUM(il.weight_gm),0) as total_issue', false)
-                    ->join('gold_inventory_issue_lines il', 'il.issue_id = ih.id', 'inner')
-                    ->where('ih.karigar_id', $id)
-                    ->whereIn('ih.order_id', $orderIds)
-                    ->groupBy('ih.order_id')
-                    ->get()
-                    ->getResultArray();
-            } else {
-                $issuedRows = $this->movementModel
-                    ->select('order_id, COALESCE(SUM(gold_gm),0) as total_issue', false)
-                    ->whereIn('order_id', $orderIds)
-                    ->where('movement_type', 'issue')
-                    ->groupBy('order_id')
-                    ->findAll();
-            }
-            foreach ($issuedRows as $row) {
-                $orderIssueMap[(int) $row['order_id']] = (float) ($row['total_issue'] ?? 0);
-            }
-
-            if ($db->tableExists('gold_inventory_return_headers') && $db->tableExists('gold_inventory_return_lines')) {
-                $receivedRows = $db->table('gold_inventory_return_headers rh')
-                    ->select('rh.order_id, COALESCE(SUM(rl.weight_gm),0) as total_receive', false)
-                    ->join('gold_inventory_return_lines rl', 'rl.return_id = rh.id', 'inner')
-                    ->where('rh.karigar_id', $id)
-                    ->whereIn('rh.order_id', $orderIds)
-                    ->groupBy('rh.order_id')
-                    ->get()
-                    ->getResultArray();
-            } else {
-                $receivedRows = $this->movementModel
-                    ->select('order_id, COALESCE(SUM(gold_gm),0) as total_receive', false)
-                    ->whereIn('order_id', $orderIds)
-                    ->where('movement_type', 'receive')
-                    ->groupBy('order_id')
-                    ->findAll();
-            }
-            foreach ($receivedRows as $row) {
-                $orderReceiveMap[(int) $row['order_id']] = (float) ($row['total_receive'] ?? 0);
-            }
-
             foreach ($pendingOrders as $order) {
                 $orderId = (int) $order['id'];
                 $requiredGold = (float) ($orderGoldMap[$orderId] ?? 0);
-                $issuedGold = (float) ($orderIssueMap[$orderId] ?? 0);
-                $receivedGold = (float) ($orderReceiveMap[$orderId] ?? 0);
                 $pendingOrderGoldWeight += $requiredGold;
 
                 $pendingOrderDetails[] = [
@@ -1211,81 +905,22 @@ class OrderController extends BaseController
                     'status' => (string) ($order['status'] ?? ''),
                     'due_date' => (string) ($order['due_date'] ?? ''),
                     'required_gold_gm' => round($requiredGold, 3),
-                    'issued_gold_gm' => round($issuedGold, 3),
-                    'received_gold_gm' => round($receivedGold, 3),
-                    'balance_gold_gm' => round(max(0, $issuedGold - $receivedGold), 3),
                 ];
             }
         }
 
         $totalGoldWithHim = 0.0;
-        $hasNewGoldMovements = false;
-        if ($db->tableExists('gold_inventory_issue_headers') && $db->tableExists('gold_inventory_issue_lines')) {
-            $issueRow = $db->table('gold_inventory_issue_headers ih')
-                ->select('COALESCE(SUM(il.weight_gm),0) as total_issue', false)
-                ->join('gold_inventory_issue_lines il', 'il.issue_id = ih.id', 'inner')
-                ->where('ih.karigar_id', $id)
+        if ($db->tableExists('accounts') && $db->tableExists('account_balances')) {
+            $balanceRow = $db->table('account_balances ab')
+                ->select('COALESCE(SUM(ab.fine_gold_qty),0) as total_fine_gold', false)
+                ->join('accounts a', 'a.id = ab.account_id', 'inner')
+                ->where('a.account_type', 'KARIGAR')
+                ->where('a.reference_table', 'karigars')
+                ->where('a.reference_id', $id)
+                ->where('ab.item_type', 'GOLD')
                 ->get()
                 ->getRowArray();
-
-            $returnTotal = 0.0;
-            if ($db->tableExists('gold_inventory_return_headers') && $db->tableExists('gold_inventory_return_lines')) {
-                $returnRow = $db->table('gold_inventory_return_headers rh')
-                    ->select('COALESCE(SUM(rl.weight_gm),0) as total_return', false)
-                    ->join('gold_inventory_return_lines rl', 'rl.return_id = rh.id', 'inner')
-                    ->where('rh.karigar_id', $id)
-                    ->get()
-                    ->getRowArray();
-                $returnTotal = (float) ($returnRow['total_return'] ?? 0);
-            }
-
-            $issueTotal = (float) ($issueRow['total_issue'] ?? 0);
-            $hasNewGoldMovements = $issueTotal > 0 || $returnTotal > 0;
-            if ($hasNewGoldMovements) {
-                $totalGoldWithHim = $issueTotal - $returnTotal;
-            }
-        }
-
-        if (! $hasNewGoldMovements) {
-            if ($db->tableExists('accounts') && $db->tableExists('account_balances')) {
-                $balanceRow = $db->table('account_balances ab')
-                    ->select('COALESCE(SUM(ab.qty_weight),0) as total_weight', false)
-                    ->join('accounts a', 'a.id = ab.account_id', 'inner')
-                    ->where('a.account_type', 'karigar')
-                    ->where('a.reference_id', $id)
-                    ->where('ab.item_type', 'GOLD')
-                    ->get()
-                    ->getRowArray();
-                $totalGoldWithHim = (float) ($balanceRow['total_weight'] ?? 0);
-            } elseif ($db->tableExists('gold_ledger_entries')) {
-                $issueRow = $db->table('gold_ledger_entries')
-                    ->select('COALESCE(SUM(weight_gm),0) as total_issue', false)
-                    ->where('karigar_id', $id)
-                    ->where('entry_type', 'issue')
-                    ->get()
-                    ->getRowArray();
-                $receiveRow = $db->table('gold_ledger_entries')
-                    ->select('COALESCE(SUM(weight_gm),0) as total_receive', false)
-                    ->where('karigar_id', $id)
-                    ->where('entry_type', 'receive')
-                    ->get()
-                    ->getRowArray();
-                $totalGoldWithHim = (float) ($issueRow['total_issue'] ?? 0) - (float) ($receiveRow['total_receive'] ?? 0);
-            } elseif ($db->tableExists('order_material_movements')) {
-                $issueRow = $db->table('order_material_movements')
-                    ->select('COALESCE(SUM(gold_gm),0) as total_issue', false)
-                    ->where('karigar_id', $id)
-                    ->where('movement_type', 'issue')
-                    ->get()
-                    ->getRowArray();
-                $receiveRow = $db->table('order_material_movements')
-                    ->select('COALESCE(SUM(gold_gm),0) as total_receive', false)
-                    ->where('karigar_id', $id)
-                    ->where('movement_type', 'receive')
-                    ->get()
-                    ->getRowArray();
-                $totalGoldWithHim = (float) ($issueRow['total_issue'] ?? 0) - (float) ($receiveRow['total_receive'] ?? 0);
-            }
+            $totalGoldWithHim = (float) ($balanceRow['total_fine_gold'] ?? 0);
         }
 
         $totalGoldWithHim = max(0, $totalGoldWithHim);
@@ -1302,278 +937,9 @@ class OrderController extends BaseController
         ]);
     }
 
-    public function receivePrefill(int $orderId)
-    {
-        $order = $this->orderModel
-            ->select('orders.id, orders.assigned_karigar_id, karigars.rate_per_gm as karigar_rate_per_gm')
-            ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
-            ->find($orderId);
-
-        if (! $order) {
-            return $this->response->setStatusCode(404)->setJSON([
-                'status' => 'error',
-                'message' => 'Order not found.',
-            ]);
-        }
-
-        $purityInfo = $this->getOrderPurityInfo($orderId);
-        $prefill = $this->buildReceivePrefillData($orderId);
-
-        return $this->response->setJSON([
-            'status' => 'ok',
-            'data' => [
-                'purity_percent' => (float) ($purityInfo['avg_purity_percent'] ?? 100),
-                'labour_rate' => (float) ($order['karigar_rate_per_gm'] ?? 0),
-                'diamond_rows' => $prefill['diamond_rows'],
-                'stone_rows' => $prefill['stone_rows'],
-            ],
-        ]);
-    }
-
-    public function diamondBagItems(int $orderId)
-    {
-        return $this->response->setStatusCode(410)->setJSON([
-            'status' => 'error',
-            'message' => 'Old bagging-based diamond issue is disabled. Use Diamond Inventory Issuement/Return module.',
-        ]);
-
-        $order = $this->orderModel->find($orderId);
-        if (! $order) {
-            return $this->response->setStatusCode(404)->setJSON([
-                'status' => 'error',
-                'message' => 'Order not found.',
-            ]);
-        }
-
-        if (empty($order['assigned_karigar_id'])) {
-            return $this->response->setStatusCode(422)->setJSON([
-                'status' => 'error',
-                'message' => 'Assign karigar first, then issue material.',
-            ]);
-        }
-
-        $bags = $this->diamondBagItemModel
-            ->select('diamond_bags.id, diamond_bags.bag_no, SUM(diamond_bag_items.pcs_available) as pcs_available, SUM(diamond_bag_items.weight_cts_available) as weight_cts_available')
-            ->join('diamond_bags', 'diamond_bags.id = diamond_bag_items.bag_id', 'inner')
-            ->where('diamond_bags.order_id', $orderId)
-            ->where('diamond_bag_items.pcs_available >', 0)
-            ->where('diamond_bag_items.weight_cts_available >', 0)
-            ->groupBy('diamond_bags.id, diamond_bags.bag_no')
-            ->orderBy('diamond_bags.id', 'DESC')
-            ->findAll();
-
-        return $this->response->setJSON([
-            'status' => 'ok',
-            'data'   => $bags,
-        ]);
-    }
-
-    public function issueDiamondFromBag(int $orderId)
-    {
-        return redirect()->to(site_url('admin/diamond-inventory/issues/create?order_id=' . $orderId))
-            ->with('warning', 'Old bagging diamond issue is disabled. Use Diamond Inventory Issuement/Return module.');
-
-        $order = $this->orderModel->find($orderId);
-        if (! $order) {
-            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Order not found.');
-        }
-        $adminId = $this->currentAuditUserId();
-        if ($adminId <= 0) {
-            return redirect()->back()->with('error', 'Audit user is required. Please login again.');
-        }
-
-        if ((string) $order['status'] === 'Cancelled') {
-            return redirect()->back()->with('error', 'Cancelled order cannot accept issue.');
-        }
-
-        if (empty($order['assigned_karigar_id'])) {
-            return redirect()->back()->with('error', 'Assign karigar first, then issue material.');
-        }
-
-        $rules = [
-            'bag_id' => 'required|integer',
-            'location_id' => 'required|integer',
-            'notes' => 'permit_empty',
-            'audit_image' => 'uploaded[audit_image]|is_image[audit_image]|max_size[audit_image,4096]',
-        ];
-
-        if (! $this->validate($rules)) {
-            return redirect()->back()->with('error', $this->firstValidationError());
-        }
-
-        $bagId = (int) $this->request->getPost('bag_id');
-        $locationId = (int) ($this->request->getPost('location_id') ?? 0);
-        if (! $this->locationModel->where('is_active', 1)->find($locationId)) {
-            return redirect()->back()->with('error', 'Select valid inventory location.');
-        }
-        $bag = $this->diamondBagModel->find($bagId);
-        if (! $bag || (int) $bag['order_id'] !== $orderId) {
-            return redirect()->back()->with('error', 'Selected bag is not linked with this order.');
-        }
-
-        $bagItems = $this->diamondBagItemModel
-            ->where('bag_id', $bagId)
-            ->where('pcs_available >', 0)
-            ->where('weight_cts_available >', 0)
-            ->findAll();
-
-        if ($bagItems === []) {
-            return redirect()->back()->with('error', 'No available diamonds in selected bag.');
-        }
-
-        $db = \Config\Database::connect();
-        try {
-            $db->transException(true)->transStart();
-            $this->storeAuditImageAttachment($orderId, 'audit_image', 'diamond_issue_audit', $adminId);
-
-            $issuePcs = 0;
-            $issueCts = 0.0;
-            $notes = trim((string) $this->request->getPost('notes'));
-            $karigarId = (int) $order['assigned_karigar_id'];
-
-            foreach ($bagItems as $bagItem) {
-                $rowIssuePcs = (int) $bagItem['pcs_available'];
-                $rowIssueCts = (float) $bagItem['weight_cts_available'];
-
-                if ($rowIssuePcs <= 0 || $rowIssueCts <= 0) {
-                    continue;
-                }
-
-                $this->diamondBagItemModel->update((int) $bagItem['id'], [
-                    'pcs_available' => 0,
-                    'weight_cts_available' => 0,
-                ]);
-
-                $diamondIssueId = $this->diamondIssueModel->insert([
-                    'order_id'         => $orderId,
-                    'bag_id'           => (int) $bag['id'],
-                    'bag_item_id'      => (int) $bagItem['id'],
-                    'issue_pcs'        => $rowIssuePcs,
-                    'issue_weight_cts' => $rowIssueCts,
-                    'notes'            => $notes,
-                    'created_by'       => $adminId,
-                ], true);
-
-                $this->diamondLedgerModel->insert([
-                    'order_id'       => $orderId,
-                    'bag_id'         => (int) $bag['id'],
-                    'bag_item_id'    => (int) $bagItem['id'],
-                    'karigar_id'     => $karigarId,
-                    'location_id'    => $locationId,
-                    'entry_type'     => 'issue',
-                    'pcs'            => $rowIssuePcs,
-                    'weight_cts'     => $rowIssueCts,
-                    'reference_type' => 'diamond_issue',
-                    'reference_id'   => (int) $diamondIssueId,
-                    'notes'          => $notes,
-                    'created_by'     => $adminId,
-                ]);
-
-                $this->inventoryTxnModel->insert([
-                    'txn_date' => date('Y-m-d'),
-                    'transaction_type' => 'issue',
-                    'location_id' => $locationId,
-                    'counter_location_id' => null,
-                    'item_type' => 'Diamond',
-                    'material_name' => (string) $bagItem['diamond_type'],
-                    'gold_purity_id' => null,
-                    'diamond_shape' => (string) $bagItem['diamond_type'],
-                    'diamond_sieve' => (string) $bagItem['size'],
-                    'diamond_color' => (string) $bagItem['color'],
-                    'diamond_clarity' => (string) $bagItem['quality'],
-                    'pcs' => $rowIssuePcs,
-                    'weight_gm' => 0,
-                    'cts' => $rowIssueCts,
-                    'reference_type' => 'diamond_issue',
-                    'reference_id' => (int) $diamondIssueId,
-                    'document_type' => 'Issue to Karigar',
-                    'document_no' => (string) $bag['bag_no'],
-                    'packet_no' => (string) $bag['bag_no'],
-                    'notes' => 'Order ' . $order['order_no'] . ' diamond issue from bag ' . $bag['bag_no'],
-                    'created_by' => $adminId,
-                ]);
-
-                $issuePcs += $rowIssuePcs;
-                $issueCts += $rowIssueCts;
-            }
-
-            if ($issuePcs <= 0 || $issueCts <= 0) {
-                throw new Exception('No available diamonds in selected bag.');
-            }
-
-            $this->movementModel->insert([
-                'order_id'       => $orderId,
-                'movement_type'  => 'issue',
-                'gold_gm'        => 0,
-                'diamond_cts'    => $issueCts,
-                'gold_purity_id' => null,
-                'karigar_id'     => $karigarId,
-                'location_id'    => $locationId,
-                'notes'          => 'Diamond full bag issue from ' . $bag['bag_no'],
-                'created_by'     => $adminId,
-            ]);
-
-            $this->adminPostingService->postKarigarMaterialVoucher(
-                'issue',
-                'DIAMOND_BAG_ISSUE',
-                $locationId,
-                $karigarId,
-                [
-                    'item_type' => 'DIAMOND_BAG',
-                    'item_key' => 'BAG-' . (int) $bag['id'],
-                    'material_name' => 'Bag ' . (string) $bag['bag_no'],
-                    'bag_id' => (int) $bag['id'],
-                    'shape' => $bag['shape'] ?? null,
-                    'chalni_size' => $bag['chalni_size'] ?? null,
-                    'color' => $bag['color'] ?? null,
-                    'clarity' => $bag['clarity'] ?? null,
-                    'qty_pcs' => $issuePcs,
-                    'qty_cts' => $issueCts,
-                    'qty_weight' => 0,
-                    'remarks' => $notes,
-                ],
-                [
-                    'order_id' => $orderId,
-                    'remarks' => 'Order ' . $order['order_no'] . ' diamond issue from bag ' . $bag['bag_no'],
-                    'created_by' => $adminId,
-                ]
-            );
-
-            $db->transComplete();
-        } catch (Throwable $e) {
-            $db->transRollback();
-            return redirect()->back()->withInput()->with('error', $e->getMessage());
-        }
-
-        $summary = $this->getOrderBudgetSummary($orderId);
-        $monitor = $this->getBudgetMonitor($orderId, $summary);
-        $warning = null;
-        if ($monitor['over_issue_diamond'] > 0) {
-            $warning = sprintf('Diamond issue exceeded budget by %s cts.', number_format($monitor['over_issue_diamond'], 3));
-        }
-
-        $successMessage = sprintf(
-            'Diamond bag issued: %s | Total PCS: %d | Total CTS: %s',
-            (string) $bag['bag_no'],
-            $issuePcs,
-            number_format($issueCts, 3)
-        );
-
-        if ($warning !== null) {
-            return redirect()->back()->with('success', $successMessage)->with('warning', $warning);
-        }
-
-        return redirect()->back()->with('success', $successMessage);
-    }
-
-    public function addIssue(int $id)
-    {
-        return $this->saveMaterialMovement($id, 'issue');
-    }
-
     public function addReceive(int $id)
     {
-        return $this->saveMaterialMovement($id, 'receive');
+        return $this->saveFinishedJewelleryReceipt($id);
     }
 
     public function updateStatus(int $id)
@@ -2074,614 +1440,181 @@ class OrderController extends BaseController
         }
     }
 
-    private function saveMaterialMovement(int $orderId, string $type)
+    private function saveFinishedJewelleryReceipt(int $orderId)
     {
         $order = $this->orderModel->find($orderId);
         if (! $order) {
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Order not found.');
         }
-
-        if ((string) $order['status'] === 'Cancelled') {
-            return redirect()->back()->with('error', 'Cancelled order cannot accept issue/receive.');
-        }
-        if ((string) $order['status'] === 'Completed') {
-            return redirect()->back()->with('error', 'Completed order cannot accept any transaction.');
+        if (in_array((string) ($order['status'] ?? ''), ['Cancelled', 'Completed'], true)) {
+            return redirect()->back()->with('error', 'Cancelled or completed order cannot be received again.');
         }
 
-        $assignedKarigarId = (int) ($order['assigned_karigar_id'] ?? 0);
-        if ($type === 'issue' && $assignedKarigarId <= 0) {
-            return redirect()->back()->with('error', 'Assign karigar first, then issue material.');
+        $karigarId = (int) ($order['assigned_karigar_id'] ?? 0);
+        if ($karigarId <= 0) {
+            return redirect()->back()->with('error', 'Assign a karigar before receiving finished jewellery.');
+        }
+        if (! $this->validate([
+            'location_id' => 'required|integer|greater_than[0]',
+            'gross_weight_gm' => 'required|decimal|greater_than[0]',
+            'purity_percent' => 'required|decimal|greater_than[0]|less_than_equal_to[100]',
+            'gold_rate_per_gm' => 'required|decimal|greater_than[0]',
+            'labour_rate_per_gm' => 'permit_empty|decimal|greater_than_equal_to[0]',
+            'notes' => 'permit_empty',
+        ])) {
+            return redirect()->back()->withInput()->with('error', $this->firstValidationError());
         }
 
-        $rules = [
-            'gold_gm'     => 'permit_empty|decimal|greater_than_equal_to[0]',
-            'diamond_cts' => 'permit_empty|decimal|greater_than_equal_to[0]',
-            'gold_purity_id' => 'permit_empty|integer',
-            'location_id' => 'required|integer',
-            'gross_weight_gm' => 'permit_empty|decimal|greater_than_equal_to[0]',
-            'other_weight_gm' => 'permit_empty|decimal|greater_than_equal_to[0]',
-            'gold_rate_per_gm' => 'permit_empty|decimal|greater_than_equal_to[0]',
-            'notes'       => 'permit_empty',
-        ];
-
-        if (! $this->validate($rules)) {
-            return redirect()->back()->with('error', $this->firstValidationError());
-        }
-
-        $goldGm     = (float) ($this->request->getPost('gold_gm') ?? 0);
-        $diamondCts = (float) ($this->request->getPost('diamond_cts') ?? 0);
-        $goldPurityId = $this->nullableInt($this->request->getPost('gold_purity_id'));
-        $locationId = (int) ($this->request->getPost('location_id') ?? 0);
-        $grossWeightGm = null;
-        $otherWeightGm = null;
-        $diamondWeightGm = null;
-        $netGoldWeightGm = null;
-        $pureGoldWeightGm = null;
-        $purityPercent = null;
-        $labourRateInput = 0.0;
-        $labourTotalInput = 0.0;
-        $otherAmountTotal = 0.0;
-        $goldRatePerGmInput = 0.0;
-        $goldAmountTotal = 0.0;
-        $diamondRowsData = [];
-        $stoneRowsData = [];
-        $otherRowsData = [];
-        $stoneWeightGm = 0.0;
-
+        $locationId = (int) $this->request->getPost('location_id');
         if (! $this->locationModel->where('is_active', 1)->find($locationId)) {
-            return redirect()->back()->with('error', 'Select valid inventory location.');
+            return redirect()->back()->withInput()->with('error', 'Select a valid inventory location.');
         }
 
-        if ($type === 'issue' && $diamondCts > 0) {
-            return redirect()->back()->with('error', 'Diamond issue must be from bagging. Use Diamond Issue action.');
+        $grossWeightGm = round((float) $this->request->getPost('gross_weight_gm'), 3);
+        $purityPercent = round((float) $this->request->getPost('purity_percent'), 3);
+        $goldRate = round((float) $this->request->getPost('gold_rate_per_gm'), 2);
+        $labourRate = round(max(0, (float) $this->request->getPost('labour_rate_per_gm')), 2);
+
+        $diamond = $this->collectReceiveComponentRows(
+            (array) $this->request->getPost('studded_diamond_type'),
+            (array) $this->request->getPost('studded_diamond_pcs'),
+            (array) $this->request->getPost('studded_diamond_weight'),
+            (array) $this->request->getPost('studded_diamond_rate')
+        );
+        $stone = $this->collectReceiveComponentRows(
+            (array) $this->request->getPost('stone_type'),
+            (array) $this->request->getPost('stone_pcs'),
+            (array) $this->request->getPost('stone_weight'),
+            (array) $this->request->getPost('stone_rate')
+        );
+        $other = $this->collectReceiveOtherRows(
+            (array) $this->request->getPost('other_desc'),
+            (array) $this->request->getPost('other_pcs'),
+            (array) $this->request->getPost('other_weight_line_gm'),
+            (array) $this->request->getPost('other_price')
+        );
+
+        $diamondCts = (float) $diamond['total_weight_cts'];
+        $diamondPcs = (float) $diamond['total_pcs'];
+        $diamondWeightGm = round($diamondCts * 0.2, 3);
+        $stoneCts = (float) $stone['total_weight_cts'];
+        $stoneWeightGm = round($stoneCts * 0.2, 3);
+        $otherOnlyWeightGm = (float) $other['total_weight_gm'];
+        $otherWeightGm = round($stoneWeightGm + $otherOnlyWeightGm, 3);
+        $netGoldWeightGm = round($grossWeightGm - $diamondWeightGm - $stoneWeightGm - $otherOnlyWeightGm, 3);
+        if ($netGoldWeightGm <= 0) {
+            return redirect()->back()->withInput()->with('error', 'Net gold weight must be greater than zero. Check all entered weights.');
         }
-
-        if ($type === 'issue' && $goldGm > 0 && $goldPurityId === null) {
-            return redirect()->back()->with('error', 'Gold purity is required for gold issue.');
-        }
-
-        if ($type === 'issue' && $goldPurityId !== null) {
-            $purity = $this->goldPurityModel->where('is_active', 1)->find($goldPurityId);
-            if (! $purity) {
-                return redirect()->back()->with('error', 'Selected gold purity not found.');
-            }
-        }
-
-        if ($type === 'receive') {
-            $grossWeightGm = (float) ($this->request->getPost('gross_weight_gm') ?? 0);
-            if ($grossWeightGm <= 0) {
-                return redirect()->back()->with('error', 'Gross weight is required for receiving.');
-            }
-
-            $diamondRows = $this->collectReceiveComponentRows(
-                (array) $this->request->getPost('studded_diamond_type'),
-                (array) $this->request->getPost('studded_diamond_pcs'),
-                (array) $this->request->getPost('studded_diamond_weight'),
-                (array) $this->request->getPost('studded_diamond_rate')
-            );
-            $stoneRows = $this->collectReceiveComponentRows(
-                (array) $this->request->getPost('stone_type'),
-                (array) $this->request->getPost('stone_pcs'),
-                (array) $this->request->getPost('stone_weight'),
-                (array) $this->request->getPost('stone_rate')
-            );
-            $otherRows = $this->collectReceiveOtherRows(
-                (array) $this->request->getPost('other_desc'),
-                (array) $this->request->getPost('other_pcs'),
-                (array) $this->request->getPost('other_weight_line_gm'),
-                (array) $this->request->getPost('other_price')
-            );
-            $diamondRowsData = $diamondRows['rows'];
-            $stoneRowsData = $stoneRows['rows'];
-            $otherRowsData = $otherRows['rows'];
-            $diamondRowsData = $this->applyInventoryRateMapToReceiveRows(
-                $diamondRowsData,
-                $this->receiveRateMapFromPrefillRows($this->pendingDiamondReceiveRows($orderId)),
-                'weight_cts'
-            );
-            $stoneRowsData = $this->applyInventoryRateMapToReceiveRows(
-                $stoneRowsData,
-                $this->receiveRateMapFromPrefillRows($this->pendingStoneReceiveRows($orderId)),
-                'weight_cts'
-            );
-            $diamondRows = $this->summarizeReceiveRows($diamondRowsData, 'weight_cts');
-            $stoneRows = $this->summarizeReceiveRows($stoneRowsData, 'weight_cts');
-
-            $diamondCts = $diamondRows['total_weight_cts'];
-            $diamondWeightGm = round($diamondCts * 0.2, 3);
-            $stoneWeightCts = $stoneRows['total_weight_cts'];
-            $stoneWeightGm = round($stoneWeightCts * 0.2, 3);
-            $otherOnlyWeightGm = $otherRows['total_weight_gm'];
-            $otherWeightGm = round($stoneWeightGm + $otherOnlyWeightGm, 3);
-
-            $totalDeductionGm = round($diamondWeightGm + $stoneWeightGm + $otherOnlyWeightGm, 3);
-            $netGoldWeightGm = round($grossWeightGm - $totalDeductionGm, 3);
-            if ($netGoldWeightGm < 0) {
-                return redirect()->back()->with('error', 'Net weight cannot be negative. Please check gross, diamond, stone and other weights.');
-            }
-
-            $purityInfo = $this->getOrderPurityInfo($orderId);
-            $goldPurityId = $purityInfo['primary_purity_id'];
-            $purityPercentInput = (float) ($this->request->getPost('purity_percent') ?? 0);
-            $purityPercent = $purityPercentInput > 0 ? $purityPercentInput : $purityInfo['avg_purity_percent'];
-            $pureGoldWeightGm = round($netGoldWeightGm * ($purityPercent / 100), 3);
-            $goldGm = $netGoldWeightGm;
-            $goldRatePerGmInput = max(0, (float) ($this->request->getPost('gold_rate_per_gm') ?? 0));
-            if ($goldRatePerGmInput <= 0) {
-                return redirect()->back()->withInput()->with('error', 'Gold rate per gm is required in receive.');
-            }
-            $goldAmountTotal = round($goldGm * $goldRatePerGmInput, 2);
-            $labourRateInput = max(0, (float) ($this->request->getPost('labour_rate_per_gm') ?? 0));
-            $labourTotalInput = round($goldGm * $labourRateInput, 2);
-            $otherAmountTotal = $otherRows['total_amount'];
-            $diamondAmountTotal = $diamondRows['total_amount'];
-            $stoneAmountTotal = $stoneRows['total_amount'];
-
-            $calcText = sprintf(
-                'RecvCalc: Gross %.3f gm - (Diamond %.3f gm [%.3f cts] + Stone %.3f gm [%.3f cts] + Other %.3f gm) = Net %.3f gm | Pure @%.3f%% = %.3f gm',
-                $grossWeightGm,
-                $diamondWeightGm,
-                $diamondCts,
-                $stoneWeightGm,
-                $stoneWeightCts,
-                $otherOnlyWeightGm,
-                $netGoldWeightGm,
-                $purityPercent,
-                $pureGoldWeightGm
-            );
-            $sectionText = sprintf(
-                'Sections: Diamond Amt %.2f | Stone Amt %.2f | Gold Rate %.2f | Gold Amt %.2f | Labour Rate %.2f | Labour Total %.2f | Other Bill %.2f',
-                $diamondAmountTotal,
-                $stoneAmountTotal,
-                $goldRatePerGmInput,
-                $goldAmountTotal,
-                $labourRateInput,
-                $labourTotalInput,
-                $otherAmountTotal
-            );
-            $postedNotes = trim((string) $this->request->getPost('notes'));
-            $notesForSave = $postedNotes === '' ? ($calcText . ' | ' . $sectionText) : ($postedNotes . ' | ' . $calcText . ' | ' . $sectionText);
-        } else {
-            if ($goldGm <= 0 && $diamondCts <= 0) {
-                return redirect()->back()->with('error', 'Enter gold grams or diamond cts.');
-            }
-            $notesForSave = trim((string) $this->request->getPost('notes'));
-        }
-
+        $pureGoldWeightGm = round($netGoldWeightGm * ($purityPercent / 100), 3);
+        $goldAmount = round($netGoldWeightGm * $goldRate, 2);
+        $labourAmount = round($netGoldWeightGm * $labourRate, 2);
+        $totalValuation = round(
+            $goldAmount + $labourAmount + (float) $diamond['total_amount'] + (float) $stone['total_amount'] + (float) $other['total_amount'],
+            2
+        );
+        $postedNotes = trim((string) $this->request->getPost('notes'));
+        $calculationNote = sprintf(
+            'Finished receive: Gross %.3f gm, Net gold %.3f gm, Pure gold %.3f gm @ %.3f%%, Diamond %.3f cts, Stone %.3f cts',
+            $grossWeightGm,
+            $netGoldWeightGm,
+            $pureGoldWeightGm,
+            $purityPercent,
+            $diamondCts,
+            $stoneCts
+        );
+        $notes = $postedNotes === '' ? $calculationNote : $postedNotes . ' | ' . $calculationNote;
+        $adminId = (int) session('admin_id');
         $db = \Config\Database::connect();
+
         try {
             $db->transException(true)->transStart();
 
-            $movementId = $this->movementModel->insert([
-                'order_id'       => $orderId,
-                'movement_type'  => $type,
-                'gold_gm'        => $goldGm,
-                'diamond_cts'    => $diamondCts,
-                'gold_purity_id' => $goldGm > 0 ? $goldPurityId : null,
-                'karigar_id'     => $assignedKarigarId > 0 ? $assignedKarigarId : null,
-                'location_id'    => $locationId,
-                'gross_weight_gm'=> $grossWeightGm,
-                'other_weight_gm'=> $otherWeightGm,
+            $movementId = (int) $this->movementModel->insert([
+                'order_id' => $orderId,
+                'movement_type' => 'receive',
+                'gold_gm' => $netGoldWeightGm,
+                'diamond_cts' => $diamondCts,
+                'gold_purity_id' => null,
+                'karigar_id' => $karigarId,
+                'location_id' => $locationId,
+                'gross_weight_gm' => $grossWeightGm,
+                'other_weight_gm' => $otherWeightGm,
                 'diamond_weight_gm' => $diamondWeightGm,
                 'net_gold_weight_gm' => $netGoldWeightGm,
-                'pure_gold_weight_gm'=> $pureGoldWeightGm,
-                'notes'          => $notesForSave,
-                'created_by'     => (int) session('admin_id'),
+                'pure_gold_weight_gm' => $pureGoldWeightGm,
+                'notes' => $notes,
+                'created_by' => $adminId,
             ], true);
 
-            if ($type === 'receive') {
-                $diamondAmountTotal = (float) ($diamondAmountTotal ?? 0);
-                $stoneAmountTotal = (float) ($stoneAmountTotal ?? 0);
-                $otherAmountTotal = (float) ($otherAmountTotal ?? 0);
-                $goldAmountTotal = (float) ($goldAmountTotal ?? 0);
-                $labourTotalInput = (float) ($labourTotalInput ?? 0);
-                $totalValuation = round(
-                    $diamondAmountTotal + $stoneAmountTotal + $otherAmountTotal + $goldAmountTotal + $labourTotalInput,
-                    2
-                );
+            $accountVoucherId = (new KarigarMaterialAccountingService($db))->postFinishedJewelleryReceipt(
+                $orderId,
+                $karigarId,
+                $locationId,
+                $pureGoldWeightGm,
+                $diamondPcs,
+                $diamondCts,
+                $notes,
+                $adminId
+            );
 
-                $this->persistReceiveSnapshot(
-                    (int) $movementId,
-                    $orderId,
-                    [
-                        'gross_weight_gm' => (float) ($grossWeightGm ?? 0),
-                        'net_gold_weight_gm' => (float) ($netGoldWeightGm ?? 0),
-                        'pure_gold_weight_gm' => (float) ($pureGoldWeightGm ?? 0),
-                        'diamond_weight_cts' => (float) ($diamondCts ?? 0),
-                        'diamond_weight_gm' => (float) ($diamondWeightGm ?? 0),
-                        'stone_weight_cts' => (float) ($stoneWeightCts ?? 0),
-                        'stone_weight_gm' => (float) ($stoneWeightGm ?? 0),
-                        'other_weight_gm' => (float) ($otherOnlyWeightGm ?? 0),
-                        'diamond_amount' => $diamondAmountTotal,
-                        'stone_amount' => $stoneAmountTotal,
-                        'other_amount' => $otherAmountTotal,
-                        'gold_amount' => $goldAmountTotal,
-                        'labour_rate_per_gm' => (float) ($labourRateInput ?? 0),
-                        'labour_amount' => $labourTotalInput,
-                        'total_valuation' => $totalValuation,
-                        'created_by' => (int) session('admin_id'),
-                    ],
-                    [
-                        'diamond' => $diamondRowsData,
-                        'stone' => $stoneRowsData,
-                        'other' => $otherRowsData,
-                    ]
-                );
-            }
-
-            if ($goldGm > 0) {
-                $this->goldLedgerModel->insert([
-                    'order_id'       => $orderId,
-                    'entry_type'     => $type,
-                    'weight_gm'      => $goldGm,
-                    'gold_purity_id' => $goldPurityId,
-                    'karigar_id'     => $assignedKarigarId > 0 ? $assignedKarigarId : null,
-                    'location_id'    => $locationId,
-                    'gross_weight_gm'=> $grossWeightGm,
-                    'other_weight_gm'=> $otherWeightGm,
-                    'diamond_weight_gm' => $diamondWeightGm,
+            $this->persistReceiveSnapshot(
+                $movementId,
+                $orderId,
+                [
+                    'account_voucher_id' => $accountVoucherId,
+                    'gross_weight_gm' => $grossWeightGm,
                     'net_gold_weight_gm' => $netGoldWeightGm,
-                    'pure_gold_weight_gm'=> $pureGoldWeightGm,
-                    'purity_percent' => $purityPercent,
-                    'reference_type' => 'order_material_movement',
-                    'reference_id'   => (int) $movementId,
-                    'notes'          => $notesForSave,
-                    'created_by'     => (int) session('admin_id'),
-                ]);
-            }
+                    'pure_gold_weight_gm' => $pureGoldWeightGm,
+                    'diamond_weight_cts' => $diamondCts,
+                    'diamond_weight_gm' => $diamondWeightGm,
+                    'stone_weight_cts' => $stoneCts,
+                    'stone_weight_gm' => $stoneWeightGm,
+                    'other_weight_gm' => $otherOnlyWeightGm,
+                    'diamond_amount' => (float) $diamond['total_amount'],
+                    'stone_amount' => (float) $stone['total_amount'],
+                    'other_amount' => (float) $other['total_amount'],
+                    'gold_amount' => $goldAmount,
+                    'labour_rate_per_gm' => $labourRate,
+                    'labour_amount' => $labourAmount,
+                    'total_valuation' => $totalValuation,
+                    'created_by' => $adminId,
+                ],
+                [
+                    'diamond' => $diamond['rows'],
+                    'stone' => $stone['rows'],
+                    'other' => $other['rows'],
+                ]
+            );
 
-            if ($diamondCts > 0) {
-                $this->diamondLedgerModel->insert([
-                    'order_id'       => $orderId,
-                    'bag_id'         => null,
-                    'bag_item_id'    => null,
-                    'karigar_id'     => $assignedKarigarId > 0 ? $assignedKarigarId : null,
-                    'location_id'    => $locationId,
-                    'entry_type'     => $type,
-                    'pcs'            => 0,
-                    'weight_cts'     => $diamondCts,
-                    'reference_type' => 'order_material_movement',
-                    'reference_id'   => (int) $movementId,
-                    'notes'          => $notesForSave,
-                    'created_by'     => (int) session('admin_id'),
-                ]);
-            }
+            $this->createLabourBillFromReceive(
+                $orderId,
+                $order,
+                $movementId,
+                $karigarId,
+                $netGoldWeightGm,
+                $notes,
+                $labourRate,
+                (float) $other['total_amount']
+            );
 
-            if ($goldGm > 0) {
-                $this->inventoryTxnModel->insert([
-                    'txn_date' => date('Y-m-d'),
-                    'transaction_type' => $type === 'issue' ? 'issue' : 'receive',
-                    'location_id' => $locationId,
-                    'counter_location_id' => null,
-                    'item_type' => 'Gold',
-                    'material_name' => 'Gold Movement',
-                    'gold_purity_id' => $goldPurityId,
-                    'diamond_shape' => null,
-                    'diamond_sieve' => null,
-                    'diamond_color' => null,
-                    'diamond_clarity' => null,
-                    'pcs' => 0,
-                    'weight_gm' => $goldGm,
-                    'cts' => 0,
-                    'reference_type' => 'order_material_movement',
-                    'reference_id' => (int) $movementId,
-                    'document_type' => $type === 'issue' ? 'Issue to Karigar' : 'Return from Karigar',
-                    'document_no' => (string) $order['order_no'],
-                    'notes' => 'Order ' . $order['order_no'] . ' ' . $type . ' gold',
-                    'created_by' => (int) session('admin_id'),
-                ]);
-            }
-
-            if ($diamondCts > 0 && $type === 'receive') {
-                $this->inventoryTxnModel->insert([
-                    'txn_date' => date('Y-m-d'),
-                    'transaction_type' => 'receive',
-                    'location_id' => $locationId,
-                    'counter_location_id' => null,
-                    'item_type' => 'Diamond',
-                    'material_name' => 'Diamond Movement',
-                    'gold_purity_id' => null,
-                    'diamond_shape' => null,
-                    'diamond_sieve' => null,
-                    'diamond_color' => null,
-                    'diamond_clarity' => null,
-                    'pcs' => 0,
-                    'weight_gm' => 0,
-                    'cts' => $diamondCts,
-                    'reference_type' => 'order_material_movement',
-                    'reference_id' => (int) $movementId,
-                    'document_type' => 'Return from Karigar',
-                    'document_no' => (string) $order['order_no'],
-                    'notes' => 'Order ' . $order['order_no'] . ' receive diamond',
-                    'created_by' => (int) session('admin_id'),
-                ]);
-            }
-
-            if ($goldGm > 0) {
-                $goldInventoryService = new GoldInventoryStockService($db);
-                $goldInventoryService->postExternalMovement([
-                    'direction' => $type === 'issue' ? 'out' : 'in',
-                    'weight_gm' => $goldGm,
-                    'fine_weight_gm' => $pureGoldWeightGm,
-                    'gold_purity_id' => $goldPurityId,
-                    'form_type' => 'Ornament',
-                    'reference_table' => 'order_material_movements',
-                    'reference_id' => (int) $movementId,
-                    'txn_type' => $type === 'issue' ? 'order_issue' : 'order_receive',
-                    'txn_date' => date('Y-m-d'),
-                    'order_id' => $orderId,
-                    'karigar_id' => $assignedKarigarId > 0 ? $assignedKarigarId : null,
-                    'location_id' => $locationId,
-                    'notes' => $notesForSave,
-                    'created_by' => (int) session('admin_id'),
-                ]);
-            }
-
-            if ($goldGm > 0 && $assignedKarigarId > 0) {
-                $goldLineMeta = $this->adminPostingService->buildGoldLineMeta($goldPurityId, $goldGm, $pureGoldWeightGm);
-                $this->adminPostingService->postKarigarMaterialVoucher(
-                    $type === 'issue' ? 'issue' : 'return',
-                    $type === 'issue' ? 'GOLD_ISSUE' : 'GOLD_RETURN',
-                    $locationId,
-                    $assignedKarigarId,
-                    [
-                        'item_type' => 'GOLD',
-                        'item_key' => $goldLineMeta['item_key'],
-                        'material_name' => $goldLineMeta['material_name'],
-                        'gold_purity_id' => $goldPurityId,
-                        'qty_weight' => $goldGm,
-                        'fine_gold' => $goldLineMeta['fine_gold'],
-                        'remarks' => $notesForSave,
-                    ],
-                    [
-                        'order_id' => $orderId,
-                        'remarks' => 'Order ' . $order['order_no'] . ' ' . ($type === 'issue' ? 'gold issue' : 'gold receive'),
-                        'created_by' => (int) session('admin_id'),
-                    ]
-                );
-            }
-
-            if ($type === 'receive' && $goldGm > 0 && $assignedKarigarId > 0) {
-                $this->createLabourBillFromReceive(
-                    (int) $orderId,
-                    (array) $order,
-                    (int) $movementId,
-                    $assignedKarigarId,
-                    $goldGm,
-                    $notesForSave,
-                    $labourRateInput,
-                    $otherAmountTotal
-                );
-            }
-
-            if ($type === 'receive' && (string) ($order['status'] ?? '') !== 'Completed') {
-                $this->orderModel->update($orderId, ['status' => 'Completed']);
-                $this->orderItemModel->where('order_id', $orderId)->set(['item_status' => 'Completed'])->update();
-                $this->historyModel->insert([
-                    'order_id' => $orderId,
-                    'from_status' => (string) ($order['status'] ?? ''),
-                    'to_status' => 'Completed',
-                    'changed_by' => (int) session('admin_id'),
-                    'remarks' => 'Auto-completed after receiving.',
-                ]);
-            }
-            if ($type === 'receive') {
-                $this->finishedJewelleryService->createForCompletedOrder($orderId, (int) session('admin_id'));
-            }
-
+            $this->orderModel->update($orderId, ['status' => 'Completed']);
+            $this->orderItemModel->where('order_id', $orderId)->set(['item_status' => 'Completed'])->update();
+            $this->historyModel->insert([
+                'order_id' => $orderId,
+                'from_status' => (string) ($order['status'] ?? ''),
+                'to_status' => 'Completed',
+                'changed_by' => $adminId,
+                'remarks' => 'Completed after manual finished-jewellery receiving.',
+            ]);
+            $this->finishedJewelleryService->createForCompletedOrder($orderId, $adminId);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
 
-        $summary = $this->getOrderBudgetSummary($orderId);
-        $monitor = $this->getBudgetMonitor($orderId, $summary);
-
-        if (($monitor['over_issue_gold'] > 0 || $monitor['over_issue_diamond'] > 0) && $type === 'issue') {
-            $this->dispatchWhatsappOverBudget($orderId, $monitor, 'issue');
-        }
-        if (($monitor['over_receive_gold'] > 0 || $monitor['over_receive_diamond'] > 0) && $type === 'receive') {
-            $this->dispatchWhatsappOverBudget($orderId, $monitor, 'receive');
-        }
-        if ($type === 'receive') {
-            $currentOrder = $this->orderModel->find($orderId);
-            $currentStatus = (string) ($currentOrder['status'] ?? '');
-            if (in_array($currentStatus, ['Ready', 'Completed'], true)) {
-                $this->dispatchWhatsappOrderReady($orderId, $currentStatus);
-            }
-        }
-
-        $message = $type === 'issue' ? 'Material issue saved.' : 'Material receive saved. Order marked as Completed.';
-        $warning = null;
-
-        if ($type === 'receive' && ($monitor['over_receive_gold'] > 0 || $monitor['over_receive_diamond'] > 0)) {
-            $warning = sprintf(
-                'Over budget at receiving: Gold +%s gm, Diamond +%s cts.',
-                number_format($monitor['over_receive_gold'], 3),
-                number_format($monitor['over_receive_diamond'], 3)
-            );
-        } elseif ($type === 'issue' && ($monitor['over_issue_gold'] > 0 || $monitor['over_issue_diamond'] > 0)) {
-            $warning = sprintf(
-                'Issue exceeded budget: Gold +%s gm, Diamond +%s cts.',
-                number_format($monitor['over_issue_gold'], 3),
-                number_format($monitor['over_issue_diamond'], 3)
-            );
-        }
-
-        if ($warning !== null) {
-            return redirect()->back()
-                ->with('success', $message)
-                ->with('warning', $warning);
-        }
-
-        return redirect()->back()->with('success', $message);
-    }
-
-    private function getPendingDiamondForReceive(int $orderId): float
-    {
-        $rows = $this->movementModel
-            ->select('movement_type, diamond_cts')
-            ->where('order_id', $orderId)
-            ->findAll();
-
-        $issued = 0.0;
-        $received = 0.0;
-        foreach ($rows as $row) {
-            if ((string) $row['movement_type'] === 'issue') {
-                $issued += (float) $row['diamond_cts'];
-            }
-            if ((string) $row['movement_type'] === 'receive') {
-                $received += (float) $row['diamond_cts'];
-            }
-        }
-
-        return round(max(0, $issued - $received), 3);
-    }
-
-    /**
-     * @return array{primary_purity_id: ?int, avg_purity_percent: float}
-     */
-    private function getOrderPurityInfo(int $orderId): array
-    {
-        $rows = $this->orderItemModel
-            ->select('order_items.gold_purity_id, order_items.gold_required_gm, gold_purities.purity_percent')
-            ->join('gold_purities', 'gold_purities.id = order_items.gold_purity_id', 'left')
-            ->where('order_items.order_id', $orderId)
-            ->findAll();
-
-        $totalWeight = 0.0;
-        $weightedPurity = 0.0;
-        $purityWeights = [];
-
-        foreach ($rows as $row) {
-            $purityId = $row['gold_purity_id'] === null ? null : (int) $row['gold_purity_id'];
-            $reqWeight = (float) ($row['gold_required_gm'] ?? 0);
-            $weight = $reqWeight > 0 ? $reqWeight : 1.0;
-            $purityPercent = (float) ($row['purity_percent'] ?? 0);
-            if ($purityPercent <= 0) {
-                continue;
-            }
-
-            $totalWeight += $weight;
-            $weightedPurity += $weight * $purityPercent;
-            if ($purityId !== null) {
-                $purityWeights[$purityId] = ($purityWeights[$purityId] ?? 0) + $weight;
-            }
-        }
-
-        $avgPercent = $totalWeight > 0 ? round($weightedPurity / $totalWeight, 3) : 100.0;
-        $primaryPurityId = null;
-        if ($purityWeights !== []) {
-            arsort($purityWeights);
-            $primaryPurityId = (int) array_key_first($purityWeights);
-        }
-
-        return [
-            'primary_purity_id' => $primaryPurityId,
-            'avg_purity_percent' => $avgPercent,
-        ];
-    }
-
-    /**
-     * @return array{gold_required_gm: float, diamond_required_cts: float}
-     */
-    private function getOrderBudgetSummary(int $orderId): array
-    {
-        $items = $this->orderItemModel->where('order_id', $orderId)->findAll();
-        $summary = [
-            'gold_required_gm'     => 0.0,
-            'diamond_required_cts' => 0.0,
-        ];
-
-        foreach ($items as $item) {
-            $summary['gold_required_gm'] += (float) $item['gold_required_gm'];
-            $summary['diamond_required_cts'] += (float) $item['diamond_required_cts'];
-        }
-
-        return $summary;
-    }
-
-    /**
-     * @param array{gold_required_gm: float, diamond_required_cts: float} $summary
-     * @return array<string, float>
-     */
-    private function getBudgetMonitor(int $orderId, array $summary): array
-    {
-        $issueGold = 0.0;
-        $issueDiamond = 0.0;
-        $receiveGold = 0.0;
-        $receiveDiamond = 0.0;
-
-        $db = db_connect();
-
-        if ($db->tableExists('gold_inventory_issue_headers') && $db->tableExists('gold_inventory_issue_lines')) {
-            $issueGold = (float) ($db->table('gold_inventory_issue_headers ih')
-                ->select('COALESCE(SUM(il.weight_gm),0) as total_gold', false)
-                ->join('gold_inventory_issue_lines il', 'il.issue_id = ih.id', 'inner')
-                ->where('ih.order_id', $orderId)
-                ->get()
-                ->getRowArray()['total_gold'] ?? 0);
-        }
-        if ($db->tableExists('gold_inventory_return_headers') && $db->tableExists('gold_inventory_return_lines')) {
-            $receiveGold = (float) ($db->table('gold_inventory_return_headers rh')
-                ->select('COALESCE(SUM(rl.weight_gm),0) as total_gold', false)
-                ->join('gold_inventory_return_lines rl', 'rl.return_id = rh.id', 'inner')
-                ->where('rh.order_id', $orderId)
-                ->get()
-                ->getRowArray()['total_gold'] ?? 0);
-        }
-
-        if ($db->tableExists('issue_headers') && $db->tableExists('issue_lines')) {
-            $issueDiamond = (float) ($db->table('issue_headers ih')
-                ->select('COALESCE(SUM(il.carat),0) as total_carat', false)
-                ->join('issue_lines il', 'il.issue_id = ih.id', 'inner')
-                ->where('ih.order_id', $orderId)
-                ->get()
-                ->getRowArray()['total_carat'] ?? 0);
-        }
-        if ($db->tableExists('return_headers') && $db->tableExists('return_lines')) {
-            $receiveDiamond = (float) ($db->table('return_headers rh')
-                ->select('COALESCE(SUM(rl.carat),0) as total_carat', false)
-                ->join('return_lines rl', 'rl.return_id = rh.id', 'inner')
-                ->where('rh.order_id', $orderId)
-                ->get()
-                ->getRowArray()['total_carat'] ?? 0);
-        }
-
-        if ($issueGold <= 0 && $receiveGold <= 0 && $issueDiamond <= 0 && $receiveDiamond <= 0) {
-            $movements = $this->movementModel->where('order_id', $orderId)->findAll();
-            foreach ($movements as $row) {
-                if ($row['movement_type'] === 'issue') {
-                    $issueGold += (float) $row['gold_gm'];
-                    $issueDiamond += (float) $row['diamond_cts'];
-                }
-                if ($row['movement_type'] === 'receive') {
-                    $receiveGold += (float) $row['gold_gm'];
-                    $receiveDiamond += (float) $row['diamond_cts'];
-                }
-            }
-        }
-
-        $budgetGold = (float) $summary['gold_required_gm'];
-        $budgetDiamond = (float) $summary['diamond_required_cts'];
-
-        return [
-            'budget_gold'            => $budgetGold,
-            'budget_diamond'         => $budgetDiamond,
-            'issue_gold'             => $issueGold,
-            'issue_diamond'          => $issueDiamond,
-            'receive_gold'           => $receiveGold,
-            'receive_diamond'        => $receiveDiamond,
-            'remaining_issue_gold'   => $budgetGold - $issueGold,
-            'remaining_issue_diamond'=> $budgetDiamond - $issueDiamond,
-            'remaining_receive_gold' => $budgetGold - $receiveGold,
-            'remaining_receive_diamond' => $budgetDiamond - $receiveDiamond,
-            'over_issue_gold'        => max(0, $issueGold - $budgetGold),
-            'over_issue_diamond'     => max(0, $issueDiamond - $budgetDiamond),
-            'over_receive_gold'      => max(0, $receiveGold - $budgetGold),
-            'over_receive_diamond'   => max(0, $receiveDiamond - $budgetDiamond),
-        ];
+        $this->dispatchWhatsappOrderReady($orderId, 'Completed');
+        return redirect()->back()->with('success', 'Finished jewellery received, karigar material balance reduced, and inventory created.');
     }
 
     private function createLabourBillFromReceive(
@@ -2803,21 +1736,6 @@ class OrderController extends BaseController
             $this->orderWhatsAppService->notifyOrderReady($orderId, $status);
         } catch (Throwable $e) {
             log_message('error', 'WhatsApp ready alert failed for order {id}: {message}', [
-                'id' => $orderId,
-                'message' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * @param array<string,float> $monitor
-     */
-    private function dispatchWhatsappOverBudget(int $orderId, array $monitor, string $context): void
-    {
-        try {
-            $this->orderWhatsAppService->notifyOrderOverBudget($orderId, $monitor, $context);
-        } catch (Throwable $e) {
-            log_message('error', 'WhatsApp over-budget alert failed for order {id}: {message}', [
                 'id' => $orderId,
                 'message' => $e->getMessage(),
             ]);
@@ -2970,313 +1888,6 @@ class OrderController extends BaseController
             'total_weight_gm' => round($totalWeight, 3),
             'total_amount' => round($totalAmount, 2),
         ];
-    }
-
-    /**
-     * @param list<array<string,mixed>> $rows
-     * @param array<string,float> $rateMap
-     * @return list<array<string,mixed>>
-     */
-    private function applyInventoryRateMapToReceiveRows(array $rows, array $rateMap, string $weightKey): array
-    {
-        $out = [];
-        foreach ($rows as $row) {
-            $name = trim((string) ($row['name'] ?? ''));
-            $key = strtoupper(preg_replace('/\s+/', ' ', $name));
-            $postedRate = max(0.0, (float) ($row['rate'] ?? 0));
-            $rate = array_key_exists($key, $rateMap) ? max(0.0, (float) $rateMap[$key]) : $postedRate;
-            $weight = max(0.0, (float) ($row[$weightKey] ?? 0));
-            $row['rate'] = round($rate, 2);
-            $row['line_total'] = round($weight * $rate, 2);
-            $out[] = $row;
-        }
-        return $out;
-    }
-
-    /**
-     * @param list<array<string,mixed>> $prefillRows
-     * @return array<string,float>
-     */
-    private function receiveRateMapFromPrefillRows(array $prefillRows): array
-    {
-        $map = [];
-        foreach ($prefillRows as $row) {
-            $name = trim((string) ($row['type'] ?? ''));
-            if ($name === '') {
-                continue;
-            }
-            $key = strtoupper(preg_replace('/\s+/', ' ', $name));
-            $map[$key] = max(0.0, (float) ($row['rate'] ?? 0));
-        }
-        return $map;
-    }
-
-    /**
-     * @param list<array<string,mixed>> $rows
-     * @return array{rows:list<array<string,mixed>>,total_pcs:float,total_weight_cts:float,total_amount:float}
-     */
-    private function summarizeReceiveRows(array $rows, string $weightKey): array
-    {
-        $totalPcs = 0.0;
-        $totalWeight = 0.0;
-        $totalAmount = 0.0;
-        foreach ($rows as $row) {
-            $totalPcs += max(0.0, (float) ($row['pcs'] ?? 0));
-            $totalWeight += max(0.0, (float) ($row[$weightKey] ?? 0));
-            $totalAmount += max(0.0, (float) ($row['line_total'] ?? 0));
-        }
-        return [
-            'rows' => $rows,
-            'total_pcs' => round($totalPcs, 3),
-            'total_weight_cts' => round($totalWeight, 3),
-            'total_amount' => round($totalAmount, 2),
-        ];
-    }
-
-    /**
-     * @return array{diamond_rows:list<array<string,mixed>>,stone_rows:list<array<string,mixed>>}
-     */
-    private function buildReceivePrefillData(int $orderId): array
-    {
-        return [
-            'diamond_rows' => $this->pendingDiamondReceiveRows($orderId),
-            'stone_rows' => $this->pendingStoneReceiveRows($orderId),
-        ];
-    }
-
-    /**
-     * @return list<array<string,mixed>>
-     */
-    private function pendingDiamondReceiveRows(int $orderId): array
-    {
-        $db = db_connect();
-        if (! $db->tableExists('issue_headers') || ! $db->tableExists('issue_lines')) {
-            return [];
-        }
-
-        $issueRows = $db->table('issue_headers ih')
-            ->select('il.item_id, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, COALESCE(SUM(il.pcs),0) as total_pcs, COALESCE(SUM(il.carat),0) as total_cts, COALESCE(SUM(il.line_value),0) as total_value', false)
-            ->join('issue_lines il', 'il.issue_id = ih.id', 'inner')
-            ->join('items i', 'i.id = il.item_id', 'left')
-            ->where('ih.order_id', $orderId)
-            ->groupBy('il.item_id, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity')
-            ->get()
-            ->getResultArray();
-
-        if ($issueRows === []) {
-            return [];
-        }
-
-        $returnMap = [];
-        if ($db->tableExists('return_headers') && $db->tableExists('return_lines')) {
-            $returnRows = $db->table('return_headers rh')
-                ->select('rl.item_id, COALESCE(SUM(rl.pcs),0) as total_pcs, COALESCE(SUM(rl.carat),0) as total_cts', false)
-                ->join('return_lines rl', 'rl.return_id = rh.id', 'inner')
-                ->where('rh.order_id', $orderId)
-                ->groupBy('rl.item_id')
-                ->get()
-                ->getResultArray();
-
-            foreach ($returnRows as $row) {
-                $itemId = (int) ($row['item_id'] ?? 0);
-                if ($itemId <= 0) {
-                    continue;
-                }
-                $returnMap[$itemId] = [
-                    'pcs' => (float) ($row['total_pcs'] ?? 0),
-                    'cts' => (float) ($row['total_cts'] ?? 0),
-                ];
-            }
-        }
-
-        $rows = [];
-        foreach ($issueRows as $row) {
-            $itemId = (int) ($row['item_id'] ?? 0);
-            $issuePcs = (float) ($row['total_pcs'] ?? 0);
-            $issueCts = (float) ($row['total_cts'] ?? 0);
-            $issueValue = (float) ($row['total_value'] ?? 0);
-            $retPcs = (float) ($returnMap[$itemId]['pcs'] ?? 0);
-            $retCts = (float) ($returnMap[$itemId]['cts'] ?? 0);
-
-            $pendingPcs = round(max(0, $issuePcs - $retPcs), 3);
-            $pendingCts = round(max(0, $issueCts - $retCts), 3);
-            if ($pendingPcs <= 0 && $pendingCts <= 0) {
-                continue;
-            }
-
-            $rate = 0.0;
-            if ($issueCts > 0) {
-                $rate = $issueValue / $issueCts;
-            }
-
-            $diamondType = trim((string) ($row['diamond_type'] ?? 'Diamond'));
-            $shape = trim((string) ($row['shape'] ?? ''));
-            $chalniFrom = trim((string) ($row['chalni_from'] ?? ''));
-            $chalniTo = trim((string) ($row['chalni_to'] ?? ''));
-            $color = trim((string) ($row['color'] ?? ''));
-            $clarity = trim((string) ($row['clarity'] ?? ''));
-            $parts = array_filter([
-                $diamondType,
-                $shape,
-                ($chalniFrom !== '' || $chalniTo !== '') ? ('CH ' . $chalniFrom . '-' . $chalniTo) : '',
-                $color,
-                $clarity,
-            ], static fn(string $v): bool => $v !== '');
-
-            $rows[] = [
-                'type' => implode(' | ', $parts),
-                'pcs' => $pendingPcs,
-                'weight_cts' => $pendingCts,
-                'rate' => round($rate, 2),
-            ];
-        }
-
-        return $rows;
-    }
-
-    /**
-     * @return list<array<string,mixed>>
-     */
-    private function pendingStoneReceiveRows(int $orderId): array
-    {
-        $db = db_connect();
-        $rows = [];
-
-        if ($db->tableExists('stone_inventory_issue_headers') && $db->tableExists('stone_inventory_issue_lines')) {
-            $issueRows = $db->table('stone_inventory_issue_headers ih')
-                ->select('il.item_id, i.product_name, i.stone_type, COALESCE(SUM(il.qty),0) as total_qty, COALESCE(SUM(il.line_value),0) as total_value', false)
-                ->join('stone_inventory_issue_lines il', 'il.issue_id = ih.id', 'inner')
-                ->join('stone_inventory_items i', 'i.id = il.item_id', 'left')
-                ->where('ih.order_id', $orderId)
-                ->groupBy('il.item_id, i.product_name, i.stone_type')
-                ->get()
-                ->getResultArray();
-
-            if ($issueRows !== []) {
-                $returnMap = [];
-                if ($db->tableExists('stone_inventory_return_headers') && $db->tableExists('stone_inventory_return_lines')) {
-                    $returnRows = $db->table('stone_inventory_return_headers rh')
-                        ->select('rl.item_id, COALESCE(SUM(rl.qty),0) as total_qty', false)
-                        ->join('stone_inventory_return_lines rl', 'rl.return_id = rh.id', 'inner')
-                        ->where('rh.order_id', $orderId)
-                        ->groupBy('rl.item_id')
-                        ->get()
-                        ->getResultArray();
-
-                    foreach ($returnRows as $row) {
-                        $itemId = (int) ($row['item_id'] ?? 0);
-                        if ($itemId > 0) {
-                            $returnMap[$itemId] = (float) ($row['total_qty'] ?? 0);
-                        }
-                    }
-                }
-
-                foreach ($issueRows as $row) {
-                    $itemId = (int) ($row['item_id'] ?? 0);
-                    $issueQty = (float) ($row['total_qty'] ?? 0);
-                    $returnQty = (float) ($returnMap[$itemId] ?? 0);
-                    $pendingQty = round(max(0, $issueQty - $returnQty), 3);
-                    if ($pendingQty <= 0) {
-                        continue;
-                    }
-
-                    $issueValue = (float) ($row['total_value'] ?? 0);
-                    $rate = $issueQty > 0 ? ($issueValue / $issueQty) : 0.0;
-
-                    $product = trim((string) ($row['product_name'] ?? 'Stone'));
-                    $type = trim((string) ($row['stone_type'] ?? ''));
-                    $parts = array_filter([$product, $type], static fn(string $v): bool => $v !== '');
-
-                    $rows[] = [
-                        'type' => implode(' | ', $parts),
-                        'pcs' => $pendingQty,
-                        'weight_cts' => $pendingQty,
-                        'rate' => round($rate, 2),
-                    ];
-                }
-            }
-
-            return $rows;
-        }
-
-        if ($db->tableExists('stone_ledger_entries')) {
-            $issueRows = $db->table('stone_ledger_entries')
-                ->select('stone_type, size, color, quality, COALESCE(SUM(pcs),0) as total_pcs, COALESCE(SUM(weight_cts),0) as total_cts', false)
-                ->where('order_id', $orderId)
-                ->where('entry_type', 'issue')
-                ->groupBy('stone_type, size, color, quality')
-                ->get()
-                ->getResultArray();
-
-            $receiveRows = $db->table('stone_ledger_entries')
-                ->select('stone_type, size, color, quality, COALESCE(SUM(pcs),0) as total_pcs, COALESCE(SUM(weight_cts),0) as total_cts', false)
-                ->where('order_id', $orderId)
-                ->where('entry_type', 'receive')
-                ->groupBy('stone_type, size, color, quality')
-                ->get()
-                ->getResultArray();
-
-            $recvMap = [];
-            foreach ($receiveRows as $row) {
-                $key = strtoupper(trim((string) ($row['stone_type'] ?? '') . '|' . (string) ($row['size'] ?? '') . '|' . (string) ($row['color'] ?? '') . '|' . (string) ($row['quality'] ?? '')));
-                $recvMap[$key] = [
-                    'pcs' => (float) ($row['total_pcs'] ?? 0),
-                    'cts' => (float) ($row['total_cts'] ?? 0),
-                ];
-            }
-
-            foreach ($issueRows as $row) {
-                $key = strtoupper(trim((string) ($row['stone_type'] ?? '') . '|' . (string) ($row['size'] ?? '') . '|' . (string) ($row['color'] ?? '') . '|' . (string) ($row['quality'] ?? '')));
-                $issuePcs = (float) ($row['total_pcs'] ?? 0);
-                $issueCts = (float) ($row['total_cts'] ?? 0);
-                $retPcs = (float) ($recvMap[$key]['pcs'] ?? 0);
-                $retCts = (float) ($recvMap[$key]['cts'] ?? 0);
-                $pendingPcs = round(max(0, $issuePcs - $retPcs), 3);
-                $pendingCts = round(max(0, $issueCts - $retCts), 3);
-                if ($pendingPcs <= 0 && $pendingCts <= 0) {
-                    continue;
-                }
-
-                $stoneType = trim((string) ($row['stone_type'] ?? 'Stone'));
-                $size = trim((string) ($row['size'] ?? ''));
-                $color = trim((string) ($row['color'] ?? ''));
-                $quality = trim((string) ($row['quality'] ?? ''));
-                $parts = array_filter([$stoneType, $size, $color, $quality], static fn(string $v): bool => $v !== '');
-                $rows[] = [
-                    'type' => implode(' | ', $parts),
-                    'pcs' => $pendingPcs,
-                    'weight_cts' => $pendingCts,
-                    'rate' => 0.0,
-                ];
-            }
-
-            return $rows;
-        }
-
-        if ($db->tableExists('stone_issues')) {
-            $issueRows = $db->table('stone_issues')
-                ->select('stone_type, size, color, quality, COALESCE(SUM(issue_pcs),0) as total_pcs, COALESCE(SUM(issue_weight_cts),0) as total_cts', false)
-                ->where('order_id', $orderId)
-                ->groupBy('stone_type, size, color, quality')
-                ->get()
-                ->getResultArray();
-
-            foreach ($issueRows as $row) {
-                $rows[] = [
-                    'type' => trim(implode(' | ', array_filter([
-                        (string) ($row['stone_type'] ?? 'Stone'),
-                        (string) ($row['size'] ?? ''),
-                        (string) ($row['color'] ?? ''),
-                        (string) ($row['quality'] ?? ''),
-                    ], static fn(string $v): bool => trim($v) !== ''))),
-                    'pcs' => round((float) ($row['total_pcs'] ?? 0), 3),
-                    'weight_cts' => round((float) ($row['total_cts'] ?? 0), 3),
-                    'rate' => 0.0,
-                ];
-            }
-        }
-
-        return $rows;
     }
 
     /**
@@ -3511,6 +2122,9 @@ class OrderController extends BaseController
             $summaryData = [
                 'movement_id' => $movementId,
                 'order_id' => $orderId,
+                'account_voucher_id' => (int) ($summary['account_voucher_id'] ?? 0) > 0
+                    ? (int) $summary['account_voucher_id']
+                    : null,
                 'gross_weight_gm' => round((float) ($summary['gross_weight_gm'] ?? 0), 3),
                 'net_gold_weight_gm' => round((float) ($summary['net_gold_weight_gm'] ?? 0), 3),
                 'pure_gold_weight_gm' => round((float) ($summary['pure_gold_weight_gm'] ?? 0), 3),
@@ -3709,102 +2323,7 @@ class OrderController extends BaseController
             }
         }
 
-        $rows = [];
-
-        if ($db->tableExists('issue_headers') && $db->tableExists('issue_lines') && $db->tableExists('items')) {
-            $issueRows = $db->table('issue_headers ih')
-                ->select('il.item_id, i.diamond_type, i.shape, i.color, i.clarity, COALESCE(SUM(il.pcs),0) as issue_pcs, COALESCE(SUM(il.carat),0) as issue_carat, COALESCE(SUM(il.line_value),0) as issue_amount', false)
-                ->join('issue_lines il', 'il.issue_id = ih.id', 'inner')
-                ->join('items i', 'i.id = il.item_id', 'left')
-                ->where('ih.order_id', $orderId)
-                ->groupBy('il.item_id, i.diamond_type, i.shape, i.color, i.clarity')
-                ->get()
-                ->getResultArray();
-
-            $returnMap = [];
-            if ($db->tableExists('return_headers') && $db->tableExists('return_lines')) {
-                $returnRows = $db->table('return_headers rh')
-                    ->select('rl.item_id, COALESCE(SUM(rl.pcs),0) as return_pcs, COALESCE(SUM(rl.carat),0) as return_carat, COALESCE(SUM(rl.line_value),0) as return_amount', false)
-                    ->join('return_lines rl', 'rl.return_id = rh.id', 'inner')
-                    ->where('rh.order_id', $orderId)
-                    ->groupBy('rl.item_id')
-                    ->get()
-                    ->getResultArray();
-                foreach ($returnRows as $row) {
-                    $returnMap[(int) ($row['item_id'] ?? 0)] = $row;
-                }
-            }
-
-            foreach ($issueRows as $row) {
-                $itemId = (int) ($row['item_id'] ?? 0);
-                $r = $returnMap[$itemId] ?? ['return_pcs' => 0, 'return_carat' => 0, 'return_amount' => 0];
-                $pcs = max(0.0, (float) ($row['issue_pcs'] ?? 0) - (float) ($r['return_pcs'] ?? 0));
-                $wt = max(0.0, (float) ($row['issue_carat'] ?? 0) - (float) ($r['return_carat'] ?? 0));
-                $amt = max(0.0, (float) ($row['issue_amount'] ?? 0) - (float) ($r['return_amount'] ?? 0));
-                if ($pcs <= 0 && $wt <= 0 && $amt <= 0) {
-                    continue;
-                }
-                $grade = trim(implode('/', array_filter([
-                    (string) ($row['shape'] ?? ''),
-                    (string) ($row['color'] ?? ''),
-                    (string) ($row['clarity'] ?? ''),
-                ], static fn(string $v): bool => trim($v) !== '')));
-                $rows[] = [
-                    'name' => trim((string) ($row['diamond_type'] ?? 'Diamond')),
-                    'grade' => $grade === '' ? '-' : $grade,
-                    'pcs' => round($pcs, 3),
-                    'wt' => round($wt, 3),
-                    'rate' => $wt > 0 ? round($amt / $wt, 2) : 0.0,
-                    'amt' => round($amt, 2),
-                ];
-            }
-        }
-
-        if ($db->tableExists('stone_inventory_issue_headers') && $db->tableExists('stone_inventory_issue_lines') && $db->tableExists('stone_inventory_items')) {
-            $issueRows = $db->table('stone_inventory_issue_headers ih')
-                ->select('il.item_id, i.product_name, i.stone_type, COALESCE(SUM(il.pcs),0) as issue_pcs, COALESCE(SUM(il.qty),0) as issue_wt, COALESCE(SUM(il.line_value),0) as issue_amount', false)
-                ->join('stone_inventory_issue_lines il', 'il.issue_id = ih.id', 'inner')
-                ->join('stone_inventory_items i', 'i.id = il.item_id', 'left')
-                ->where('ih.order_id', $orderId)
-                ->groupBy('il.item_id, i.product_name, i.stone_type')
-                ->get()
-                ->getResultArray();
-
-            $returnMap = [];
-            if ($db->tableExists('stone_inventory_return_headers') && $db->tableExists('stone_inventory_return_lines')) {
-                $returnRows = $db->table('stone_inventory_return_headers rh')
-                    ->select('rl.item_id, COALESCE(SUM(rl.qty),0) as return_pcs, COALESCE(SUM(rl.qty),0) as return_wt, COALESCE(SUM(rl.line_value),0) as return_amount', false)
-                    ->join('stone_inventory_return_lines rl', 'rl.return_id = rh.id', 'inner')
-                    ->where('rh.order_id', $orderId)
-                    ->groupBy('rl.item_id')
-                    ->get()
-                    ->getResultArray();
-                foreach ($returnRows as $row) {
-                    $returnMap[(int) ($row['item_id'] ?? 0)] = $row;
-                }
-            }
-
-            foreach ($issueRows as $row) {
-                $itemId = (int) ($row['item_id'] ?? 0);
-                $r = $returnMap[$itemId] ?? ['return_pcs' => 0, 'return_wt' => 0, 'return_amount' => 0];
-                $pcs = max(0.0, (float) ($row['issue_pcs'] ?? 0) - (float) ($r['return_pcs'] ?? 0));
-                $wt = max(0.0, (float) ($row['issue_wt'] ?? 0) - (float) ($r['return_wt'] ?? 0));
-                $amt = max(0.0, (float) ($row['issue_amount'] ?? 0) - (float) ($r['return_amount'] ?? 0));
-                if ($pcs <= 0 && $wt <= 0 && $amt <= 0) {
-                    continue;
-                }
-                $rows[] = [
-                    'name' => trim((string) ($row['product_name'] ?? 'Stone')),
-                    'grade' => trim((string) ($row['stone_type'] ?? '-')) ?: '-',
-                    'pcs' => round($pcs, 3),
-                    'wt' => round($wt, 3),
-                    'rate' => $wt > 0 ? round($amt / $wt, 2) : 0.0,
-                    'amt' => round($amt, 2),
-                ];
-            }
-        }
-
-        return $rows;
+        return [];
     }
 
     /**
@@ -3914,19 +2433,6 @@ class OrderController extends BaseController
         }
 
         $goldAmount = 0.0;
-        if ($orderId > 0 && $db->tableExists('gold_inventory_issue_headers') && $db->tableExists('gold_inventory_issue_lines')) {
-            $avg = $db->table('gold_inventory_issue_headers ih')
-                ->select('COALESCE(SUM(il.line_value),0) as amount, COALESCE(SUM(il.weight_gm),0) as wt', false)
-                ->join('gold_inventory_issue_lines il', 'il.issue_id = ih.id', 'inner')
-                ->where('ih.order_id', $orderId)
-                ->get()
-                ->getRowArray();
-            $wt = (float) ($avg['wt'] ?? 0);
-            if ($wt > 0) {
-                $rate = (float) ($avg['amount'] ?? 0) / $wt;
-                $goldAmount = max(0.0, (float) ($receive['pure'] ?? 0) * $rate);
-            }
-        }
 
         $labour = 0.0;
         if ($orderId > 0 && $db->tableExists('labour_bills')) {

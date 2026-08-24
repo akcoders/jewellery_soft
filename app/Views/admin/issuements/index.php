@@ -18,7 +18,6 @@
                         <th>Date</th>
                         <th>Voucher</th>
                         <th>Material</th>
-                        <th>Order</th>
                         <th>Karigar</th>
                         <th>Warehouse</th>
                         <th>Purpose</th>
@@ -30,7 +29,7 @@
                 </thead>
                 <tbody>
                     <?php if (($rows ?? []) === []): ?>
-                        <tr><td colspan="11" class="text-center text-muted">No issuements found.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted">No issuements found.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($rows ?? []) as $row): ?>
                         <tr>
@@ -41,7 +40,6 @@
                                     <?= esc((string) ($row['material_type'] ?? '-')) ?>
                                 </span>
                             </td>
-                            <td><?= esc((string) ($row['order_no'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['karigar_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['warehouse_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['purpose'] ?? '-')) ?></td>
@@ -73,7 +71,6 @@
                     <tr>
                         <th>Date</th>
                         <th>Voucher</th>
-                        <th>Order</th>
                         <th>Karigar</th>
                         <th>Warehouse</th>
                         <th>Purpose</th>
@@ -85,13 +82,12 @@
                 </thead>
                 <tbody>
                     <?php if (($goldRows ?? []) === []): ?>
-                        <tr><td colspan="10" class="text-center text-muted">No gold issuements.</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted">No gold issuements.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($goldRows ?? []) as $row): ?>
                         <tr>
                             <td><?= esc((string) ($row['issue_date'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['voucher_no'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($row['order_no'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['karigar_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['warehouse_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['purpose'] ?? '-')) ?></td>
@@ -129,7 +125,6 @@
                     <tr>
                         <th>Date</th>
                         <th>Voucher</th>
-                        <th>Order</th>
                         <th>Karigar</th>
                         <th>Warehouse</th>
                         <th>Purpose</th>
@@ -142,13 +137,12 @@
                 </thead>
                 <tbody>
                     <?php if (($diamondRows ?? []) === []): ?>
-                        <tr><td colspan="11" class="text-center text-muted">No diamond issuements.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted">No diamond issuements.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($diamondRows ?? []) as $row): ?>
                         <tr>
                             <td><?= esc((string) ($row['issue_date'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['voucher_no'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($row['order_no'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['karigar_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['warehouse_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['purpose'] ?? '-')) ?></td>
@@ -187,7 +181,6 @@
                     <tr>
                         <th>Date</th>
                         <th>Voucher</th>
-                        <th>Order</th>
                         <th>Karigar</th>
                         <th>Warehouse</th>
                         <th>Purpose</th>
@@ -200,13 +193,12 @@
                 </thead>
                 <tbody>
                     <?php if (($stoneRows ?? []) === []): ?>
-                        <tr><td colspan="11" class="text-center text-muted">No stone issuements.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted">No stone issuements.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($stoneRows ?? []) as $row): ?>
                         <tr>
                             <td><?= esc((string) ($row['issue_date'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['voucher_no'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($row['order_no'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['karigar_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['warehouse_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['purpose'] ?? '-')) ?></td>

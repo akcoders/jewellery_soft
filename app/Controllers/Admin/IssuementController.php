@@ -12,18 +12,17 @@ use App\Models\IssueHeaderModel;
 use App\Models\IssueLineModel;
 use App\Models\ItemModel;
 use App\Models\KarigarModel;
-use App\Models\OrderModel;
 use App\Models\StoneInventoryIssueHeaderModel;
 use App\Models\StoneInventoryIssueLineModel;
 use App\Models\StoneInventoryItemModel;
 use App\Services\DiamondInventory\StockService as DiamondStockService;
 use App\Services\GoldInventory\StockService as GoldStockService;
+use App\Services\KarigarMaterialAccountingService;
 use App\Services\StoneInventory\StockService as StoneStockService;
 use Throwable;
 
 class IssuementController extends BaseController
 {
-    private $orderModel;
     private $karigarModel;
     private $locationModel;
     private $companySettingModel;
@@ -43,7 +42,6 @@ class IssuementController extends BaseController
     public function __construct()
     {
         helper(['form', 'url']);
-        $this->orderModel = new OrderModel();
         $this->karigarModel = new KarigarModel();
         $this->locationModel = new InventoryLocationModel();
         $this->companySettingModel = new CompanySettingModel();
@@ -67,9 +65,8 @@ class IssuementController extends BaseController
 
         $goldList = [];
         $goldRows = $db->table('gold_inventory_issue_headers ih')
-            ->select("'Gold' as material_type, ih.id, ih.voucher_no, ih.issue_date, ih.attachment_path, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, ih.purpose, COALESCE(SUM(il.weight_gm),0) as total_qty, 0 as total_pcs, COALESCE(SUM(il.line_value),0) as total_value", false)
+            ->select("'Gold' as material_type, ih.id, ih.voucher_no, ih.issue_date, ih.attachment_path, k.name as karigar_name, iloc.name as warehouse_name, ih.purpose, COALESCE(SUM(il.weight_gm),0) as total_qty, 0 as total_pcs, COALESCE(SUM(il.line_value),0) as total_value", false)
             ->join('gold_inventory_issue_lines il', 'il.issue_id = ih.id', 'left')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->groupBy('ih.id')
@@ -89,9 +86,8 @@ class IssuementController extends BaseController
 
         $diamondList = [];
         $diamondRows = $db->table('issue_headers ih')
-            ->select("'Diamond' as material_type, ih.id, ih.voucher_no, ih.issue_date, ih.attachment_path, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, ih.purpose, COALESCE(SUM(il.carat),0) as total_qty, COALESCE(SUM(il.pcs),0) as total_pcs, COALESCE(SUM(il.line_value),0) as total_value", false)
+            ->select("'Diamond' as material_type, ih.id, ih.voucher_no, ih.issue_date, ih.attachment_path, k.name as karigar_name, iloc.name as warehouse_name, ih.purpose, COALESCE(SUM(il.carat),0) as total_qty, COALESCE(SUM(il.pcs),0) as total_pcs, COALESCE(SUM(il.line_value),0) as total_value", false)
             ->join('issue_lines il', 'il.issue_id = ih.id', 'left')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->groupBy('ih.id')
@@ -110,9 +106,8 @@ class IssuementController extends BaseController
 
         $stoneList = [];
         $stoneRows = $db->table('stone_inventory_issue_headers ih')
-            ->select("'Stone' as material_type, ih.id, ih.voucher_no, ih.issue_date, ih.attachment_path, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, ih.purpose, COALESCE(SUM(il.qty),0) as total_qty, COALESCE(SUM(il.pcs),0) as total_pcs, COALESCE(SUM(il.line_value),0) as total_value", false)
+            ->select("'Stone' as material_type, ih.id, ih.voucher_no, ih.issue_date, ih.attachment_path, k.name as karigar_name, iloc.name as warehouse_name, ih.purpose, COALESCE(SUM(il.qty),0) as total_qty, COALESCE(SUM(il.pcs),0) as total_pcs, COALESCE(SUM(il.line_value),0) as total_value", false)
             ->join('stone_inventory_issue_lines il', 'il.issue_id = ih.id', 'left')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->groupBy('ih.id')
@@ -192,7 +187,6 @@ class IssuementController extends BaseController
     {
         return view('admin/issuements/create', [
             'title' => 'Create Issuement',
-            'orders' => $this->orderOptions(),
             'karigars' => $this->karigarOptions(),
             'locations' => $this->locationOptions(),
             'goldItems' => $this->goldItemOptions(),
@@ -274,7 +268,6 @@ class IssuementController extends BaseController
         $stoneService = new StoneStockService($db);
 
         $issueDate = (string) $this->request->getPost('issue_date');
-        $orderId = (int) $this->request->getPost('order_id');
         $karigarId = (int) $this->request->getPost('karigar_id');
         $locationId = (int) $this->request->getPost('location_id');
         $purpose = trim((string) $this->request->getPost('purpose'));
@@ -293,7 +286,6 @@ class IssuementController extends BaseController
                 $goldIssueId = (int) $this->goldHeaderModel->insert([
                     'voucher_no' => $commonVoucherNo,
                     'issue_date' => $issueDate,
-                    'order_id' => $orderId,
                     'karigar_id' => $karigarId,
                     'location_id' => $locationId,
                     'issue_to' => $issueTo,
@@ -318,12 +310,12 @@ class IssuementController extends BaseController
 
                 $goldService->applyIssue($goldIssueId, [
                     'txn_date' => $issueDate,
-                    'order_id' => $orderId,
                     'karigar_id' => $karigarId,
                     'location_id' => $locationId,
                     'created_by' => $adminId,
                     'notes' => 'Common issuement - Gold',
                 ]);
+                (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'issue', $goldIssueId);
 
                 $createdMaterials[] = 'Gold';
             }
@@ -332,7 +324,6 @@ class IssuementController extends BaseController
                 $diamondIssueId = (int) $this->diamondHeaderModel->insert([
                     'voucher_no' => $commonVoucherNo,
                     'issue_date' => $issueDate,
-                    'order_id' => $orderId,
                     'karigar_id' => $karigarId,
                     'location_id' => $locationId,
                     'issue_to' => $issueTo,
@@ -355,6 +346,7 @@ class IssuementController extends BaseController
                 }
 
                 $diamondService->applyIssue($diamondIssueId);
+                (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $diamondIssueId);
                 $createdMaterials[] = 'Diamond';
             }
 
@@ -362,7 +354,6 @@ class IssuementController extends BaseController
                 $stoneIssueId = (int) $this->stoneHeaderModel->insert([
                     'voucher_no' => $commonVoucherNo,
                     'issue_date' => $issueDate,
-                    'order_id' => $orderId,
                     'karigar_id' => $karigarId,
                     'location_id' => $locationId,
                     'issue_to' => $issueTo,
@@ -385,6 +376,7 @@ class IssuementController extends BaseController
                 }
 
                 $stoneService->applyIssue($stoneIssueId);
+                (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'issue', $stoneIssueId);
                 $createdMaterials[] = 'Stone';
             }
 
@@ -420,8 +412,7 @@ class IssuementController extends BaseController
         $db = db_connect();
 
         $goldHeader = $db->table('gold_inventory_issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode, k.department as labour_department, k.skills_text as labour_skills, k.rate_per_gm as labour_rate_per_gm, k.wastage_percentage as labour_wastage_percentage, k.aadhaar_no as labour_aadhaar_no, k.pan_no as labour_pan_no, k.joining_date as labour_joining_date, k.bank_name as labour_bank_name, k.bank_account_no as labour_bank_account_no, k.ifsc_code as labour_ifsc_code')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode, k.department as labour_department, k.skills_text as labour_skills, k.rate_per_gm as labour_rate_per_gm, k.wastage_percentage as labour_wastage_percentage, k.aadhaar_no as labour_aadhaar_no, k.pan_no as labour_pan_no, k.joining_date as labour_joining_date, k.bank_name as labour_bank_name, k.bank_account_no as labour_bank_account_no, k.ifsc_code as labour_ifsc_code')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.voucher_no', $voucherNo)
@@ -430,8 +421,7 @@ class IssuementController extends BaseController
             ->getRowArray();
 
         $diamondHeader = $db->table('issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode, k.department as labour_department, k.skills_text as labour_skills, k.rate_per_gm as labour_rate_per_gm, k.wastage_percentage as labour_wastage_percentage, k.aadhaar_no as labour_aadhaar_no, k.pan_no as labour_pan_no, k.joining_date as labour_joining_date, k.bank_name as labour_bank_name, k.bank_account_no as labour_bank_account_no, k.ifsc_code as labour_ifsc_code')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode, k.department as labour_department, k.skills_text as labour_skills, k.rate_per_gm as labour_rate_per_gm, k.wastage_percentage as labour_wastage_percentage, k.aadhaar_no as labour_aadhaar_no, k.pan_no as labour_pan_no, k.joining_date as labour_joining_date, k.bank_name as labour_bank_name, k.bank_account_no as labour_bank_account_no, k.ifsc_code as labour_ifsc_code')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.voucher_no', $voucherNo)
@@ -440,8 +430,7 @@ class IssuementController extends BaseController
             ->getRowArray();
 
         $stoneHeader = $db->table('stone_inventory_issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode, k.department as labour_department, k.skills_text as labour_skills, k.rate_per_gm as labour_rate_per_gm, k.wastage_percentage as labour_wastage_percentage, k.aadhaar_no as labour_aadhaar_no, k.pan_no as labour_pan_no, k.joining_date as labour_joining_date, k.bank_name as labour_bank_name, k.bank_account_no as labour_bank_account_no, k.ifsc_code as labour_ifsc_code')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode, k.department as labour_department, k.skills_text as labour_skills, k.rate_per_gm as labour_rate_per_gm, k.wastage_percentage as labour_wastage_percentage, k.aadhaar_no as labour_aadhaar_no, k.pan_no as labour_pan_no, k.joining_date as labour_joining_date, k.bank_name as labour_bank_name, k.bank_account_no as labour_bank_account_no, k.ifsc_code as labour_ifsc_code')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.voucher_no', $voucherNo)
@@ -534,7 +523,6 @@ class IssuementController extends BaseController
     {
         if (! $this->validate([
             'issue_date' => 'required|valid_date',
-            'order_id' => 'required|integer|greater_than[0]',
             'karigar_id' => 'required|integer|greater_than[0]',
             'location_id' => 'required|integer|greater_than[0]',
             'purpose' => 'required|max_length[50]',
@@ -544,22 +532,8 @@ class IssuementController extends BaseController
             return $errors === [] ? 'Validation failed.' : (string) array_values($errors)[0];
         }
 
-        $orderId = (int) $this->request->getPost('order_id');
         $karigarId = (int) $this->request->getPost('karigar_id');
         $locationId = (int) $this->request->getPost('location_id');
-
-        $order = db_connect()->table('orders')
-            ->select('id, assigned_karigar_id, status')
-            ->where('id', $orderId)
-            ->whereNotIn('status', ['Cancelled', 'Completed'])
-            ->get()
-            ->getRowArray();
-        if (! $order || (int) ($order['assigned_karigar_id'] ?? 0) <= 0) {
-            return 'Only karigar-assigned active orders are allowed for issuance.';
-        }
-        if ((int) ($order['assigned_karigar_id'] ?? 0) !== $karigarId) {
-            return 'Selected karigar does not match order assignment.';
-        }
 
         if ($this->karigarModel->where('id', $karigarId)->where('is_active', 1)->countAllResults() === 0) {
             return 'Selected karigar was not found or inactive.';
@@ -794,23 +768,6 @@ class IssuementController extends BaseController
         } while ($exists);
 
         return $voucher;
-    }
-
-    /** @return list<array<string,mixed>> */
-    private function orderOptions(): array
-    {
-        return db_connect()->table('orders o')
-            ->select('o.id, o.order_no, o.order_type, o.assigned_karigar_id, k.name as karigar_name, COALESCE(SUM(oi.gold_required_gm),0) as gold_budget_gm, COALESCE(SUM(oi.diamond_required_cts),0) as diamond_budget_cts', false)
-            ->join('order_items oi', 'oi.order_id = o.id', 'left')
-            ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
-            ->whereNotIn('o.status', ['Cancelled', 'Completed'])
-            ->where('o.assigned_karigar_id IS NOT NULL', null, false)
-            ->where('o.assigned_karigar_id >', 0)
-            ->groupBy('o.id')
-            ->orderBy('o.id', 'DESC')
-            ->limit(500)
-            ->get()
-            ->getResultArray();
     }
 
     /** @return list<array<string,mixed>> */

@@ -35,7 +35,6 @@
                     <tr>
                         <th>ID</th>
                         <th>Receipt No</th>
-                        <th>Order</th>
                         <th>Issue Ref</th>
                         <th>Date</th>
                         <th>Return From</th>
@@ -48,13 +47,12 @@
                 </thead>
                 <tbody>
                     <?php if (($returns ?? []) === []): ?>
-                        <tr><td colspan="11" class="text-center text-muted">No return records found.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted">No return records found.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($returns ?? []) as $return): ?>
                         <tr>
                             <td><?= (int) $return['id'] ?></td>
                             <td><?= esc((string) (($return['voucher_no'] ?? '') !== '' ? $return['voucher_no'] : ('RET#' . (int) $return['id']))) ?></td>
-                            <td><?= esc((string) ($return['order_no'] ?? '-')) ?></td>
                             <td><?= esc((string) (($return['issue_voucher_no'] ?? '') !== '' ? $return['issue_voucher_no'] : '-')) ?></td>
                             <td><?= esc((string) $return['return_date']) ?></td>
                             <td><?= esc((string) ($return['return_from'] ?? '-')) ?></td>

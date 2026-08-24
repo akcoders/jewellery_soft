@@ -41,7 +41,6 @@ if ($rows === []) {
 }
 
 $returnDate = old('return_date', (string) ($return['return_date'] ?? date('Y-m-d')));
-$selectedOrderId = old('order_id', (string) ($return['order_id'] ?? (string) ($preselectedOrderId ?? '')));
 $selectedIssueId = old('issue_id', (string) ($return['issue_id'] ?? (string) ($preselectedIssueId ?? '')));
 $returnFrom = old('return_from', (string) ($return['return_from'] ?? ''));
 $purpose = old('purpose', (string) ($return['purpose'] ?? ''));
@@ -58,18 +57,7 @@ $attachmentRequired = $existingAttachmentPath === '';
                 <label class="form-label">Return Date <span class="text-danger">*</span></label>
                 <input type="date" name="return_date" class="form-control" required value="<?= esc((string) $returnDate) ?>">
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Order Reference <span class="text-danger">*</span></label>
-                <select name="order_id" id="return-order-select" class="form-select" required>
-                    <option value="">Select order</option>
-                    <?php foreach (($orders ?? []) as $order): ?>
-                        <option value="<?= (int) $order['id'] ?>" <?= (string) $selectedOrderId === (string) $order['id'] ? 'selected' : '' ?>>
-                            <?= esc((string) $order['order_no']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label">Issue Reference <span class="text-danger">*</span></label>
                 <select name="issue_id" id="return-issue-select" class="form-select" required>
                     <option value="">Select issue voucher</option>
@@ -84,7 +72,6 @@ $attachmentRequired = $existingAttachmentPath === '';
                         ?>
                         <option
                             value="<?= (int) $issue['id'] ?>"
-                            data-order-id="<?= (int) ($issue['order_id'] ?? 0) ?>"
                             data-return-from="<?= esc((string) ($issue['issue_to'] ?: ($issue['karigar_name'] ?? ''))) ?>"
                             <?= (string) $selectedIssueId === (string) $issue['id'] ? 'selected' : '' ?>
                         >
@@ -209,48 +196,11 @@ $attachmentRequired = $existingAttachmentPath === '';
         const body = document.getElementById('return-lines-body');
         const addBtn = document.getElementById('add-return-line');
         const tpl = document.getElementById('return-line-template');
-        const orderSelect = document.getElementById('return-order-select');
         const issueSelect = document.getElementById('return-issue-select');
         const returnFromInput = document.getElementById('return-from-input');
 
         if (!body || !addBtn || !tpl) {
             return;
-        }
-
-        function filterIssuesByOrder() {
-            if (!orderSelect || !issueSelect) {
-                return;
-            }
-            const orderId = String(orderSelect.value || '');
-            let visibleCount = 0;
-
-            Array.prototype.forEach.call(issueSelect.options, function(opt, idx) {
-                if (idx === 0) {
-                    opt.hidden = false;
-                    return;
-                }
-                const optOrderId = String(opt.getAttribute('data-order-id') || '');
-                const match = orderId !== '' && optOrderId === orderId;
-                opt.hidden = !match;
-                opt.disabled = !match;
-                if (match) {
-                    visibleCount++;
-                }
-            });
-
-            if (issueSelect.selectedOptions.length > 0) {
-                const selected = issueSelect.selectedOptions[0];
-                if (selected && selected.hidden) {
-                    issueSelect.value = '';
-                }
-            }
-
-            if (orderId === '') {
-                issueSelect.value = '';
-                issueSelect.disabled = true;
-            } else {
-                issueSelect.disabled = visibleCount === 0;
-            }
         }
 
         function applyIssueDerivedValues() {
@@ -337,16 +287,9 @@ $attachmentRequired = $existingAttachmentPath === '';
             bindRow(row);
         });
 
-        if (orderSelect) {
-            orderSelect.addEventListener('change', function() {
-                filterIssuesByOrder();
-                applyIssueDerivedValues();
-            });
-        }
         if (issueSelect) {
             issueSelect.addEventListener('change', applyIssueDerivedValues);
         }
-        filterIssuesByOrder();
         applyIssueDerivedValues();
     })();
 </script>

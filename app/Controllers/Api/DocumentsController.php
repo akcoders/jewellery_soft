@@ -361,8 +361,7 @@ class DocumentsController extends ApiBaseController
     ) {
         $db = db_connect();
         $header = $db->table($headerTable . ' ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join($locationTable . ' iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
@@ -430,8 +429,7 @@ class DocumentsController extends ApiBaseController
     ) {
         $db = db_connect();
         $header = $db->table($returnHeaderTable . ' rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
-            ->join('orders o', 'o.id = rh.order_id', 'left')
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
             ->join($issueHeaderTable . ' ih', 'ih.id = rh.issue_id', 'left')
             ->join($locationTable . ' iloc', 'iloc.id = ih.location_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')

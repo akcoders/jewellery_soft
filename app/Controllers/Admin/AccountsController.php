@@ -2604,9 +2604,8 @@ class AccountsController extends BaseController
         $db = db_connect();
         if ($db->tableExists('gold_inventory_issue_headers') && $db->tableExists('gold_inventory_issue_lines')) {
             $issueRows = $db->table('gold_inventory_issue_headers h')
-                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.weight_gm),0) as weight_gm, COALESCE(SUM(l.fine_weight_gm),0) as fine_weight_gm, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->select('h.*, k.name as karigar_name, COALESCE(SUM(l.weight_gm),0) as weight_gm, COALESCE(SUM(l.fine_weight_gm),0) as fine_weight_gm, COALESCE(SUM(l.line_value),0) as amount', false)
                 ->join('gold_inventory_issue_lines l', 'l.issue_id = h.id', 'left')
-                ->join('orders o', 'o.id = h.order_id', 'left')
                 ->join('karigars k', 'k.id = h.karigar_id', 'left')
                 ->groupBy('h.id')
                 ->get()
@@ -2619,7 +2618,6 @@ class AccountsController extends BaseController
                     'material_type' => 'Gold',
                     'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'GI#' . (int) ($row['id'] ?? 0)),
                     'source_label' => 'Gold Issue',
-                    'order_no' => (string) ($row['order_no'] ?? ''),
                     'party_type' => 'karigar',
                     'party_id' => (int) ($row['karigar_id'] ?? 0),
                     'karigar_id' => (int) ($row['karigar_id'] ?? 0),
@@ -2635,9 +2633,8 @@ class AccountsController extends BaseController
 
         if ($db->tableExists('gold_inventory_return_headers') && $db->tableExists('gold_inventory_return_lines')) {
             $returnRows = $db->table('gold_inventory_return_headers h')
-                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.weight_gm),0) as weight_gm, COALESCE(SUM(l.fine_weight_gm),0) as fine_weight_gm, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->select('h.*, k.name as karigar_name, COALESCE(SUM(l.weight_gm),0) as weight_gm, COALESCE(SUM(l.fine_weight_gm),0) as fine_weight_gm, COALESCE(SUM(l.line_value),0) as amount', false)
                 ->join('gold_inventory_return_lines l', 'l.return_id = h.id', 'left')
-                ->join('orders o', 'o.id = h.order_id', 'left')
                 ->join('karigars k', 'k.id = h.karigar_id', 'left')
                 ->groupBy('h.id')
                 ->get()
@@ -2650,7 +2647,6 @@ class AccountsController extends BaseController
                     'material_type' => 'Gold',
                     'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'GR#' . (int) ($row['id'] ?? 0)),
                     'source_label' => 'Gold Return',
-                    'order_no' => (string) ($row['order_no'] ?? ''),
                     'party_type' => 'karigar',
                     'party_id' => (int) ($row['karigar_id'] ?? 0),
                     'karigar_id' => (int) ($row['karigar_id'] ?? 0),
@@ -2676,9 +2672,8 @@ class AccountsController extends BaseController
         $db = db_connect();
         if ($db->tableExists('issue_headers') && $db->tableExists('issue_lines')) {
             $issueRows = $db->table('issue_headers h')
-                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.pcs),0) as pcs, COALESCE(SUM(l.carat),0) as cts, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->select('h.*, k.name as karigar_name, COALESCE(SUM(l.pcs),0) as pcs, COALESCE(SUM(l.carat),0) as cts, COALESCE(SUM(l.line_value),0) as amount', false)
                 ->join('issue_lines l', 'l.issue_id = h.id', 'left')
-                ->join('orders o', 'o.id = h.order_id', 'left')
                 ->join('karigars k', 'k.id = h.karigar_id', 'left')
                 ->groupBy('h.id')
                 ->get()
@@ -2691,7 +2686,6 @@ class AccountsController extends BaseController
                     'material_type' => 'Diamond',
                     'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'DI#' . (int) ($row['id'] ?? 0)),
                     'source_label' => 'Diamond Issue',
-                    'order_no' => (string) ($row['order_no'] ?? ''),
                     'party_type' => 'karigar',
                     'party_id' => (int) ($row['karigar_id'] ?? 0),
                     'karigar_id' => (int) ($row['karigar_id'] ?? 0),
@@ -2708,9 +2702,8 @@ class AccountsController extends BaseController
 
         if ($db->tableExists('return_headers') && $db->tableExists('return_lines')) {
             $returnRows = $db->table('return_headers h')
-                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.pcs),0) as pcs, COALESCE(SUM(l.carat),0) as cts, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->select('h.*, k.name as karigar_name, COALESCE(SUM(l.pcs),0) as pcs, COALESCE(SUM(l.carat),0) as cts, COALESCE(SUM(l.line_value),0) as amount', false)
                 ->join('return_lines l', 'l.return_id = h.id', 'left')
-                ->join('orders o', 'o.id = h.order_id', 'left')
                 ->join('karigars k', 'k.id = h.karigar_id', 'left')
                 ->groupBy('h.id')
                 ->get()
@@ -2723,7 +2716,6 @@ class AccountsController extends BaseController
                     'material_type' => 'Diamond',
                     'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'DR#' . (int) ($row['id'] ?? 0)),
                     'source_label' => 'Diamond Return',
-                    'order_no' => (string) ($row['order_no'] ?? ''),
                     'party_type' => 'karigar',
                     'party_id' => (int) ($row['karigar_id'] ?? 0),
                     'karigar_id' => (int) ($row['karigar_id'] ?? 0),
@@ -2750,9 +2742,8 @@ class AccountsController extends BaseController
         $db = db_connect();
         if ($db->tableExists('stone_inventory_issue_headers') && $db->tableExists('stone_inventory_issue_lines')) {
             $issueRows = $db->table('stone_inventory_issue_headers h')
-                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.qty),0) as qty, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->select('h.*, k.name as karigar_name, COALESCE(SUM(l.qty),0) as qty, COALESCE(SUM(l.line_value),0) as amount', false)
                 ->join('stone_inventory_issue_lines l', 'l.issue_id = h.id', 'left')
-                ->join('orders o', 'o.id = h.order_id', 'left')
                 ->join('karigars k', 'k.id = h.karigar_id', 'left')
                 ->groupBy('h.id')
                 ->get()
@@ -2765,7 +2756,6 @@ class AccountsController extends BaseController
                     'material_type' => 'Stone',
                     'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'SI#' . (int) ($row['id'] ?? 0)),
                     'source_label' => 'Stone Issue',
-                    'order_no' => (string) ($row['order_no'] ?? ''),
                     'party_type' => 'karigar',
                     'party_id' => (int) ($row['karigar_id'] ?? 0),
                     'karigar_id' => (int) ($row['karigar_id'] ?? 0),
@@ -2781,9 +2771,8 @@ class AccountsController extends BaseController
 
         if ($db->tableExists('stone_inventory_return_headers') && $db->tableExists('stone_inventory_return_lines')) {
             $returnRows = $db->table('stone_inventory_return_headers h')
-                ->select('h.*, o.order_no, k.name as karigar_name, COALESCE(SUM(l.qty),0) as qty, COALESCE(SUM(l.line_value),0) as amount', false)
+                ->select('h.*, k.name as karigar_name, COALESCE(SUM(l.qty),0) as qty, COALESCE(SUM(l.line_value),0) as amount', false)
                 ->join('stone_inventory_return_lines l', 'l.return_id = h.id', 'left')
-                ->join('orders o', 'o.id = h.order_id', 'left')
                 ->join('karigars k', 'k.id = h.karigar_id', 'left')
                 ->groupBy('h.id')
                 ->get()
@@ -2796,7 +2785,6 @@ class AccountsController extends BaseController
                     'material_type' => 'Stone',
                     'reference_no' => (string) (($row['voucher_no'] ?? '') ?: 'SR#' . (int) ($row['id'] ?? 0)),
                     'source_label' => 'Stone Return',
-                    'order_no' => (string) ($row['order_no'] ?? ''),
                     'party_type' => 'karigar',
                     'party_id' => (int) ($row['karigar_id'] ?? 0),
                     'karigar_id' => (int) ($row['karigar_id'] ?? 0),

@@ -9,6 +9,7 @@ use App\Models\KarigarModel;
 use App\Models\StoneInventoryIssueHeaderModel;
 use App\Models\StoneInventoryIssueLineModel;
 use App\Models\StoneInventoryItemModel;
+use App\Services\KarigarMaterialAccountingService;
 use App\Services\StoneInventory\StockService;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use Throwable;
@@ -39,9 +40,8 @@ class IssuesController extends BaseController
         $to = trim((string) $this->request->getGet('to'));
 
         $builder = db_connect()->table('stone_inventory_issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, COUNT(il.id) as line_count, COALESCE(SUM(il.pcs), 0) as total_pcs, COALESCE(SUM(il.qty), 0) as total_qty, COALESCE(SUM(il.line_value), 0) as total_value', false)
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, COUNT(il.id) as line_count, COALESCE(SUM(il.pcs), 0) as total_pcs, COALESCE(SUM(il.qty), 0) as total_qty, COALESCE(SUM(il.line_value), 0) as total_value', false)
             ->join('stone_inventory_issue_lines il', 'il.issue_id = ih.id', 'left')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->groupBy('ih.id')
@@ -67,13 +67,11 @@ class IssuesController extends BaseController
         return view('admin/stone_inventory/issues/create', [
             'title' => 'Create Stone Issue',
             'items' => $this->itemOptions(),
-            'orders' => $this->orderOptions(),
             'locations' => $this->locationOptions(),
             'karigars' => $this->karigarOptions(),
             'issue' => null,
             'lines' => [],
             'action' => site_url('admin/stone-inventory/issues'),
-            'preselectedOrderId' => (int) ($this->request->getGet('order_id') ?? 0),
         ]);
     }
 
@@ -97,7 +95,6 @@ class IssuesController extends BaseController
         try {
             $db->transException(true)->transStart();
 
-            $orderId = (int) $this->request->getPost('order_id');
             $karigarId = (int) $this->request->getPost('karigar_id');
             $locationId = (int) $this->request->getPost('location_id');
             $karigar = $this->karigarModel->find($karigarId);
@@ -109,7 +106,6 @@ class IssuesController extends BaseController
             $issueId = (int) $this->headerModel->insert([
                 'voucher_no' => $this->generateVoucherNo(),
                 'issue_date' => (string) $this->request->getPost('issue_date'),
-                'order_id' => $orderId,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
                 'issue_to' => (string) ($karigar['name'] ?? ''),
@@ -137,6 +133,7 @@ class IssuesController extends BaseController
             }
 
             $service->applyIssue($issueId);
+            (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'issue', $issueId);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -150,8 +147,7 @@ class IssuesController extends BaseController
     public function view(int $id)
     {
         $issue = db_connect()->table('stone_inventory_issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
@@ -173,8 +169,7 @@ class IssuesController extends BaseController
     public function voucher(int $id): string
     {
         $issue = db_connect()->table('stone_inventory_issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
@@ -204,13 +199,11 @@ class IssuesController extends BaseController
         return view('admin/stone_inventory/issues/edit', [
             'title' => 'Edit Stone Issue',
             'items' => $this->itemOptions(),
-            'orders' => $this->orderOptions(),
             'locations' => $this->locationOptions(),
             'karigars' => $this->karigarOptions(),
             'issue' => $issue,
             'lines' => $this->lineRows($id),
             'action' => site_url('admin/stone-inventory/issues/' . $id . '/update'),
-            'preselectedOrderId' => (int) ($issue['order_id'] ?? 0),
         ]);
     }
 
@@ -238,9 +231,9 @@ class IssuesController extends BaseController
 
         try {
             $db->transException(true)->transStart();
+            (new KarigarMaterialAccountingService($db))->reverseHeaderVoucher('stone_inventory_issue_headers', $id, 'Stone issue updated', (int) session('admin_id'));
             $service->reverseIssue($id);
 
-            $orderId = (int) $this->request->getPost('order_id');
             $karigarId = (int) $this->request->getPost('karigar_id');
             $locationId = (int) $this->request->getPost('location_id');
             $karigar = $this->karigarModel->find($karigarId);
@@ -251,7 +244,6 @@ class IssuesController extends BaseController
 
             $this->headerModel->update($id, [
                 'issue_date' => (string) $this->request->getPost('issue_date'),
-                'order_id' => $orderId,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
                 'issue_to' => (string) ($karigar['name'] ?? ''),
@@ -279,6 +271,7 @@ class IssuesController extends BaseController
             }
 
             $service->applyIssue($id);
+            (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'issue', $id);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -301,6 +294,7 @@ class IssuesController extends BaseController
 
         try {
             $db->transException(true)->transStart();
+            (new KarigarMaterialAccountingService($db))->reverseHeaderVoucher('stone_inventory_issue_headers', $id, 'Stone issue deleted', (int) session('admin_id'));
             $service->reverseIssue($id);
             $this->lineModel->where('issue_id', $id)->delete();
             $this->deleteFile((string) ($issue['attachment_path'] ?? ''));
@@ -388,7 +382,6 @@ class IssuesController extends BaseController
     {
         if (! $this->validate([
             'issue_date' => 'required|valid_date',
-            'order_id' => 'required|integer|greater_than[0]',
             'karigar_id' => 'required|integer|greater_than[0]',
             'location_id' => 'required|integer|greater_than[0]',
             'purpose' => 'required|max_length[50]',
@@ -398,22 +391,8 @@ class IssuesController extends BaseController
             return $errors === [] ? 'Validation failed.' : (string) array_values($errors)[0];
         }
 
-        $orderId = (int) $this->request->getPost('order_id');
         $karigarId = (int) $this->request->getPost('karigar_id');
         $locationId = (int) $this->request->getPost('location_id');
-
-        $order = db_connect()->table('orders')
-            ->select('id, assigned_karigar_id, status')
-            ->where('id', $orderId)
-            ->whereNotIn('status', ['Cancelled', 'Completed'])
-            ->get()
-            ->getRowArray();
-        if (! $order || (int) ($order['assigned_karigar_id'] ?? 0) <= 0) {
-            return 'Only karigar-assigned active orders are allowed for issuance.';
-        }
-        if ((int) ($order['assigned_karigar_id'] ?? 0) !== $karigarId) {
-            return 'Selected karigar does not match order assignment.';
-        }
         if ($this->karigarModel->where('id', $karigarId)->where('is_active', 1)->countAllResults() === 0) {
             return 'Selected karigar was not found or inactive.';
         }
@@ -446,69 +425,10 @@ class IssuesController extends BaseController
     {
         return db_connect()->table('karigars k')
             ->select('k.id, k.name, k.phone')
-            ->join('orders o', 'o.assigned_karigar_id = k.id', 'inner')
             ->where('k.is_active', 1)
-            ->whereNotIn('o.status', ['Cancelled', 'Completed'])
-            ->groupBy('k.id')
             ->orderBy('k.name', 'ASC')
             ->get()
             ->getResultArray();
-    }
-
-    /**
-     * @return list<array<string,mixed>>
-     */
-    private function orderOptions(): array
-    {
-        $orders = db_connect()->table('orders o')
-            ->select('o.id, o.order_no, o.order_type, o.assigned_karigar_id, k.name as karigar_name', false)
-            ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
-            ->whereNotIn('o.status', ['Cancelled', 'Completed'])
-            ->where('o.assigned_karigar_id IS NOT NULL', null, false)
-            ->where('o.assigned_karigar_id >', 0)
-            ->orderBy('o.id', 'DESC')
-            ->limit(500)
-            ->get()
-            ->getResultArray();
-
-        $issueMap = [];
-        $issueRows = db_connect()->table('stone_inventory_issue_headers ih')
-            ->select('ih.order_id, COALESCE(SUM(il.qty),0) as issued_qty', false)
-            ->join('stone_inventory_issue_lines il', 'il.issue_id = ih.id', 'inner')
-            ->where('ih.order_id IS NOT NULL', null, false)
-            ->groupBy('ih.order_id')
-            ->get()
-            ->getResultArray();
-        foreach ($issueRows as $row) {
-            $issueMap[(int) $row['order_id']] = (float) ($row['issued_qty'] ?? 0);
-        }
-
-        $returnMap = [];
-        if (db_connect()->tableExists('stone_inventory_return_headers') && db_connect()->tableExists('stone_inventory_return_lines')) {
-            $returnRows = db_connect()->table('stone_inventory_return_headers rh')
-                ->select('rh.order_id, COALESCE(SUM(rl.qty),0) as returned_qty', false)
-                ->join('stone_inventory_return_lines rl', 'rl.return_id = rh.id', 'inner')
-                ->where('rh.order_id IS NOT NULL', null, false)
-                ->groupBy('rh.order_id')
-                ->get()
-                ->getResultArray();
-            foreach ($returnRows as $row) {
-                $returnMap[(int) $row['order_id']] = (float) ($row['returned_qty'] ?? 0);
-            }
-        }
-
-        foreach ($orders as &$order) {
-            $orderId = (int) ($order['id'] ?? 0);
-            $issued = (float) ($issueMap[$orderId] ?? 0);
-            $returned = (float) ($returnMap[$orderId] ?? 0);
-            $order['issued_qty'] = round($issued, 3);
-            $order['returned_qty'] = round($returned, 3);
-            $order['pending_qty'] = round($issued - $returned, 3);
-            $order['default_purpose'] = 'Jobwork';
-        }
-        unset($order);
-
-        return $orders;
     }
 
     /**

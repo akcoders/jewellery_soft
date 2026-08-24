@@ -45,7 +45,6 @@ if ($rows === []) {
 }
 
 $issueDate = old('issue_date', (string) ($issue['issue_date'] ?? date('Y-m-d')));
-$selectedOrderId = old('order_id', (string) ($issue['order_id'] ?? (string) ($preselectedOrderId ?? '')));
 $selectedKarigarId = old('karigar_id', (string) ($issue['karigar_id'] ?? ''));
 $issueTo = old('issue_to', (string) ($issue['issue_to'] ?? ''));
 $purpose = old('purpose', (string) ($issue['purpose'] ?? ''));
@@ -61,27 +60,7 @@ $existingAttachment = (string) ($issue['attachment_path'] ?? '');
                 <label class="form-label">Issue Date <span class="text-danger">*</span></label>
                 <input type="date" name="issue_date" class="form-control" required value="<?= esc((string) $issueDate) ?>">
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Order (Assigned Only) <span class="text-danger">*</span></label>
-                <select name="order_id" id="order_id" class="form-select js-select2" required>
-                    <option value="">Select order</option>
-                    <?php foreach (($orders ?? []) as $order): ?>
-                        <option
-                            value="<?= (int) $order['id'] ?>"
-                            data-karigar-id="<?= (int) ($order['assigned_karigar_id'] ?? 0) ?>"
-                            data-default-purpose="<?= esc((string) ($order['default_purpose'] ?? 'Jobwork')) ?>"
-                            data-budget="<?= esc(number_format((float) ($order['gold_budget_gm'] ?? 0), 3, '.', '')) ?>"
-                            data-issued="<?= esc(number_format((float) ($order['issued_gm'] ?? 0), 3, '.', '')) ?>"
-                            data-returned="<?= esc(number_format((float) ($order['returned_gm'] ?? 0), 3, '.', '')) ?>"
-                            data-pending="<?= esc(number_format((float) ($order['pending_gm'] ?? 0), 3, '.', '')) ?>"
-                            <?= (string) $selectedOrderId === (string) $order['id'] ? 'selected' : '' ?>
-                        >
-                            <?= esc((string) $order['order_no']) ?> - <?= esc((string) ($order['karigar_name'] ?? '')) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label">Karigar <span class="text-danger">*</span></label>
                 <select name="karigar_id" id="karigar_id" class="form-select js-select2" required>
                     <option value="">Select karigar</option>
@@ -93,7 +72,7 @@ $existingAttachment = (string) ($issue['attachment_path'] ?? '');
                 </select>
                 <input type="hidden" name="issue_to" id="issue_to" value="<?= esc((string) $issueTo) ?>">
             </div>
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label class="form-label">Warehouse <span class="text-danger">*</span></label>
                 <select name="location_id" class="form-select" required>
                     <option value="">Select warehouse</option>
@@ -104,17 +83,11 @@ $existingAttachment = (string) ($issue['attachment_path'] ?? '');
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label class="form-label">Purpose <span class="text-danger">*</span></label>
                 <input type="text" name="purpose" id="purpose" class="form-control" required value="<?= esc((string) $purpose) ?>" placeholder="Jobwork">
             </div>
-            <div class="col-md-6">
-                <label class="form-label">Budget Monitor (gm)</label>
-                <div id="budget_text" class="form-control bg-light" style="height:auto;">
-                    Select order to view budget, issued, returned and pending.
-                </div>
-            </div>
-            <div class="col-md-6">
+            <div class="col-md-12">
                 <label class="form-label">Notes</label>
                 <input type="text" name="notes" class="form-control" value="<?= esc((string) $notes) ?>">
             </div>
@@ -265,10 +238,8 @@ $existingAttachment = (string) ($issue['attachment_path'] ?? '');
         const body = document.getElementById('line-body');
         const addBtn = document.getElementById('add-line');
         const tpl = document.getElementById('line-template');
-        const orderSelect = document.getElementById('order_id');
         const karigarSelect = document.getElementById('karigar_id');
         const purposeInput = document.getElementById('purpose');
-        const budgetText = document.getElementById('budget_text');
         const issueTo = document.getElementById('issue_to');
 
         if (!body || !addBtn || !tpl) return;
@@ -277,39 +248,6 @@ $existingAttachment = (string) ($issue['attachment_path'] ?? '');
             if (!karigarSelect || !issueTo) return;
             const selected = karigarSelect.options[karigarSelect.selectedIndex];
             issueTo.value = selected && selected.value ? selected.text : '';
-        }
-
-        function updateBudgetPanel() {
-            if (!orderSelect || !budgetText) return;
-            const selected = orderSelect.options[orderSelect.selectedIndex];
-            if (!selected || !selected.value) {
-                budgetText.textContent = 'Select order to view budget, issued, returned and pending.';
-                return;
-            }
-            const budget = parseFloat(selected.getAttribute('data-budget') || '0') || 0;
-            const issued = parseFloat(selected.getAttribute('data-issued') || '0') || 0;
-            const returned = parseFloat(selected.getAttribute('data-returned') || '0') || 0;
-            const pending = parseFloat(selected.getAttribute('data-pending') || '0') || 0;
-            budgetText.textContent = 'Budget: ' + budget.toFixed(3) + ' gm | Issued: ' + issued.toFixed(3) + ' gm | Returned: ' + returned.toFixed(3) + ' gm | Pending: ' + pending.toFixed(3) + ' gm';
-        }
-
-        function applyOrderDefaults() {
-            if (!orderSelect) return;
-            const selected = orderSelect.options[orderSelect.selectedIndex];
-            if (!selected || !selected.value) return;
-            const kId = selected.getAttribute('data-karigar-id') || '';
-            const purpose = selected.getAttribute('data-default-purpose') || 'Jobwork';
-            if (karigarSelect && kId) {
-                karigarSelect.value = kId;
-                if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
-                    window.jQuery(karigarSelect).trigger('change.select2');
-                }
-            }
-            if (purposeInput && (!purposeInput.value || purposeInput.value.trim() === '')) {
-                purposeInput.value = purpose;
-            }
-            refreshIssueTo();
-            updateBudgetPanel();
         }
 
         function recalcRow(row) {
@@ -385,11 +323,6 @@ $existingAttachment = (string) ($issue['attachment_path'] ?? '');
             window.jQuery('.js-select2').select2({ width: '100%' });
         }
 
-        if (orderSelect) {
-            orderSelect.addEventListener('change', function() {
-                applyOrderDefaults();
-            });
-        }
         if (karigarSelect) {
             karigarSelect.addEventListener('change', function() {
                 refreshIssueTo();
@@ -399,8 +332,6 @@ $existingAttachment = (string) ($issue['attachment_path'] ?? '');
             });
         }
 
-        applyOrderDefaults();
-        updateBudgetPanel();
         refreshIssueTo();
     })();
 </script>

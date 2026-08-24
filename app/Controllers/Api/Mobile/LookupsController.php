@@ -55,26 +55,6 @@ class LookupsController extends MobileBaseController
         return $this->ok($rows);
     }
 
-    public function orders()
-    {
-        $authFail = $this->requireMobileAuth();
-        if ($authFail) {
-            return $authFail;
-        }
-
-        $rows = db_connect()->table('orders o')
-            ->select('o.id, o.order_no, o.order_type, o.status, o.due_date, o.assigned_karigar_id, k.name as karigar_name')
-            ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
-            ->whereNotIn('o.status', ['Cancelled', 'Completed'])
-            ->where('o.assigned_karigar_id IS NOT NULL', null, false)
-            ->where('o.assigned_karigar_id >', 0)
-            ->orderBy('o.id', 'DESC')
-            ->get()
-            ->getResultArray();
-
-        return $this->ok($rows);
-    }
-
     public function diamondItems()
     {
         $authFail = $this->requireMobileAuth();
@@ -136,15 +116,10 @@ class LookupsController extends MobileBaseController
             return $authFail;
         }
 
-        $orderId = (int) $this->request->getGet('order_id');
         $builder = db_connect()->table('issue_headers ih')
-            ->select('ih.id, ih.order_id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
+            ->select('ih.id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->orderBy('ih.id', 'DESC');
-
-        if ($orderId > 0) {
-            $builder->where('ih.order_id', $orderId);
-        }
 
         $rows = $builder->get()->getResultArray();
         return $this->ok($rows);
@@ -157,15 +132,10 @@ class LookupsController extends MobileBaseController
             return $authFail;
         }
 
-        $orderId = (int) $this->request->getGet('order_id');
         $builder = db_connect()->table('gold_inventory_issue_headers ih')
-            ->select('ih.id, ih.order_id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
+            ->select('ih.id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->orderBy('ih.id', 'DESC');
-
-        if ($orderId > 0) {
-            $builder->where('ih.order_id', $orderId);
-        }
 
         $rows = $builder->get()->getResultArray();
         return $this->ok($rows);
@@ -178,15 +148,10 @@ class LookupsController extends MobileBaseController
             return $authFail;
         }
 
-        $orderId = (int) $this->request->getGet('order_id');
         $builder = db_connect()->table('stone_inventory_issue_headers ih')
-            ->select('ih.id, ih.order_id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
+            ->select('ih.id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->orderBy('ih.id', 'DESC');
-
-        if ($orderId > 0) {
-            $builder->where('ih.order_id', $orderId);
-        }
 
         $rows = $builder->get()->getResultArray();
         return $this->ok($rows);

@@ -16,7 +16,6 @@ class TransactionCreateScreen extends StatefulWidget {
     required this.material,
     required this.action,
     required this.accentColor,
-    this.prefillOrderId,
   });
 
   final MobileApiService api;
@@ -24,7 +23,6 @@ class TransactionCreateScreen extends StatefulWidget {
   final String material; // diamond | gold | stone
   final String action; // purchase | issue | return
   final Color accentColor;
-  final int? prefillOrderId;
 
   @override
   State<TransactionCreateScreen> createState() =>
@@ -45,13 +43,11 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   String _taxPercent = '';
   String _dueDate = '';
 
-  int? _orderId;
   int? _karigarId;
   int? _locationId;
   int? _vendorId;
   int? _issueId;
 
-  List<dynamic> _orders = [];
   List<dynamic> _karigars = [];
   List<dynamic> _locations = [];
   List<dynamic> _vendors = [];
@@ -65,7 +61,6 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   @override
   void initState() {
     super.initState();
-    _orderId = widget.prefillOrderId;
     _lines.add(
       _LineForm(
         material: widget.material,
@@ -100,20 +95,9 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
       if (widget.action == 'purchase') {
         _vendors = await widget.api.fetchVendors();
       } else {
-        _orders = await widget.api.fetchOrdersLookup();
         _karigars = await widget.api.fetchKarigars();
         _locations = await widget.api.fetchLocations();
-        if (_orderId != null) {
-          final exists = _orders.any((row) => _asInt(row['id']) == _orderId);
-          if (!exists) {
-            _orderId = null;
-            _karigarId = null;
-            _issueId = null;
-          } else {
-            _syncOrderSelection(_orderId!);
-            await _loadIssueRefs(orderId: _orderId!);
-          }
-        }
+        await _loadIssueRefs();
       }
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
@@ -124,27 +108,14 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     }
   }
 
-  void _syncOrderSelection(int orderId) {
-    final order = _orders.firstWhere(
-      (row) => _asInt(row['id']) == orderId,
-      orElse: () => null,
-    );
-    if (order != null) {
-      final assigned = _asInt(order['assigned_karigar_id']) ?? 0;
-      if (assigned > 0) {
-        _karigarId = assigned;
-      }
-    }
-  }
-
-  Future<void> _loadIssueRefs({required int orderId}) async {
+  Future<void> _loadIssueRefs() async {
     if (widget.action != 'return') return;
     if (widget.material == 'diamond') {
-      _issueRefs = await widget.api.fetchDiamondIssueRefs(orderId: orderId);
+      _issueRefs = await widget.api.fetchDiamondIssueRefs();
     } else if (widget.material == 'gold') {
-      _issueRefs = await widget.api.fetchGoldIssueRefs(orderId: orderId);
+      _issueRefs = await widget.api.fetchGoldIssueRefs();
     } else {
-      _issueRefs = await widget.api.fetchStoneIssueRefs(orderId: orderId);
+      _issueRefs = await widget.api.fetchStoneIssueRefs();
     }
   }
 
@@ -169,8 +140,13 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     if (!valid || _saving) return;
 
     if (widget.action != 'purchase') {
-      if (_orderId == null || _karigarId == null || _locationId == null) {
-        _showError('Order, karigar and location are required.');
+      if (_locationId == null ||
+          (widget.action == 'issue' && _karigarId == null)) {
+        _showError(
+          widget.action == 'issue'
+              ? 'Karigar and location are required.'
+              : 'Location is required.',
+        );
         return;
       }
       if (widget.action == 'return' && _issueId == null) {
@@ -206,7 +182,6 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         }
       } else if (widget.action == 'issue') {
         payload['issue_date'] = _formatDate(_txnDate);
-        payload['order_id'] = _orderId;
         payload['karigar_id'] = _karigarId;
         payload['location_id'] = _locationId;
         payload['purpose'] = _purpose.trim();
@@ -214,9 +189,9 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         payload['attachment_base64'] = base64Attachment;
       } else {
         payload['return_date'] = _formatDate(_txnDate);
-        payload['order_id'] = _orderId;
         payload['issue_id'] = _issueId;
         payload['karigar_id'] = _karigarId ?? 0;
+        payload['location_id'] = _locationId;
         payload['purpose'] = _purpose.trim();
         payload['notes'] = _notes.trim();
         payload['attachment_base64'] = base64Attachment;
@@ -408,42 +383,52 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
               onChanged: (v) => _notes = v,
             ),
           ] else ...[
-            DropdownButtonFormField<int>(
-              initialValue: _orderId,
-              decoration: const InputDecoration(labelText: 'Order'),
-              items: _orders
-                  .map(
-                    (row) => DropdownMenuItem<int>(
-                      value: _asInt(row['id']),
-                      child: Text(row['order_no']?.toString() ?? '-'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) async {
-                if (value == null) return;
-                setState(() => _orderId = value);
-                _syncOrderSelection(value);
-                await _loadIssueRefs(orderId: value);
-                if (mounted) setState(() {});
-              },
-              validator: (v) => v == null ? 'Order is required' : null,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            DropdownButtonFormField<int>(
-              initialValue: _karigarId,
-              decoration: const InputDecoration(labelText: 'Karigar'),
-              items: _karigars
-                  .map(
-                    (row) => DropdownMenuItem<int>(
-                      value: _asInt(row['id']),
-                      child: Text(row['name']?.toString() ?? '-'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _karigarId = value),
-              validator: (v) => v == null ? 'Karigar is required' : null,
-            ),
-            const SizedBox(height: AppSpacing.md),
+            if (widget.action == 'return') ...[
+              DropdownButtonFormField<int>(
+                initialValue: _issueId,
+                decoration: const InputDecoration(labelText: 'Issue Reference'),
+                items: _issueRefs
+                    .map(
+                      (row) => DropdownMenuItem<int>(
+                        value: _asInt(row['id']),
+                        child: Text(row['voucher_no']?.toString() ?? '-'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  final selected = _issueRefs.firstWhere(
+                    (row) => _asInt(row['id']) == value,
+                    orElse: () => null,
+                  );
+                  setState(() {
+                    _issueId = value;
+                    _karigarId = selected == null
+                        ? null
+                        : _asInt(selected['karigar_id']);
+                  });
+                },
+                validator: (v) =>
+                    v == null ? 'Issue reference is required' : null,
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+            if (widget.action == 'issue') ...[
+              DropdownButtonFormField<int>(
+                initialValue: _karigarId,
+                decoration: const InputDecoration(labelText: 'Karigar'),
+                items: _karigars
+                    .map(
+                      (row) => DropdownMenuItem<int>(
+                        value: _asInt(row['id']),
+                        child: Text(row['name']?.toString() ?? '-'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _karigarId = value),
+                validator: (v) => v == null ? 'Karigar is required' : null,
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
             DropdownButtonFormField<int>(
               initialValue: _locationId,
               decoration: const InputDecoration(labelText: 'Warehouse'),
@@ -458,24 +443,6 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
               onChanged: (value) => setState(() => _locationId = value),
               validator: (v) => v == null ? 'Warehouse is required' : null,
             ),
-            if (widget.action == 'return') ...[
-              const SizedBox(height: AppSpacing.md),
-              DropdownButtonFormField<int>(
-                initialValue: _issueId,
-                decoration: const InputDecoration(labelText: 'Issue Reference'),
-                items: _issueRefs
-                    .map(
-                      (row) => DropdownMenuItem<int>(
-                        value: _asInt(row['id']),
-                        child: Text(row['voucher_no']?.toString() ?? '-'),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => _issueId = value),
-                validator: (v) =>
-                    v == null ? 'Issue reference is required' : null,
-              ),
-            ],
             const SizedBox(height: AppSpacing.md),
             TextFormField(
               initialValue: _purpose,

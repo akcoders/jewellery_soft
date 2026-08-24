@@ -102,13 +102,15 @@ class PostingService
             $normalized['line_no'] = $lineNo;
             $this->voucherLineModel->insert($normalized);
 
-            $this->applyInventoryMovement(
-                $fromWarehouseId,
-                $fromBinId,
-                $toWarehouseId,
-                $toBinId,
-                $normalized
-            );
+            if (empty($header['skip_inventory_movement'])) {
+                $this->applyInventoryMovement(
+                    $fromWarehouseId,
+                    $fromBinId,
+                    $toWarehouseId,
+                    $toBinId,
+                    $normalized
+                );
+            }
 
             $this->applyAccountMovement($debitAccountId, $creditAccountId, $normalized);
 
@@ -162,7 +164,7 @@ class PostingService
     /**
      * @return array<string,mixed>
      */
-    public function reverseVoucher(int $voucherId, string $reason, int $userId = 0, bool $inTransaction = false): array
+    public function reverseVoucher(int $voucherId, string $reason, int $userId = 0, bool $inTransaction = false, bool $skipInventoryMovement = false): array
     {
         if (! $inTransaction) {
             $this->db->transException(true)->transStart();
@@ -200,6 +202,9 @@ class PostingService
             'created_by' => $userId,
             'created_ip' => service('request')->getIPAddress() ?? null,
         ];
+        if ($skipInventoryMovement) {
+            $reverseHeader['skip_inventory_movement'] = true;
+        }
 
         $reverseLines = [];
         foreach ($lines as $line) {

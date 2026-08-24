@@ -355,10 +355,8 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('orders/(:num)/cancel', 'Admin\OrderController::cancel/$1', ['filter' => 'permission:orders.status']);
     $routes->post('orders/(:num)/followups', 'Admin\OrderController::addFollowup/$1', ['filter' => 'permission:orders.followup']);
     $routes->post('orders/(:num)/attachments', 'Admin\OrderController::addAttachment/$1', ['filter' => 'permission:orders.documents']);
-    $routes->post('orders/(:num)/issue', 'Admin\OrderController::addIssue/$1', ['filter' => 'permission:issuements.create']);
     $routes->post('orders/(:num)/receive', 'Admin\OrderController::addReceive/$1', ['filter' => 'permission:orders.receive']);
     $routes->post('orders/(:num)/assign', 'Admin\OrderController::assignKarigar/$1', ['filter' => 'permission:orders.assign']);
-    $routes->get('orders/(:num)/receive-prefill', 'Admin\OrderController::receivePrefill/$1', ['filter' => 'permission:orders.receive']);
     $routes->get('orders/(:num)/packing-list/generate', 'Admin\OrderController::generatePackingList/$1', ['filter' => 'permission:orders.documents']);
     $routes->get('orders/(:num)/packing-list/html', 'Admin\OrderController::packingListHtml/$1', ['filter' => 'permission:orders.documents']);
     $routes->get('orders/(:num)/ornament-details', 'Admin\OrderController::ornamentDetails/$1', ['filter' => 'permission:orders.documents']);
@@ -457,7 +455,6 @@ $routes->group('api', static function ($routes): void {
         $routes->get('lookups/karigars', 'Api\Mobile\LookupsController::karigars');
         $routes->get('lookups/vendors', 'Api\Mobile\LookupsController::vendors');
         $routes->get('lookups/locations', 'Api\Mobile\LookupsController::locations');
-        $routes->get('lookups/orders', 'Api\Mobile\LookupsController::orders');
         $routes->get('lookups/diamond-items', 'Api\Mobile\LookupsController::diamondItems');
         $routes->get('lookups/gold-items', 'Api\Mobile\LookupsController::goldItems');
         $routes->get('lookups/stone-items', 'Api\Mobile\LookupsController::stoneItems');

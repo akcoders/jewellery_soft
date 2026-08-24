@@ -30,6 +30,7 @@ use App\Models\StoneInventoryItemModel;
 use App\Services\DiamondInventory\StockService as DiamondStockService;
 use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\StoneInventory\StockService as StoneStockService;
+use App\Services\KarigarMaterialAccountingService;
 use App\Services\PdfService;
 use Throwable;
 
@@ -141,7 +142,6 @@ class TransactionsController extends MobileBaseController
 
         $payload = $this->payload();
         $issueDate = trim((string) ($payload['issue_date'] ?? ''));
-        $orderId = (int) ($payload['order_id'] ?? 0);
         $karigarId = (int) ($payload['karigar_id'] ?? 0);
         $locationId = (int) ($payload['location_id'] ?? 0);
         $purpose = trim((string) ($payload['purpose'] ?? ''));
@@ -149,24 +149,11 @@ class TransactionsController extends MobileBaseController
         if ($issueDate === '' || strtotime($issueDate) === false) {
             return $this->fail('Issue date is required.', 422);
         }
-        if ($orderId <= 0 || $karigarId <= 0 || $locationId <= 0) {
-            return $this->fail('Order, karigar and location are required.', 422);
+        if ($karigarId <= 0 || $locationId <= 0) {
+            return $this->fail('Karigar and location are required.', 422);
         }
         if ($purpose === '') {
             return $this->fail('Purpose is required.', 422);
-        }
-
-        $order = db_connect()->table('orders')
-            ->select('id, assigned_karigar_id, status')
-            ->where('id', $orderId)
-            ->whereNotIn('status', ['Cancelled', 'Completed'])
-            ->get()
-            ->getRowArray();
-        if (! $order || (int) ($order['assigned_karigar_id'] ?? 0) <= 0) {
-            return $this->fail('Only karigar-assigned active orders are allowed for issuance.', 422);
-        }
-        if ((int) ($order['assigned_karigar_id'] ?? 0) !== $karigarId) {
-            return $this->fail('Selected karigar does not match order assignment.', 422);
         }
 
         $karigar = (new KarigarModel())->where('id', $karigarId)->where('is_active', 1)->first();
@@ -206,7 +193,6 @@ class TransactionsController extends MobileBaseController
             $issueId = (int) (new IssueHeaderModel())->insert([
                 'voucher_no' => $this->generateIssueVoucherNo($db),
                 'issue_date' => $issueDate,
-                'order_id' => $orderId,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
                 'issue_to' => (string) ($karigar['name'] ?? ''),
@@ -235,6 +221,7 @@ class TransactionsController extends MobileBaseController
             }
 
             $service->applyIssue($issueId);
+            (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $issueId);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -253,7 +240,6 @@ class TransactionsController extends MobileBaseController
 
         $payload = $this->payload();
         $returnDate = trim((string) ($payload['return_date'] ?? ''));
-        $orderId = (int) ($payload['order_id'] ?? 0);
         $issueId = (int) ($payload['issue_id'] ?? 0);
         $karigarId = (int) ($payload['karigar_id'] ?? 0);
         $purpose = trim((string) ($payload['purpose'] ?? ''));
@@ -261,18 +247,17 @@ class TransactionsController extends MobileBaseController
         if ($returnDate === '' || strtotime($returnDate) === false) {
             return $this->fail('Return date is required.', 422);
         }
-        if ($orderId <= 0 || $issueId <= 0) {
-            return $this->fail('Order and issue reference are required.', 422);
+        if ($issueId <= 0) {
+            return $this->fail('Issue reference is required.', 422);
         }
 
         $issue = db_connect()->table('issue_headers')
-            ->select('id, order_id, karigar_id, issue_to')
+            ->select('id, karigar_id, issue_to')
             ->where('id', $issueId)
-            ->where('order_id', $orderId)
             ->get()
             ->getRowArray();
         if (! $issue) {
-            return $this->fail('Selected issue reference not found for this order.', 422);
+            return $this->fail('Selected issue reference not found.', 422);
         }
 
         $parsed = $this->parseDiamondLines($payload['lines'] ?? []);
@@ -307,7 +292,6 @@ class TransactionsController extends MobileBaseController
             $returnId = (int) (new ReturnHeaderModel())->insert([
                 'voucher_no' => $this->generateReturnVoucherNo($db, 'return_headers'),
                 'return_date' => $returnDate,
-                'order_id' => $orderId,
                 'issue_id' => $issueId,
                 'karigar_id' => $karigarId > 0 ? $karigarId : (int) ($issue['karigar_id'] ?? 0),
                 'return_from' => $returnFrom !== '' ? $returnFrom : null,
@@ -336,6 +320,7 @@ class TransactionsController extends MobileBaseController
             }
 
             $service->applyReturn($returnId);
+            (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'return', $returnId);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -353,8 +338,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $issue = db_connect()->table('issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
@@ -384,8 +368,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $return = db_connect()->table('return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, k.name as karigar_name')
-            ->join('orders o', 'o.id = rh.order_id', 'left')
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, ih.issue_date, k.name as karigar_name')
             ->join('issue_headers ih', 'ih.id = rh.issue_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
             ->where('rh.id', $id)
@@ -444,8 +427,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $issue = db_connect()->table('issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
@@ -478,8 +460,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $return = db_connect()->table('return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
-            ->join('orders o', 'o.id = rh.order_id', 'left')
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
             ->join('issue_headers ih', 'ih.id = rh.issue_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
@@ -579,7 +560,6 @@ class TransactionsController extends MobileBaseController
 
         $payload = $this->payload();
         $issueDate = trim((string) ($payload['issue_date'] ?? ''));
-        $orderId = (int) ($payload['order_id'] ?? 0);
         $karigarId = (int) ($payload['karigar_id'] ?? 0);
         $locationId = (int) ($payload['location_id'] ?? 0);
         $purpose = trim((string) ($payload['purpose'] ?? ''));
@@ -587,24 +567,11 @@ class TransactionsController extends MobileBaseController
         if ($issueDate === '' || strtotime($issueDate) === false) {
             return $this->fail('Issue date is required.', 422);
         }
-        if ($orderId <= 0 || $karigarId <= 0 || $locationId <= 0) {
-            return $this->fail('Order, karigar and location are required.', 422);
+        if ($karigarId <= 0 || $locationId <= 0) {
+            return $this->fail('Karigar and location are required.', 422);
         }
         if ($purpose === '') {
             return $this->fail('Purpose is required.', 422);
-        }
-
-        $order = db_connect()->table('orders')
-            ->select('id, assigned_karigar_id, status')
-            ->where('id', $orderId)
-            ->whereNotIn('status', ['Cancelled', 'Completed'])
-            ->get()
-            ->getRowArray();
-        if (! $order || (int) ($order['assigned_karigar_id'] ?? 0) <= 0) {
-            return $this->fail('Only karigar-assigned active orders are allowed for issuance.', 422);
-        }
-        if ((int) ($order['assigned_karigar_id'] ?? 0) !== $karigarId) {
-            return $this->fail('Selected karigar does not match order assignment.', 422);
         }
 
         $karigar = (new KarigarModel())->where('id', $karigarId)->where('is_active', 1)->first();
@@ -644,7 +611,6 @@ class TransactionsController extends MobileBaseController
             $issueId = (int) (new GoldInventoryIssueHeaderModel())->insert([
                 'voucher_no' => $this->generateIssueVoucherNo($db),
                 'issue_date' => $issueDate,
-                'order_id' => $orderId,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
                 'issue_to' => (string) ($karigar['name'] ?? ''),
@@ -668,6 +634,7 @@ class TransactionsController extends MobileBaseController
             }
 
             $service->applyIssue($issueId);
+            (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'issue', $issueId);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -686,26 +653,25 @@ class TransactionsController extends MobileBaseController
 
         $payload = $this->payload();
         $returnDate = trim((string) ($payload['return_date'] ?? ''));
-        $orderId = (int) ($payload['order_id'] ?? 0);
         $issueId = (int) ($payload['issue_id'] ?? 0);
+        $locationId = (int) ($payload['location_id'] ?? 0);
         $karigarId = (int) ($payload['karigar_id'] ?? 0);
         $purpose = trim((string) ($payload['purpose'] ?? ''));
 
         if ($returnDate === '' || strtotime($returnDate) === false) {
             return $this->fail('Return date is required.', 422);
         }
-        if ($orderId <= 0 || $issueId <= 0) {
-            return $this->fail('Order and issue reference are required.', 422);
+        if ($issueId <= 0 || $locationId <= 0) {
+            return $this->fail('Issue reference and location are required.', 422);
         }
 
         $issue = db_connect()->table('gold_inventory_issue_headers')
-            ->select('id, order_id, karigar_id, issue_to')
+            ->select('id, karigar_id, issue_to')
             ->where('id', $issueId)
-            ->where('order_id', $orderId)
             ->get()
             ->getRowArray();
         if (! $issue) {
-            return $this->fail('Selected issue reference not found for this order.', 422);
+            return $this->fail('Selected issue reference not found.', 422);
         }
 
         $parsed = $this->parseGoldLines($payload['lines'] ?? []);
@@ -740,9 +706,9 @@ class TransactionsController extends MobileBaseController
             $returnId = (int) (new GoldInventoryReturnHeaderModel())->insert([
                 'voucher_no' => $this->generateReturnVoucherNo($db, 'gold_inventory_return_headers'),
                 'return_date' => $returnDate,
-                'order_id' => $orderId,
                 'issue_id' => $issueId,
                 'karigar_id' => $karigarId > 0 ? $karigarId : (int) ($issue['karigar_id'] ?? 0),
+                'location_id' => $locationId,
                 'return_from' => $returnFrom !== '' ? $returnFrom : null,
                 'purpose' => $purpose !== '' ? $purpose : null,
                 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
@@ -764,6 +730,7 @@ class TransactionsController extends MobileBaseController
             }
 
             $service->applyReturn($returnId);
+            (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'return', $returnId);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -781,8 +748,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $issue = db_connect()->table('gold_inventory_issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
@@ -812,8 +778,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $return = db_connect()->table('gold_inventory_return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, k.name as karigar_name')
-            ->join('orders o', 'o.id = rh.order_id', 'left')
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, ih.issue_date, k.name as karigar_name')
             ->join('gold_inventory_issue_headers ih', 'ih.id = rh.issue_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
             ->where('rh.id', $id)
@@ -875,8 +840,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $issue = db_connect()->table('gold_inventory_issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
@@ -909,8 +873,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $return = db_connect()->table('gold_inventory_return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
-            ->join('orders o', 'o.id = rh.order_id', 'left')
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
             ->join('gold_inventory_issue_headers ih', 'ih.id = rh.issue_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
@@ -1009,7 +972,6 @@ class TransactionsController extends MobileBaseController
 
         $payload = $this->payload();
         $issueDate = trim((string) ($payload['issue_date'] ?? ''));
-        $orderId = (int) ($payload['order_id'] ?? 0);
         $karigarId = (int) ($payload['karigar_id'] ?? 0);
         $locationId = (int) ($payload['location_id'] ?? 0);
         $purpose = trim((string) ($payload['purpose'] ?? ''));
@@ -1017,24 +979,11 @@ class TransactionsController extends MobileBaseController
         if ($issueDate === '' || strtotime($issueDate) === false) {
             return $this->fail('Issue date is required.', 422);
         }
-        if ($orderId <= 0 || $karigarId <= 0 || $locationId <= 0) {
-            return $this->fail('Order, karigar and location are required.', 422);
+        if ($karigarId <= 0 || $locationId <= 0) {
+            return $this->fail('Karigar and location are required.', 422);
         }
         if ($purpose === '') {
             return $this->fail('Purpose is required.', 422);
-        }
-
-        $order = db_connect()->table('orders')
-            ->select('id, assigned_karigar_id, status')
-            ->where('id', $orderId)
-            ->whereNotIn('status', ['Cancelled', 'Completed'])
-            ->get()
-            ->getRowArray();
-        if (! $order || (int) ($order['assigned_karigar_id'] ?? 0) <= 0) {
-            return $this->fail('Only karigar-assigned active orders are allowed for issuance.', 422);
-        }
-        if ((int) ($order['assigned_karigar_id'] ?? 0) !== $karigarId) {
-            return $this->fail('Selected karigar does not match order assignment.', 422);
         }
 
         $karigar = (new KarigarModel())->where('id', $karigarId)->where('is_active', 1)->first();
@@ -1074,7 +1023,6 @@ class TransactionsController extends MobileBaseController
             $issueId = (int) (new StoneInventoryIssueHeaderModel())->insert([
                 'voucher_no' => $this->generateIssueVoucherNo($db),
                 'issue_date' => $issueDate,
-                'order_id' => $orderId,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
                 'issue_to' => (string) ($karigar['name'] ?? ''),
@@ -1098,6 +1046,7 @@ class TransactionsController extends MobileBaseController
             }
 
             $service->applyIssue($issueId);
+            (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'issue', $issueId);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -1116,26 +1065,25 @@ class TransactionsController extends MobileBaseController
 
         $payload = $this->payload();
         $returnDate = trim((string) ($payload['return_date'] ?? ''));
-        $orderId = (int) ($payload['order_id'] ?? 0);
         $issueId = (int) ($payload['issue_id'] ?? 0);
+        $locationId = (int) ($payload['location_id'] ?? 0);
         $karigarId = (int) ($payload['karigar_id'] ?? 0);
         $purpose = trim((string) ($payload['purpose'] ?? ''));
 
         if ($returnDate === '' || strtotime($returnDate) === false) {
             return $this->fail('Return date is required.', 422);
         }
-        if ($orderId <= 0 || $issueId <= 0) {
-            return $this->fail('Order and issue reference are required.', 422);
+        if ($issueId <= 0 || $locationId <= 0) {
+            return $this->fail('Issue reference and location are required.', 422);
         }
 
         $issue = db_connect()->table('stone_inventory_issue_headers')
-            ->select('id, order_id, karigar_id, issue_to')
+            ->select('id, karigar_id, issue_to')
             ->where('id', $issueId)
-            ->where('order_id', $orderId)
             ->get()
             ->getRowArray();
         if (! $issue) {
-            return $this->fail('Selected issue reference not found for this order.', 422);
+            return $this->fail('Selected issue reference not found.', 422);
         }
 
         $parsed = $this->parseStoneLines($payload['lines'] ?? [], false);
@@ -1170,9 +1118,9 @@ class TransactionsController extends MobileBaseController
             $returnId = (int) (new StoneInventoryReturnHeaderModel())->insert([
                 'voucher_no' => $this->generateReturnVoucherNo($db, 'stone_inventory_return_headers'),
                 'return_date' => $returnDate,
-                'order_id' => $orderId,
                 'issue_id' => $issueId,
                 'karigar_id' => $karigarId > 0 ? $karigarId : (int) ($issue['karigar_id'] ?? 0),
+                'location_id' => $locationId,
                 'return_from' => $returnFrom !== '' ? $returnFrom : null,
                 'purpose' => $purpose !== '' ? $purpose : null,
                 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
@@ -1193,6 +1141,7 @@ class TransactionsController extends MobileBaseController
             }
 
             $service->applyReturn($returnId);
+            (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'return', $returnId);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -1210,8 +1159,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $issue = db_connect()->table('stone_inventory_issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
@@ -1241,8 +1189,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $return = db_connect()->table('stone_inventory_return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, k.name as karigar_name')
-            ->join('orders o', 'o.id = rh.order_id', 'left')
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, ih.issue_date, k.name as karigar_name')
             ->join('stone_inventory_issue_headers ih', 'ih.id = rh.issue_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
             ->where('rh.id', $id)
@@ -1301,8 +1248,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $issue = db_connect()->table('stone_inventory_issue_headers ih')
-            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
@@ -1335,8 +1281,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $return = db_connect()->table('stone_inventory_return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
-            ->join('orders o', 'o.id = rh.order_id', 'left')
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as warehouse_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
             ->join('stone_inventory_issue_headers ih', 'ih.id = rh.issue_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')

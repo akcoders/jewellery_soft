@@ -234,11 +234,6 @@ class MobileApiService {
     return (res['data'] as List?) ?? <dynamic>[];
   }
 
-  Future<List<dynamic>> fetchOrdersLookup() async {
-    final res = await _get('/api/mobile/lookups/orders');
-    return (res['data'] as List?) ?? <dynamic>[];
-  }
-
   Future<List<dynamic>> fetchDiamondItems() async {
     final res = await _get('/api/mobile/lookups/diamond-items');
     return (res['data'] as List?) ?? <dynamic>[];
@@ -254,24 +249,18 @@ class MobileApiService {
     return (res['data'] as List?) ?? <dynamic>[];
   }
 
-  Future<List<dynamic>> fetchDiamondIssueRefs({int orderId = 0}) async {
-    final q = <String, String>{};
-    if (orderId > 0) q['order_id'] = '$orderId';
-    final res = await _get('/api/mobile/lookups/diamond-issues', query: q);
+  Future<List<dynamic>> fetchDiamondIssueRefs() async {
+    final res = await _get('/api/mobile/lookups/diamond-issues');
     return (res['data'] as List?) ?? <dynamic>[];
   }
 
-  Future<List<dynamic>> fetchGoldIssueRefs({int orderId = 0}) async {
-    final q = <String, String>{};
-    if (orderId > 0) q['order_id'] = '$orderId';
-    final res = await _get('/api/mobile/lookups/gold-issues', query: q);
+  Future<List<dynamic>> fetchGoldIssueRefs() async {
+    final res = await _get('/api/mobile/lookups/gold-issues');
     return (res['data'] as List?) ?? <dynamic>[];
   }
 
-  Future<List<dynamic>> fetchStoneIssueRefs({int orderId = 0}) async {
-    final q = <String, String>{};
-    if (orderId > 0) q['order_id'] = '$orderId';
-    final res = await _get('/api/mobile/lookups/stone-issues', query: q);
+  Future<List<dynamic>> fetchStoneIssueRefs() async {
+    final res = await _get('/api/mobile/lookups/stone-issues');
     return (res['data'] as List?) ?? <dynamic>[];
   }
 
@@ -408,12 +397,16 @@ class MobileApiService {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(_extractDownloadError(response) ?? 'Unable to download PDF.');
+      throw Exception(
+        _extractDownloadError(response) ?? 'Unable to download PDF.',
+      );
     }
 
     final contentType = response.headers['content-type']?.toLowerCase() ?? '';
     if (!contentType.contains('application/pdf')) {
-      throw Exception(_extractDownloadError(response) ?? 'Server did not return a PDF file.');
+      throw Exception(
+        _extractDownloadError(response) ?? 'Server did not return a PDF file.',
+      );
     }
 
     final bytes = response.bodyBytes;
@@ -505,7 +498,10 @@ class MobileApiService {
 
   String _resolvedFileName(http.Response response, String fallback) {
     final disposition = response.headers['content-disposition'] ?? '';
-    final match = RegExp(r'filename=\"?([^\";]+)\"?', caseSensitive: false).firstMatch(disposition);
+    final match = RegExp(
+      r'filename=\"?([^\";]+)\"?',
+      caseSensitive: false,
+    ).firstMatch(disposition);
     final headerName = match?.group(1)?.trim() ?? '';
     final candidate = headerName.isNotEmpty ? headerName : fallback.trim();
     final safeName = candidate.isEmpty ? 'document.pdf' : candidate;

@@ -9,8 +9,8 @@ use App\Models\GoldInventoryReturnHeaderModel;
 use App\Models\GoldInventoryReturnLineModel;
 use App\Models\GoldPurityModel;
 use App\Models\InventoryLocationModel;
-use App\Models\OrderModel;
 use App\Services\GoldInventory\StockService;
+use App\Services\KarigarMaterialAccountingService;
 use Throwable;
 
 class ReturnsController extends BaseController
@@ -20,7 +20,6 @@ class ReturnsController extends BaseController
     private $itemModel;
     private $purityModel;
     private $locationModel;
-    private $orderModel;
     private $companySettingModel;
 
     public function __construct()
@@ -31,7 +30,6 @@ class ReturnsController extends BaseController
         $this->itemModel = new GoldInventoryItemModel();
         $this->purityModel = new GoldPurityModel();
         $this->locationModel = new InventoryLocationModel();
-        $this->orderModel = new OrderModel();
         $this->companySettingModel = new CompanySettingModel();
     }
 
@@ -41,9 +39,8 @@ class ReturnsController extends BaseController
         $to = trim((string) $this->request->getGet('to'));
 
         $builder = db_connect()->table('gold_inventory_return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, iloc.name as location_name, k.name as karigar_name, COUNT(rl.id) as line_count, COALESCE(SUM(rl.weight_gm), 0) as total_weight, COALESCE(SUM(rl.line_value), 0) as total_value', false)
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, iloc.name as location_name, k.name as karigar_name, COUNT(rl.id) as line_count, COALESCE(SUM(rl.weight_gm), 0) as total_weight, COALESCE(SUM(rl.line_value), 0) as total_value', false)
             ->join('gold_inventory_return_lines rl', 'rl.return_id = rh.id', 'left')
-            ->join('orders o', 'o.id = rh.order_id', 'left')
             ->join('gold_inventory_issue_headers ih', 'ih.id = rh.issue_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = rh.location_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
@@ -67,7 +64,6 @@ class ReturnsController extends BaseController
 
     public function create(): string
     {
-        $preselectedOrderId = (int) ($this->request->getGet('order_id') ?? 0);
         $preselectedIssueId = (int) ($this->request->getGet('issue_id') ?? 0);
 
         return view('admin/gold_inventory/returns/create', [
@@ -75,12 +71,10 @@ class ReturnsController extends BaseController
             'items' => $this->itemOptions(),
             'purities' => $this->purityOptions(),
             'locations' => $this->locationOptions(),
-            'orders' => $this->orderOptions(),
             'issues' => $this->issueOptions(),
             'return' => null,
             'lines' => [],
             'action' => site_url('admin/gold-inventory/returns'),
-            'preselectedOrderId' => $preselectedOrderId,
             'preselectedIssueId' => $preselectedIssueId,
         ]);
     }
@@ -107,11 +101,10 @@ class ReturnsController extends BaseController
 
             $returnDate = (string) $this->request->getPost('return_date');
             $locationId = (int) $this->request->getPost('location_id');
-            $orderId = (int) $this->request->getPost('order_id');
             $issueId = (int) $this->request->getPost('issue_id');
-            $issue = $this->resolveSelectedIssue($orderId, $issueId);
+            $issue = $this->resolveSelectedIssue($issueId);
             if (! $issue) {
-                throw new \RuntimeException('Selected issuance reference was not found for this order.');
+                throw new \RuntimeException('Selected issuance reference was not found.');
             }
 
             $attachment = $this->processAttachment(null, true);
@@ -128,7 +121,6 @@ class ReturnsController extends BaseController
             $returnId = (int) $this->headerModel->insert([
                 'voucher_no' => $this->generateReturnVoucherNo(),
                 'return_date' => $returnDate,
-                'order_id' => $orderId,
                 'issue_id' => $issueId,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
@@ -158,12 +150,12 @@ class ReturnsController extends BaseController
 
             $service->applyReturn($returnId, [
                 'txn_date' => $returnDate,
-                'order_id' => $orderId,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
                 'created_by' => (int) session('admin_id'),
                 'notes' => 'Gold return posting',
             ]);
+            (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'return', $returnId);
 
             $db->transComplete();
         } catch (Throwable $e) {
@@ -178,8 +170,7 @@ class ReturnsController extends BaseController
     public function view(int $id)
     {
         $return = db_connect()->table('gold_inventory_return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, iloc.name as location_name, k.name as karigar_name')
-            ->join('orders o', 'o.id = rh.order_id', 'left')
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, ih.issue_date, iloc.name as location_name, k.name as karigar_name')
             ->join('gold_inventory_issue_headers ih', 'ih.id = rh.issue_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = rh.location_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
@@ -202,8 +193,7 @@ class ReturnsController extends BaseController
     public function receipt(int $id): string
     {
         $return = db_connect()->table('gold_inventory_return_headers rh')
-            ->select('rh.*, o.order_no, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as location_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
-            ->join('orders o', 'o.id = rh.order_id', 'left')
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, ih.issue_date, ih.issue_to, iloc.name as location_name, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode')
             ->join('gold_inventory_issue_headers ih', 'ih.id = rh.issue_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = rh.location_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
@@ -237,12 +227,10 @@ class ReturnsController extends BaseController
             'items' => $this->itemOptions(),
             'purities' => $this->purityOptions(),
             'locations' => $this->locationOptions(),
-            'orders' => $this->orderOptions(),
             'issues' => $this->issueOptions(),
             'return' => $return,
             'lines' => $this->lineRows($id),
             'action' => site_url('admin/gold-inventory/returns/' . $id . '/update'),
-            'preselectedOrderId' => (int) ($return['order_id'] ?? 0),
             'preselectedIssueId' => (int) ($return['issue_id'] ?? 0),
         ]);
     }
@@ -271,9 +259,10 @@ class ReturnsController extends BaseController
 
         try {
             $db->transException(true)->transStart();
+            $accounting = new KarigarMaterialAccountingService($db);
+            $accounting->reverseHeaderVoucher('gold_inventory_return_headers', $id, 'Gold return edited', (int) session('admin_id'));
             $service->reverseReturn($id, [
                 'txn_date' => (string) ($return['return_date'] ?? ''),
-                'order_id' => isset($return['order_id']) ? (int) $return['order_id'] : null,
                 'karigar_id' => isset($return['karigar_id']) ? (int) $return['karigar_id'] : null,
                 'location_id' => isset($return['location_id']) ? (int) $return['location_id'] : null,
                 'created_by' => (int) session('admin_id'),
@@ -282,11 +271,10 @@ class ReturnsController extends BaseController
 
             $returnDate = (string) $this->request->getPost('return_date');
             $locationId = (int) $this->request->getPost('location_id');
-            $orderId = (int) $this->request->getPost('order_id');
             $issueId = (int) $this->request->getPost('issue_id');
-            $issue = $this->resolveSelectedIssue($orderId, $issueId);
+            $issue = $this->resolveSelectedIssue($issueId);
             if (! $issue) {
-                throw new \RuntimeException('Selected issuance reference was not found for this order.');
+                throw new \RuntimeException('Selected issuance reference was not found.');
             }
 
             $attachment = $this->processAttachment((string) ($return['attachment_path'] ?? ''), ((string) ($return['attachment_path'] ?? '')) === '');
@@ -303,7 +291,6 @@ class ReturnsController extends BaseController
             $this->headerModel->update($id, [
                 'voucher_no' => (string) (($return['voucher_no'] ?? '') ?: $this->generateReturnVoucherNo()),
                 'return_date' => $returnDate,
-                'order_id' => $orderId,
                 'issue_id' => $issueId,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
@@ -333,12 +320,12 @@ class ReturnsController extends BaseController
 
             $service->applyReturn($id, [
                 'txn_date' => $returnDate,
-                'order_id' => $orderId,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
                 'created_by' => (int) session('admin_id'),
                 'notes' => 'Gold return posting',
             ]);
+            $accounting->postInventoryHeader('gold', 'return', $id);
 
             $db->transComplete();
         } catch (Throwable $e) {
@@ -362,9 +349,14 @@ class ReturnsController extends BaseController
 
         try {
             $db->transException(true)->transStart();
+            (new KarigarMaterialAccountingService($db))->reverseHeaderVoucher(
+                'gold_inventory_return_headers',
+                $id,
+                'Gold return deleted',
+                (int) session('admin_id')
+            );
             $service->reverseReturn($id, [
                 'txn_date' => (string) ($return['return_date'] ?? ''),
-                'order_id' => isset($return['order_id']) ? (int) $return['order_id'] : null,
                 'karigar_id' => isset($return['karigar_id']) ? (int) $return['karigar_id'] : null,
                 'location_id' => isset($return['location_id']) ? (int) $return['location_id'] : null,
                 'created_by' => (int) session('admin_id'),
@@ -458,7 +450,6 @@ class ReturnsController extends BaseController
     {
         if (! $this->validate([
             'return_date' => 'required|valid_date',
-            'order_id' => 'required|integer|greater_than[0]',
             'issue_id' => 'required|integer|greater_than[0]',
             'location_id' => 'required|integer|greater_than[0]',
             'return_from' => 'permit_empty|max_length[120]',
@@ -474,20 +465,10 @@ class ReturnsController extends BaseController
             return 'Selected location was not found.';
         }
 
-        $orderId = (int) $this->request->getPost('order_id');
         $issueId = (int) $this->request->getPost('issue_id');
-
-        $orderExists = $this->orderModel
-            ->where('id', $orderId)
-            ->whereNotIn('status', ['Cancelled', 'Completed'])
-            ->countAllResults();
-        if ($orderExists === 0) {
-            return 'Selected order was not found.';
-        }
-
-        $issue = $this->resolveSelectedIssue($orderId, $issueId);
+        $issue = $this->resolveSelectedIssue($issueId);
         if (! $issue) {
-            return 'Selected issuance reference is invalid for selected order.';
+            return 'Selected issuance reference is invalid.';
         }
 
         return null;
@@ -529,30 +510,14 @@ class ReturnsController extends BaseController
     /**
      * @return list<array<string,mixed>>
      */
-    private function orderOptions(): array
-    {
-        return db_connect()->table('orders o')
-            ->select('o.id, o.order_no, o.assigned_karigar_id')
-            ->join('gold_inventory_issue_headers ih', 'ih.order_id = o.id', 'inner')
-            ->whereNotIn('o.status', ['Cancelled', 'Completed'])
-            ->groupBy('o.id, o.order_no, o.assigned_karigar_id')
-            ->orderBy('o.id', 'DESC')
-            ->limit(300)
-            ->get()
-            ->getResultArray();
-    }
-
     /**
      * @return list<array<string,mixed>>
      */
     private function issueOptions(): array
     {
         return db_connect()->table('gold_inventory_issue_headers ih')
-            ->select('ih.id, ih.order_id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
+            ->select('ih.id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
-            ->join('orders o', 'o.id = ih.order_id', 'left')
-            ->where('ih.order_id IS NOT NULL', null, false)
-            ->whereNotIn('o.status', ['Cancelled', 'Completed'])
             ->orderBy('ih.id', 'DESC')
             ->limit(500)
             ->get()
@@ -688,17 +653,16 @@ class ReturnsController extends BaseController
     /**
      * @return array<string,mixed>|null
      */
-    private function resolveSelectedIssue(int $orderId, int $issueId)
+    private function resolveSelectedIssue(int $issueId)
     {
-        if ($orderId <= 0 || $issueId <= 0) {
+        if ($issueId <= 0) {
             return null;
         }
 
         $row = db_connect()->table('gold_inventory_issue_headers ih')
-            ->select('ih.id, ih.order_id, ih.karigar_id, ih.issue_to, ih.voucher_no, ih.issue_date, k.name as karigar_name')
+            ->select('ih.id, ih.karigar_id, ih.issue_to, ih.voucher_no, ih.issue_date, k.name as karigar_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->where('ih.id', $issueId)
-            ->where('ih.order_id', $orderId)
             ->get()
             ->getRowArray();
 

@@ -5,7 +5,6 @@ import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_status_badge.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_followup_form_screen.dart';
-import 'package:flutkit/jewellery_mobile/screens/transaction_create_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -87,26 +86,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
-  Future<void> _openTransaction(String material, String action) async {
-    final title =
-        'Create ${material[0].toUpperCase()}${material.substring(1)} ${action[0].toUpperCase()}${action.substring(1)}';
-    final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => TransactionCreateScreen(
-          api: widget.api,
-          title: title,
-          material: material,
-          action: action,
-          accentColor: _accentFor(material),
-          prefillOrderId: widget.orderId,
-        ),
-      ),
-    );
-    if (created == true) {
-      _load();
-    }
-  }
-
   Future<void> _takeFollowup() async {
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -137,16 +116,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
-  bool _canCreateTransactions(String status) {
-    return !{
-      'Cancelled',
-      'Completed',
-      'Ready',
-      'Packed',
-      'Dispatched',
-    }.contains(status);
-  }
-
   bool _canTakeFollowup(String status) {
     return !{'Cancelled', 'Completed'}.contains(status);
   }
@@ -169,7 +138,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Widget build(BuildContext context) {
     final title = (_order['order_no'] ?? 'Order Detail').toString();
     final status = (_order['status'] ?? '-').toString();
-    final canCreateTransactions = _canCreateTransactions(status);
     final canTakeFollowup = _canTakeFollowup(status);
     final imageUrl = _primaryImageUrl();
     final packingListUrl = (_order['packing_list_url'] ?? '').toString();
@@ -368,90 +336,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
-                  if (canCreateTransactions) ...[
-                    const AppSectionTitle('Quick Actions'),
-                    const SizedBox(height: AppSpacing.md),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: [
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openTransaction('diamond', 'issue'),
-                                  icon: const Icon(Icons.diamond_outlined),
-                                  label: const Text('Diamond Issue'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openTransaction('diamond', 'return'),
-                                  icon: const Icon(Icons.diamond_outlined),
-                                  label: const Text('Diamond Return'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openTransaction('gold', 'issue'),
-                                  icon: const Icon(
-                                    Icons.workspace_premium_outlined,
-                                  ),
-                                  label: const Text('Gold Issue'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openTransaction('gold', 'return'),
-                                  icon: const Icon(
-                                    Icons.workspace_premium_outlined,
-                                  ),
-                                  label: const Text('Gold Return'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openTransaction('stone', 'issue'),
-                                  icon: const Icon(Icons.scatter_plot_outlined),
-                                  label: const Text('Stone Issue'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openTransaction('stone', 'return'),
-                                  icon: const Icon(Icons.scatter_plot_outlined),
-                                  label: const Text('Stone Return'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openTransaction('diamond', 'purchase'),
-                                  icon: const Icon(Icons.shopping_bag_outlined),
-                                  label: const Text('Diamond Purchase'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openTransaction('gold', 'purchase'),
-                                  icon: const Icon(Icons.shopping_bag_outlined),
-                                  label: const Text('Gold Purchase'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openTransaction('stone', 'purchase'),
-                                  icon: const Icon(Icons.shopping_bag_outlined),
-                                  label: const Text('Stone Purchase'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Create issues, returns, and purchases from the app.',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                  ] else if (_hasReadyDocuments()) ...[
+                  if (_hasReadyDocuments()) ...[
                     const AppSectionTitle('Ready Documents'),
                     const SizedBox(height: AppSpacing.md),
                     Card(
@@ -614,19 +499,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       case 'QC':
         return AppColors.brandGold;
       case 'Ready':
-        return AppColors.stone;
-      default:
-        return AppColors.brandRed;
-    }
-  }
-
-  Color _accentFor(String material) {
-    switch (material) {
-      case 'diamond':
-        return AppColors.diamond;
-      case 'gold':
-        return AppColors.gold;
-      case 'stone':
         return AppColors.stone;
       default:
         return AppColors.brandRed;

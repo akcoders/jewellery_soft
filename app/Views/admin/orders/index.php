@@ -224,11 +224,10 @@
                                         <th>Status</th>
                                         <th>Due</th>
                                         <th>Req (gm)</th>
-                                        <th>With Him (gm)</th>
                                     </tr>
                                 </thead>
                                 <tbody id="kg-order-details">
-                                    <tr><td colspan="5" class="text-center text-muted">Select karigar to view details.</td></tr>
+                                    <tr><td colspan="4" class="text-center text-muted">Select karigar to view details.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -275,7 +274,7 @@
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label">Purity %</label>
-                                        <input type="number" step="0.001" min="0" max="100" name="purity_percent" id="receive-purity-percent" class="form-control js-purity-percent" value="100">
+                                        <input type="number" step="0.001" min="0.001" max="100" name="purity_percent" id="receive-purity-percent" class="form-control js-purity-percent" required>
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label">Net Weight (gm)</label>
@@ -287,7 +286,7 @@
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label">Gold Rate / gm</label>
-                                        <input type="number" step="0.01" min="0" name="gold_rate_per_gm" class="form-control js-gold-rate" value="0">
+                                        <input type="number" step="0.01" min="0.01" name="gold_rate_per_gm" class="form-control js-gold-rate" required>
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label">Gold Total</label>
@@ -311,7 +310,7 @@
                                                 <td><input type="text" name="studded_diamond_type[]" class="form-control"></td>
                                                 <td><input type="number" step="0.001" min="0" name="studded_diamond_pcs[]" class="form-control js-dia-pcs" value="0"></td>
                                                 <td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="0"></td>
-                                                <td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="0" readonly></td>
+                                                <td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="0"></td>
                                                 <td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="0.00" readonly></td>
                                                 <td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td>
                                             </tr>
@@ -335,7 +334,7 @@
                                                 <td><input type="text" name="stone_type[]" class="form-control"></td>
                                                 <td><input type="number" step="0.001" min="0" name="stone_pcs[]" class="form-control js-stone-pcs" value="0"></td>
                                                 <td><input type="number" step="0.001" min="0" name="stone_weight[]" class="form-control js-stone-weight" value="0"></td>
-                                                <td><input type="number" step="0.01" min="0" name="stone_rate[]" class="form-control js-stone-rate" value="0" readonly></td>
+                                                <td><input type="number" step="0.01" min="0" name="stone_rate[]" class="form-control js-stone-rate" value="0"></td>
                                                 <td><input type="text" name="stone_total[]" class="form-control js-stone-total" value="0.00" readonly></td>
                                                 <td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td>
                                             </tr>
@@ -480,7 +479,7 @@
                     + '<td><input type="text" name="studded_diamond_type[]" class="form-control" value="' + type + '"></td>'
                     + '<td><input type="number" step="0.001" min="0" name="studded_diamond_pcs[]" class="form-control js-dia-pcs" value="' + pcs.toFixed(3) + '"></td>'
                     + '<td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="' + wt.toFixed(3) + '"></td>'
-                    + '<td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="' + rate.toFixed(2) + '" readonly></td>'
+                    + '<td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="' + rate.toFixed(2) + '"></td>'
                     + '<td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="' + total.toFixed(2) + '" readonly></td>'
                     + '<td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td>'
                     + '</tr>';
@@ -490,7 +489,7 @@
                     + '<td><input type="text" name="stone_type[]" class="form-control" value="' + type + '"></td>'
                     + '<td><input type="number" step="0.001" min="0" name="stone_pcs[]" class="form-control js-stone-pcs" value="' + pcs.toFixed(3) + '"></td>'
                     + '<td><input type="number" step="0.001" min="0" name="stone_weight[]" class="form-control js-stone-weight" value="' + wt.toFixed(3) + '"></td>'
-                    + '<td><input type="number" step="0.01" min="0" name="stone_rate[]" class="form-control js-stone-rate" value="' + rate.toFixed(2) + '" readonly></td>'
+                    + '<td><input type="number" step="0.01" min="0" name="stone_rate[]" class="form-control js-stone-rate" value="' + rate.toFixed(2) + '"></td>'
                     + '<td><input type="text" name="stone_total[]" class="form-control js-stone-total" value="' + total.toFixed(2) + '" readonly></td>'
                     + '<td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td>'
                     + '</tr>';
@@ -510,48 +509,6 @@
             const body = receiveModal.querySelector(tbodySelector);
             if (!body) return;
             body.innerHTML = createRowHtml(kind);
-        }
-
-        function setRowsFromPrefill(tbodySelector, kind, rows) {
-            if (!receiveModal) return;
-            const body = receiveModal.querySelector(tbodySelector);
-            if (!body) return;
-            if (!Array.isArray(rows) || rows.length === 0) {
-                body.innerHTML = createRowHtml(kind);
-                return;
-            }
-            body.innerHTML = rows.map(function (row) {
-                return createRowHtml(kind, row);
-            }).join('');
-        }
-
-        function fetchReceivePrefill(orderId) {
-            if (!receiveModal || !orderId) return;
-            const diaBody = receiveModal.querySelector('.js-dia-body');
-            const stoneBody = receiveModal.querySelector('.js-stone-body');
-            if (diaBody) diaBody.innerHTML = '<tr><td colspan="6" class="text-center text-primary"><span class="spinner-border spinner-border-sm me-1"></span>Loading pending diamond...</td></tr>';
-            if (stoneBody) stoneBody.innerHTML = '<tr><td colspan="6" class="text-center text-primary"><span class="spinner-border spinner-border-sm me-1"></span>Loading pending stone...</td></tr>';
-
-            fetch(assignBase + '/' + orderId + '/receive-prefill', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                .then(function (res) {
-                    if (!res.ok) throw new Error('prefill request failed');
-                    return res.json();
-                })
-                .then(function (json) {
-                    const data = json && json.status === 'ok' ? (json.data || {}) : {};
-                    const purityEl = receiveModal.querySelector('#receive-purity-percent');
-                    const labourEl = receiveModal.querySelector('#receive-labour-rate');
-                    if (purityEl && data.purity_percent !== undefined) purityEl.value = Number(data.purity_percent || 0).toFixed(3);
-                    if (labourEl && data.labour_rate !== undefined) labourEl.value = Number(data.labour_rate || 0).toFixed(2);
-                    setRowsFromPrefill('.js-dia-body', 'dia', data.diamond_rows || []);
-                    setRowsFromPrefill('.js-stone-body', 'stone', data.stone_rows || []);
-                    recalcReceiveModal();
-                })
-                .catch(function () {
-                    ensureSingleRow('.js-dia-body', 'dia');
-                    ensureSingleRow('.js-stone-body', 'stone');
-                    recalcReceiveModal();
-                });
         }
 
         function recalcReceiveModal() {
@@ -616,7 +573,7 @@
             if (pendingOrdersEl) pendingOrdersEl.textContent = '...';
             if (pendingGoldEl) pendingGoldEl.textContent = '...';
             if (orderDetailsEl) {
-                orderDetailsEl.innerHTML = '<tr><td colspan="5" class="text-center text-primary"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Loading order details...</td></tr>';
+                orderDetailsEl.innerHTML = '<tr><td colspan="4" class="text-center text-primary"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Loading order details...</td></tr>';
             }
         }
 
@@ -627,7 +584,7 @@
             if (pendingGoldEl) pendingGoldEl.textContent = '0.000';
             updateAssignSubmitState(false);
             if (orderDetailsEl) {
-                orderDetailsEl.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Select karigar to view details.</td></tr>';
+                orderDetailsEl.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Select karigar to view details.</td></tr>';
             }
         }
 
@@ -641,7 +598,7 @@
         function renderOrderDetails(orders) {
             if (!orderDetailsEl) return;
             if (!Array.isArray(orders) || orders.length === 0) {
-                orderDetailsEl.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No pending orders for this karigar.</td></tr>';
+                orderDetailsEl.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No pending orders for this karigar.</td></tr>';
                 return;
             }
 
@@ -650,13 +607,11 @@
                 const status = String(row.status || '-');
                 const dueDate = String(row.due_date || '-');
                 const req = Number(row.required_gold_gm || 0).toFixed(3);
-                const bal = Number(row.balance_gold_gm || 0).toFixed(3);
                 return '<tr>'
                     + '<td>' + orderNo + '</td>'
                     + '<td>' + status + '</td>'
                     + '<td>' + dueDate + '</td>'
                     + '<td>' + req + '</td>'
-                    + '<td>' + bal + '</td>'
                     + '</tr>';
             }).join('');
 
@@ -684,19 +639,12 @@
             if (btn.classList.contains('js-receive-btn')) {
                 if (receiveForm && orderId) receiveForm.setAttribute('action', assignBase + '/' + orderId + '/receive');
                 if (receiveOrderLabel) receiveOrderLabel.textContent = orderNo;
-                const purity = btn.getAttribute('data-order-purity') || '100';
-                const labourRate = btn.getAttribute('data-karigar-rate') || '0';
                 if (receiveModal) {
                     if (receiveForm) receiveForm.reset();
-                    const purityEl = receiveModal.querySelector('#receive-purity-percent');
-                    const labourEl = receiveModal.querySelector('#receive-labour-rate');
-                    if (purityEl) purityEl.value = purity;
-                    if (labourEl) labourEl.value = labourRate;
                     ensureSingleRow('.js-dia-body', 'dia');
                     ensureSingleRow('.js-stone-body', 'stone');
                     ensureSingleRow('.js-other-body', 'other');
                     recalcReceiveModal();
-                    fetchReceivePrefill(orderId);
                 }
             }
 
