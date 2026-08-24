@@ -69,6 +69,7 @@ $isAccountsOutstanding = $isAccounts && $segment3 === 'outstanding-summary';
 $isVendors  = $segment2 === 'vendors';
 $isCompanySettings = $segment2 === 'company-settings';
 $isDatabaseUpdate = $segment2 === 'system' && $segment3 === 'database-update';
+$isProductionImport = $segment2 === 'system' && $segment3 === 'production-import';
 $isInventory= $segment2 === 'inventory';
 $isInventoryStock = $isInventory && ($segment3 === '' || $segment3 === 'stock');
 $isInventoryWarehouses = $isInventory && $segment3 === 'warehouses';
@@ -1097,6 +1098,9 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php if (admin_can('company-settings.manage')): ?>
                         <li class="<?= $isDatabaseUpdate ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/system/database-update') ?>"><i class="fe fe-database"></i> <span>Database Update</span></a>
+                        </li>
+                        <li class="<?= $isProductionImport ? 'active' : '' ?>">
+                            <a href="<?= site_url('admin/system/production-import') ?>"><i class="fe fe-upload-cloud"></i> <span>Production Import</span></a>
                         </li>
                         <?php endif; ?>
                         <?php if ($canAccessControl): ?>
