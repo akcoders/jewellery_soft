@@ -64,4 +64,25 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringNotContainsString('TransactionCreateScreen', $orderDetail);
         $this->assertStringContainsString('KarigarMaterialAccountingService', $controller);
     }
+
+    public function testOrderAndPurchaseWorkspacesUseResponsiveUiAndResolvableReadyPhotos(): void
+    {
+        $layout = (string) file_get_contents(APPPATH . 'Views/admin/layouts/main.php');
+        $dashboard = (string) file_get_contents(APPPATH . 'Views/admin/orders/dashboard.php');
+        $purchaseBills = (string) file_get_contents(APPPATH . 'Views/admin/accounts/purchase_bills.php');
+        $orderDetail = (string) file_get_contents(APPPATH . 'Views/admin/orders/show.php');
+        $inventoryController = (string) file_get_contents(APPPATH . 'Controllers/Admin/JewelleryInventoryController.php');
+
+        $this->assertStringContainsString("renderSection('styles')", $layout);
+        $this->assertStringContainsString('dataRowCount > 10', $layout);
+        $this->assertStringContainsString('usePaging', $layout);
+        $this->assertStringContainsString('order-workflow-panel', $dashboard);
+        $this->assertStringContainsString('Schedule &amp; Karigar', $dashboard);
+        $this->assertStringContainsString('Supplier &amp; Invoice', $purchaseBills);
+        $this->assertStringContainsString('Payment Position', $purchaseBills);
+        $this->assertStringContainsString('data-dt-skip="true"', $orderDetail);
+        $this->assertStringContainsString('Order &amp; Ready Photos', $orderDetail);
+        $this->assertStringContainsString('FCPATH . $relativePath', $inventoryController);
+        $this->assertStringContainsString('WRITEPATH . $relativePath', $inventoryController);
+    }
 }

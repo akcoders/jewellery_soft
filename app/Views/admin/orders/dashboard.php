@@ -27,25 +27,37 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
 <style>
     .order-dashboard-summary {
         display: grid;
-        gap: 14px;
+        gap: 16px;
         grid-template-columns: repeat(4, minmax(0, 1fr));
     }
     .order-summary-card {
-        align-items: center;
         background: #fff;
         border: 1px solid var(--erp-border);
-        border-radius: 14px;
+        border-radius: 16px;
         box-shadow: var(--erp-shadow);
         color: var(--erp-ink) !important;
-        display: flex;
+        display: grid;
         gap: 14px;
-        min-height: 112px;
-        padding: 18px;
+        grid-template-columns: auto 1fr auto;
+        min-height: 126px;
+        overflow: hidden;
+        padding: 20px;
+        position: relative;
         text-decoration: none;
-        transition: transform .18s ease, box-shadow .18s ease;
+        transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+    }
+    .order-summary-card::before {
+        background: #718096;
+        content: '';
+        height: 4px;
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 0;
     }
     .order-summary-card:hover,
     .order-summary-card.active {
+        border-color: #d9dee8;
         box-shadow: 0 14px 34px rgba(31, 41, 55, .11);
         color: var(--erp-ink) !important;
         transform: translateY(-2px);
@@ -55,42 +67,89 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
         background: #f4f6f8;
         border-radius: 12px;
         color: #475467;
-        display: inline-flex;
+        display: inline-flex !important;
         flex: 0 0 48px;
-        font-size: 20px;
-        height: 48px;
+        font-size: 19px;
+        height: 46px;
         justify-content: center;
+        width: 46px;
     }
+    .order-summary-card.delay::before { background: #c6283d; }
+    .order-summary-card.repeat::before { background: #c89b1e; }
+    .order-summary-card.design::before { background: #7158cf; }
     .order-summary-card.delay .order-summary-icon { background: #feecee; color: #bd1727; }
     .order-summary-card.repeat .order-summary-icon { background: #fff4d5; color: #9b7010; }
     .order-summary-card.design .order-summary-icon { background: #eeeaff; color: #6851c8; }
     .order-summary-card small,
     .order-summary-card strong,
     .order-summary-card span { display: block; }
-    .order-summary-card small { color: #667085; font-size: 11px; font-weight: 700; }
-    .order-summary-card strong { color: #18202f; font-size: 27px; line-height: 1.1; margin: 4px 0; }
-    .order-summary-card span { color: #98a2b3; font-size: 10px; }
+    .order-summary-card small { color: #667085; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    .order-summary-card strong { color: #18202f; font-size: 30px; line-height: 1.05; margin: 5px 0; }
+    .order-summary-card span { color: #8b95a5; font-size: 10px; line-height: 1.35; }
+    .order-summary-arrow { align-self: center; color: #b5bdc9 !important; font-size: 16px !important; }
+    .order-workflow-panel {
+        background: linear-gradient(140deg, #fff, #fbfcfe);
+        border: 1px solid var(--erp-border);
+        border-radius: 16px;
+        box-shadow: var(--erp-shadow);
+        padding: 18px;
+    }
+    .order-workflow-heading {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+        margin-bottom: 14px;
+    }
+    .order-workflow-heading h5 { font-size: 14px; margin: 0; }
+    .order-workflow-heading span { color: #8b95a5; font-size: 10px; }
     .order-status-strip {
         display: grid;
         gap: 10px;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
     .order-status-card {
+        align-items: center;
         background: #fff;
         border: 1px solid var(--erp-border);
         border-radius: 12px;
         color: #475467 !important;
-        padding: 13px 14px;
+        display: flex;
+        gap: 11px;
+        min-height: 66px;
+        padding: 11px 13px;
         text-decoration: none;
+        transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
     }
     .order-status-card:hover,
     .order-status-card.active {
         border-color: rgba(179, 18, 31, .42);
         box-shadow: 0 8px 22px rgba(31, 41, 55, .07);
         color: var(--erp-red) !important;
+        transform: translateY(-1px);
     }
-    .order-status-card strong { color: #18202f; display: block; font-size: 21px; }
-    .order-status-card span { font-size: 11px; font-weight: 700; }
+    .order-status-dot { background: #98a2b3; border-radius: 50%; box-shadow: 0 0 0 5px #f2f4f7; flex: 0 0 9px; height: 9px; width: 9px; }
+    .order-status-card.status-in-production .order-status-dot { background: #d18b00; box-shadow: 0 0 0 5px #fff3d8; }
+    .order-status-card.status-qc .order-status-dot { background: #2477c8; box-shadow: 0 0 0 5px #e5f1fc; }
+    .order-status-card.status-ready .order-status-dot { background: #6b54c8; box-shadow: 0 0 0 5px #eeeaff; }
+    .order-status-card.status-packed .order-status-dot { background: #0a8990; box-shadow: 0 0 0 5px #def5f6; }
+    .order-status-card.status-dispatched .order-status-dot { background: #4965b8; box-shadow: 0 0 0 5px #e7ebf8; }
+    .order-status-card.status-completed .order-status-dot { background: #1f8a4c; box-shadow: 0 0 0 5px #e2f5ea; }
+    .order-status-card.status-cancelled .order-status-dot { background: #c6283d; box-shadow: 0 0 0 5px #fde9ec; }
+    .order-status-card strong { color: #18202f; display: block; font-size: 20px; line-height: 1; }
+    .order-status-card span { display: block; font-size: 10px; font-weight: 750; margin-top: 4px; }
+    .order-register-card { overflow: hidden; }
+    .order-dashboard-table { min-width: 1040px; }
+    .order-dashboard-table tbody td { padding-bottom: 15px; padding-top: 15px; vertical-align: middle; }
+    .order-dashboard-table tbody tr { border-left: 3px solid transparent; }
+    .order-dashboard-table tbody tr:hover { border-left-color: var(--erp-gold); }
+    .order-number { font-size: 12px; font-weight: 800; letter-spacing: .01em; }
+    .order-row-meta { align-items: center; color: #8b95a5; display: flex; flex-wrap: wrap; font-size: 10px; gap: 6px; margin-top: 5px; }
+    .order-row-meta span + span::before { color: #c5ccd6; content: '\2022'; margin-right: 6px; }
+    .order-source-name { color: #273142; font-size: 12px; font-weight: 750; }
+    .order-assignment { color: #344054; font-size: 11px; font-weight: 700; margin-top: 7px; }
+    .order-assignment i { color: #98a2b3; margin-right: 5px; }
+    .order-row-actions { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
     .repeat-design-stack { display: flex; flex-direction: column; gap: 5px; }
     .repeat-design-badge {
         background: #fff3cd;
@@ -168,9 +227,23 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     }
     .order-image-card img { height: 125px; object-fit: cover; width: 100%; }
     .order-image-card span { display: block; font-size: 10px; overflow: hidden; padding: 8px; text-overflow: ellipsis; white-space: nowrap; }
-    @media (max-width: 991px) { .order-dashboard-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1199px) {
+        .order-dashboard-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .order-status-strip { grid-template-columns: repeat(4, minmax(125px, 1fr)); }
+    }
+    @media (max-width: 767px) {
+        .order-status-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .order-dashboard-table { min-width: 0; }
+        .order-dashboard-table tbody td:first-child { display: block !important; text-align: left !important; }
+        .order-dashboard-table tbody td:first-child::before { display: block; margin-bottom: 8px; width: 100%; }
+        .order-dashboard-table tbody td:first-child > .erp-mobile-value { max-width: 100%; text-align: left; }
+        .order-row-actions { justify-content: flex-end; }
+    }
     @media (max-width: 575px) {
         .order-dashboard-summary { grid-template-columns: 1fr; }
+        .order-summary-card { min-height: 110px; padding: 17px; }
+        .order-workflow-panel { padding: 14px; }
+        .order-workflow-heading { align-items: flex-start; flex-direction: column; }
         .timeline-entry { padding-left: 17px; }
         .timeline-image { height: 100px; width: 100%; }
     }
@@ -197,31 +270,47 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     <a href="<?= site_url('admin/orders/dashboard') ?>" class="order-summary-card <?= $selectedStatus === '' && $selectedView === '' ? 'active' : '' ?>">
         <span class="order-summary-icon"><i class="fe fe-shopping-bag"></i></span>
         <span><small>All Orders</small><strong><?= esc((string) ($summary['total_orders'] ?? 0)) ?></strong><span>Complete order register</span></span>
+        <i class="fe fe-chevron-right order-summary-arrow"></i>
     </a>
     <a href="<?= site_url('admin/orders/dashboard?view=delayed') ?>" class="order-summary-card delay <?= $selectedView === 'delayed' ? 'active' : '' ?>">
         <span class="order-summary-icon"><i class="fe fe-alert-triangle"></i></span>
         <span><small>Delayed Orders</small><strong><?= esc((string) ($summary['delayed_orders'] ?? 0)) ?></strong><span>Past due and still open</span></span>
+        <i class="fe fe-chevron-right order-summary-arrow"></i>
     </a>
     <a href="<?= site_url('admin/orders/dashboard?view=repeat') ?>" class="order-summary-card repeat <?= $selectedView === 'repeat' ? 'active' : '' ?>">
         <span class="order-summary-icon"><i class="fe fe-repeat"></i></span>
         <span><small>Orders With Repeat Design</small><strong><?= esc((string) ($summary['repeat_orders'] ?? 0)) ?></strong><span>Orders containing reused designs</span></span>
+        <i class="fe fe-chevron-right order-summary-arrow"></i>
     </a>
     <a href="<?= site_url('admin/orders/dashboard?view=repeat') ?>" class="order-summary-card design <?= $selectedView === 'repeat' ? 'active' : '' ?>">
         <span class="order-summary-icon"><i class="fe fe-image"></i></span>
         <span><small>Unique Repeat Designs</small><strong><?= esc((string) ($summary['repeat_designs'] ?? 0)) ?></strong><span>Designs used in multiple orders</span></span>
+        <i class="fe fe-chevron-right order-summary-arrow"></i>
     </a>
 </div>
 
-<div class="order-status-strip mb-3">
-    <?php foreach ($statusCounts as $status => $count): ?>
-        <a href="<?= site_url('admin/orders/dashboard?status=' . rawurlencode((string) $status)) ?>" class="order-status-card <?= $selectedStatus === (string) $status ? 'active' : '' ?>">
-            <strong><?= esc((string) $count) ?></strong>
-            <span><?= esc((string) $status) ?></span>
-        </a>
-    <?php endforeach; ?>
+<div class="order-workflow-panel mb-3">
+    <div class="order-workflow-heading">
+        <div>
+            <h5>Production Workflow</h5>
+            <span>Select a stage to filter the register below.</span>
+        </div>
+        <?php if ($selectedStatus !== ''): ?>
+            <a href="<?= site_url('admin/orders/dashboard') ?>" class="btn btn-sm btn-outline-secondary"><i class="fe fe-x me-1"></i>Clear stage</a>
+        <?php endif; ?>
+    </div>
+    <div class="order-status-strip">
+        <?php foreach ($statusCounts as $status => $count): ?>
+            <?php $statusSlug = strtolower((string) preg_replace('/[^a-z0-9]+/i', '-', trim((string) $status))); ?>
+            <a href="<?= site_url('admin/orders/dashboard?status=' . rawurlencode((string) $status)) ?>" class="order-status-card status-<?= esc($statusSlug, 'attr') ?> <?= $selectedStatus === (string) $status ? 'active' : '' ?>">
+                <span class="order-status-dot" aria-hidden="true"></span>
+                <span><strong><?= esc((string) $count) ?></strong><span><?= esc((string) $status) ?></span></span>
+            </a>
+        <?php endforeach; ?>
+    </div>
 </div>
 
-<div class="card erp-table-card overflow-hidden">
+<div class="card erp-table-card order-register-card">
     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
         <div>
             <h5 class="card-title mb-1">Order Status Register</h5>
@@ -238,31 +327,30 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-hover align-middle mb-0 erp-responsive-wide" data-dt-page-length="25">
+            <table class="table datatable table-hover align-middle mb-0 order-dashboard-table" data-dt-page-length="10">
                 <thead>
                     <tr>
                         <th>Order</th>
                         <th>Customer / Source</th>
-                        <th>Repeat Design</th>
-                        <th>Status</th>
-                        <th>Due / Delay</th>
-                        <th>Karigar</th>
+                        <th>Design</th>
+                        <th>Workflow</th>
+                        <th>Schedule &amp; Karigar</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ($orders === []): ?>
-                        <tr><td colspan="7" class="text-center text-muted py-5">No orders match this dashboard filter.</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-5">No orders match this dashboard filter.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($orders as $order): ?>
                         <?php $source = trim((string) (($order['customer_name'] ?? '') ?: ($order['order_from'] ?? '') ?: '-')); ?>
                         <tr>
                             <td>
-                                <a href="<?= site_url('admin/orders/' . (int) $order['id']) ?>" class="erp-data-link"><?= esc((string) $order['order_no']) ?></a>
-                                <div class="small text-muted mt-1"><?= esc((string) ($order['order_type'] ?? '-')) ?> · <?= esc($formatDate((string) ($order['created_at'] ?? ''))) ?></div>
+                                <a href="<?= site_url('admin/orders/' . (int) $order['id']) ?>" class="erp-data-link order-number"><?= esc((string) $order['order_no']) ?></a>
+                                <div class="order-row-meta"><span><?= esc((string) ($order['order_type'] ?? '-')) ?></span><span><?= esc($formatDate((string) ($order['created_at'] ?? ''))) ?></span></div>
                             </td>
                             <td>
-                                <div class="fw-semibold"><?= esc($source) ?></div>
+                                <div class="order-source-name"><?= esc($source) ?></div>
                                 <?php if (! empty($order['order_from']) && ! empty($order['customer_name'])): ?>
                                     <div class="small text-muted">From: <?= esc((string) $order['order_from']) ?></div>
                                 <?php endif; ?>
@@ -282,30 +370,35 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
                                     <span class="text-muted small">First-time design</span>
                                 <?php endif; ?>
                             </td>
-                            <td><span class="badge bg-<?= esc($statusClass((string) ($order['status'] ?? ''))) ?>"><?= esc((string) ($order['status'] ?? '-')) ?></span></td>
+                            <td>
+                                <span class="badge bg-<?= esc($statusClass((string) ($order['status'] ?? ''))) ?>"><?= esc((string) ($order['status'] ?? '-')) ?></span>
+                                <div class="small text-muted mt-2">Current production stage</div>
+                            </td>
                             <td>
                                 <div class="delay-box">
-                                    <div class="fw-semibold"><?= esc($formatDate((string) ($order['due_date'] ?? ''), 'Not set')) ?></div>
+                                    <div class="fw-semibold"><i class="fe fe-calendar me-1 text-muted"></i><?= esc($formatDate((string) ($order['due_date'] ?? ''), 'Due date not set')) ?></div>
                                     <?php if (! empty($order['is_delayed'])): ?>
                                         <span class="badge bg-danger mt-1"><i class="fe fe-clock me-1"></i>Delay · <?= esc((string) $order['delay_days']) ?> day<?= (int) $order['delay_days'] === 1 ? '' : 's' ?></span>
                                         <div class="delay-reason" title="<?= esc((string) $order['delay_reason'], 'attr') ?>">
                                             <strong>Why:</strong> <?= esc((string) $order['delay_reason']) ?>
                                         </div>
                                     <?php endif; ?>
+                                    <div class="order-assignment"><i class="fe fe-tool"></i><?= esc((string) (($order['karigar_name'] ?? '') ?: 'Karigar not assigned')) ?></div>
                                 </div>
                             </td>
-                            <td><?= esc((string) (($order['karigar_name'] ?? '') ?: 'Not assigned')) ?></td>
                             <td class="text-end">
-                                <button
-                                    type="button"
-                                    class="btn btn-sm btn-outline-primary js-order-timeline"
-                                    data-order-no="<?= esc((string) $order['order_no'], 'attr') ?>"
-                                    data-timeline-url="<?= esc(site_url('admin/orders/' . (int) $order['id'] . '/timeline'), 'attr') ?>"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#orderTimelineModal">
-                                    <i class="fe fe-clock me-1"></i> Timeline
-                                </button>
-                                <a href="<?= site_url('admin/orders/' . (int) $order['id']) ?>" class="btn btn-sm btn-outline-secondary" title="Open order"><i class="fe fe-eye"></i></a>
+                                <div class="order-row-actions">
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-primary js-order-timeline"
+                                        data-order-no="<?= esc((string) $order['order_no'], 'attr') ?>"
+                                        data-timeline-url="<?= esc(site_url('admin/orders/' . (int) $order['id'] . '/timeline'), 'attr') ?>"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#orderTimelineModal">
+                                        <i class="fe fe-activity me-1"></i>Timeline
+                                    </button>
+                                    <a href="<?= site_url('admin/orders/' . (int) $order['id']) ?>" class="btn btn-sm btn-primary" title="Open order"><i class="fe fe-eye me-1"></i>View</a>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>

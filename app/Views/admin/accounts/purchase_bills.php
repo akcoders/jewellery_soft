@@ -15,6 +15,45 @@ foreach (($rows ?? []) as $summaryRow) {
     $totalPending += (float) ($summaryRow['pending_amount'] ?? 0);
 }
 ?>
+<?= $this->section('styles') ?>
+<style>
+    .purchase-register-card { overflow: hidden; }
+    .purchase-bills-table { min-width: 1120px; }
+    .purchase-bills-table tbody td { padding: 15px 14px; vertical-align: middle; }
+    .purchase-bills-table tbody tr { border-left: 3px solid transparent; }
+    .purchase-bills-table tbody tr:hover { border-left-color: var(--erp-gold); }
+    .purchase-supplier { color: #202939; font-size: 12px; font-weight: 800; line-height: 1.35; }
+    .purchase-invoice-meta { align-items: center; color: #667085; display: flex; flex-wrap: wrap; font-size: 10px; gap: 6px; margin-top: 7px; }
+    .purchase-invoice-meta span + span::before { color: #c0c7d2; content: '\2022'; margin-right: 6px; }
+    .purchase-address { color: #98a2b3; display: -webkit-box; font-size: 9px; line-height: 1.35; margin-top: 4px; max-width: 330px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .purchase-material { display: grid; gap: 7px; }
+    .purchase-material-line { color: #475467; font-size: 10px; }
+    .purchase-material-line strong { color: #202939; font-size: 12px; margin-right: 3px; }
+    .purchase-tax-stack { color: #667085; display: grid; font-size: 10px; gap: 3px; min-width: 150px; }
+    .purchase-tax-stack strong { color: #344054; font-weight: 750; }
+    .purchase-total { color: #18202f; font-size: 13px; font-weight: 850; white-space: nowrap; }
+    .purchase-payment { min-width: 190px; }
+    .purchase-payment-values { color: #667085; display: grid; font-size: 10px; gap: 3px; margin-top: 8px; }
+    .purchase-payment-values strong { color: #344054; }
+    .purchase-progress { background: #eef1f5; border-radius: 99px; height: 5px; margin-top: 8px; overflow: hidden; }
+    .purchase-progress span { background: linear-gradient(90deg, #278b50, #48ad70); display: block; height: 100%; }
+    .purchase-due { align-items: center; color: #667085; display: flex; font-size: 9px; gap: 5px; margin-top: 7px; }
+    .purchase-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; min-width: 140px; }
+    .purchase-actions .btn { white-space: nowrap; }
+    @media (max-width: 767px) {
+        .purchase-bills-table { min-width: 0; }
+        .purchase-bills-table tbody td:first-child { display: block !important; text-align: left !important; }
+        .purchase-bills-table tbody td:first-child::before { display: block; margin-bottom: 9px; width: 100%; }
+        .purchase-bills-table tbody td:first-child > .erp-mobile-value { max-width: 100%; text-align: left; }
+        .purchase-address { margin-left: 0; max-width: none; }
+        .purchase-invoice-meta { justify-content: flex-start; }
+        .purchase-material { justify-items: end; }
+        .purchase-actions { justify-content: flex-end; min-width: 0; }
+        .purchase-payment { min-width: 0; }
+    }
+</style>
+<?= $this->endSection() ?>
+
 <div class="erp-page-toolbar flex-wrap mb-3">
     <div>
         <span class="erp-eyebrow">Accounts payable</span>
@@ -37,28 +76,23 @@ foreach (($rows ?? []) as $summaryRow) {
     <div class="alert alert-warning">Purchase payment table not available. Run migration to enable payment updates.</div>
 <?php endif; ?>
 
-<div class="card erp-table-card">
+<div class="card erp-table-card purchase-register-card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-bordered table-striped align-middle mb-0 erp-responsive-wide">
+            <table class="table datatable table-hover align-middle mb-0 purchase-bills-table" data-dt-page-length="10">
                 <thead>
                     <tr>
-                        <th>Supplier Name</th>
-                        <th>Purchase Date</th>
-                        <th>Purchase Category</th>
-                        <th>Qty</th>
-                        <th>Total Weight</th>
-                        <th>Amount</th>
-                        <th>Due Date</th>
-                        <th>Days Left</th>
-                        <th>Payment Status</th>
-                        <th>Bill Attachment</th>
-                        <th>Action</th>
+                        <th>Supplier &amp; Invoice</th>
+                        <th>Material</th>
+                        <th>Tax &amp; GST</th>
+                        <th>Bill Value</th>
+                        <th>Payment Position</th>
+                        <th class="text-end">Documents &amp; Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ($rows === []): ?>
-                        <tr><td colspan="11" class="text-center text-muted">No purchase bills found.</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-5">No purchase bills found.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($rows as $row): ?>
                         <?php
@@ -79,69 +113,78 @@ foreach (($rows ?? []) as $summaryRow) {
                                 $statusClass = 'bg-info text-dark';
                             }
                             $attachment = is_array($row['attachment'] ?? null) ? $row['attachment'] : null;
+                            $amount = (float) ($row['amount'] ?? 0);
+                            $paidAmount = (float) ($row['paid_amount'] ?? 0);
+                            $pendingAmount = (float) ($row['pending_amount'] ?? 0);
+                            $paidPercent = $amount > 0 ? min(100, max(0, ($paidAmount / $amount) * 100)) : 0;
                         ?>
                         <tr>
-                            <td>
-                                <div class="fw-semibold"><?= esc((string) ($row['supplier_name'] ?? '-')) ?></div>
+                            <td data-order="<?= esc((string) ($row['supplier_name'] ?? ''), 'attr') ?>">
+                                <div class="purchase-supplier"><?= esc((string) ($row['supplier_name'] ?? '-')) ?></div>
                                 <?php if (! empty($row['vendor_gstin'])): ?>
-                                    <div class="small text-muted">GSTIN: <?= esc((string) $row['vendor_gstin']) ?></div>
+                                    <div class="small text-muted mt-1">GSTIN: <?= esc((string) $row['vendor_gstin']) ?></div>
                                 <?php endif; ?>
                                 <?php if (! empty($row['vendor_address'])): ?>
-                                    <div class="small text-muted" style="max-width: 260px"><?= esc((string) $row['vendor_address']) ?></div>
+                                    <div class="purchase-address" title="<?= esc((string) $row['vendor_address'], 'attr') ?>"><?= esc((string) $row['vendor_address']) ?></div>
                                 <?php endif; ?>
+                                <div class="purchase-invoice-meta">
+                                    <span><i class="fe fe-calendar me-1"></i><?= esc((string) ($row['purchase_date'] ?: '-')) ?></span>
+                                    <span><i class="fe fe-file-text me-1"></i><?= esc((string) (($row['invoice_no'] ?? '') ?: 'No invoice no.')) ?></span>
+                                </div>
                             </td>
-                            <td>
-                                <div><?= esc((string) ($row['purchase_date'] ?: '-')) ?></div>
-                                <?php if (! empty($row['invoice_no'])): ?>
-                                    <div class="small text-muted">Invoice: <?= esc((string) $row['invoice_no']) ?></div>
-                                <?php endif; ?>
+                            <td data-order="<?= esc($category, 'attr') ?>">
+                                <div class="purchase-material">
+                                    <span class="badge <?= esc($badgeClass) ?>"><?= esc($category) ?></span>
+                                    <div class="purchase-material-line"><strong><?= number_format((float) ($row['weight_value'] ?? 0), 3) ?></strong><?= esc((string) ($row['weight_unit'] ?? '')) ?></div>
+                                    <div class="purchase-material-line">Quantity: <strong><?= number_format((float) ($row['qty'] ?? 0), 3) ?></strong></div>
+                                </div>
                             </td>
-                            <td><span class="badge <?= esc($badgeClass) ?>"><?= esc($category) ?></span></td>
-                            <td class="erp-number"><?= number_format((float) ($row['qty'] ?? 0), 3) ?></td>
-                            <td class="erp-number"><?= number_format((float) ($row['weight_value'] ?? 0), 3) ?> <?= esc((string) ($row['weight_unit'] ?? '')) ?></td>
-                            <td class="erp-money">
+                            <td data-order="<?= esc((string) ($row['taxable_amount'] ?? 0), 'attr') ?>">
                                 <?php if (($row['amount_available'] ?? true) === false): ?>
-                                    <span class="text-muted">Not supplied</span>
+                                    <span class="text-muted small">Tax details not supplied</span>
                                 <?php else: ?>
-                                    <div class="fw-semibold">₹ <?= number_format((float) ($row['amount'] ?? 0), 2) ?></div>
-                                    <?php if (array_key_exists('taxable_amount', $row)): ?>
-                                        <div class="small text-muted">
-                                            Taxable: ₹<?= number_format((float) ($row['taxable_amount'] ?? 0), 2) ?><br>
-                                            <?php if ((float) ($row['cgst_amount'] ?? 0) !== 0.0): ?>CGST: ₹<?= number_format((float) $row['cgst_amount'], 2) ?><br><?php endif; ?>
-                                            <?php if ((float) ($row['sgst_amount'] ?? 0) !== 0.0): ?>SGST: ₹<?= number_format((float) $row['sgst_amount'], 2) ?><br><?php endif; ?>
-                                            <?php if ((float) ($row['igst_amount'] ?? 0) !== 0.0): ?>IGST: ₹<?= number_format((float) $row['igst_amount'], 2) ?><br><?php endif; ?>
-                                            <?php if ((float) ($row['round_off_amount'] ?? 0) !== 0.0): ?>Round off: ₹<?= number_format((float) $row['round_off_amount'], 2) ?><?php endif; ?>
-                                        </div>
-                                    <?php endif; ?>
-                                <?php endif; ?>
-                            </td>
-                            <td><?= esc((string) (($row['due_date'] ?? '') !== '' ? $row['due_date'] : '-')) ?></td>
-                            <td><?= esc((string) ($row['days_left'] ?? '-')) ?></td>
-                            <td>
-                                <span class="badge <?= esc($statusClass) ?>"><?= esc($status) ?></span>
-                                <?php if (($row['amount_available'] ?? true) === false): ?>
-                                    <div class="small text-muted mt-1"><?= esc((string) ($row['reconciliation_status'] ?? 'Amount not supplied in source')) ?></div>
-                                <?php else: ?>
-                                    <div class="small text-muted mt-1">
-                                        Paid: ₹<?= number_format((float) ($row['paid_amount'] ?? 0), 2) ?><br>
-                                        Pending: ₹<?= number_format((float) ($row['pending_amount'] ?? 0), 2) ?>
+                                    <div class="purchase-tax-stack">
+                                        <span>Taxable <strong>₹<?= number_format((float) ($row['taxable_amount'] ?? 0), 2) ?></strong></span>
+                                        <?php if ((float) ($row['cgst_amount'] ?? 0) !== 0.0): ?><span>CGST <strong>₹<?= number_format((float) $row['cgst_amount'], 2) ?></strong></span><?php endif; ?>
+                                        <?php if ((float) ($row['sgst_amount'] ?? 0) !== 0.0): ?><span>SGST <strong>₹<?= number_format((float) $row['sgst_amount'], 2) ?></strong></span><?php endif; ?>
+                                        <?php if ((float) ($row['igst_amount'] ?? 0) !== 0.0): ?><span>IGST <strong>₹<?= number_format((float) $row['igst_amount'], 2) ?></strong></span><?php endif; ?>
+                                        <?php if ((float) ($row['round_off_amount'] ?? 0) !== 0.0): ?><span>Round off <strong>₹<?= number_format((float) $row['round_off_amount'], 2) ?></strong></span><?php endif; ?>
                                     </div>
                                 <?php endif; ?>
                             </td>
-                            <td>
-                                <?php if ($attachment !== null && (($attachment['file_path'] ?? '') !== '' || ($attachment['url'] ?? '') !== '')): ?>
-                                    <?php $attachmentUrl = ($attachment['url'] ?? '') !== '' ? (string) $attachment['url'] : base_url((string) $attachment['file_path']); ?>
-                                    <a class="btn btn-sm btn-outline-primary" href="<?= esc($attachmentUrl) ?>" target="_blank">
-                                        <i class="fe fe-paperclip me-1"></i>Open<?= (int) ($attachment['count'] ?? 0) > 1 ? ' (+' . ((int) $attachment['count'] - 1) . ')' : '' ?>
-                                    </a>
+                            <td data-order="<?= esc((string) $amount, 'attr') ?>">
+                                <?php if (($row['amount_available'] ?? true) === false): ?>
+                                    <span class="text-muted">Not supplied</span>
                                 <?php else: ?>
-                                    <span class="text-muted">-</span>
+                                    <div class="purchase-total">₹<?= number_format($amount, 2) ?></div>
+                                    <div class="small text-muted mt-1">Invoice total</div>
                                 <?php endif; ?>
                             </td>
-                            <td>
-                                <div class="d-flex gap-1">
+                            <td data-order="<?= esc((string) $pendingAmount, 'attr') ?>">
+                                <div class="purchase-payment">
+                                    <span class="badge <?= esc($statusClass) ?>"><?= esc($status) ?></span>
+                                <?php if (($row['amount_available'] ?? true) === false): ?>
+                                    <div class="small text-muted mt-1"><?= esc((string) ($row['reconciliation_status'] ?? 'Amount not supplied in source')) ?></div>
+                                <?php else: ?>
+                                    <div class="purchase-progress"><span style="width:<?= esc(number_format($paidPercent, 2, '.', ''), 'attr') ?>%"></span></div>
+                                    <div class="purchase-payment-values">
+                                        <span>Paid <strong>₹<?= number_format($paidAmount, 2) ?></strong></span>
+                                        <span>Pending <strong>₹<?= number_format($pendingAmount, 2) ?></strong></span>
+                                    </div>
+                                    <div class="purchase-due"><i class="fe fe-clock"></i><span>Due: <?= esc((string) (($row['due_date'] ?? '') !== '' ? $row['due_date'] : 'Not set')) ?><?= ($row['days_left'] ?? '-') !== '-' ? ' · ' . esc((string) $row['days_left']) : '' ?></span></div>
+                                <?php endif; ?>
+                                </div>
+                            </td>
+                            <td class="text-end">
+                                <div class="purchase-actions">
+                                    <?php if ($attachment !== null && (($attachment['file_path'] ?? '') !== '' || ($attachment['url'] ?? '') !== '')): ?>
+                                        <?php $attachmentUrl = ($attachment['url'] ?? '') !== '' ? (string) $attachment['url'] : base_url((string) $attachment['file_path']); ?>
+                                        <a class="btn btn-sm btn-outline-primary" href="<?= esc($attachmentUrl) ?>" target="_blank" rel="noopener">
+                                            <i class="fe fe-paperclip me-1"></i>Bill<?= (int) ($attachment['count'] ?? 0) > 1 ? ' +' . ((int) $attachment['count'] - 1) : '' ?>
+                                        </a>
+                                    <?php endif; ?>
                                     <?php if (! empty($row['view_url'])): ?>
-                                        <a href="<?= esc((string) $row['view_url']) ?>" class="btn btn-sm btn-outline-info" title="View Bill"><i class="fe fe-eye"></i></a>
+                                        <a href="<?= esc((string) $row['view_url']) ?>" class="btn btn-sm btn-outline-secondary" title="View Bill"><i class="fe fe-eye me-1"></i>View</a>
                                     <?php endif; ?>
                                     <button
                                         type="button"
@@ -156,7 +199,7 @@ foreach (($rows ?? []) as $summaryRow) {
                                         data-paid="<?= esc((string) number_format((float) ($row['paid_amount'] ?? 0), 2, '.', '')) ?>"
                                         <?= ((float) ($row['pending_amount'] ?? 0) <= 0 || ! $paymentTableEnabled) ? 'disabled' : '' ?>
                                         title="Update Payment">
-                                        <i class="fe fe-credit-card"></i>
+                                        <i class="fe fe-credit-card me-1"></i>Pay
                                     </button>
                                 </div>
                             </td>

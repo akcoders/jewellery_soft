@@ -116,9 +116,18 @@ class JewelleryInventoryController extends BaseController
             throw PageNotFoundException::forPageNotFound();
         }
         $relativePath = ltrim(str_replace(['\\', '..'], ['/', ''], (string) $item['image_path']), '/');
-        $fullPath = realpath(WRITEPATH . $relativePath);
-        $allowedRoot = realpath(WRITEPATH . 'uploads/production-imports');
-        if (! $fullPath || ! $allowedRoot || ! str_starts_with($fullPath, $allowedRoot . DIRECTORY_SEPARATOR) || ! is_file($fullPath)) {
+        $fullPath = null;
+        foreach ([
+            [FCPATH . $relativePath, realpath(FCPATH . 'uploads')],
+            [WRITEPATH . $relativePath, realpath(WRITEPATH . 'uploads')],
+        ] as [$candidate, $allowedRoot]) {
+            $resolved = realpath($candidate);
+            if ($resolved && $allowedRoot && str_starts_with($resolved, $allowedRoot . DIRECTORY_SEPARATOR) && is_file($resolved)) {
+                $fullPath = $resolved;
+                break;
+            }
+        }
+        if ($fullPath === null) {
             throw PageNotFoundException::forPageNotFound();
         }
         $mime = mime_content_type($fullPath) ?: 'application/octet-stream';

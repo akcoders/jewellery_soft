@@ -328,7 +328,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
         .erp-table-card .dataTables_wrapper > .row:last-child {
             margin-left: 0;
             margin-right: 0;
-            padding: 14px 8px;
+            padding: 14px 16px;
         }
         .erp-table-card .table-responsive > .dataTables_wrapper {
             min-width: 100%;
@@ -875,17 +875,49 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
         }
         .table.datatable tbody td {
             font-size: 13px;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
+            white-space: normal;
+        }
+        .table.datatable thead th,
+        .table.datatable .erp-no-wrap {
             white-space: nowrap;
+        }
+        .dataTables_wrapper {
+            max-width: 100%;
+        }
+        .dataTables_wrapper > .row:first-child {
+            align-items: center;
+            background: linear-gradient(180deg, #ffffff, #fbfcfe);
+            border-bottom: 1px solid #edf0f4;
+            margin: 0 !important;
+            padding: 14px 16px !important;
+        }
+        .dataTables_wrapper > .row:last-child {
+            align-items: center;
+            background: #fbfcfe;
+            border-top: 1px solid #edf0f4;
+            margin: 0 !important;
+            padding: 12px 16px !important;
         }
         .dataTables_wrapper .dataTables_length,
         .dataTables_wrapper .dataTables_filter {
-            margin-bottom: 10px;
+            color: #667085;
+            font-size: 11px;
+            font-weight: 700;
+            margin: 0;
         }
         .dataTables_wrapper .dataTables_filter input,
         .dataTables_wrapper .dataTables_length select {
+            background-color: #fff;
             border: 1px solid #d9e1ee;
-            border-radius: 8px;
-            min-height: 34px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(31, 41, 55, .035);
+            min-height: 38px;
+        }
+        .dataTables_wrapper .dataTables_filter input {
+            min-width: min(260px, 100%);
+            padding-left: 13px;
         }
         .dataTables_wrapper .dataTables_info {
             font-size: 12px;
@@ -1055,6 +1087,17 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                 text-align: left;
                 text-transform: uppercase;
             }
+            table.erp-mobile-table tbody td > .erp-mobile-value {
+                flex: 1 1 auto;
+                max-width: 61%;
+                min-width: 0;
+                overflow-wrap: anywhere;
+                text-align: right;
+                white-space: normal;
+            }
+            table.erp-mobile-table tbody td > .erp-mobile-value > * {
+                max-width: 100%;
+            }
             table.erp-mobile-table tbody td[colspan] {
                 display: block !important;
                 padding: 30px 15px !important;
@@ -1105,7 +1148,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             }
             .table.datatable thead th,
             .table.datatable tbody td {
-                white-space: nowrap;
+                white-space: normal;
             }
         }
         @media (max-width: 480px) {
@@ -1330,6 +1373,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             background-color: var(--erp-red) !important;
         }
     </style>
+    <?= $this->renderSection('styles') ?>
 </head>
 <body>
     <div id="globalLoaderOverlay" class="global-loader-overlay active" aria-hidden="false">
@@ -1784,13 +1828,16 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                     if (!$table.hasClass('table-borderless')) {
                         $table.addClass('table-bordered');
                     }
-                    $table.addClass('table-striped align-middle');
+                    $table.addClass('align-middle');
 
                     // Keep entry/input grids stable; enable DataTable on the rest.
                     const hasEditableControls = $table.find('tbody input:not([type="hidden"]), tbody select, tbody textarea').length > 0;
                     const hasTabularHeader = $table.find('thead th').length > 0;
                     const skipAutoDatatable = boolAttr($table.attr('data-dt-skip'), false);
-                    if (!hasEditableControls && hasTabularHeader && !skipAutoDatatable && !$table.hasClass('datatable')) {
+                    const dataRowCount = $table.find('tbody tr').filter(function () {
+                        return $(this).children('td[colspan]').length === 0;
+                    }).length;
+                    if (!hasEditableControls && hasTabularHeader && !skipAutoDatatable && dataRowCount > 10 && !$table.hasClass('datatable')) {
                         $table.addClass('datatable');
                     }
                     if (hasEditableControls && hasTabularHeader) {
@@ -1805,6 +1852,9 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                             $(this).children('td').each(function (index) {
                                 if (!$(this).attr('colspan')) {
                                     $(this).attr('data-label', labels[index] || 'Detail');
+                                    if (!$(this).children('.erp-mobile-value').length) {
+                                        $(this).wrapInner('<div class="erp-mobile-value"></div>');
+                                    }
                                 }
                             });
                         });
@@ -1857,21 +1907,28 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                     const paging = boolAttr($table.attr('data-dt-paging'), true);
                     const info = boolAttr($table.attr('data-dt-info'), true);
                     const pageLengthAttr = parseInt($table.attr('data-dt-page-length') || '10', 10);
+                    const pageLength = Number.isNaN(pageLengthAttr) ? 10 : pageLengthAttr;
+                    const dataRowCount = $table.find('tbody tr').filter(function () {
+                        return $(this).children('td[colspan]').length === 0;
+                    }).length;
+                    const usePaging = paging && dataRowCount > pageLength;
+                    const useSearch = searching && dataRowCount > 5;
 
                     if ($.fn.DataTable.isDataTable(this)) {
                         $table.DataTable().destroy();
                     }
 
                     $table.DataTable({
-                        pageLength: Number.isNaN(pageLengthAttr) ? 10 : pageLengthAttr,
+                        pageLength: pageLength,
                         lengthMenu: [
                             [10, 25, 50, 100, -1],
                             [10, 25, 50, 100, 'All']
                         ],
-                        searching: searching,
+                        searching: useSearch,
                         ordering: ordering,
-                        paging: paging,
-                        info: info,
+                        paging: usePaging,
+                        lengthChange: usePaging,
+                        info: info && usePaging,
                         order: [],
                         autoWidth: false,
                         dom:
@@ -1881,7 +1938,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         language: {
                             search: '',
                             searchPlaceholder: 'Search records...',
-                            lengthMenu: '_MENU_',
+                            lengthMenu: 'Show _MENU_ rows',
                             emptyTable: 'No records available'
                         }
                     });
