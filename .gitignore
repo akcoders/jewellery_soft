@@ -59,6 +59,8 @@ writable/session/*
 
 writable/uploads/*
 !writable/uploads/index.html
+!writable/uploads/production-imports/
+!writable/uploads/production-imports/**
 
 writable/debugbar/*
 !writable/debugbar/index.html
