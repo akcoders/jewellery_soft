@@ -131,7 +131,11 @@ release.zip
 # Runtime web files
 public/null/
 public/uploads/orders/*
+!public/uploads/orders/0793cdfdfbb6dc381b9b76322051573c.jpg
+!public/uploads/orders/817553a6adb449a1850eb4505dd91dff.jpg
 public/uploads/ready-orders/*
+!public/uploads/ready-orders/2026-27/
+!public/uploads/ready-orders/2026-27/**
 
 # Local production source archive. Only the checksum-guarded ready-order workbook
 # required by migration 063 is versioned; invoices and temporary Office files stay local.
