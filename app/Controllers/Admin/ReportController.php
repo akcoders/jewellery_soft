@@ -563,10 +563,12 @@ class ReportController extends BaseController
     public function transactions(): string
     {
         $filters = [
-            'from' => trim((string) ($this->request->getGet('from') ?? date('Y-m-01'))),
-            'to' => trim((string) ($this->request->getGet('to') ?? date('Y-m-d'))),
+            'from' => trim((string) ($this->request->getGet('from') ?? '')),
+            'to' => trim((string) ($this->request->getGet('to') ?? '')),
+            'transaction_group' => trim((string) ($this->request->getGet('transaction_group') ?? '')),
             'transaction_type' => trim((string) ($this->request->getGet('transaction_type') ?? '')),
             'material_type' => trim((string) ($this->request->getGet('material_type') ?? '')),
+            'party_type' => trim((string) ($this->request->getGet('party_type') ?? '')),
             'karigar_id' => (int) ($this->request->getGet('karigar_id') ?? 0),
             'customer_id' => (int) ($this->request->getGet('customer_id') ?? 0),
             'vendor_id' => (int) ($this->request->getGet('vendor_id') ?? 0),
@@ -578,19 +580,39 @@ class ReportController extends BaseController
         $rows = array_merge(
             $this->transactionRowsOrders($filters),
             $this->transactionRowsOrderStatus($filters),
+            $this->transactionRowsOpeningBalances($filters),
             $this->transactionRowsDiamond($filters),
             $this->transactionRowsGold($filters),
             $this->transactionRowsStone($filters),
+            $this->transactionRowsReceivings($filters),
             $this->transactionRowsOrderMovements($filters),
             $this->transactionRowsShowroom($filters),
             $this->transactionRowsAccountPayments($filters)
         );
 
+        foreach ($rows as &$row) {
+            $row['transaction_group'] = $this->transactionGroup((string) ($row['transaction_type'] ?? ''));
+            $row['party_type'] = $this->transactionPartyType($row);
+        }
+        unset($row);
+
+        $transactionTypes = $this->transactionOptionValues($rows, 'transaction_type');
+        $materialTypes = $this->transactionOptionValues($rows, 'material_type');
+        $partyTypes = $this->transactionOptionValues($rows, 'party_type');
+        $statuses = $this->transactionOptionValues($rows, 'status');
+        $transactionGroups = $this->transactionOptionValues($rows, 'transaction_group');
+
+        if ($filters['transaction_group'] !== '') {
+            $rows = array_values(array_filter($rows, static fn(array $row): bool => (string) ($row['transaction_group'] ?? '') === $filters['transaction_group']));
+        }
         if ($filters['transaction_type'] !== '') {
             $rows = array_values(array_filter($rows, static fn(array $row): bool => (string) ($row['transaction_type'] ?? '') === $filters['transaction_type']));
         }
         if ($filters['material_type'] !== '') {
             $rows = array_values(array_filter($rows, static fn(array $row): bool => (string) ($row['material_type'] ?? '') === $filters['material_type']));
+        }
+        if ($filters['party_type'] !== '') {
+            $rows = array_values(array_filter($rows, static fn(array $row): bool => (string) ($row['party_type'] ?? '') === $filters['party_type']));
         }
         if ($filters['karigar_id'] > 0) {
             $rows = array_values(array_filter($rows, static fn(array $row): bool => (int) ($row['karigar_id'] ?? 0) === $filters['karigar_id']));
@@ -615,8 +637,10 @@ class ReportController extends BaseController
                     (string) ($row['reference_no'] ?? ''),
                     (string) ($row['order_no'] ?? ''),
                     (string) ($row['transaction_type'] ?? ''),
+                    (string) ($row['transaction_group'] ?? ''),
                     (string) ($row['material_type'] ?? ''),
                     (string) ($row['party_name'] ?? ''),
+                    (string) ($row['party_type'] ?? ''),
                     (string) ($row['status'] ?? ''),
                     (string) ($row['notes'] ?? ''),
                 ]));
@@ -640,6 +664,7 @@ class ReportController extends BaseController
             'stone_total' => 0.0,
         ];
         $typeCounts = [];
+        $groupCounts = [];
         foreach ($rows as $row) {
             $cards['amount_total'] += (float) ($row['amount'] ?? 0);
             $cards['gold_total'] += (float) ($row['gold_gm'] ?? 0);
@@ -647,7 +672,10 @@ class ReportController extends BaseController
             $cards['stone_total'] += (float) ($row['stone_qty'] ?? 0);
             $type = (string) ($row['transaction_type'] ?? 'Unknown');
             $typeCounts[$type] = ($typeCounts[$type] ?? 0) + 1;
+            $group = (string) ($row['transaction_group'] ?? 'Other');
+            $groupCounts[$group] = ($groupCounts[$group] ?? 0) + 1;
         }
+        ksort($typeCounts);
 
         return view('admin/reports/transactions', [
             'title' => 'Combined Transaction Report',
@@ -655,12 +683,15 @@ class ReportController extends BaseController
             'cards' => $cards,
             'filters' => $filters,
             'typeCounts' => $typeCounts,
+            'groupCounts' => $groupCounts,
             'karigars' => $this->karigarOptions(),
             'customers' => $this->customerOptions(),
             'vendors' => $this->vendorOptions(),
-            'transactionTypes' => $this->transactionTypeOptions(),
-            'materialTypes' => ['Gold', 'Diamond', 'Stone', 'FG', 'Order', 'Accounts'],
-            'statuses' => $this->orderStatusOptions(),
+            'transactionGroups' => $transactionGroups,
+            'transactionTypes' => $transactionTypes,
+            'materialTypes' => $materialTypes,
+            'partyTypes' => $partyTypes,
+            'statuses' => $statuses,
         ]);
     }
 
@@ -1124,6 +1155,104 @@ class ReportController extends BaseController
         ];
     }
 
+    private function transactionGroup(string $transactionType): string
+    {
+        $type = strtolower(trim($transactionType));
+
+        if (str_contains($type, 'opening')) {
+            return 'Opening';
+        }
+        if (str_contains($type, 'payment') || str_contains($type, 'receipt')) {
+            return 'Payment';
+        }
+        if (str_contains($type, 'purchase')) {
+            return 'Purchase';
+        }
+        if (str_contains($type, 'issue')) {
+            return 'Issuement';
+        }
+        if (str_contains($type, 'receive')) {
+            return 'Receiving';
+        }
+        if (str_contains($type, 'return')) {
+            return 'Return';
+        }
+        if (str_contains($type, 'adjustment')) {
+            return 'Adjustment';
+        }
+        if (str_contains($type, 'labour bill')) {
+            return 'Labour';
+        }
+        if (str_contains($type, 'showroom')) {
+            return 'Showroom';
+        }
+        if (str_contains($type, 'order')) {
+            return 'Order';
+        }
+
+        return 'Other';
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private function transactionPartyType(array $row): string
+    {
+        $type = strtolower((string) ($row['transaction_type'] ?? ''));
+        $party = strtolower(trim((string) ($row['party_name'] ?? '')));
+
+        // The transaction meaning takes precedence because order rows can carry
+        // both a customer and an assigned karigar while the displayed party is
+        // still the customer.
+        if (str_contains($type, 'purchase') || str_contains($type, 'vendor payment')) {
+            return 'Vendor';
+        }
+        if (str_contains($type, 'customer') || str_contains($type, 'order created') || str_contains($type, 'order status')) {
+            return 'Customer';
+        }
+        if (str_contains($type, 'issue') || str_contains($type, 'return') || str_contains($type, 'order receive') || str_contains($type, 'labour')) {
+            return 'Karigar';
+        }
+        if (str_contains($type, 'showroom')) {
+            return 'Showroom';
+        }
+
+        if ((int) ($row['karigar_id'] ?? 0) > 0) {
+            return 'Karigar';
+        }
+        if ((int) ($row['vendor_id'] ?? 0) > 0) {
+            return 'Vendor';
+        }
+        if ((int) ($row['customer_id'] ?? 0) > 0) {
+            return 'Customer';
+        }
+        if ($party === '' || $party === '-' || in_array($party, ['inventory', 'opening balance'], true)) {
+            return 'System';
+        }
+
+        return 'Other';
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private function transactionOptionValues(array $rows, string $key): array
+    {
+        $options = [];
+        foreach ($rows as $row) {
+            $value = trim((string) ($row[$key] ?? ''));
+            if ($value !== '') {
+                $options[$value] = true;
+            }
+        }
+
+        $values = array_keys($options);
+        natcasesort($values);
+
+        return array_values($values);
+    }
+
     /**
      * @param array<string,mixed> $filters
      * @return list<array<string,mixed>>
@@ -1139,16 +1268,45 @@ class ReportController extends BaseController
 
     private function transactionRowsOrderStatus(array $filters): array
     {
-        if (! db_connect()->tableExists('order_status_histories')) {
+        if (! db_connect()->tableExists('order_status_history')) {
             return [];
         }
 
-        $builder = db_connect()->table('order_status_histories h')
+        $builder = db_connect()->table('order_status_history h')
             ->select("DATE(h.created_at) as transaction_date, 'Order Status' as transaction_type, 'Order' as material_type, o.order_no, CONCAT('STATUS#', h.id) as reference_no, c.name as party_name, h.to_status as status, o.customer_id, o.assigned_karigar_id as karigar_id, NULL as vendor_id, 0 as gold_gm, 0 as diamond_cts, 0 as stone_qty, 0 as amount, CONCAT(COALESCE(h.from_status,'-'), ' -> ', COALESCE(h.to_status,'-'), ' | ', COALESCE(h.remarks,'')) as notes", false)
             ->join('orders o', 'o.id = h.order_id', 'inner')
             ->join('customers c', 'c.id = o.customer_id', 'left');
 
         return $this->fetchRowsByDate($builder, 'DATE(h.created_at)', $filters);
+    }
+
+    /**
+     * Opening balances are real stock transactions and must remain visible in the
+     * combined register even when they were created by a historical import.
+     *
+     * @param array<string,mixed> $filters
+     * @return list<array<string,mixed>>
+     */
+    private function transactionRowsOpeningBalances(array $filters): array
+    {
+        $rows = [];
+        $db = db_connect();
+
+        if ($db->tableExists('gold_inventory_ledger_entries')) {
+            $builder = $db->table('gold_inventory_ledger_entries gle')
+                ->select("gle.txn_date as transaction_date, 'Gold Opening' as transaction_type, 'Gold' as material_type, NULL as order_no, CONCAT('GOPEN#', gle.id) as reference_no, 'Opening Balance' as party_name, 'Posted' as status, NULL as customer_id, NULL as karigar_id, NULL as vendor_id, COALESCE(gle.debit_weight_gm,0) as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(gle.line_value,0) as amount, gle.notes as notes", false)
+                ->where("UPPER(gle.txn_type) = 'OPENING_BALANCE'", null, false);
+            $rows = array_merge($rows, $this->fetchRowsByDate($builder, 'gle.txn_date', $filters));
+        }
+
+        if ($db->tableExists('diamond_inventory_opening_balances')) {
+            $builder = $db->table('diamond_inventory_opening_balances ob')
+                ->select("ob.opening_date as transaction_date, 'Diamond Opening' as transaction_type, 'Diamond' as material_type, NULL as order_no, COALESCE(NULLIF(ob.reference_no,''), CONCAT('DOPEN#', MIN(ob.id))) as reference_no, 'Opening Balance' as party_name, 'Posted' as status, NULL as customer_id, NULL as karigar_id, NULL as vendor_id, 0 as gold_gm, COALESCE(SUM(ob.carat),0) as diamond_cts, COALESCE(SUM(ob.pcs),0) as stone_qty, COALESCE(SUM(ob.line_value),0) as amount, MAX(ob.notes) as notes", false)
+                ->groupBy('ob.opening_date, ob.reference_no');
+            $rows = array_merge($rows, $this->fetchRowsByDate($builder, 'ob.opening_date', $filters));
+        }
+
+        return $rows;
     }
 
     private function transactionRowsDiamond(array $filters): array
@@ -1157,7 +1315,7 @@ class ReportController extends BaseController
         $db = db_connect();
         if ($db->tableExists('purchase_headers') && $db->tableExists('purchase_lines')) {
             $builder = $db->table('purchase_headers ph')
-                ->select("ph.purchase_date as transaction_date, 'Diamond Purchase' as transaction_type, 'Diamond' as material_type, NULL as order_no, COALESCE(NULLIF(ph.invoice_no,''), CONCAT('DPUR#', ph.id)) as reference_no, COALESCE(v.name, ph.supplier_name, '-') as party_name, 'Posted' as status, NULL as customer_id, NULL as karigar_id, ph.vendor_id, 0 as gold_gm, COALESCE(SUM(pl.carat),0) as diamond_cts, 0 as stone_qty, COALESCE(MAX(ph.invoice_total), SUM(pl.line_value), 0) as amount, ph.notes as notes", false)
+                ->select("ph.purchase_date as transaction_date, 'Diamond Purchase' as transaction_type, 'Diamond' as material_type, NULL as order_no, COALESCE(NULLIF(ph.invoice_no,''), CONCAT('DPUR#', ph.id)) as reference_no, COALESCE(v.name, ph.supplier_name, '-') as party_name, COALESCE(NULLIF(ph.payment_status,''), 'Posted') as status, NULL as customer_id, NULL as karigar_id, ph.vendor_id, 0 as gold_gm, COALESCE(SUM(pl.carat),0) as diamond_cts, 0 as stone_qty, COALESCE(MAX(ph.invoice_total), SUM(pl.line_value), 0) as amount, ph.notes as notes", false)
                 ->join('purchase_lines pl', 'pl.purchase_id = ph.id', 'inner')
                 ->join('vendors v', 'v.id = ph.vendor_id', 'left')
                 ->groupBy('ph.id');
@@ -1181,6 +1339,13 @@ class ReportController extends BaseController
                 ->groupBy('rh.id');
             $rows = array_merge($rows, $this->fetchRowsByDate($builder, 'rh.return_date', $filters));
         }
+        if ($db->tableExists('diamond_inventory_adjustment_headers') && $db->tableExists('diamond_inventory_adjustment_lines')) {
+            $builder = $db->table('diamond_inventory_adjustment_headers ah')
+                ->select("ah.adjustment_date as transaction_date, 'Diamond Adjustment' as transaction_type, 'Diamond' as material_type, NULL as order_no, CONCAT('DADJ#', ah.id) as reference_no, 'Inventory' as party_name, ah.adjustment_type as status, NULL as customer_id, NULL as karigar_id, NULL as vendor_id, 0 as gold_gm, COALESCE(SUM(al.carat),0) as diamond_cts, COALESCE(SUM(al.pcs),0) as stone_qty, COALESCE(SUM(al.line_value),0) as amount, ah.notes as notes", false)
+                ->join('diamond_inventory_adjustment_lines al', 'al.adjustment_id = ah.id', 'inner')
+                ->groupBy('ah.id');
+            $rows = array_merge($rows, $this->fetchRowsByDate($builder, 'ah.adjustment_date', $filters));
+        }
         return $rows;
     }
 
@@ -1190,8 +1355,9 @@ class ReportController extends BaseController
         $db = db_connect();
         if ($db->tableExists('gold_inventory_purchase_headers') && $db->tableExists('gold_inventory_purchase_lines')) {
             $builder = $db->table('gold_inventory_purchase_headers ph')
-                ->select("ph.purchase_date as transaction_date, 'Gold Purchase' as transaction_type, 'Gold' as material_type, NULL as order_no, COALESCE(NULLIF(ph.invoice_no,''), CONCAT('GPUR#', ph.id)) as reference_no, COALESCE(ph.supplier_name, '-') as party_name, 'Posted' as status, NULL as customer_id, NULL as karigar_id, NULL as vendor_id, COALESCE(SUM(pl.weight_gm),0) as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(SUM(pl.line_value),0) as amount, ph.notes as notes", false)
+                ->select("ph.purchase_date as transaction_date, 'Gold Purchase' as transaction_type, 'Gold' as material_type, NULL as order_no, COALESCE(NULLIF(ph.invoice_no,''), CONCAT('GPUR#', ph.id)) as reference_no, COALESCE(v.name, ph.supplier_name, '-') as party_name, COALESCE(NULLIF(ph.payment_status,''), 'Posted') as status, NULL as customer_id, NULL as karigar_id, ph.vendor_id, COALESCE(SUM(pl.weight_gm),0) as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(MAX(ph.invoice_total), SUM(pl.line_value), 0) as amount, ph.notes as notes", false)
                 ->join('gold_inventory_purchase_lines pl', 'pl.purchase_id = ph.id', 'inner')
+                ->join('vendors v', 'v.id = ph.vendor_id', 'left')
                 ->groupBy('ph.id');
             $rows = array_merge($rows, $this->fetchRowsByDate($builder, 'ph.purchase_date', $filters));
         }
@@ -1263,6 +1429,30 @@ class ReportController extends BaseController
         return $rows;
     }
 
+    /**
+     * Completed-order receipts are represented by the receiving summary. The
+     * associated order movement is deliberately excluded later so one physical
+     * receipt never appears twice in the combined report.
+     *
+     * @param array<string,mixed> $filters
+     * @return list<array<string,mixed>>
+     */
+    private function transactionRowsReceivings(array $filters): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('order_receive_summaries')) {
+            return [];
+        }
+
+        $builder = $db->table('order_receive_summaries ors')
+            ->select("DATE(ors.created_at) as transaction_date, 'Order Receive' as transaction_type, 'Finished Jewellery' as material_type, o.order_no, CONCAT('RECV#', ors.id) as reference_no, COALESCE(k.name, c.name, '-') as party_name, 'Received' as status, o.customer_id, o.assigned_karigar_id as karigar_id, NULL as vendor_id, COALESCE(ors.net_gold_weight_gm,0) as gold_gm, COALESCE(ors.diamond_weight_cts,0) as diamond_cts, COALESCE(ors.stone_weight_cts,0) as stone_qty, COALESCE(ors.total_valuation,0) as amount, CONCAT('Gross ', FORMAT(COALESCE(ors.gross_weight_gm,0),3), ' gm | Pure gold ', FORMAT(COALESCE(ors.pure_gold_weight_gm,0),3), ' gm | Labour Rs ', FORMAT(COALESCE(ors.labour_amount,0),2)) as notes", false)
+            ->join('orders o', 'o.id = ors.order_id', 'inner')
+            ->join('customers c', 'c.id = o.customer_id', 'left')
+            ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left');
+
+        return $this->fetchRowsByDate($builder, 'DATE(ors.created_at)', $filters);
+    }
+
     private function transactionRowsOrderMovements(array $filters): array
     {
         if (! db_connect()->tableExists('order_material_movements')) {
@@ -1274,6 +1464,10 @@ class ReportController extends BaseController
             ->join('orders o', 'o.id = om.order_id', 'left')
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('karigars k', 'k.id = om.karigar_id', 'left');
+
+        if (db_connect()->tableExists('order_receive_summaries')) {
+            $builder->where("LOWER(om.movement_type) != 'receive'", null, false);
+        }
 
         return $this->fetchRowsByDate($builder, 'DATE(om.created_at)', $filters);
     }
@@ -1318,12 +1512,9 @@ class ReportController extends BaseController
     private function transactionRowsAccountPayments(array $filters): array
     {
         $rows = [];
+        $paymentRows = [];
         $db = db_connect();
-        if ($db->tableExists('purchase_bill_payments')) {
-            $builder = $db->table('purchase_bill_payments p')
-                ->select("p.payment_date as transaction_date, 'Purchase Payment' as transaction_type, 'Accounts' as material_type, NULL as order_no, COALESCE(NULLIF(p.reference_no,''), CONCAT('PPAY#', p.id)) as reference_no, '-' as party_name, p.source_type as status, NULL as customer_id, NULL as karigar_id, NULL as vendor_id, 0 as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(p.amount,0) as amount, p.notes as notes", false);
-            $rows = array_merge($rows, $this->fetchRowsByDate($builder, 'p.payment_date', $filters));
-        }
+
         if ($db->tableExists('labour_bills')) {
             $builder = $db->table('labour_bills lb')
                 ->select("lb.bill_date as transaction_date, 'Labour Bill' as transaction_type, 'Accounts' as material_type, o.order_no, COALESCE(NULLIF(lb.bill_no,''), CONCAT('LB#', lb.id)) as reference_no, COALESCE(k.name, '-') as party_name, lb.payment_status as status, o.customer_id, lb.karigar_id, NULL as vendor_id, COALESCE(lb.gold_weight_gm,0) as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(lb.total_amount,0) as amount, lb.notes as notes", false)
@@ -1331,15 +1522,90 @@ class ReportController extends BaseController
                 ->join('karigars k', 'k.id = lb.karigar_id', 'left');
             $rows = array_merge($rows, $this->fetchRowsByDate($builder, 'lb.bill_date', $filters));
         }
+
+        // account_payments is the canonical register used by the current web
+        // workflow and both production importers.
+        if ($db->tableExists('account_payments')) {
+            $builder = $db->table('account_payments ap')
+                ->select("ap.payment_date as transaction_date, CASE WHEN ap.party_type='karigar' THEN 'Karigar Payment' WHEN ap.party_type='vendor' THEN 'Vendor Payment' WHEN ap.party_type='customer' THEN 'Customer Payment' ELSE 'Payment' END as transaction_type, 'Accounts' as material_type, o.order_no, COALESCE(NULLIF(ap.reference_no,''), NULLIF(ap.payment_no,''), CONCAT('PAY#', ap.id)) as reference_no, COALESCE(k.name, v.name, '-') as party_name, 'Paid' as status, o.customer_id, ap.karigar_id, ap.vendor_id, 0 as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(ap.amount,0) as amount, CONCAT_WS(' | ', NULLIF(ap.payment_no,''), NULLIF(ap.payment_mode,''), NULLIF(ap.notes,'')) as notes", false)
+                ->join('karigars k', 'k.id = ap.karigar_id', 'left')
+                ->join('vendors v', 'v.id = ap.vendor_id', 'left')
+                ->join('labour_bills lb', 'lb.id = COALESCE(ap.labour_bill_id, CASE WHEN ap.bill_source_type=\'labour_bill\' THEN ap.bill_source_id ELSE NULL END)', 'left', false)
+                ->join('orders o', 'o.id = lb.order_id', 'left');
+            $paymentRows = array_merge($paymentRows, $this->fetchRowsByDate($builder, 'ap.payment_date', $filters));
+        }
+
+        // The following legacy registers are still written by API/older flows.
+        // They are merged as fallbacks and de-duplicated against account_payments.
+        if ($db->tableExists('purchase_bill_payments')) {
+            $builder = $db->table('purchase_bill_payments p')
+                ->select("p.payment_date as transaction_date, 'Vendor Payment' as transaction_type, 'Accounts' as material_type, NULL as order_no, COALESCE(NULLIF(p.reference_no,''), CONCAT('PPAY#', p.id)) as reference_no, COALESCE(v.name, dph.supplier_name, gph.supplier_name, sph.supplier_name, '-') as party_name, 'Paid' as status, NULL as customer_id, NULL as karigar_id, COALESCE(dph.vendor_id, gph.vendor_id, sph.vendor_id) as vendor_id, 0 as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(p.amount,0) as amount, p.notes as notes", false)
+                ->join('purchase_headers dph', "dph.id = p.source_id AND p.source_type = 'diamond'", 'left', false)
+                ->join('gold_inventory_purchase_headers gph', "gph.id = p.source_id AND p.source_type = 'gold'", 'left', false)
+                ->join('stone_inventory_purchase_headers sph', "sph.id = p.source_id AND p.source_type = 'stone'", 'left', false)
+                ->join('vendors v', 'v.id = COALESCE(dph.vendor_id, gph.vendor_id, sph.vendor_id)', 'left', false);
+            $paymentRows = array_merge($paymentRows, $this->fetchRowsByDate($builder, 'p.payment_date', $filters));
+        }
+
+        if ($db->tableExists('vendor_payments')) {
+            $builder = $db->table('vendor_payments vp')
+                ->select("vp.payment_date as transaction_date, 'Vendor Payment' as transaction_type, 'Accounts' as material_type, NULL as order_no, COALESCE(NULLIF(vp.reference_no,''), NULLIF(vp.payment_no,''), CONCAT('VPAY#', vp.id)) as reference_no, COALESCE(v.name, '-') as party_name, 'Paid' as status, NULL as customer_id, NULL as karigar_id, vp.vendor_id, 0 as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(vp.amount,0) as amount, vp.notes as notes", false)
+                ->join('vendors v', 'v.id = vp.vendor_id', 'left');
+            $paymentRows = array_merge($paymentRows, $this->fetchRowsByDate($builder, 'vp.payment_date', $filters));
+        }
+
         if ($db->tableExists('labour_bill_payments')) {
             $builder = $db->table('labour_bill_payments lp')
-                ->select("lp.payment_date as transaction_date, 'Labour Payment' as transaction_type, 'Accounts' as material_type, o.order_no, COALESCE(NULLIF(lp.reference_no,''), CONCAT('LPAY#', lp.id)) as reference_no, COALESCE(k.name, '-') as party_name, 'Paid' as status, o.customer_id, lb.karigar_id, NULL as vendor_id, 0 as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(lp.amount,0) as amount, lp.notes as notes", false)
+                ->select("lp.payment_date as transaction_date, 'Karigar Payment' as transaction_type, 'Accounts' as material_type, o.order_no, COALESCE(NULLIF(lp.reference_no,''), CONCAT('LPAY#', lp.id)) as reference_no, COALESCE(k.name, '-') as party_name, 'Paid' as status, o.customer_id, lb.karigar_id, NULL as vendor_id, 0 as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(lp.amount,0) as amount, lp.notes as notes", false)
                 ->join('labour_bills lb', 'lb.id = lp.labour_bill_id', 'inner')
                 ->join('orders o', 'o.id = lb.order_id', 'left')
                 ->join('karigars k', 'k.id = lb.karigar_id', 'left');
-            $rows = array_merge($rows, $this->fetchRowsByDate($builder, 'lp.payment_date', $filters));
+            $paymentRows = array_merge($paymentRows, $this->fetchRowsByDate($builder, 'lp.payment_date', $filters));
         }
-        return $rows;
+
+        if ($db->tableExists('karigar_payment_ledgers')) {
+            $builder = $db->table('karigar_payment_ledgers kp')
+                ->select("DATE(kp.created_at) as transaction_date, 'Karigar Payment' as transaction_type, 'Accounts' as material_type, o.order_no, COALESCE(NULLIF(kp.reference_no,''), CONCAT('KPAY#', kp.id)) as reference_no, COALESCE(k.name, '-') as party_name, 'Paid' as status, o.customer_id, kp.karigar_id, NULL as vendor_id, 0 as gold_gm, 0 as diamond_cts, 0 as stone_qty, COALESCE(kp.amount,0) as amount, kp.notes as notes", false)
+                ->join('orders o', 'o.id = kp.order_id', 'left')
+                ->join('karigars k', 'k.id = kp.karigar_id', 'left')
+                ->where("LOWER(kp.entry_type) = 'payment'", null, false);
+            $paymentRows = array_merge($paymentRows, $this->fetchRowsByDate($builder, 'DATE(kp.created_at)', $filters));
+        }
+
+        return array_merge($rows, $this->uniquePaymentRows($paymentRows));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private function uniquePaymentRows(array $rows): array
+    {
+        $unique = [];
+        $seen = [];
+        foreach ($rows as $row) {
+            $partyType = $this->transactionPartyType($row);
+            $partyId = match ($partyType) {
+                'Karigar' => (int) ($row['karigar_id'] ?? 0),
+                'Vendor' => (int) ($row['vendor_id'] ?? 0),
+                'Customer' => (int) ($row['customer_id'] ?? 0),
+                default => 0,
+            };
+            $key = implode('|', [
+                (string) ($row['transaction_date'] ?? ''),
+                $partyType,
+                (string) $partyId,
+                number_format((float) ($row['amount'] ?? 0), 2, '.', ''),
+                strtoupper(trim((string) ($row['reference_no'] ?? ''))),
+            ]);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $unique[] = $row;
+        }
+
+        return $unique;
     }
 
     /**
@@ -1350,10 +1616,18 @@ class ReportController extends BaseController
     private function fetchRowsByDate($builder, string $dateField, array $filters): array
     {
         if (($filters['from'] ?? '') !== '') {
-            $builder->where($dateField . ' >=', $filters['from'], false);
+            $builder->where(
+                $dateField . ' >= ' . db_connect()->escape((string) $filters['from']),
+                null,
+                false
+            );
         }
         if (($filters['to'] ?? '') !== '') {
-            $builder->where($dateField . ' <=', $filters['to'], false);
+            $builder->where(
+                $dateField . ' <= ' . db_connect()->escape((string) $filters['to']),
+                null,
+                false
+            );
         }
 
         return $builder->get()->getResultArray();
