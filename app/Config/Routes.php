@@ -6,8 +6,6 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 $routes->get('/', 'Home::index');
-$routes->get('order-request', 'PublicOrderRequestController::create');
-$routes->post('order-request', 'PublicOrderRequestController::store', ['filter' => 'csrf']);
 
 $routes->get('customer/login', 'Customer\AuthController::login');
 $routes->post('customer/login', 'Customer\AuthController::attemptLogin', ['filter' => 'csrf']);
@@ -172,9 +170,6 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('company-settings', 'Admin\CompanySettingsController::update', ['filter' => 'permission:company-settings.manage']);
     $routes->get('system/database-update', 'Admin\DatabaseUpdateController::index', ['filter' => 'permission:company-settings.manage']);
     $routes->post('system/database-update', 'Admin\DatabaseUpdateController::run', ['filter' => 'permission:company-settings.manage']);
-    $routes->get('system/production-import', 'Admin\ProductionImportController::index', ['filter' => 'permission:company-settings.manage']);
-    $routes->post('system/production-import', 'Admin\ProductionImportController::import', ['filter' => 'permission:company-settings.manage']);
-    $routes->get('system/production-import/document/(:num)', 'Admin\ProductionImportController::document/$1', ['filter' => 'permission:company-settings.manage']);
     $routes->get('purchases', 'Admin\PurchaseController::index', ['filter' => 'permission:gold.inventory.read,stone.inventory.read']);
     $routes->get('purchases/gold/create', 'Admin\PurchaseController::createGold', ['filter' => 'permission:gold.inventory.manage']);
     $routes->post('purchases/gold', 'Admin\PurchaseController::storeGold', ['filter' => 'permission:gold.inventory.manage']);

@@ -15,7 +15,6 @@ $isUpToDate = ($stateError ?? '') === '' && $pendingMigrations === [];
         <p class="mb-0">Apply pending application migrations safely after deploying new code.</p>
     </div>
     <div class="d-flex align-items-center gap-2">
-        <a href="<?= site_url('admin/system/production-import') ?>" class="btn btn-outline-primary"><i class="fe fe-upload-cloud me-1"></i> Production Import</a>
         <span class="badge <?= $isUpToDate ? 'bg-success' : 'bg-warning text-dark' ?> px-3 py-2">
             <i class="fe <?= $isUpToDate ? 'fe-check-circle' : 'fe-alert-circle' ?> me-1"></i>
             <?= $isUpToDate ? 'Database Up to Date' : count($pendingMigrations) . ' Pending' ?>

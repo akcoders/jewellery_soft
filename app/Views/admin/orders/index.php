@@ -4,7 +4,6 @@
 <?php $orderMode = (string) ($orderMode ?? 'all'); ?>
 <?php $isReadyMode = $orderMode === 'ready'; ?>
 <?php $isAllMode = $orderMode === 'all'; ?>
-<?php $publicOrderRequestUrl = (string) ($publicOrderRequestUrl ?? site_url('order-request')); ?>
 <div class="erp-page-toolbar flex-wrap mb-3">
     <div>
         <span class="erp-eyebrow">Production workflow</span>
@@ -12,17 +11,6 @@
         <p class="mb-0">Track customer orders, assignments, production and delivery status.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <?php if (admin_can('orders.create')): ?>
-            <button
-                type="button"
-                id="copy-public-order-link"
-                class="btn btn-outline-secondary"
-                data-copy-url="<?= esc($publicOrderRequestUrl, 'attr') ?>"
-                title="Copy the external order creation link">
-                <i class="fe fe-copy me-1" aria-hidden="true"></i>
-                <span class="js-copy-label">Copy External Order Link</span>
-            </button>
-        <?php endif; ?>
         <?php if (admin_can('orders.create') && ! in_array($orderMode, ['repair', 'ready'], true)): ?>
             <a href="<?= site_url('admin/orders/create') ?>" class="btn btn-primary"><i class="fe fe-plus"></i> Create Order</a>
         <?php endif; ?>
@@ -746,82 +734,6 @@
                 recalcReceiveModal();
             });
         }
-    })();
-</script>
-<?php endif; ?>
-<?php if (admin_can('orders.create')): ?>
-<script>
-    (function () {
-        const copyButton = document.getElementById('copy-public-order-link');
-        if (!copyButton) return;
-
-        const label = copyButton.querySelector('.js-copy-label');
-        const originalLabel = label ? label.textContent : '';
-        let resetTimer = null;
-
-        function fallbackCopy(text) {
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.setAttribute('readonly', '');
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-
-            const copied = document.execCommand('copy');
-            textarea.remove();
-
-            if (!copied) {
-                throw new Error('Clipboard copy was blocked.');
-            }
-        }
-
-        async function copyText(text) {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(text);
-                return;
-            }
-
-            fallbackCopy(text);
-        }
-
-        function showCopiedState() {
-            if (resetTimer) window.clearTimeout(resetTimer);
-            copyButton.classList.remove('btn-outline-secondary');
-            copyButton.classList.add('btn-success');
-            if (label) label.textContent = 'Link Copied';
-
-            resetTimer = window.setTimeout(function () {
-                copyButton.classList.remove('btn-success');
-                copyButton.classList.add('btn-outline-secondary');
-                if (label) label.textContent = originalLabel;
-            }, 2200);
-        }
-
-        copyButton.addEventListener('click', async function () {
-            const url = copyButton.getAttribute('data-copy-url') || '';
-            if (!url) return;
-
-            try {
-                await copyText(url);
-                showCopiedState();
-
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'External order link copied',
-                        text: url,
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 2400,
-                        timerProgressBar: true
-                    });
-                }
-            } catch (error) {
-                window.prompt('Copy this external order link:', url);
-            }
-        });
     })();
 </script>
 <?php endif; ?>

@@ -22,7 +22,6 @@ $showRepairFields = $selectedOrderType === 'Repair';
         <p class="mb-0">Capture customer, product and manufacturing requirements.</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="<?= site_url('order-request') ?>" target="_blank" class="btn btn-outline-success">Public Order Link</a>
         <a href="<?= site_url($isRepairMode ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-primary">Back</a>
     </div>
 </div>
@@ -75,15 +74,6 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     <select name="priority" class="form-control js-searchable-select">
                         <?php foreach ($priorities as $priority): ?>
                             <option value="<?= esc($priority) ?>" <?= (string) old('priority', 'Medium') === (string) $priority ? 'selected' : '' ?>><?= esc($priority) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Assign Karigar</label>
-                    <select name="assigned_karigar_id" class="form-control js-searchable-select">
-                        <option value="">Assign later</option>
-                        <?php foreach (($karigars ?? []) as $karigar): ?>
-                            <option value="<?= (int) $karigar['id'] ?>" <?= (string) old('assigned_karigar_id') === (string) $karigar['id'] ? 'selected' : '' ?>><?= esc((string) $karigar['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>

@@ -6,7 +6,6 @@ $summary = is_array($summary ?? null) ? $summary : [];
 $statusCounts = is_array($statusCounts ?? null) ? $statusCounts : [];
 $selectedStatus = (string) ($selectedStatus ?? '');
 $selectedView = (string) ($selectedView ?? '');
-$publicOrderRequestUrl = (string) ($publicOrderRequestUrl ?? site_url('order-request'));
 $statusClass = static fn(string $status): string => match ($status) {
     'Completed', 'Dispatched', 'Ready' => 'success',
     'Cancelled' => 'danger',
@@ -144,6 +143,24 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     .order-dashboard-table tbody tr { border-left: 3px solid transparent; }
     .order-dashboard-table tbody tr:hover { border-left-color: var(--erp-gold); }
     .order-number { font-size: 12px; font-weight: 800; letter-spacing: .01em; }
+    .order-identity { align-items: center; display: flex; gap: 10px; min-width: 0; }
+    .order-identity-copy { min-width: 0; }
+    .order-mini-photo {
+        align-items: center;
+        background: linear-gradient(145deg, #fff6dc, #f5ead0);
+        border: 1px solid #eadbb7;
+        border-radius: 10px;
+        color: #a67f14 !important;
+        display: inline-flex;
+        flex: 0 0 46px;
+        height: 46px;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+        width: 46px;
+    }
+    .order-mini-photo img { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; z-index: 1; }
+    .order-mini-photo i { font-size: 18px; }
     .order-row-meta { align-items: center; color: #8b95a5; display: flex; flex-wrap: wrap; font-size: 10px; gap: 6px; margin-top: 5px; }
     .order-row-meta span + span::before { color: #c5ccd6; content: '\2022'; margin-right: 6px; }
     .order-source-name { color: #273142; font-size: 12px; font-weight: 750; }
@@ -257,9 +274,6 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     </div>
     <div class="d-flex flex-wrap gap-2">
         <?php if (admin_can('orders.create')): ?>
-            <button type="button" id="copy-dashboard-order-link" class="btn btn-outline-secondary" data-copy-url="<?= esc($publicOrderRequestUrl, 'attr') ?>">
-                <i class="fe fe-copy me-1"></i> <span>Copy External Order Link</span>
-            </button>
             <a href="<?= site_url('admin/orders/create') ?>" class="btn btn-primary"><i class="fe fe-plus me-1"></i> Create Order</a>
         <?php endif; ?>
         <a href="<?= site_url('admin/orders') ?>" class="btn btn-outline-primary"><i class="fe fe-list me-1"></i> Order List</a>
@@ -346,8 +360,18 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
                         <?php $source = trim((string) (($order['customer_name'] ?? '') ?: ($order['order_from'] ?? '') ?: '-')); ?>
                         <tr>
                             <td>
-                                <a href="<?= site_url('admin/orders/' . (int) $order['id']) ?>" class="erp-data-link order-number"><?= esc((string) $order['order_no']) ?></a>
-                                <div class="order-row-meta"><span><?= esc((string) ($order['order_type'] ?? '-')) ?></span><span><?= esc($formatDate((string) ($order['created_at'] ?? ''))) ?></span></div>
+                                <div class="order-identity">
+                                    <a href="<?= site_url('admin/orders/' . (int) $order['id']) ?>" class="order-mini-photo" aria-label="Open order <?= esc((string) $order['order_no'], 'attr') ?>">
+                                        <i class="fe fe-image" aria-hidden="true"></i>
+                                        <?php if (! empty($order['thumbnail_url'])): ?>
+                                            <img src="<?= esc((string) $order['thumbnail_url'], 'attr') ?>" alt="Order jewellery" loading="lazy" onerror="this.style.display='none'">
+                                        <?php endif; ?>
+                                    </a>
+                                    <div class="order-identity-copy">
+                                        <a href="<?= site_url('admin/orders/' . (int) $order['id']) ?>" class="erp-data-link order-number"><?= esc((string) $order['order_no']) ?></a>
+                                        <div class="order-row-meta"><span><?= esc((string) ($order['order_type'] ?? '-')) ?></span><span><?= esc($formatDate((string) ($order['created_at'] ?? ''))) ?></span></div>
+                                    </div>
+                                </div>
                             </td>
                             <td>
                                 <div class="order-source-name"><?= esc($source) ?></div>
@@ -559,24 +583,6 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
             });
         }
 
-        const copyButton = document.getElementById('copy-dashboard-order-link');
-        if (copyButton) {
-            copyButton.addEventListener('click', async function () {
-                const url = copyButton.getAttribute('data-copy-url') || '';
-                try {
-                    await navigator.clipboard.writeText(url);
-                    const label = copyButton.querySelector('span');
-                    if (label) label.textContent = 'Link Copied';
-                    copyButton.classList.add('btn-success');
-                    window.setTimeout(function () {
-                        if (label) label.textContent = 'Copy External Order Link';
-                        copyButton.classList.remove('btn-success');
-                    }, 2200);
-                } catch (error) {
-                    window.prompt('Copy this external order link:', url);
-                }
-            });
-        }
     })();
 </script>
 <?= $this->endSection() ?>

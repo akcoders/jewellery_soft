@@ -128,6 +128,7 @@ class OrderController extends BaseController
         $latestFollowupByOrder = [];
         $itemsByOrder = [];
         $designUsage = [];
+        $thumbnailByOrder = $this->dashboardOrderThumbnails($orderIds);
 
         if ($orderIds !== []) {
             $latestSubquery = db_connect()->table('order_followups')
@@ -239,6 +240,7 @@ class OrderController extends BaseController
             $order['delay_reason_recorded'] = $reason !== '';
             $order['latest_followup_stage'] = (string) ($latestFollowup['stage'] ?? '');
             $order['latest_followup_at'] = (string) ($latestFollowup['followup_taken_on'] ?? '');
+            $order['thumbnail_url'] = (string) ($thumbnailByOrder[$orderId] ?? '');
 
             if ($isDelayed) {
                 $delayedCount++;
@@ -274,7 +276,6 @@ class OrderController extends BaseController
             ],
             'selectedStatus' => $selectedStatus,
             'selectedView' => $selectedView,
-            'publicOrderRequestUrl' => site_url('order-request'),
         ]);
     }
 
@@ -509,7 +510,6 @@ class OrderController extends BaseController
             'title'    => $title,
             'orders'   => $rows,
             'orderMode'=> $mode,
-            'publicOrderRequestUrl' => site_url('order-request'),
             'karigars' => $this->karigarModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'customers'=> $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'locations'=> $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
@@ -534,7 +534,6 @@ class OrderController extends BaseController
             'customers'   => $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'designs'     => $this->designModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'goldPurities'=> $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
-            'karigars'    => $this->karigarModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'salesPeople' => (new CustomerUserModel())->select('id, customer_id, name, mobile')->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'priorities'  => $this->jewelleryConfig->orderPriorities,
             'statuses'    => $this->jewelleryConfig->orderStatuses,
@@ -557,7 +556,6 @@ class OrderController extends BaseController
             'due_date'    => 'permit_empty|valid_date',
             'status'      => 'required',
             'order_notes' => 'permit_empty',
-            'assigned_karigar_id' => 'permit_empty|integer',
             'whatsapp_notification_number' => 'permit_empty|max_length[40]',
             'whatsapp_notify_order_created' => 'permit_empty|in_list[1]',
             'expected_diamond_spec' => 'permit_empty',
@@ -579,10 +577,6 @@ class OrderController extends BaseController
 
         $customerId = $this->nullableInt($this->request->getPost('customer_id'));
         $salesPersonUserId = $this->nullableInt($this->request->getPost('sales_person_user_id'));
-        $assignedKarigarId = $this->nullableInt($this->request->getPost('assigned_karigar_id'));
-        if ($assignedKarigarId !== null && $customerId === null) {
-            return redirect()->back()->withInput()->with('error', 'Please select a customer before assigning a karigar.');
-        }
         if ($salesPersonUserId !== null) {
             if ($customerId === null || (new CustomerUserModel())->where('id', $salesPersonUserId)
                 ->where('customer_id', $customerId)->where('role', 'sales_person')->where('is_active', 1)->countAllResults() === 0) {
@@ -646,8 +640,8 @@ class OrderController extends BaseController
                 'customer_id' => $customerId,
                 'sales_person_user_id' => $salesPersonUserId,
                 'lead_id'     => null,
-                'assigned_karigar_id' => $assignedKarigarId,
-                'assigned_at' => $assignedKarigarId !== null ? date('Y-m-d H:i:s') : null,
+                'assigned_karigar_id' => null,
+                'assigned_at' => null,
                 'status'      => $status,
                 'priority'    => $priority,
                 'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
@@ -2521,6 +2515,75 @@ class OrderController extends BaseController
         ];
 
         return isset($allowed[$from]) && $allowed[$from] === $to;
+    }
+
+    /**
+     * @param list<int> $orderIds
+     * @return array<int,string>
+     */
+    private function dashboardOrderThumbnails(array $orderIds): array
+    {
+        if ($orderIds === []) {
+            return [];
+        }
+
+        $db = db_connect();
+        $thumbnails = [];
+        $priorities = [];
+        $imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+
+        if ($db->tableExists('order_attachments')) {
+            $attachments = $db->table('order_attachments')
+                ->select('id, order_id, file_type, file_path')
+                ->whereIn('order_id', $orderIds)
+                ->where('file_path !=', '')
+                ->orderBy('id', 'DESC')
+                ->get()
+                ->getResultArray();
+
+            foreach ($attachments as $attachment) {
+                $orderId = (int) ($attachment['order_id'] ?? 0);
+                $filePath = trim((string) ($attachment['file_path'] ?? ''));
+                $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+                if ($orderId <= 0 || $filePath === '' || ! in_array($extension, $imageExtensions, true)) {
+                    continue;
+                }
+
+                $fileType = strtolower(trim((string) ($attachment['file_type'] ?? '')));
+                $priority = $fileType === 'finish_photo' ? 0 : 2;
+                if (! isset($priorities[$orderId]) || $priority < $priorities[$orderId]) {
+                    $priorities[$orderId] = $priority;
+                    $thumbnails[$orderId] = base_url(ltrim($filePath, '/'));
+                }
+            }
+        }
+
+        if ($db->tableExists('production_ready_items')
+            && $db->fieldExists('order_id', 'production_ready_items')
+            && $db->fieldExists('image_path', 'production_ready_items')) {
+            $readyImages = $db->table('production_ready_items')
+                ->select('id, order_id')
+                ->whereIn('order_id', $orderIds)
+                ->where('image_path IS NOT NULL', null, false)
+                ->where('image_path !=', '')
+                ->orderBy('source_row', 'ASC')
+                ->orderBy('id', 'ASC')
+                ->get()
+                ->getResultArray();
+
+            foreach ($readyImages as $readyImage) {
+                $orderId = (int) ($readyImage['order_id'] ?? 0);
+                $readyItemId = (int) ($readyImage['id'] ?? 0);
+                if ($orderId <= 0 || $readyItemId <= 0 || (($priorities[$orderId] ?? PHP_INT_MAX) <= 1)) {
+                    continue;
+                }
+
+                $priorities[$orderId] = 1;
+                $thumbnails[$orderId] = site_url('admin/orders/ready-image/' . $readyItemId);
+            }
+        }
+
+        return $thumbnails;
     }
 
     /** @return list<array<string,mixed>> */

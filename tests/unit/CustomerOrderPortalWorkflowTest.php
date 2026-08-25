@@ -54,4 +54,35 @@ final class CustomerOrderPortalWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('data-dt-skip="true"', $adminForm);
         $this->assertStringContainsString('id="order-sales-person" class="form-control js-searchable-select"', $adminEdit);
     }
+
+    public function testOrderCreationIsPrivateAndAdminCreationStartsUnassigned(): void
+    {
+        $routes = (string) file_get_contents(APPPATH . 'Config/Routes.php');
+        $adminController = (string) file_get_contents(APPPATH . 'Controllers/Admin/OrderController.php');
+        $adminForm = (string) file_get_contents(APPPATH . 'Views/admin/orders/create.php');
+
+        $this->assertStringNotContainsString('order-request', $routes);
+        $this->assertStringContainsString("['filter' => 'customerAuth']", $routes);
+        $this->assertFileDoesNotExist(APPPATH . 'Controllers/PublicOrderRequestController.php');
+        $this->assertFileDoesNotExist(APPPATH . 'Views/public/order_request.php');
+        $this->assertStringNotContainsString('name="assigned_karigar_id"', $adminForm);
+        $this->assertStringContainsString("'assigned_karigar_id' => null", $adminController);
+        $this->assertStringContainsString("'assigned_at' => null", $adminController);
+    }
+
+    public function testRequestedNavigationAndDashboardControlsRemainIntentional(): void
+    {
+        $routes = (string) file_get_contents(APPPATH . 'Config/Routes.php');
+        $layout = (string) file_get_contents(APPPATH . 'Views/admin/layouts/main.php');
+        $dashboard = (string) file_get_contents(APPPATH . 'Views/admin/orders/dashboard.php');
+        $ornament = (string) file_get_contents(APPPATH . 'Views/admin/orders/ornament_details.php');
+
+        $this->assertStringNotContainsString('system/production-import', $routes);
+        $this->assertStringNotContainsString('Fresh Orders</a>', $layout);
+        $this->assertStringNotContainsString('Production Import</span>', $layout);
+        $this->assertStringContainsString('lengthChange: paging', $layout);
+        $this->assertStringContainsString('class="order-mini-photo"', $dashboard);
+        $this->assertStringContainsString('<h4 class="mb-1">Ornament Details</h4>', $ornament);
+        $this->assertStringNotContainsString('Ornament Details -', $ornament);
+    }
 }

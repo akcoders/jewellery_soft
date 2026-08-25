@@ -11,7 +11,6 @@ $isCustomers= $segment2 === 'customers';
 $isOrders   = $segment2 === 'orders';
 $isOrdersAll   = $isOrders && ($segment3 === '' || ctype_digit($segment3));
 $isOrdersDashboard = $isOrders && $segment3 === 'dashboard';
-$isOrdersFresh = $isOrders && $segment3 === 'fresh';
 $isOrdersReady = $isOrders && $segment3 === 'ready';
 $isOrdersRepair = $isOrders && $segment3 === 'repair';
 $isOrdersFollowups = $isOrders && $segment3 === 'followups';
@@ -70,7 +69,6 @@ $isAccountsOutstanding = $isAccounts && $segment3 === 'outstanding-summary';
 $isVendors  = $segment2 === 'vendors';
 $isCompanySettings = $segment2 === 'company-settings';
 $isDatabaseUpdate = $segment2 === 'system' && $segment3 === 'database-update';
-$isProductionImport = $segment2 === 'system' && $segment3 === 'production-import';
 $isInventory= $segment2 === 'inventory';
 $isInventoryStock = $isInventory && ($segment3 === '' || $segment3 === 'stock');
 $isInventoryWarehouses = $isInventory && $segment3 === 'warehouses';
@@ -1284,6 +1282,35 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             font-weight: 600;
             color: #1f2937;
         }
+        @media (max-width: 991.98px) {
+            .header.header-one {
+                height: 60px;
+                min-height: 60px;
+            }
+            .header.header-one .device-logo {
+                align-items: center;
+                display: flex !important;
+                height: 60px;
+                justify-content: center;
+                left: 50%;
+                margin: 0;
+                max-width: 180px;
+                padding: 8px 0;
+                position: absolute;
+                top: 0;
+                transform: translateX(-50%);
+                width: min(42vw, 180px);
+                z-index: 5;
+            }
+            .header.header-one .device-logo .logo2 {
+                display: block;
+                height: auto !important;
+                max-height: 42px;
+                max-width: 100% !important;
+                object-fit: contain;
+                width: auto !important;
+            }
+        }
 
         /* Global Red + Gold Theme */
         a,
@@ -1481,9 +1508,6 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                             <ul style="<?= $isOrders ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isOrdersDashboard ? 'active' : '' ?>" href="<?= site_url('admin/orders/dashboard') ?>"><i class="fe fe-pie-chart"></i> Order Dashboard</a></li>
                                 <li><a class="<?= ($isOrdersAll || $isOrdersCreate) ? 'active' : '' ?>" href="<?= site_url('admin/orders') ?>"><i class="fe fe-list"></i> All Orders</a></li>
-                                <?php if ($canOrdersCreate): ?>
-                                <li><a class="<?= $isOrdersFresh ? 'active' : '' ?>" href="<?= site_url('admin/orders/fresh') ?>"><i class="fe fe-plus-square"></i> Fresh Orders</a></li>
-                                <?php endif; ?>
                                 <li><a class="<?= $isOrdersReady ? 'active' : '' ?>" href="<?= site_url('admin/orders/ready') ?>"><i class="fe fe-package"></i> Ready Orders</a></li>
                                 <?php if ($canOrdersCreate): ?>
                                 <li><a class="<?= ($isOrdersRepair || $isOrdersRepairCreate) ? 'active' : '' ?>" href="<?= site_url('admin/orders/repair') ?>"><i class="fe fe-settings"></i> Repair Orders</a></li>
@@ -1653,9 +1677,6 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php if (admin_can('company-settings.manage')): ?>
                         <li class="<?= $isDatabaseUpdate ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/system/database-update') ?>"><i class="fe fe-database"></i> <span>Database Update</span></a>
-                        </li>
-                        <li class="<?= $isProductionImport ? 'active' : '' ?>">
-                            <a href="<?= site_url('admin/system/production-import') ?>"><i class="fe fe-upload-cloud"></i> <span>Production Import</span></a>
                         </li>
                         <?php endif; ?>
                         <?php if ($canAccessControl): ?>
@@ -1911,7 +1932,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                     const dataRowCount = $table.find('tbody tr').filter(function () {
                         return $(this).children('td[colspan]').length === 0;
                     }).length;
-                    const usePaging = paging && dataRowCount > pageLength;
+                    const usePaging = paging;
                     const useSearch = searching && dataRowCount > 5;
 
                     if ($.fn.DataTable.isDataTable(this)) {
@@ -1927,8 +1948,8 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         searching: useSearch,
                         ordering: ordering,
                         paging: usePaging,
-                        lengthChange: usePaging,
-                        info: info && usePaging,
+                        lengthChange: paging,
+                        info: info && paging,
                         order: [],
                         autoWidth: false,
                         dom:
