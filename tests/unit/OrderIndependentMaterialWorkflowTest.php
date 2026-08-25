@@ -142,4 +142,20 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('stone_account_voucher_id', $backfillMigration);
         $this->assertStringContainsString('stone_account_voucher_id', $receiveSummaryModel);
     }
+
+    public function testUnusedKarigarCleanupIsStrictlyGuarded(): void
+    {
+        $migration = (string) file_get_contents(
+            APPPATH . 'Database/Migrations/2026-08-25-000067_RemoveUnusedKarigars.php'
+        );
+
+        $this->assertStringContainsString("['om', 'ranjan', 'sattar']", $migration);
+        $this->assertStringContainsString('assertNoKarigarReferences', $migration);
+        $this->assertStringContainsString('assertNoAccountTransactions', $migration);
+        $this->assertStringContainsString("'orders' => 'assigned_karigar_id'", $migration);
+        $this->assertStringContainsString("'labour_bills' => 'karigar_id'", $migration);
+        $this->assertStringContainsString("['account_balances', 'account_id']", $migration);
+        $this->assertStringContainsString("table('accounts')->whereIn('id', \$accountIds)->delete()", $migration);
+        $this->assertStringContainsString("table('karigars')->where('id', \$karigarId)->delete()", $migration);
+    }
 }
