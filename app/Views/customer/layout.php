@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title><?= esc($title ?? 'Customer Portal') ?> · Aabhushan</title>
     <link rel="stylesheet" href="<?= base_url('template/assets/css/bootstrap.min.css') ?>">
     <link rel="stylesheet" href="<?= base_url('template/assets/plugins/feather/feather.css') ?>">
@@ -49,6 +49,7 @@
         .table thead th { background: #f7f8fa; color: #596579; font-size: 10px; font-weight: 800; letter-spacing: .055em; text-transform: uppercase; }
         .alert { border: 0; border-left: 4px solid currentColor; border-radius: 12px; box-shadow: 0 5px 18px rgba(28, 37, 56, .05); }
         @media (max-width: 767px) {
+            .form-control, .form-select { font-size: 16px; }
             .portal-shell { padding: 18px 12px 42px; }
             .portal-hero { align-items: stretch; flex-direction: column; padding: 19px; }
             .portal-hero .btn { width: 100%; }

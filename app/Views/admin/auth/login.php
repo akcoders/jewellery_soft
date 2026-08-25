@@ -5,7 +5,7 @@ $asset = rtrim((string) $assetBase, '/');
 <html lang="en" data-layout="vertical" data-topbar="light" data-sidebar="light" data-sidebar-size="lg" data-sidebar-image="none">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Admin Login</title>
 
     <link rel="shortcut icon" href="<?= esc($asset) ?>/img/favicon.png">
@@ -13,7 +13,7 @@ $asset = rtrim((string) $assetBase, '/');
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= esc($asset) ?>/plugins/fontawesome/css/fontawesome.min.css">
     <link rel="stylesheet" href="<?= esc($asset) ?>/plugins/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="<?= esc($asset) ?>/css/style.css">
+    <link rel="stylesheet" href="<?= esc($asset) ?>/css/style.css?v=20260825-login-responsive">
     <script src="<?= esc($asset) ?>/js/layout.js"></script>
 </head>
 <body>
@@ -66,4 +66,3 @@ $asset = rtrim((string) $assetBase, '/');
     <script src="<?= esc($asset) ?>/js/script.js"></script>
 </body>
 </html>
-

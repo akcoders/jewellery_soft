@@ -14304,6 +14304,9 @@ body.filter-opened {
   height: 100vh;
   min-height: 100vh;
   margin: auto;
+  max-width: 100%;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 .logo-light {
@@ -14324,6 +14327,10 @@ body.filter-opened {
   display: table-cell;
   vertical-align: middle;
   padding-top: 1.875rem;
+}
+.login-wrapper .container {
+  max-width: 100%;
+  width: 100%;
 }
 .login-wrapper .loginbox {
   background-color: #fff;
@@ -14354,6 +14361,38 @@ body.filter-opened {
 @media (max-width: 320px) {
   .login-wrapper .loginbox .login-right {
     width: 100%;
+  }
+}
+@media (max-width: 575.98px) {
+  .login-body {
+    min-height: 100svh;
+  }
+  .login-wrapper {
+    padding: 1.25rem 0;
+  }
+  .login-wrapper .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .login-wrapper .logo-dark,
+  .login-wrapper .logo-light {
+    height: auto;
+    max-width: min(160px, 58vw);
+  }
+  .login-wrapper .loginbox {
+    margin: 1.25rem auto 0;
+    max-width: 100%;
+    width: 100%;
+  }
+  .login-wrapper .loginbox .login-right {
+    padding: 1.5rem 1.25rem;
+    width: 100%;
+  }
+  .login-wrapper .loginbox input.form-control,
+  .login-wrapper .loginbox select.form-control,
+  .login-wrapper .loginbox textarea.form-control {
+    font-size: 16px;
+    min-height: 48px;
   }
 }
 .login-wrapper .loginbox .login-right .login-right-wrap {
