@@ -57,6 +57,8 @@ writable/logs/*
 writable/session/*
 !writable/session/index.html
 
+writable/exports/*
+
 writable/uploads/*
 !writable/uploads/index.html
 !writable/uploads/production-imports/
