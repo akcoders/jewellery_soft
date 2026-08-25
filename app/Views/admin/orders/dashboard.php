@@ -250,10 +250,7 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     }
     @media (max-width: 767px) {
         .order-status-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .order-dashboard-table { min-width: 0; }
-        .order-dashboard-table tbody td:first-child { display: block !important; text-align: left !important; }
-        .order-dashboard-table tbody td:first-child::before { display: block; margin-bottom: 8px; width: 100%; }
-        .order-dashboard-table tbody td:first-child > .erp-mobile-value { max-width: 100%; text-align: left; }
+        .order-dashboard-table { min-width: 980px; }
         .order-row-actions { justify-content: flex-end; }
     }
     @media (max-width: 575px) {

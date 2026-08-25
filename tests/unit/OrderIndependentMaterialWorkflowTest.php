@@ -76,8 +76,12 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("renderSection('styles')", $layout);
         $this->assertStringContainsString('dataRowCount > 10', $layout);
         $this->assertStringContainsString('usePaging', $layout);
+        $this->assertStringContainsString("<body class=\"<?= \$isOrders ? 'module-orders' : '' ?>\">", $layout);
+        $this->assertStringContainsString('preserveOrderTable', $layout);
+        $this->assertStringContainsString('erp-mobile-scroll-table', $layout);
         $this->assertStringContainsString('order-workflow-panel', $dashboard);
         $this->assertStringContainsString('Schedule &amp; Karigar', $dashboard);
+        $this->assertStringNotContainsString('.order-dashboard-table { min-width: 0; }', $dashboard);
         $this->assertStringContainsString('Supplier &amp; Invoice', $purchaseBills);
         $this->assertStringContainsString('Payment Position', $purchaseBills);
         $this->assertStringContainsString('data-dt-skip="true"', $orderDetail);

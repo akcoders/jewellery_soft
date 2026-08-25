@@ -72,16 +72,8 @@
         .order-fact-grid { grid-template-columns: 1fr; }
         .order-fact:nth-child(n) { border-left: 0; }
         .order-photo-stage, .order-photo-stage img { height: 280px; min-height: 280px; }
-        .order-items-table, .order-components-table, .order-followups-table { min-width: 0; }
-        .order-items-table tbody td:first-child,
-        .order-components-table tbody td:first-child,
-        .order-followups-table tbody td:nth-child(2) { display: block !important; text-align: left !important; }
-        .order-items-table tbody td:first-child::before,
-        .order-components-table tbody td:first-child::before,
-        .order-followups-table tbody td:nth-child(2)::before { display: block; margin-bottom: 8px; width: 100%; }
-        .order-items-table tbody td:first-child > .erp-mobile-value,
-        .order-components-table tbody td:first-child > .erp-mobile-value,
-        .order-followups-table tbody td:nth-child(2) > .erp-mobile-value { max-width: 100%; text-align: left; }
+        .order-items-table { min-width: 720px; }
+        .order-components-table, .order-followups-table { min-width: 860px; }
     }
     @media (max-width: 480px) {
         .order-weight-grid { grid-template-columns: 1fr; }

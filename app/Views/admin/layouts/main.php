@@ -1148,6 +1148,153 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             .table.datatable tbody td {
                 white-space: normal;
             }
+            body.module-orders .table-responsive {
+                background: #fff;
+                border: 1px solid #e1e6ee;
+                border-radius: 10px;
+                max-width: 100%;
+                overflow-x: auto !important;
+                overscroll-behavior-inline: contain;
+                position: relative;
+            }
+            body.module-orders .table-responsive:has(table.erp-mobile-scroll-table)::before {
+                align-items: center;
+                background: #f8fafc;
+                border-bottom: 1px solid #e7ebf1;
+                color: #667085;
+                content: 'Swipe horizontally to view all columns  →';
+                display: flex;
+                font-size: 10px;
+                font-weight: 700;
+                justify-content: flex-end;
+                letter-spacing: .01em;
+                padding: 8px 11px;
+                text-align: right;
+            }
+            body.module-orders .table-responsive .dataTables_wrapper {
+                min-width: 100%;
+            }
+            body.module-orders table.erp-mobile-scroll-table,
+            body.module-orders table.erp-mobile-scroll-table thead,
+            body.module-orders table.erp-mobile-scroll-table tbody {
+                display: table !important;
+                width: 100% !important;
+            }
+            body.module-orders table.erp-mobile-scroll-table thead {
+                display: table-header-group !important;
+            }
+            body.module-orders table.erp-mobile-scroll-table tbody {
+                display: table-row-group !important;
+            }
+            body.module-orders table.erp-mobile-scroll-table tr {
+                background: #fff !important;
+                border: 0 !important;
+                box-shadow: none !important;
+                display: table-row !important;
+                margin: 0 !important;
+            }
+            body.module-orders table.erp-mobile-scroll-table th,
+            body.module-orders table.erp-mobile-scroll-table td {
+                border-color: #e8ecf2 !important;
+                display: table-cell !important;
+                font-size: 11px;
+                min-height: 0;
+                padding: 10px 11px !important;
+                text-align: left;
+                vertical-align: middle;
+                white-space: nowrap !important;
+                width: auto !important;
+            }
+            body.module-orders table.erp-mobile-scroll-table th {
+                background: #f5f7fa !important;
+                color: #475467;
+                font-size: 9px;
+                letter-spacing: .04em;
+            }
+            body.module-orders table.erp-mobile-scroll-table td::before {
+                content: none !important;
+                display: none !important;
+            }
+            body.module-orders table.erp-mobile-scroll-table td:first-child,
+            body.module-orders table.erp-mobile-scroll-table th:first-child {
+                left: 0;
+                position: sticky;
+            }
+            body.module-orders table.erp-mobile-scroll-table th:first-child {
+                box-shadow: 5px 0 10px -9px rgba(15, 23, 42, .9);
+                z-index: 4;
+            }
+            body.module-orders table.erp-mobile-scroll-table td:first-child {
+                background: #fff !important;
+                box-shadow: 5px 0 10px -9px rgba(15, 23, 42, .75);
+                font-weight: 700;
+                z-index: 2;
+            }
+            body.module-orders table.erp-mobile-scroll-table tbody tr:hover td:first-child {
+                background: #fffaf0 !important;
+            }
+            body.module-orders table.erp-mobile-scroll-table {
+                min-width: 760px !important;
+                table-layout: auto;
+            }
+            body.module-orders table.erp-mobile-scroll-table.erp-responsive-wide {
+                min-width: 1080px !important;
+            }
+            body.module-orders table.erp-mobile-scroll-table.order-dashboard-table {
+                min-width: 980px !important;
+            }
+            body.module-orders table.erp-mobile-scroll-table.order-components-table,
+            body.module-orders table.erp-mobile-scroll-table.order-followups-table {
+                min-width: 860px !important;
+            }
+            body.module-orders table.erp-mobile-scroll-table.erp-entry-table {
+                min-width: 960px !important;
+            }
+            body.module-orders .dataTables_wrapper > .row:first-child {
+                display: grid !important;
+                gap: 9px;
+                grid-template-columns: minmax(0, 1fr);
+            }
+            body.module-orders .dataTables_wrapper > .row:first-child > [class*="col-"],
+            body.module-orders .dataTables_wrapper > .row:last-child > [class*="col-"] {
+                min-width: 0;
+                padding: 0 !important;
+                width: auto !important;
+            }
+            body.module-orders .dataTables_wrapper .dataTables_length,
+            body.module-orders .dataTables_wrapper .dataTables_length label {
+                align-items: center;
+                display: flex;
+                gap: 5px;
+                white-space: nowrap;
+                width: auto !important;
+            }
+            body.module-orders .dataTables_wrapper .dataTables_length select {
+                flex: 0 0 66px;
+                min-height: 40px;
+                width: 66px !important;
+            }
+            body.module-orders .dataTables_wrapper .dataTables_filter input {
+                min-height: 40px;
+            }
+            body.module-orders .dataTables_wrapper > .row:last-child {
+                display: grid !important;
+                gap: 9px;
+                grid-template-columns: 1fr;
+            }
+            body.module-orders .dataTables_wrapper .dataTables_info,
+            body.module-orders .dataTables_wrapper .dataTables_paginate {
+                padding-top: 0 !important;
+                text-align: center !important;
+            }
+            body.module-orders .dataTables_wrapper .dataTables_paginate {
+                max-width: 100%;
+                overflow-x: auto;
+            }
+            body.module-orders .dataTables_wrapper .pagination {
+                flex-wrap: nowrap;
+                justify-content: center !important;
+            }
         }
         @media (max-width: 480px) {
             .erp-finance-summary {
@@ -1402,7 +1549,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
     </style>
     <?= $this->renderSection('styles') ?>
 </head>
-<body>
+<body class="<?= $isOrders ? 'module-orders' : '' ?>">
     <div id="globalLoaderOverlay" class="global-loader-overlay active" aria-hidden="false">
         <div class="global-loader-card">
             <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
@@ -1854,6 +2001,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                     // Keep entry/input grids stable; enable DataTable on the rest.
                     const hasEditableControls = $table.find('tbody input:not([type="hidden"]), tbody select, tbody textarea').length > 0;
                     const hasTabularHeader = $table.find('thead th').length > 0;
+                    const preserveOrderTable = hasTabularHeader && $('body').hasClass('module-orders');
                     const skipAutoDatatable = boolAttr($table.attr('data-dt-skip'), false);
                     const dataRowCount = $table.find('tbody tr').filter(function () {
                         return $(this).children('td[colspan]').length === 0;
@@ -1864,7 +2012,9 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                     if (hasEditableControls && hasTabularHeader) {
                         $table.addClass('erp-entry-table');
                     }
-                    if (hasTabularHeader && !hasEditableControls) {
+                    if (preserveOrderTable) {
+                        $table.addClass('erp-mobile-scroll-table');
+                    } else if (hasTabularHeader && !hasEditableControls) {
                         $table.addClass('erp-mobile-table');
                         const labels = $table.find('thead th').map(function () {
                             return $(this).text().trim();
@@ -1959,7 +2109,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         language: {
                             search: '',
                             searchPlaceholder: 'Search records...',
-                            lengthMenu: 'Show _MENU_ rows',
+                            lengthMenu: '_MENU_',
                             emptyTable: 'No records available'
                         }
                     });
