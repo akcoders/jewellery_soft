@@ -90,8 +90,6 @@
                                             <?= csrf_field() ?>
                                             <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fe fe-trash-2"></i></button>
                                         </form>
-                                    <?php else: ?>
-                                        <span class="badge bg-light text-dark align-self-center">Verified</span>
                                     <?php endif; ?>
                                 </div>
                             </td>
