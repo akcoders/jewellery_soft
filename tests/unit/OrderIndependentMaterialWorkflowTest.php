@@ -102,6 +102,13 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('Diamond Ledger (Opening / Debit / Credit / Closing)', $karigarProfile);
         $this->assertStringContainsString('Stone Ledger (Opening / Debit / Credit / Closing)', $karigarProfile);
         $this->assertStringContainsString('Payment Ledger', $karigarProfile);
+        $this->assertSame(1, preg_match('/Gold Ledger Stats.*?<\/div>\s*<\/div>\s*<\/div>/s', $karigarProfile, $goldStats));
+        $this->assertStringContainsString('Pure Issued:', $goldStats[0]);
+        $this->assertStringContainsString('Pure Received:', $goldStats[0]);
+        $this->assertStringContainsString('Pure Balance:', $goldStats[0]);
+        $this->assertStringNotContainsString('<strong>Issued:</strong>', $goldStats[0]);
+        $this->assertStringNotContainsString('<strong>Received:</strong>', $goldStats[0]);
+        $this->assertStringNotContainsString('<strong>Balance:</strong>', $goldStats[0]);
 
         $this->assertStringContainsString('name="stone_item_id[]"', $orderList);
         $this->assertStringContainsString('name="stone_item_id[]"', $orderDetail);
@@ -123,5 +130,16 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('stone_inventory_item_id', $migration);
         $this->assertStringContainsString('receive_movement_id', $migration);
         $this->assertStringContainsString('uq_stone_issue_receive_movement', $migration);
+
+        $backfillMigration = (string) file_get_contents(
+            APPPATH . 'Database/Migrations/2026-08-25-000066_BackfillCompletedOrderStoneInventory.php'
+        );
+        $receiveSummaryModel = (string) file_get_contents(APPPATH . 'Models/OrderReceiveSummaryModel.php');
+        $this->assertStringContainsString('unlinkedStoneMovements', $backfillMigration);
+        $this->assertStringContainsString('applyReceiptBackflushIssue', $backfillMigration);
+        $this->assertStringContainsString('postFinishedJewelleryReceipt', $backfillMigration);
+        $this->assertStringContainsString("'order_id' => null", $backfillMigration);
+        $this->assertStringContainsString('stone_account_voucher_id', $backfillMigration);
+        $this->assertStringContainsString('stone_account_voucher_id', $receiveSummaryModel);
     }
 }

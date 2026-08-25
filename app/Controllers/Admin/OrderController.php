@@ -1625,6 +1625,7 @@ class OrderController extends BaseController
                 $orderId,
                 [
                     'account_voucher_id' => $accountVoucherId,
+                    'stone_account_voucher_id' => $stoneCts > 0 ? $accountVoucherId : null,
                     'gross_weight_gm' => $grossWeightGm,
                     'net_gold_weight_gm' => $netGoldWeightGm,
                     'pure_gold_weight_gm' => $pureGoldWeightGm,
@@ -2366,6 +2367,9 @@ class OrderController extends BaseController
                 'order_id' => $orderId,
                 'account_voucher_id' => (int) ($summary['account_voucher_id'] ?? 0) > 0
                     ? (int) $summary['account_voucher_id']
+                    : null,
+                'stone_account_voucher_id' => (int) ($summary['stone_account_voucher_id'] ?? 0) > 0
+                    ? (int) $summary['stone_account_voucher_id']
                     : null,
                 'gross_weight_gm' => round((float) ($summary['gross_weight_gm'] ?? 0), 3),
                 'net_gold_weight_gm' => round((float) ($summary['net_gold_weight_gm'] ?? 0), 3),

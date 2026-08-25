@@ -220,9 +220,6 @@
         <div class="card w-100">
             <div class="card-header"><h5 class="card-title mb-0">Gold Ledger Stats</h5></div>
             <div class="card-body">
-                <p class="mb-1"><strong>Issued:</strong> <?= esc(number_format((float) $goldSummary['issue_weight'], 3)) ?> gm</p>
-                <p class="mb-1"><strong>Received:</strong> <?= esc(number_format((float) $goldSummary['receive_weight'], 3)) ?> gm</p>
-                <p class="mb-1"><strong>Balance:</strong> <?= esc(number_format((float) $goldSummary['balance_weight'], 3)) ?> gm</p>
                 <p class="mb-1"><strong>Pure Issued:</strong> <?= esc(number_format((float) $goldSummary['issue_pure'], 3)) ?> gm</p>
                 <p class="mb-1"><strong>Pure Received:</strong> <?= esc(number_format((float) $goldSummary['receive_pure'], 3)) ?> gm</p>
                 <p class="mb-0"><strong>Pure Balance:</strong> <?= esc(number_format((float) $goldSummary['balance_pure'], 3)) ?> gm</p>

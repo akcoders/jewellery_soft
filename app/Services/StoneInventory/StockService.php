@@ -145,9 +145,18 @@ class StockService
             $oldQty = (float) $stock['qty_balance'];
             $oldAvg = (float) $stock['avg_rate'];
             $lineRate = $issueQty > 0 ? ((float) ($row['line_value'] ?? 0) / $issueQty) : 0;
-            $newAvg = $oldAvg > 0 ? $oldAvg : max(0, $lineRate);
+            $newQty = $oldQty - $issueQty;
+            if ($newQty >= 0) {
+                $newAvg = $oldAvg;
+            } elseif ($oldQty <= 0) {
+                $negativeValue = (abs($oldQty) * $oldAvg) + max(0, (float) ($row['line_value'] ?? 0));
+                $newAvg = abs($newQty) > 0.0005 ? ($negativeValue / abs($newQty)) : 0;
+            } else {
+                // Existing positive stock is exhausted; value only the negative shortage at the receipt rate.
+                $newAvg = max(0, $lineRate);
+            }
 
-            $this->updateStock($itemId, $oldQty - $issueQty, $newAvg, true);
+            $this->updateStock($itemId, $newQty, $newAvg, true);
         }
     }
 

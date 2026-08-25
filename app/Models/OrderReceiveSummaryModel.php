@@ -12,6 +12,7 @@ class OrderReceiveSummaryModel extends Model
     protected $allowedFields = [
         'movement_id',
         'account_voucher_id',
+        'stone_account_voucher_id',
         'order_id',
         'gross_weight_gm',
         'net_gold_weight_gm',
