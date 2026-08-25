@@ -260,16 +260,135 @@ $statusClass = match ($status) {
 
 <?php if ($canReceive): ?>
 <div class="modal fade" id="receiveModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="<?= site_url('admin/orders/'.$order['id'].'/receive') ?>"><?= csrf_field() ?>
-<div class="modal-header"><h5 class="modal-title">Manual Finished Jewellery Receiving</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body js-receive-modal"><div class="alert alert-info">Enter every value manually. Nothing is fetched from issuements.</div>
+<div class="modal-header"><h5 class="modal-title">Manual Finished Jewellery Receiving</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body js-receive-modal"><div class="alert alert-info">Enter every value manually. Nothing is fetched from issuements. Stone shortage is automatically deducted from Stone Inventory; its balance may go negative.</div>
 <div class="row g-3 mb-4"><div class="col-md-3"><label class="form-label">Receive Location *</label><select name="location_id" class="form-select" required><option value="">Select</option><?php foreach (($locations??[]) as $location): ?><option value="<?= (int)$location['id'] ?>"><?= esc((string)$location['name']) ?></option><?php endforeach; ?></select></div><div class="col-md-3"><label class="form-label">Gross Weight (gm) *</label><input type="number" step="0.001" min="0.001" name="gross_weight_gm" class="form-control js-gross-weight" required></div><div class="col-md-3"><label class="form-label">Purity % *</label><input type="number" step="0.001" min="0.001" max="100" name="purity_percent" class="form-control js-purity-percent" required></div><div class="col-md-3"><label class="form-label">Net Gold (gm)</label><input type="text" class="form-control js-net-weight" readonly></div><div class="col-md-3"><label class="form-label">Pure Gold (gm)</label><input type="text" class="form-control js-pure-weight" readonly></div><div class="col-md-3"><label class="form-label">Gold Rate / gm *</label><input type="number" step="0.01" min="0.01" name="gold_rate_per_gm" class="form-control js-gold-rate" required></div><div class="col-md-3"><label class="form-label">Gold Amount</label><input type="text" class="form-control js-gold-total" readonly></div><div class="col-md-3"><label class="form-label">Labour Rate / gm</label><input type="number" step="0.01" min="0" name="labour_rate_per_gm" class="form-control js-labour-rate"></div><div class="col-md-3"><label class="form-label">Labour Amount</label><input type="text" class="form-control js-labour-total" readonly></div><div class="col-md-9"><label class="form-label">Remarks</label><input type="text" name="notes" class="form-control"></div></div>
-<?php foreach ([['dia','Studded Diamond',['studded_diamond_type','studded_diamond_pcs','studded_diamond_weight','studded_diamond_rate']],['stone','Stone',['stone_type','stone_pcs','stone_weight','stone_rate']],['other','Other Material',['other_desc','other_pcs','other_weight_line_gm','other_price']]] as $section): ?><?php [$key,$title,$names]=$section; ?><div class="d-flex justify-content-between align-items-center mt-4 mb-2"><strong><?= esc($title) ?></strong><button type="button" class="btn btn-sm btn-outline-primary js-add-row" data-kind="<?= esc($key) ?>"><i class="fe fe-plus"></i> Add More</button></div><div class="table-responsive"><table class="table table-bordered align-middle"><thead><tr><th>Description</th><th>PCS</th><th><?= $key==='other'?'Weight (gm)':'Weight (cts)' ?></th><th><?= $key==='other'?'Price':'Rate / cts' ?></th><th>Total</th><th></th></tr></thead><tbody class="js-<?= esc($key) ?>-body"><tr><td><input type="text" name="<?= esc($names[0]) ?>[]" class="form-control"></td><td><input type="number" step="0.001" min="0" name="<?= esc($names[1]) ?>[]" class="form-control"></td><td><input type="number" step="0.001" min="0" name="<?= esc($names[2]) ?>[]" class="form-control js-<?= esc($key) ?>-weight"></td><td><input type="number" step="0.01" min="0" name="<?= esc($names[3]) ?>[]" class="form-control js-<?= esc($key) ?>-rate"></td><td><input type="text" class="form-control js-<?= esc($key) ?>-total" readonly></td><td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td></tr></tbody></table></div><?php endforeach; ?>
+<?php foreach ([['dia', 'Studded Diamond', ['studded_diamond_type', 'studded_diamond_pcs', 'studded_diamond_weight', 'studded_diamond_rate']], ['stone', 'Stone', ['stone_type', 'stone_pcs', 'stone_weight', 'stone_rate']], ['other', 'Other Material', ['other_desc', 'other_pcs', 'other_weight_line_gm', 'other_price']]] as $section): ?>
+    <?php [$key, $title, $names] = $section; ?>
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+        <strong><?= esc($title) ?></strong>
+        <button type="button" class="btn btn-sm btn-outline-primary js-add-row" data-kind="<?= esc($key) ?>"><i class="fe fe-plus"></i> Add More</button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-bordered align-middle" data-dt-skip="true">
+            <thead><tr><?php if ($key === 'stone'): ?><th>Inventory Item</th><?php endif; ?><th>Description</th><th>PCS</th><th><?= $key === 'other' ? 'Weight (gm)' : 'Weight (cts)' ?></th><th><?= $key === 'other' ? 'Price' : 'Rate / cts' ?></th><th>Total</th><th></th></tr></thead>
+            <tbody class="js-<?= esc($key) ?>-body">
+                <tr>
+                    <?php if ($key === 'stone'): ?>
+                        <td><select name="stone_item_id[]" class="form-select js-stone-inventory-select"><option value="">Select stone</option><?php foreach (($stoneInventoryItems ?? []) as $stoneItem): ?><option value="<?= (int) $stoneItem['id'] ?>"><?= esc((string) $stoneItem['product_name'] . ' · ' . number_format((float) $stoneItem['qty_balance'], 3) . ' available') ?></option><?php endforeach; ?></select></td>
+                    <?php endif; ?>
+                    <td><input type="text" name="<?= esc($names[0]) ?>[]" class="form-control"></td>
+                    <td><input type="number" step="0.001" min="0" name="<?= esc($names[1]) ?>[]" class="form-control"></td>
+                    <td><input type="number" step="0.001" min="0" name="<?= esc($names[2]) ?>[]" class="form-control js-<?= esc($key) ?>-weight"></td>
+                    <td><input type="number" step="0.01" min="0" name="<?= esc($names[3]) ?>[]" class="form-control js-<?= esc($key) ?>-rate"></td>
+                    <td><input type="text" class="form-control js-<?= esc($key) ?>-total" readonly></td>
+                    <td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+<?php endforeach; ?>
 </div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-success">Save & Complete Order</button></div></form></div></div>
 <?php endif; ?>
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
 <script>
-(function(){const modal=document.getElementById('receiveModal');if(!modal)return;const n=v=>{const x=parseFloat(v||'0');return Number.isFinite(x)?x:0};const fields={dia:['studded_diamond_type','studded_diamond_pcs','studded_diamond_weight','studded_diamond_rate'],stone:['stone_type','stone_pcs','stone_weight','stone_rate'],other:['other_desc','other_pcs','other_weight_line_gm','other_price']};function rowHtml(k){const f=fields[k];return '<tr><td><input type="text" name="'+f[0]+'[]" class="form-control"></td><td><input type="number" step="0.001" min="0" name="'+f[1]+'[]" class="form-control"></td><td><input type="number" step="0.001" min="0" name="'+f[2]+'[]" class="form-control js-'+k+'-weight"></td><td><input type="number" step="0.01" min="0" name="'+f[3]+'[]" class="form-control js-'+k+'-rate"></td><td><input type="text" class="form-control js-'+k+'-total" readonly></td><td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td></tr>'}function recalc(){['dia','stone','other'].forEach(k=>modal.querySelectorAll('.js-'+k+'-body tr').forEach(row=>{const w=n((row.querySelector('.js-'+k+'-weight')||{}).value),r=n((row.querySelector('.js-'+k+'-rate')||{}).value),t=row.querySelector('.js-'+k+'-total');if(t)t.value=(k==='other'?r:w*r).toFixed(2)}));let d=0,s=0,o=0;modal.querySelectorAll('.js-dia-weight').forEach(e=>d+=n(e.value));modal.querySelectorAll('.js-stone-weight').forEach(e=>s+=n(e.value));modal.querySelectorAll('.js-other-weight').forEach(e=>o+=n(e.value));const gross=n((modal.querySelector('.js-gross-weight')||{}).value),purity=n((modal.querySelector('.js-purity-percent')||{}).value),net=gross-d*.2-s*.2-o,safe=Math.max(net,0),set=(q,v)=>{const e=modal.querySelector(q);if(e)e.value=v};set('.js-net-weight',net.toFixed(3));set('.js-pure-weight',(safe*purity/100).toFixed(3));set('.js-gold-total',(safe*n((modal.querySelector('.js-gold-rate')||{}).value)).toFixed(2));set('.js-labour-total',(safe*n((modal.querySelector('.js-labour-rate')||{}).value)).toFixed(2))}modal.addEventListener('click',e=>{const t=e.target instanceof Element?e.target:null;if(!t)return;const a=t.closest('.js-add-row');if(a){const k=a.getAttribute('data-kind'),b=modal.querySelector('.js-'+k+'-body');if(b)b.insertAdjacentHTML('beforeend',rowHtml(k))}const rm=t.closest('.js-remove-row');if(rm){const row=rm.closest('tr'),body=row?row.parentElement:null;if(body&&row&&body.children.length>1)row.remove()}recalc()});modal.addEventListener('input',recalc);recalc()})();
+(function () {
+    const modal = document.getElementById('receiveModal');
+    if (!modal) return;
+    const stoneInventoryItems = <?= json_encode(array_values($stoneInventoryItems ?? []), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const fields = {
+        dia: ['studded_diamond_type', 'studded_diamond_pcs', 'studded_diamond_weight', 'studded_diamond_rate'],
+        stone: ['stone_type', 'stone_pcs', 'stone_weight', 'stone_rate'],
+        other: ['other_desc', 'other_pcs', 'other_weight_line_gm', 'other_price']
+    };
+    const n = value => {
+        const parsed = parseFloat(value || '0');
+        return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const escapeHtml = value => String(value === undefined || value === null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;');
+
+    function stoneOptions() {
+        let options = '<option value="">Select stone</option>';
+        stoneInventoryItems.forEach(item => {
+            const label = String(item.product_name || 'Stone') + ' · ' + n(item.qty_balance).toFixed(3) + ' available';
+            options += '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(label) + '</option>';
+        });
+        return options;
+    }
+
+    function initStoneSelects() {
+        if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.select2) return;
+        window.jQuery(modal).find('.js-stone-inventory-select').each(function () {
+            if (window.jQuery(this).hasClass('select2-hidden-accessible')) return;
+            window.jQuery(this).select2({
+                width: '100%', allowClear: true, placeholder: 'Search inventory item', dropdownParent: window.jQuery(modal)
+            });
+        });
+    }
+
+    function rowHtml(kind) {
+        const names = fields[kind];
+        const inventoryCell = kind === 'stone'
+            ? '<td><select name="stone_item_id[]" class="form-select js-stone-inventory-select">' + stoneOptions() + '</select></td>'
+            : '';
+        return '<tr>' + inventoryCell
+            + '<td><input type="text" name="' + names[0] + '[]" class="form-control"></td>'
+            + '<td><input type="number" step="0.001" min="0" name="' + names[1] + '[]" class="form-control"></td>'
+            + '<td><input type="number" step="0.001" min="0" name="' + names[2] + '[]" class="form-control js-' + kind + '-weight"></td>'
+            + '<td><input type="number" step="0.01" min="0" name="' + names[3] + '[]" class="form-control js-' + kind + '-rate"></td>'
+            + '<td><input type="text" class="form-control js-' + kind + '-total" readonly></td>'
+            + '<td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td></tr>';
+    }
+
+    function recalc() {
+        ['dia', 'stone', 'other'].forEach(kind => modal.querySelectorAll('.js-' + kind + '-body tr').forEach(row => {
+            const weight = n((row.querySelector('.js-' + kind + '-weight') || {}).value);
+            const rate = n((row.querySelector('.js-' + kind + '-rate') || {}).value);
+            const total = row.querySelector('.js-' + kind + '-total');
+            if (total) total.value = (kind === 'other' ? rate : weight * rate).toFixed(2);
+        }));
+        let diamond = 0, stone = 0, other = 0;
+        modal.querySelectorAll('.js-dia-weight').forEach(el => diamond += n(el.value));
+        modal.querySelectorAll('.js-stone-weight').forEach(el => stone += n(el.value));
+        modal.querySelectorAll('.js-other-weight').forEach(el => other += n(el.value));
+        const gross = n((modal.querySelector('.js-gross-weight') || {}).value);
+        const purity = n((modal.querySelector('.js-purity-percent') || {}).value);
+        const net = gross - diamond * .2 - stone * .2 - other;
+        const safeNet = Math.max(net, 0);
+        const set = (selector, value) => {
+            const input = modal.querySelector(selector);
+            if (input) input.value = value;
+        };
+        set('.js-net-weight', net.toFixed(3));
+        set('.js-pure-weight', (safeNet * purity / 100).toFixed(3));
+        set('.js-gold-total', (safeNet * n((modal.querySelector('.js-gold-rate') || {}).value)).toFixed(2));
+        set('.js-labour-total', (safeNet * n((modal.querySelector('.js-labour-rate') || {}).value)).toFixed(2));
+    }
+
+    modal.addEventListener('shown.bs.modal', initStoneSelects);
+    modal.addEventListener('click', event => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+        const add = target.closest('.js-add-row');
+        if (add) {
+            const kind = add.getAttribute('data-kind');
+            const body = modal.querySelector('.js-' + kind + '-body');
+            if (body) body.insertAdjacentHTML('beforeend', rowHtml(kind));
+            initStoneSelects();
+        }
+        const remove = target.closest('.js-remove-row');
+        if (remove) {
+            const row = remove.closest('tr');
+            const body = row ? row.parentElement : null;
+            if (body && row && body.children.length > 1) row.remove();
+        }
+        recalc();
+    });
+    modal.addEventListener('input', recalc);
+    recalc();
+})();
 </script>
 <script>
     (function () {

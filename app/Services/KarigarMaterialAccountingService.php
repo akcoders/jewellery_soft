@@ -96,7 +96,8 @@ class KarigarMaterialAccountingService
         float $diamondCts,
         string $remarks,
         int $createdBy = 0,
-        ?string $voucherDate = null
+        ?string $voucherDate = null,
+        float $stoneCts = 0.0
     ): int {
         if ($karigarId <= 0) {
             throw new RuntimeException('An assigned karigar is required before receiving jewellery.');
@@ -109,8 +110,11 @@ class KarigarMaterialAccountingService
         if ($diamondCts > 0 || $diamondPcs > 0) {
             $lines[] = $this->diamondLine($diamondPcs, $diamondCts);
         }
+        if ($stoneCts > 0) {
+            $lines[] = $this->stoneLine($stoneCts);
+        }
         if ($lines === []) {
-            throw new RuntimeException('Pure gold or diamond detail is required for karigar settlement.');
+            throw new RuntimeException('Pure gold, diamond, or stone detail is required for karigar settlement.');
         }
 
         $karigarAccountId = $this->karigarAccountId($karigarId);
@@ -142,6 +146,26 @@ class KarigarMaterialAccountingService
         ], $lines);
 
         return (int) $result['voucher_id'];
+    }
+
+    public function stoneReceiptShortfall(int $karigarId, float $stoneCts): float
+    {
+        $stoneCts = round(max(0, $stoneCts), 3);
+        if ($stoneCts <= 0) {
+            return 0.0;
+        }
+
+        $accountId = $this->karigarAccountId($karigarId);
+        $balance = $this->db->table('account_balances')
+            ->select('qty_cts')
+            ->where('account_id', $accountId)
+            ->where('item_type', 'STONE')
+            ->where('item_key', 'STONE-POOL')
+            ->get()
+            ->getRowArray();
+        $available = max(0, (float) ($balance['qty_cts'] ?? 0));
+
+        return round(max(0, $stoneCts - $available), 3);
     }
 
     /**
@@ -299,6 +323,26 @@ class KarigarMaterialAccountingService
             'item_key' => 'DIAMOND-POOL',
             'material_name' => 'Diamond',
             'qty_pcs' => $pcs,
+            'qty_cts' => $cts,
+            'qty_weight' => 0,
+            'fine_gold' => 0,
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private function stoneLine(float $cts): array
+    {
+        $cts = round($cts, 3);
+        if ($cts <= 0) {
+            throw new RuntimeException('Stone quantity must be greater than zero.');
+        }
+
+        return [
+            'item_type' => 'STONE',
+            'item_key' => 'STONE-POOL',
+            'material_name' => 'Stone',
+            // Stone accounting is maintained in the inventory unit (cts/qty).
+            'qty_pcs' => 0,
             'qty_cts' => $cts,
             'qty_weight' => 0,
             'fine_gold' => 0,

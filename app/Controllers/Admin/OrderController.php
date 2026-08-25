@@ -34,6 +34,7 @@ use App\Services\GoldInventory\StockService as GoldInventoryStockService;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\OrderWhatsAppService;
 use App\Services\PdfService;
+use App\Services\StoneInventory\StockService as StoneInventoryStockService;
 use Config\Jewellery;
 use Exception;
 use Throwable;
@@ -513,6 +514,7 @@ class OrderController extends BaseController
             'karigars' => $this->karigarModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'customers'=> $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'locations'=> $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'stoneInventoryItems' => $this->stoneInventoryOptions(),
             'statuses' => $this->jewelleryConfig->orderStatuses,
         ]);
     }
@@ -756,6 +758,7 @@ class OrderController extends BaseController
             'items'      => $items,
             'attachments'=> $this->attachmentModel->where('order_id', $id)->orderBy('id', 'DESC')->findAll(),
             'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'stoneInventoryItems' => $this->stoneInventoryOptions(),
             'followups' => $followups,
             'readyImages' => $this->productionReadyImages($id),
             'receiveSummary' => is_array($receiveSummary) ? $receiveSummary : [],
@@ -1527,7 +1530,8 @@ class OrderController extends BaseController
             (array) $this->request->getPost('stone_type'),
             (array) $this->request->getPost('stone_pcs'),
             (array) $this->request->getPost('stone_weight'),
-            (array) $this->request->getPost('stone_rate')
+            (array) $this->request->getPost('stone_rate'),
+            (array) $this->request->getPost('stone_item_id')
         );
         $other = $this->collectReceiveOtherRows(
             (array) $this->request->getPost('other_desc'),
@@ -1588,7 +1592,22 @@ class OrderController extends BaseController
                 'created_by' => $adminId,
             ], true);
 
-            $accountVoucherId = (new KarigarMaterialAccountingService($db))->postFinishedJewelleryReceipt(
+            $materialAccounting = new KarigarMaterialAccountingService($db);
+            $receivedStoneRows = $stone['rows'];
+            $this->backflushReceivedStone(
+                $db,
+                $materialAccounting,
+                $movementId,
+                $orderId,
+                $karigarId,
+                $locationId,
+                $receivedStoneRows,
+                $stoneCts,
+                $adminId
+            );
+            $stone['rows'] = $receivedStoneRows;
+
+            $accountVoucherId = $materialAccounting->postFinishedJewelleryReceipt(
                 $orderId,
                 $karigarId,
                 $locationId,
@@ -1596,7 +1615,9 @@ class OrderController extends BaseController
                 $diamondPcs,
                 $diamondCts,
                 $notes,
-                $adminId
+                $adminId,
+                null,
+                $stoneCts
             );
 
             $this->persistReceiveSnapshot(
@@ -1846,11 +1867,18 @@ class OrderController extends BaseController
      * @param array<int,mixed> $pcsList
      * @param array<int,mixed> $weightList
      * @param array<int,mixed> $rateList
+     * @param array<int,mixed> $itemIds
      * @return array{rows:list<array<string,mixed>>,total_pcs:float,total_weight_cts:float,total_amount:float}
      */
-    private function collectReceiveComponentRows(array $types, array $pcsList, array $weightList, array $rateList): array
+    private function collectReceiveComponentRows(
+        array $types,
+        array $pcsList,
+        array $weightList,
+        array $rateList,
+        array $itemIds = []
+    ): array
     {
-        $max = max(count($types), count($pcsList), count($weightList), count($rateList));
+        $max = max(count($types), count($pcsList), count($weightList), count($rateList), count($itemIds));
         $totalPcs = 0.0;
         $totalWeight = 0.0;
         $totalAmount = 0.0;
@@ -1861,6 +1889,7 @@ class OrderController extends BaseController
             $pcs = max(0.0, (float) ($pcsList[$i] ?? 0));
             $weight = max(0.0, (float) ($weightList[$i] ?? 0));
             $rate = max(0.0, (float) ($rateList[$i] ?? 0));
+            $itemId = max(0, (int) ($itemIds[$i] ?? 0));
 
             if ($type === '' && $pcs <= 0 && $weight <= 0 && $rate <= 0) {
                 continue;
@@ -1872,6 +1901,7 @@ class OrderController extends BaseController
             $totalAmount += $lineTotal;
             $rows[] = [
                 'name' => $type === '' ? '-' : $type,
+                'item_id' => $itemId > 0 ? $itemId : null,
                 'pcs' => round($pcs, 3),
                 'weight_cts' => round($weight, 3),
                 'rate' => round($rate, 2),
@@ -1885,6 +1915,176 @@ class OrderController extends BaseController
             'total_weight_cts' => round($totalWeight, 3),
             'total_amount' => round($totalAmount, 2),
         ];
+    }
+
+    /**
+     * Issues only the stone quantity missing from the karigar's pooled stone balance.
+     * This keeps a normal prior issue from being deducted twice while still consuming
+     * central stock when finished jewellery is received without any earlier issue.
+     *
+     * @param list<array<string,mixed>> $stoneRows
+     */
+    private function backflushReceivedStone(
+        \CodeIgniter\Database\BaseConnection $db,
+        KarigarMaterialAccountingService $materialAccounting,
+        int $movementId,
+        int $orderId,
+        int $karigarId,
+        int $locationId,
+        array &$stoneRows,
+        float $stoneCts,
+        int $createdBy
+    ): ?int {
+        $stoneCts = round(max(0, $stoneCts), 3);
+        if ($stoneCts <= 0) {
+            return null;
+        }
+
+        $stoneStockService = new StoneInventoryStockService($db);
+        foreach ($stoneRows as &$stoneRow) {
+            if ((float) ($stoneRow['weight_cts'] ?? 0) <= 0 || (int) ($stoneRow['item_id'] ?? 0) > 0) {
+                continue;
+            }
+            $stoneName = trim((string) ($stoneRow['name'] ?? ''));
+            if ($stoneName === '' || $stoneName === '-') {
+                throw new \RuntimeException('Select a Stone Inventory item or enter a stone description for every received stone line.');
+            }
+            $stoneRow['item_id'] = $stoneStockService->upsertItemFromSignature([
+                'product_name' => $stoneName,
+                'stone_type' => $stoneName,
+                'default_rate' => max(0, (float) ($stoneRow['rate'] ?? 0)),
+                'remarks' => 'Created automatically during finished-jewellery receiving.',
+            ]);
+        }
+        unset($stoneRow);
+
+        $positiveRows = array_values(array_filter(
+            $stoneRows,
+            static fn(array $row): bool => (float) ($row['weight_cts'] ?? 0) > 0
+        ));
+        if ($positiveRows === []) {
+            throw new \RuntimeException('Enter at least one stone line with weight.');
+        }
+
+        $itemIds = [];
+        foreach ($positiveRows as $row) {
+            $itemId = (int) ($row['item_id'] ?? 0);
+            if ($itemId <= 0) {
+                throw new \RuntimeException('Select a Stone Inventory item or enter a stone description for every received stone line.');
+            }
+            $itemIds[] = $itemId;
+        }
+        $itemIds = array_values(array_unique($itemIds));
+
+        $itemRows = $db->table('stone_inventory_items i')
+            ->select('i.id, i.product_name, COALESCE(s.avg_rate, i.default_rate, 0) AS stock_rate', false)
+            ->join('stone_inventory_stock s', 's.item_id = i.id', 'left')
+            ->whereIn('i.id', $itemIds)
+            ->get()
+            ->getResultArray();
+        $itemsById = [];
+        foreach ($itemRows as $item) {
+            $itemsById[(int) $item['id']] = $item;
+        }
+        if (count($itemsById) !== count($itemIds)) {
+            throw new \RuntimeException('One or more selected Stone Inventory items are invalid.');
+        }
+
+        $shortfall = $materialAccounting->stoneReceiptShortfall($karigarId, $stoneCts);
+        if ($shortfall <= 0.0005) {
+            return null;
+        }
+
+        $existing = $db->table('stone_inventory_issue_headers')
+            ->select('id')
+            ->where('receive_movement_id', $movementId)
+            ->get()
+            ->getRowArray();
+        if ($existing) {
+            throw new \RuntimeException('Stone stock has already been consumed for this receiving entry.');
+        }
+
+        $karigar = $db->table('karigars')->select('name')->where('id', $karigarId)->get()->getRowArray();
+        $now = date('Y-m-d H:i:s');
+        $db->table('stone_inventory_issue_headers')->insert([
+            'voucher_no' => 'SRV-' . $movementId,
+            'issue_date' => date('Y-m-d'),
+            // Material issues remain independent from orders; the receive movement is the audit link.
+            'order_id' => null,
+            'receive_movement_id' => $movementId,
+            'karigar_id' => $karigarId,
+            'location_id' => $locationId,
+            'issue_to' => (string) ($karigar['name'] ?? ('Karigar #' . $karigarId)),
+            'purpose' => 'Finished receipt backflush',
+            'notes' => sprintf(
+                'Auto-issued %.3f cts stone shortage while receiving order #%d.',
+                $shortfall,
+                $orderId
+            ),
+            'created_by' => $createdBy > 0 ? $createdBy : null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $issueId = (int) $db->insertID();
+        if ($issueId <= 0) {
+            throw new \RuntimeException('Unable to create automatic stone inventory consumption.');
+        }
+
+        $remaining = $shortfall;
+        $lastIndex = count($positiveRows) - 1;
+        foreach ($positiveRows as $index => $row) {
+            $rowWeight = round((float) ($row['weight_cts'] ?? 0), 3);
+            $qty = $index === $lastIndex
+                ? $remaining
+                : round($shortfall * ($rowWeight / $stoneCts), 3);
+            $qty = round(min($rowWeight, max(0, $qty)), 3);
+            $remaining = round(max(0, $remaining - $qty), 3);
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $itemId = (int) $row['item_id'];
+            $submittedRate = max(0, (float) ($row['rate'] ?? 0));
+            $rate = round($submittedRate > 0 ? $submittedRate : (float) $itemsById[$itemId]['stock_rate'], 2);
+            $pcs = $rowWeight > 0
+                ? round(max(0, (float) ($row['pcs'] ?? 0)) * ($qty / $rowWeight), 3)
+                : 0;
+            $db->table('stone_inventory_issue_lines')->insert([
+                'issue_id' => $issueId,
+                'item_id' => $itemId,
+                'pcs' => $pcs,
+                'qty' => $qty,
+                'rate' => $rate,
+                'line_value' => round($qty * $rate, 2),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        $stoneStockService->applyReceiptBackflushIssue($issueId);
+        $materialAccounting->postInventoryHeader('stone', 'issue', $issueId);
+
+        return $issueId;
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function stoneInventoryOptions(): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('stone_inventory_items')) {
+            return [];
+        }
+
+        return $db->table('stone_inventory_items i')
+            ->select(
+                'i.id, i.product_name, i.stone_type, i.default_rate, '
+                . 'COALESCE(s.qty_balance, 0) AS qty_balance, COALESCE(s.avg_rate, 0) AS avg_rate',
+                false
+            )
+            ->join('stone_inventory_stock s', 's.item_id = i.id', 'left')
+            ->orderBy('i.product_name', 'ASC')
+            ->get()
+            ->getResultArray();
     }
 
     /**
@@ -2214,6 +2414,9 @@ class OrderController extends BaseController
                     'order_id' => $orderId,
                     'component_type' => $componentType,
                     'component_name' => $name === '' ? ucfirst($componentType) : $name,
+                    'stone_inventory_item_id' => $componentType === 'stone' && (int) ($row['item_id'] ?? 0) > 0
+                        ? (int) $row['item_id']
+                        : null,
                     'pcs' => round($pcs, 3),
                     'weight_cts' => round($weightCts, 3),
                     'weight_gm' => round($weightGm, 3),

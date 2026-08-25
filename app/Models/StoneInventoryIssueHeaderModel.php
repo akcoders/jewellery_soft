@@ -13,6 +13,7 @@ class StoneInventoryIssueHeaderModel extends Model
         'voucher_no',
         'issue_date',
         'order_id',
+        'receive_movement_id',
         'karigar_id',
         'location_id',
         'issue_to',

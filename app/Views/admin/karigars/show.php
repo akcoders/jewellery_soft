@@ -1,5 +1,23 @@
 <?= $this->extend('admin/layouts/main') ?>
 
+<?= $this->section('styles') ?>
+<style>
+    .karigar-ledger-card { overflow: hidden; }
+    .karigar-ledger-card .card-header {
+        align-items: center;
+        background: linear-gradient(180deg, #fff, #fffdf8);
+        border-bottom: 1px solid var(--erp-border);
+        display: flex;
+        justify-content: space-between;
+    }
+    .karigar-ledger-card .table-responsive { max-width: 100%; }
+    .karigar-ledger-table { min-width: 820px; width: 100% !important; }
+    @media (min-width: 768px) {
+        .karigar-ledger-table { min-width: 980px; }
+    }
+</style>
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Karigar Profile: <?= esc($karigar['name']) ?></h4>
@@ -149,9 +167,6 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if ($documents === []): ?>
-                                <tr><td colspan="4" class="text-muted text-center">No documents uploaded.</td></tr>
-                            <?php endif; ?>
                             <?php foreach ($documents as $d): ?>
                                 <tr>
                                     <td><?= esc($d['document_type']) ?></td>
@@ -168,11 +183,11 @@
     </div>
 </div>
 
-<div class="card">
+<div class="card karigar-ledger-card">
     <div class="card-header"><h5 class="card-title mb-0">Order Assignment History</h5></div>
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0">
+            <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
                 <thead>
                     <tr>
                         <th>Order No</th>
@@ -184,9 +199,6 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if ($assignedOrders === []): ?>
-                        <tr><td colspan="6" class="text-muted text-center">No assigned orders.</td></tr>
-                    <?php endif; ?>
                     <?php foreach ($assignedOrders as $o): ?>
                         <tr>
                             <td><a href="<?= site_url('admin/orders/' . $o['id']) ?>"><?= esc($o['order_no']) ?></a></td>
@@ -239,7 +251,7 @@
     </div>
 </div>
 
-<div class="card">
+<div class="card karigar-ledger-card">
     <div class="card-header"><h5 class="card-title mb-0">Issue / Receive Movement History</h5></div>
     <div class="card-body">
         <div class="mb-3">
@@ -250,7 +262,7 @@
             <span><strong>Diamond Balance:</strong> <?= esc(number_format((float) $movementSummary['balance_diamond'], 3)) ?> cts</span>
         </div>
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0">
+            <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
                 <thead>
                     <tr>
                         <th>Date</th>
@@ -265,9 +277,6 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if ($materialMovements === []): ?>
-                        <tr><td colspan="9" class="text-muted text-center">No movement entries.</td></tr>
-                    <?php endif; ?>
                     <?php foreach ($materialMovements as $mv): ?>
                         <tr>
                             <td><?= esc((string) $mv['created_at']) ?></td>
@@ -288,12 +297,12 @@
 </div>
 
 <div class="row">
-    <div class="col-lg-6 d-flex">
-        <div class="card w-100">
+    <div class="col-12 d-flex">
+        <div class="card w-100 karigar-ledger-card">
             <div class="card-header"><h5 class="card-title mb-0">Gold Ledger (Opening / Debit / Credit / Closing)</h5></div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table datatable table-hover mb-0">
+                    <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -308,9 +317,6 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if ($goldStatement === []): ?>
-                                <tr><td colspan="9" class="text-muted text-center">No gold ledger entries.</td></tr>
-                            <?php endif; ?>
                             <?php foreach ($goldStatement as $gl): ?>
                                 <tr>
                                     <td><?= esc((string) $gl['created_at']) ?></td>
@@ -331,12 +337,12 @@
         </div>
     </div>
 
-    <div class="col-lg-6 d-flex">
-        <div class="card w-100">
+    <div class="col-12 d-flex">
+        <div class="card w-100 karigar-ledger-card">
             <div class="card-header"><h5 class="card-title mb-0">Diamond Ledger (Opening / Debit / Credit / Closing)</h5></div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table datatable table-hover mb-0">
+                    <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -351,9 +357,6 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if ($diamondStatement === []): ?>
-                                <tr><td colspan="9" class="text-muted text-center">No diamond ledger entries.</td></tr>
-                            <?php endif; ?>
                             <?php foreach ($diamondStatement as $dl): ?>
                                 <tr>
                                     <td><?= esc((string) $dl['created_at']) ?></td>
@@ -376,12 +379,12 @@
 </div>
 
 <div class="row">
-    <div class="col-lg-6 d-flex">
-        <div class="card w-100">
+    <div class="col-12 d-flex">
+        <div class="card w-100 karigar-ledger-card">
             <div class="card-header"><h5 class="card-title mb-0">Stone Ledger (Opening / Debit / Credit / Closing)</h5></div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table datatable table-hover mb-0">
+                    <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -396,9 +399,6 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if ($stoneStatement === []): ?>
-                                <tr><td colspan="9" class="text-muted text-center">No stone ledger entries.</td></tr>
-                            <?php endif; ?>
                             <?php foreach ($stoneStatement as $sl): ?>
                                 <tr>
                                     <td><?= esc((string) $sl['created_at']) ?></td>
@@ -419,8 +419,8 @@
         </div>
     </div>
 
-    <div class="col-lg-6 d-flex">
-        <div class="card w-100">
+    <div class="col-12 d-flex">
+        <div class="card w-100 karigar-ledger-card">
             <div class="card-header"><h5 class="card-title mb-0">Payment Ledger</h5></div>
             <div class="card-body">
                 <?php if (! $paymentLedgerEnabled): ?>
@@ -465,7 +465,7 @@
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table datatable table-hover mb-0">
+                        <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
                             <thead>
                                 <tr>
                                     <th>Date</th>
@@ -480,9 +480,6 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if ($paymentStatement === []): ?>
-                                    <tr><td colspan="9" class="text-muted text-center">No payment ledger entries.</td></tr>
-                                <?php endif; ?>
                                 <?php foreach ($paymentStatement as $pl): ?>
                                     <tr>
                                         <td><?= esc((string) $pl['created_at']) ?></td>
@@ -512,7 +509,6 @@
             <table class="table datatable table-hover mb-0" data-dt-page-length="25">
                 <thead><tr><th>Date</th><th>Group</th><th>Design</th><th>Quality</th><th>Shade</th><th>Size</th><th>Pcs</th><th>Cts</th><th>Bag</th><th>Source</th></tr></thead>
                 <tbody>
-                    <?php if (($sourceIssueLines ?? []) === []): ?><tr><td colspan="10" class="text-center text-muted">No imported issuement detail.</td></tr><?php endif; ?>
                     <?php foreach (($sourceIssueLines ?? []) as $line): ?>
                         <tr>
                             <td><?= esc((string) ($line['issue_date'] ?? '-')) ?></td>
@@ -543,7 +539,6 @@
             <table class="table datatable table-hover mb-0" data-dt-page-length="25">
                 <thead><tr><th>Ready Date</th><th>Tag</th><th>Group</th><th>Design</th><th>Gross</th><th>Net Gold</th><th>Labour</th><th>Payment</th><th>Inventory</th></tr></thead>
                 <tbody>
-                    <?php if (($finishedItems ?? []) === []): ?><tr><td colspan="9" class="text-center text-muted">No completed jewellery.</td></tr><?php endif; ?>
                     <?php foreach (($finishedItems ?? []) as $item): ?>
                         <tr>
                             <td><?= esc((string) ($item['ready_date'] ?? '-')) ?></td>

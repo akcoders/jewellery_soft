@@ -248,6 +248,9 @@
                 <?= csrf_field() ?>
                 <div class="modal-body">
                     <div class="js-receive-modal">
+                        <div class="alert alert-info">
+                            Enter finished details manually. Stone shortage is automatically deducted from Stone Inventory; its balance may go negative.
+                        </div>
                         <div class="card border mb-3">
                             <div class="card-header py-2"><strong>1. Weight Section</strong></div>
                             <div class="card-body">
@@ -321,9 +324,17 @@
                             <div class="card-body p-0">
                                 <div class="table-responsive">
                                     <table class="table table-bordered mb-0" data-dt-skip="1">
-                                        <thead><tr><th>Type</th><th>Pcs</th><th>Weight (cts)</th><th>Rate</th><th>Total</th><th></th></tr></thead>
+                                        <thead><tr><th>Inventory Item</th><th>Description</th><th>Pcs</th><th>Weight (cts)</th><th>Rate</th><th>Total</th><th></th></tr></thead>
                                         <tbody class="js-stone-body">
                                             <tr>
+                                                <td>
+                                                    <select name="stone_item_id[]" class="form-select js-stone-inventory-select" data-placeholder="Search inventory item">
+                                                        <option value="">Select stone</option>
+                                                        <?php foreach (($stoneInventoryItems ?? []) as $stoneItem): ?>
+                                                            <option value="<?= (int) $stoneItem['id'] ?>"><?= esc((string) $stoneItem['product_name'] . ' · ' . number_format((float) $stoneItem['qty_balance'], 3) . ' available') ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </td>
                                                 <td><input type="text" name="stone_type[]" class="form-control"></td>
                                                 <td><input type="number" step="0.001" min="0" name="stone_pcs[]" class="form-control js-stone-pcs" value="0"></td>
                                                 <td><input type="number" step="0.001" min="0" name="stone_weight[]" class="form-control js-stone-weight" value="0"></td>
@@ -444,6 +455,7 @@
 
         const assignBase = '<?= site_url('admin/orders') ?>';
         const summaryBase = '<?= site_url('admin/karigars') ?>';
+        const stoneInventoryItems = <?= json_encode(array_values($stoneInventoryItems ?? []), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         let summaryRequestSeq = 0;
 
         function num(v) {
@@ -458,6 +470,29 @@
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function stoneItemOptions(selectedId) {
+            let options = '<option value="">Select stone</option>';
+            stoneInventoryItems.forEach(function (item) {
+                const id = String(item.id || '');
+                const label = String(item.product_name || 'Stone') + ' · ' + num(item.qty_balance).toFixed(3) + ' available';
+                options += '<option value="' + attr(id) + '"' + (String(selectedId || '') === id ? ' selected' : '') + '>' + attr(label) + '</option>';
+            });
+            return options;
+        }
+
+        function initStoneInventorySelects() {
+            if (!receiveModal || !window.jQuery || !window.jQuery.fn || !window.jQuery.fn.select2) return;
+            window.jQuery(receiveModal).find('.js-stone-inventory-select').each(function () {
+                if (window.jQuery(this).hasClass('select2-hidden-accessible')) return;
+                window.jQuery(this).select2({
+                    width: '100%',
+                    allowClear: true,
+                    placeholder: 'Search inventory item',
+                    dropdownParent: window.jQuery(receiveModal)
+                });
+            });
         }
 
         function createRowHtml(kind, row) {
@@ -479,6 +514,7 @@
             }
             if (kind === 'stone') {
                 return '<tr>'
+                    + '<td><select name="stone_item_id[]" class="form-select js-stone-inventory-select">' + stoneItemOptions(r.item_id || '') + '</select></td>'
                     + '<td><input type="text" name="stone_type[]" class="form-control" value="' + type + '"></td>'
                     + '<td><input type="number" step="0.001" min="0" name="stone_pcs[]" class="form-control js-stone-pcs" value="' + pcs.toFixed(3) + '"></td>'
                     + '<td><input type="number" step="0.001" min="0" name="stone_weight[]" class="form-control js-stone-weight" value="' + wt.toFixed(3) + '"></td>'
@@ -637,6 +673,7 @@
                     ensureSingleRow('.js-dia-body', 'dia');
                     ensureSingleRow('.js-stone-body', 'stone');
                     ensureSingleRow('.js-other-body', 'other');
+                    initStoneInventorySelects();
                     recalcReceiveModal();
                 }
             }
@@ -709,6 +746,7 @@
                 if (addStone) {
                     const body = receiveModal.querySelector('.js-stone-body');
                     if (body) body.insertAdjacentHTML('beforeend', createRowHtml('stone'));
+                    initStoneInventorySelects();
                     recalcReceiveModal();
                     return;
                 }
@@ -730,6 +768,7 @@
                 }
             });
 
+            receiveModal.addEventListener('shown.bs.modal', initStoneInventorySelects);
             receiveModal.addEventListener('input', function () {
                 recalcReceiveModal();
             });

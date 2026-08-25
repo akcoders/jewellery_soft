@@ -85,4 +85,43 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('FCPATH . $relativePath', $inventoryController);
         $this->assertStringContainsString('WRITEPATH . $relativePath', $inventoryController);
     }
+
+    public function testKarigarLedgersAndStoneReceiptBackflushAreWired(): void
+    {
+        $karigarProfile = (string) file_get_contents(APPPATH . 'Views/admin/karigars/show.php');
+        $orderList = (string) file_get_contents(APPPATH . 'Views/admin/orders/index.php');
+        $orderDetail = (string) file_get_contents(APPPATH . 'Views/admin/orders/show.php');
+        $controller = (string) file_get_contents(APPPATH . 'Controllers/Admin/OrderController.php');
+        $accounting = (string) file_get_contents(APPPATH . 'Services/KarigarMaterialAccountingService.php');
+        $migration = (string) file_get_contents(
+            APPPATH . 'Database/Migrations/2026-08-25-000065_LinkReceivedStoneInventoryConsumption.php'
+        );
+
+        $this->assertGreaterThanOrEqual(5, substr_count($karigarProfile, 'karigar-ledger-table'));
+        $this->assertStringContainsString('Gold Ledger (Opening / Debit / Credit / Closing)', $karigarProfile);
+        $this->assertStringContainsString('Diamond Ledger (Opening / Debit / Credit / Closing)', $karigarProfile);
+        $this->assertStringContainsString('Stone Ledger (Opening / Debit / Credit / Closing)', $karigarProfile);
+        $this->assertStringContainsString('Payment Ledger', $karigarProfile);
+
+        $this->assertStringContainsString('name="stone_item_id[]"', $orderList);
+        $this->assertStringContainsString('name="stone_item_id[]"', $orderDetail);
+        $this->assertStringContainsString('js-stone-inventory-select', $orderList);
+        $this->assertStringContainsString('js-stone-inventory-select', $orderDetail);
+
+        $this->assertStringContainsString('backflushReceivedStone(', $controller);
+        $this->assertStringContainsString('stoneReceiptShortfall(', $controller);
+        $this->assertStringContainsString('applyReceiptBackflushIssue($issueId)', $controller);
+        $this->assertStringContainsString("postInventoryHeader('stone', 'issue', \$issueId)", $controller);
+        $this->assertStringContainsString("'order_id' => null", $controller);
+        $this->assertStringContainsString("'item_type' => 'STONE'", $accounting);
+        $this->assertStringContainsString("'item_key' => 'STONE-POOL'", $accounting);
+
+        $stoneStock = (string) file_get_contents(APPPATH . 'Services/StoneInventory/StockService.php');
+        $this->assertStringContainsString('function applyReceiptBackflushIssue', $stoneStock);
+        $this->assertStringContainsString('$oldQty - $issueQty', $stoneStock);
+
+        $this->assertStringContainsString('stone_inventory_item_id', $migration);
+        $this->assertStringContainsString('receive_movement_id', $migration);
+        $this->assertStringContainsString('uq_stone_issue_receive_movement', $migration);
+    }
 }

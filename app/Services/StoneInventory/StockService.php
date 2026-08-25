@@ -16,8 +16,8 @@ class StockService
     public function __construct(?BaseConnection $db = null)
     {
         $this->db = $db ?? db_connect();
-        $this->itemModel = new StoneInventoryItemModel();
-        $this->stockModel = new StoneInventoryStockModel();
+        $this->itemModel = new StoneInventoryItemModel($this->db);
+        $this->stockModel = new StoneInventoryStockModel($this->db);
     }
 
     /**
@@ -128,6 +128,26 @@ class StockService
             }
 
             $this->updateStock($itemId, $newQty, $oldAvg);
+        }
+    }
+
+    /**
+     * Applies the automatic consumption created by finished-jewellery receiving.
+     * Unlike a normal manual issue, a receipt backflush may make stock negative so
+     * that a missing historical issue never blocks completion of the order.
+     */
+    public function applyReceiptBackflushIssue(int $issueId): void
+    {
+        foreach ($this->groupedIssueLines($issueId) as $row) {
+            $itemId = (int) $row['item_id'];
+            $issueQty = (float) $row['qty'];
+            $stock = $this->lockStockRow($itemId);
+            $oldQty = (float) $stock['qty_balance'];
+            $oldAvg = (float) $stock['avg_rate'];
+            $lineRate = $issueQty > 0 ? ((float) ($row['line_value'] ?? 0) / $issueQty) : 0;
+            $newAvg = $oldAvg > 0 ? $oldAvg : max(0, $lineRate);
+
+            $this->updateStock($itemId, $oldQty - $issueQty, $newAvg, true);
         }
     }
 
@@ -390,9 +410,9 @@ class StockService
         return $row;
     }
 
-    private function updateStock(int $itemId, float $qty, float $avgRate): void
+    private function updateStock(int $itemId, float $qty, float $avgRate, bool $allowNegative = false): void
     {
-        $qty = round(max(0, $qty), 3);
+        $qty = round($allowNegative ? $qty : max(0, $qty), 3);
         $avgRate = round(max(0, $avgRate), 2);
         $stockValue = round($qty * $avgRate, 2);
 
@@ -424,7 +444,7 @@ class StockService
     private function groupedIssueLines(int $issueId): array
     {
         return $this->db->table('stone_inventory_issue_lines')
-            ->select('item_id, SUM(qty) as qty', false)
+            ->select('item_id, SUM(qty) as qty, SUM(COALESCE(line_value, 0)) as line_value', false)
             ->where('issue_id', $issueId)
             ->groupBy('item_id')
             ->orderBy('item_id', 'ASC')

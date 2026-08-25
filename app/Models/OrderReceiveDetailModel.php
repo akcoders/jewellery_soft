@@ -14,6 +14,7 @@ class OrderReceiveDetailModel extends Model
         'order_id',
         'component_type',
         'component_name',
+        'stone_inventory_item_id',
         'pcs',
         'weight_cts',
         'weight_gm',
@@ -24,4 +25,3 @@ class OrderReceiveDetailModel extends Model
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
 }
-
