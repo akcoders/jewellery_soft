@@ -27,6 +27,7 @@ class AuthController extends BaseController
             ->join('customers', 'customers.id = customer_users.customer_id')
             ->where('customer_users.email', $email)
             ->where('customer_users.is_active', 1)
+            ->whereIn('customer_users.role', ['customer_admin', 'sales_person'])
             ->first();
         if (! $user || (int) ($user['customer_active'] ?? 0) !== 1
             || ! password_verify((string) $this->request->getPost('password'), (string) $user['password_hash'])) {

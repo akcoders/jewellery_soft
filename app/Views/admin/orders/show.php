@@ -50,7 +50,7 @@ $canReceive = ! in_array($status, ['Cancelled', 'Completed'], true) && (int) ($o
             <div class="card order-card h-100">
                 <div class="card-header"><h5 class="mb-0"><i class="fe fe-info me-2"></i>Order Information</h5></div>
                 <div class="card-body">
-                    <?php $details = ['Order From'=>($order['order_from']??'')?:'-','Customer'=>($order['customer_name']??'')?:'-','Assigned Karigar'=>($order['karigar_name']??'')?:'Not assigned','Due Date'=>($order['due_date']??'')?:'-','Type'=>($order['order_type']??'')?:'-','Status'=>$status?:'-']; ?>
+                    <?php $details = ['Order From'=>($order['order_from']??'')?:'-','Customer'=>($order['customer_name']??'')?:'-','Sales Person'=>($order['sales_person_name']??'')?:'-','Sales Mobile'=>($order['sales_person_mobile']??'')?:'-','Assigned Karigar'=>($order['karigar_name']??'')?:'Not assigned','Due Date'=>($order['due_date']??'')?:'-','Type'=>($order['order_type']??'')?:'-','Design Type'=>($order['order_design_type']??'')?:'Fresh','Status'=>$status?:'-']; ?>
                     <div class="row g-4 mb-4"><?php foreach ($details as $label => $value): ?><div class="col-sm-6 col-xl-4"><div class="detail-label"><?= esc($label) ?></div><div class="detail-value"><?= esc((string) $value) ?></div></div><?php endforeach; ?></div>
                     <div class="detail-label">Notes</div><div class="detail-value mb-4"><?= nl2br(esc((string) (($order['order_notes'] ?? '') ?: '-'))) ?></div>
                     <div class="table-responsive"><table class="table table-bordered align-middle mb-0"><thead><tr><th>Design</th><th>Description</th><th>Purity</th><th>Size</th><th>Qty</th><th>Status</th></tr></thead><tbody>

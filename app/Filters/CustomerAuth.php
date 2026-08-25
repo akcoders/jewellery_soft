@@ -16,20 +16,26 @@ class CustomerAuth implements FilterInterface
             return redirect()->to(site_url('customer/login'))->with('error', 'Please login to continue.');
         }
 
-        $active = db_connect()->table('customer_users cu')
+        $activeUser = db_connect()->table('customer_users cu')
+            ->select('cu.name, cu.role, c.name AS customer_name')
             ->join('customers c', 'c.id = cu.customer_id')
             ->where('cu.id', $userId)
             ->where('cu.customer_id', $customerId)
             ->where('cu.is_active', 1)
             ->where('c.is_active', 1)
-            ->countAllResults() === 1;
-        if (! $active) {
+            ->get()->getRowArray();
+        if (! $activeUser || ! in_array((string) ($activeUser['role'] ?? ''), ['customer_admin', 'sales_person'], true)) {
             session()->remove([
                 'customer_user_logged_in', 'customer_user_id', 'customer_id',
                 'customer_user_name', 'customer_name', 'customer_user_role',
             ]);
             return redirect()->to(site_url('customer/login'))->with('error', 'Your customer login is no longer active.');
         }
+        session()->set([
+            'customer_user_name' => (string) $activeUser['name'],
+            'customer_name' => (string) $activeUser['customer_name'],
+            'customer_user_role' => (string) $activeUser['role'],
+        ]);
         return null;
     }
 

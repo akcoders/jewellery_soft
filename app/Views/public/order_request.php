@@ -6,6 +6,7 @@
     <title><?= esc($title ?? 'Order Request') ?></title>
     <link rel="shortcut icon" href="<?= base_url('template/assets/img/favicon.png') ?>">
     <link rel="stylesheet" href="<?= base_url('template/assets/css/bootstrap.min.css') ?>">
+    <link rel="stylesheet" href="<?= base_url('template/assets/plugins/select2/css/select2.min.css') ?>">
     <style>
         body { background: #f6f7fb; color: #1f2937; }
         .page-shell { max-width: 980px; margin: 0 auto; padding: 28px 14px; }
@@ -13,6 +14,10 @@
         .form-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); }
         .section-title { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 14px; }
         .form-label { font-weight: 600; font-size: 13px; }
+        .select2-container { width: 100% !important; }
+        .select2-container .select2-selection--single { align-items: center; border-color: #dee2e6; display: flex; height: 38px; }
+        .select2-container .select2-selection--single .select2-selection__rendered { padding-left: 12px; }
+        .select2-container .select2-selection--single .select2-selection__arrow { height: 36px; }
     </style>
 </head>
 <body>
@@ -57,7 +62,7 @@
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label">Order Type</label>
-                            <select name="order_type" id="public-order-type" class="form-select" required>
+                            <select name="order_type" id="public-order-type" class="form-select js-searchable-select" required>
                                 <?php foreach (['Sales', 'Manufacturing', 'Repair'] as $type): ?>
                                     <option value="<?= esc($type) ?>" <?= (string) old('order_type', 'Sales') === $type ? 'selected' : '' ?>><?= esc($type) ?></option>
                                 <?php endforeach; ?>
@@ -147,6 +152,8 @@
         </div>
     </main>
 
+    <script src="<?= base_url('template/assets/js/jquery-3.7.1.min.js') ?>"></script>
+    <script src="<?= base_url('template/assets/plugins/select2/js/select2.min.js') ?>"></script>
     <script>
         (function () {
             const type = document.getElementById('public-order-type');
@@ -154,6 +161,13 @@
             const imageFields = document.getElementById('reference-image-fields');
             const addImageButton = document.getElementById('add-reference-image');
             const maxImages = 10;
+
+            if (window.jQuery && jQuery.fn.select2) {
+                jQuery('.js-searchable-select').select2({
+                    width: '100%',
+                    minimumResultsForSearch: 0
+                });
+            }
 
             function toggleRepair() {
                 if (!type || !repair) return;

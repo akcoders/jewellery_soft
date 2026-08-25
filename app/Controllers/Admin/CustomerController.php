@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\CustomerAddressModel;
 use App\Models\CustomerModel;
 use App\Models\CustomerUserModel;
+use RuntimeException;
 use Throwable;
 
 class CustomerController extends BaseController
@@ -75,8 +76,11 @@ class CustomerController extends BaseController
                 'terms_text'    => trim((string) $this->request->getPost('terms_text')),
                 'is_active'     => 1,
             ], true);
+            if (! $customerId) {
+                throw new RuntimeException('Customer profile could not be saved.');
+            }
 
-            $this->customerUserModel->insert([
+            $portalUserId = $this->customerUserModel->insert([
                 'customer_id' => (int) $customerId,
                 'name' => $name,
                 'mobile' => $phone ?: null,
@@ -84,12 +88,16 @@ class CustomerController extends BaseController
                 'password_hash' => password_hash((string) $this->request->getPost('password'), PASSWORD_DEFAULT),
                 'role' => 'customer_admin',
                 'is_active' => 1,
-            ]);
+            ], true);
+            if (! $portalUserId) {
+                throw new RuntimeException('Customer portal login could not be saved.');
+            }
             $this->storeAddress((int) $customerId, 'Billing', 'billing_');
             $this->storeAddress((int) $customerId, 'Shipping', 'shipping_');
         } catch (Throwable $e) {
             $db->transRollback();
-            return redirect()->back()->withInput()->with('error', 'Could not create customer user: ' . $e->getMessage());
+            log_message('error', 'Customer and portal user creation failed: {message}', ['message' => $e->getMessage()]);
+            return redirect()->back()->withInput()->with('error', 'Customer could not be created. Please verify the email and try again.');
         }
         $db->transComplete();
 

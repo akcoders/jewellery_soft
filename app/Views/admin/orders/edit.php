@@ -3,6 +3,8 @@
 <?= $this->section('content') ?>
 <?php
 $orderTypeValue = (string) old('order_type', (string) ($order['order_type'] ?? 'Sales'));
+$selectedCustomerId = (string) old('customer_id', (string) ($order['customer_id'] ?? ''));
+$selectedSalesPersonId = (string) old('sales_person_user_id', (string) ($order['sales_person_user_id'] ?? ''));
 $showRepairFields = $orderTypeValue === 'Repair';
 ?>
 <div class="erp-page-toolbar mb-3">
@@ -21,7 +23,7 @@ $showRepairFields = $orderTypeValue === 'Repair';
             <div class="row">
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Order Type</label>
-                    <select name="order_type" id="order-type-select" class="form-control" required>
+                    <select name="order_type" id="order-type-select" class="form-control js-searchable-select" required>
                         <option value="Sales" <?= $orderTypeValue === 'Sales' ? 'selected' : '' ?>>Sales</option>
                         <option value="Manufacturing" <?= $orderTypeValue === 'Manufacturing' ? 'selected' : '' ?>>Manufacturing</option>
                         <option value="Repair" <?= $orderTypeValue === 'Repair' ? 'selected' : '' ?>>Repair</option>
@@ -33,18 +35,28 @@ $showRepairFields = $orderTypeValue === 'Repair';
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Customer</label>
-                    <select name="customer_id" class="form-control">
+                    <select name="customer_id" id="order-customer-select" class="form-control js-searchable-select" data-placeholder="Search customer">
                         <option value="">Select customer</option>
                         <?php foreach ($customers as $customer): ?>
-                            <option value="<?= esc((string) $customer['id']) ?>" <?= (string) old('customer_id', (string) ($order['customer_id'] ?? '')) === (string) $customer['id'] ? 'selected' : '' ?>>
+                            <option value="<?= esc((string) $customer['id']) ?>" <?= $selectedCustomerId === (string) $customer['id'] ? 'selected' : '' ?>>
                                 <?= esc($customer['name']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-3 mb-3">
+                    <label class="form-label">Sales Person</label>
+                    <select name="sales_person_user_id" id="order-sales-person" class="form-control js-searchable-select" data-placeholder="Search salesperson">
+                        <option value=""></option>
+                        <?php foreach (($salesPeople ?? []) as $person): ?>
+                            <option value="<?= (int) $person['id'] ?>" data-customer-id="<?= (int) $person['customer_id'] ?>" data-name="<?= esc((string) $person['name'], 'attr') ?>" data-mobile="<?= esc((string) ($person['mobile'] ?? ''), 'attr') ?>" <?= $selectedSalesPersonId === (string) $person['id'] ? 'selected' : '' ?>><?= esc($person['name'] . ' · ' . (($person['mobile'] ?? '') ?: 'No mobile')) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div id="sales-person-detail" class="form-text"></div>
+                </div>
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Priority</label>
-                    <select name="priority" class="form-control">
+                    <select name="priority" class="form-control js-searchable-select">
                         <?php foreach ($priorities as $priority): ?>
                             <option value="<?= esc($priority) ?>" <?= (string) old('priority', (string) ($order['priority'] ?? 'Medium')) === $priority ? 'selected' : '' ?>><?= esc($priority) ?></option>
                         <?php endforeach; ?>
@@ -98,6 +110,12 @@ $showRepairFields = $orderTypeValue === 'Repair';
         const repairWork = document.getElementById('repair-work-details');
         const repairWeight = document.getElementById('repair-receive-weight');
         const repairDate = document.getElementById('repair-received-at');
+        const customerSelect = document.getElementById('order-customer-select');
+        const salesPersonSelect = document.getElementById('order-sales-person');
+        const salesPersonDetail = document.getElementById('sales-person-detail');
+        const salesPersonOptions = salesPersonSelect
+            ? Array.from(salesPersonSelect.options).filter(function (option) { return option.value; }).map(function (option) { return option.cloneNode(true); })
+            : [];
 
         function toggleRepairFields() {
             if (!orderTypeSelect || !repairWrap) return;
@@ -113,6 +131,34 @@ $showRepairFields = $orderTypeValue === 'Repair';
             orderTypeSelect.addEventListener('change', toggleRepairFields);
             toggleRepairFields();
         }
+
+        function updateSalesPersonDetail() {
+            if (!salesPersonSelect || !salesPersonDetail) return;
+            const option = salesPersonSelect.options[salesPersonSelect.selectedIndex];
+            salesPersonDetail.textContent = option && option.value
+                ? (option.dataset.name || option.textContent.trim()) + ' · ' + (option.dataset.mobile || 'Mobile not available')
+                : '';
+        }
+
+        function filterSalesPeople() {
+            if (!customerSelect || !salesPersonSelect) return;
+            const customerId = customerSelect.value;
+            const selectedValue = salesPersonSelect.value;
+            Array.from(salesPersonSelect.options).forEach(function (option) {
+                if (option.value) option.remove();
+            });
+            salesPersonOptions.forEach(function (option) {
+                if (customerId && option.dataset.customerId === customerId) salesPersonSelect.appendChild(option.cloneNode(true));
+            });
+            salesPersonSelect.value = Array.from(salesPersonSelect.options).some(function (option) { return option.value === selectedValue; }) ? selectedValue : '';
+            if (window.jQuery) jQuery(salesPersonSelect).trigger('change.select2');
+            updateSalesPersonDetail();
+        }
+
+        if (customerSelect && window.jQuery) jQuery(customerSelect).on('change', filterSalesPeople);
+        if (salesPersonSelect && window.jQuery) jQuery(salesPersonSelect).on('change', updateSalesPersonDetail);
+        filterSalesPeople();
+        updateSalesPersonDetail();
     })();
 </script>
 <?= $this->endSection() ?>

@@ -535,7 +535,7 @@ class OrderController extends BaseController
             'designs'     => $this->designModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'goldPurities'=> $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
             'karigars'    => $this->karigarModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
-            'salesPeople' => (new CustomerUserModel())->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'salesPeople' => (new CustomerUserModel())->select('id, customer_id, name, mobile')->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'priorities'  => $this->jewelleryConfig->orderPriorities,
             'statuses'    => $this->jewelleryConfig->orderStatuses,
             'repairMode'  => $repairMode,
@@ -718,9 +718,10 @@ class OrderController extends BaseController
         $this->syncCompletedOrdersFromReceive([$id]);
 
         $order = $this->orderModel
-            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm')
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm, sales_person.name as sales_person_name, sales_person.mobile as sales_person_mobile')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
+            ->join('customer_users sales_person', 'sales_person.id = orders.sales_person_user_id', 'left')
             ->find($id);
 
         if (! $order) {
@@ -779,6 +780,7 @@ class OrderController extends BaseController
             'title'      => 'Edit Order',
             'order'      => $order,
             'customers'  => $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'salesPeople'=> (new CustomerUserModel())->select('id, customer_id, name, mobile')->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'priorities' => $this->jewelleryConfig->orderPriorities,
         ]);
     }
@@ -806,6 +808,7 @@ class OrderController extends BaseController
             'order_type'  => 'required|max_length[30]',
             'order_from'  => 'permit_empty|max_length[150]',
             'customer_id' => 'permit_empty|integer',
+            'sales_person_user_id' => 'permit_empty|integer',
             'priority'    => 'required',
             'due_date'    => 'permit_empty|valid_date',
             'order_notes' => 'permit_empty',
@@ -823,6 +826,17 @@ class OrderController extends BaseController
             return redirect()->back()->withInput()->with('error', $this->firstValidationError());
         }
 
+        $customerId = $this->nullableInt($this->request->getPost('customer_id'));
+        $salesPersonUserId = $this->nullableInt($this->request->getPost('sales_person_user_id'));
+        if ($salesPersonUserId !== null && ($customerId === null || (new CustomerUserModel())
+            ->where('id', $salesPersonUserId)
+            ->where('customer_id', $customerId)
+            ->where('role', 'sales_person')
+            ->where('is_active', 1)
+            ->countAllResults() === 0)) {
+            return redirect()->back()->withInput()->with('error', 'Selected sales person does not belong to the selected customer.');
+        }
+
         $priority = (string) $this->request->getPost('priority');
         if (! in_array($priority, $this->jewelleryConfig->orderPriorities, true)) {
             return redirect()->back()->withInput()->with('error', 'Invalid order priority.');
@@ -831,7 +845,8 @@ class OrderController extends BaseController
         $this->orderModel->update($id, [
             'order_type'  => $isRepairOrder ? 'Repair' : $orderType,
             'order_from'  => trim((string) $this->request->getPost('order_from')) ?: null,
-            'customer_id' => $this->nullableInt($this->request->getPost('customer_id')),
+            'customer_id' => $customerId,
+            'sales_person_user_id' => $salesPersonUserId,
             'priority'    => $priority,
             'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
             'order_notes' => trim((string) $this->request->getPost('order_notes')),

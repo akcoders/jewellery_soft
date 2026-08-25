@@ -7,6 +7,14 @@ $selectedOrderType = (string) old('order_type', $isRepairMode ? 'Repair' : 'Sale
 $selectedDesignType = (string) old('order_design_type', 'Fresh');
 $showRepairFields = $selectedOrderType === 'Repair';
 ?>
+<style>
+    .order-create-card { overflow: visible; }
+    .order-person-card { align-items: center; background: #f8f9fb; border: 1px solid #e4e8ef; border-radius: 10px; display: flex; gap: 9px; margin-top: 8px; padding: 9px 10px; }
+    .order-person-card > i { align-items: center; background: #edf1f6; border-radius: 8px; color: #536176; display: inline-flex; flex: 0 0 32px; height: 32px; justify-content: center; }
+    .order-person-card strong, .order-person-card small { display: block; }
+    .order-person-card strong { font-size: 11px; }
+    .order-person-card small { color: var(--erp-muted); font-size: 9px; margin-top: 2px; }
+</style>
 <div class="erp-page-toolbar mb-3">
     <div>
         <span class="erp-eyebrow">Production workflow</span>
@@ -19,7 +27,7 @@ $showRepairFields = $selectedOrderType === 'Repair';
     </div>
 </div>
 
-<div class="card">
+<div class="card order-create-card">
     <div class="card-body">
         <form action="<?= site_url('admin/orders') ?>" method="post" enctype="multipart/form-data">
             <?= csrf_field() ?>
@@ -57,10 +65,10 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     <select name="sales_person_user_id" id="order-sales-person" class="form-control js-searchable-select" data-placeholder="Search sales person">
                         <option value=""></option>
                         <?php foreach (($salesPeople ?? []) as $person): ?>
-                            <option value="<?= (int) $person['id'] ?>" data-customer-id="<?= (int) $person['customer_id'] ?>" data-mobile="<?= esc((string) ($person['mobile'] ?? ''), 'attr') ?>" <?= (string) old('sales_person_user_id') === (string) $person['id'] ? 'selected' : '' ?>><?= esc($person['name'] . ' · ' . (($person['mobile'] ?? '') ?: 'No mobile')) ?></option>
+                            <option value="<?= (int) $person['id'] ?>" data-customer-id="<?= (int) $person['customer_id'] ?>" data-name="<?= esc((string) $person['name'], 'attr') ?>" data-mobile="<?= esc((string) ($person['mobile'] ?? ''), 'attr') ?>" <?= (string) old('sales_person_user_id') === (string) $person['id'] ? 'selected' : '' ?>><?= esc($person['name'] . ' · ' . (($person['mobile'] ?? '') ?: 'No mobile')) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <div id="sales-person-mobile" class="form-text"></div>
+                    <div id="sales-person-summary" class="order-person-card d-none"><i class="fe fe-user-check"></i><span><strong id="sales-person-name"></strong><small id="sales-person-mobile"></small></span></div>
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Priority</label>
@@ -145,14 +153,14 @@ $showRepairFields = $selectedOrderType === 'Repair';
 
             <hr>
             <div class="d-flex align-items-center justify-content-between mb-2">
-                <h6 class="mb-0">Order Items</h6>
+                <div><h6 class="mb-0">Order Items</h6><small class="text-muted">Unique design code is requested only when Repeat Order is selected.</small></div>
                 <button type="button" class="btn btn-sm btn-outline-primary" id="add-item-row">Add Item Row</button>
             </div>
             <div class="table-responsive mb-3">
-                <table class="table datatable table-bordered" id="items-table" data-dt-searching="false" data-dt-ordering="false" data-dt-paging="false" data-dt-info="false">
+                <table class="table table-bordered" id="items-table" data-dt-skip="true">
                     <thead>
                         <tr>
-                            <th>Design</th>
+                            <th class="js-design-column">Unique Design Code</th>
                             <th>Gold Purity</th>
                             <th>Description</th>
                             <th>Size</th>
@@ -164,7 +172,7 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     </thead>
                     <tbody>
                         <tr>
-                            <td>
+                            <td class="js-design-column">
                                 <select name="design_id[]" class="form-control js-item-searchable js-design-select">
                                     <option value="">Select design</option>
                                     <?php foreach ($designs as $design): ?>
@@ -228,7 +236,12 @@ $showRepairFields = $selectedOrderType === 'Repair';
         const designType = document.getElementById('order-design-type');
         const customerSelect = document.getElementById('order-customer-select');
         const salesPersonSelect = document.getElementById('order-sales-person');
+        const salesSummary = document.getElementById('sales-person-summary');
+        const salesName = document.getElementById('sales-person-name');
         const salesMobile = document.getElementById('sales-person-mobile');
+        const salesPersonOptions = salesPersonSelect
+            ? Array.from(salesPersonSelect.options).filter(function (option) { return option.value; }).map(function (option) { return option.cloneNode(true); })
+            : [];
 
         function toggleRepairFields() {
             if (!orderTypeSelect || !repairWrap) return;
@@ -264,6 +277,9 @@ $showRepairFields = $selectedOrderType === 'Repair';
 
         function toggleDesignSelection() {
             const repeat = designType && designType.value === 'Repeat';
+            document.querySelectorAll('.js-design-column').forEach(function (column) {
+                column.style.display = repeat ? '' : 'none';
+            });
             document.querySelectorAll('.js-design-select').forEach(function (select) {
                 select.required = repeat;
                 select.disabled = !repeat;
@@ -277,14 +293,28 @@ $showRepairFields = $selectedOrderType === 'Repair';
         function filterSalesPeople() {
             if (!salesPersonSelect || !customerSelect) return;
             const customerId = customerSelect.value;
+            const selectedValue = salesPersonSelect.value;
             Array.from(salesPersonSelect.options).forEach(function (option) {
-                if (!option.value) return;
-                option.hidden = !customerId || option.dataset.customerId !== customerId;
-                option.disabled = option.hidden;
+                if (option.value) option.remove();
             });
-            const selected = salesPersonSelect.options[salesPersonSelect.selectedIndex];
-            if (selected && selected.disabled) salesPersonSelect.value = '';
+            salesPersonOptions.forEach(function (option) {
+                if (customerId && option.dataset.customerId === customerId) salesPersonSelect.appendChild(option.cloneNode(true));
+            });
+            salesPersonSelect.value = Array.from(salesPersonSelect.options).some(function (option) { return option.value === selectedValue; }) ? selectedValue : '';
             if (typeof jQuery !== 'undefined') jQuery(salesPersonSelect).trigger('change.select2');
+            updateSalesPersonSummary();
+        }
+
+        function updateSalesPersonSummary() {
+            if (!salesPersonSelect || !salesSummary) return;
+            const option = salesPersonSelect.options[salesPersonSelect.selectedIndex];
+            if (!option || !option.value) {
+                salesSummary.classList.add('d-none');
+                return;
+            }
+            if (salesName) salesName.textContent = option.dataset.name || option.textContent.trim();
+            if (salesMobile) salesMobile.textContent = option.dataset.mobile || 'Mobile not available';
+            salesSummary.classList.remove('d-none');
         }
 
         if (designType) {
@@ -296,14 +326,12 @@ $showRepairFields = $selectedOrderType === 'Repair';
             else customerSelect.addEventListener('change', filterSalesPeople);
         }
         if (salesPersonSelect && typeof jQuery !== 'undefined') {
-            jQuery(salesPersonSelect).on('change', function () {
-                const option = salesPersonSelect.options[salesPersonSelect.selectedIndex];
-                if (salesMobile) salesMobile.textContent = option && option.value ? 'Mobile: ' + (option.dataset.mobile || 'Not available') : '';
-            });
+            jQuery(salesPersonSelect).on('change', updateSalesPersonSummary);
         }
         initItemSearch(document.querySelectorAll('.js-item-searchable'));
         filterSalesPeople();
         toggleDesignSelection();
+        updateSalesPersonSummary();
 
         addBtn.addEventListener('click', function () {
             if (!rowTemplate) return;
