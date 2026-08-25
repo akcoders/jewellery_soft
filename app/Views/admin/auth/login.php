@@ -14,6 +14,13 @@ $asset = rtrim((string) $assetBase, '/');
     <link rel="stylesheet" href="<?= esc($asset) ?>/plugins/fontawesome/css/fontawesome.min.css">
     <link rel="stylesheet" href="<?= esc($asset) ?>/plugins/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="<?= esc($asset) ?>/css/style.css?v=20260825-login-responsive">
+    <style>
+        .login-remember { align-items: flex-start; display: flex; gap: 10px; margin: -2px 0 18px; }
+        .login-remember .form-check-input { border-color: #cbd1dc; cursor: pointer; flex: 0 0 auto; height: 18px; margin: 2px 0 0; width: 18px; }
+        .login-remember .form-check-input:checked { background-color: #be1825; border-color: #be1825; }
+        .login-remember label { color: #344054; cursor: pointer; font-size: 13px; font-weight: 650; line-height: 1.3; }
+        .login-remember small { color: #98a2b3; display: block; font-size: 10px; font-weight: 450; margin-top: 3px; }
+    </style>
     <script src="<?= esc($asset) ?>/js/layout.js"></script>
 </head>
 <body>
@@ -41,14 +48,18 @@ $asset = rtrim((string) $assetBase, '/');
                                 <?= csrf_field() ?>
                                 <div class="input-block mb-3">
                                     <label class="form-control-label">Email Address</label>
-                                    <input type="email" name="email" class="form-control" value="<?= esc(old('email')) ?>" required>
+                                    <input type="email" name="email" class="form-control" value="<?= esc(old('email')) ?>" autocomplete="username" required>
                                 </div>
                                 <div class="input-block mb-3">
                                     <label class="form-control-label">Password</label>
                                     <div class="pass-group">
-                                        <input type="password" name="password" class="form-control pass-input" required>
+                                        <input type="password" name="password" class="form-control pass-input" autocomplete="current-password" required>
                                         <span class="fas fa-eye toggle-password"></span>
                                     </div>
+                                </div>
+                                <div class="login-remember">
+                                    <input class="form-check-input" type="checkbox" name="remember" value="1" id="remember-login" <?= (string) old('remember', '', false) === '1' ? 'checked' : '' ?>>
+                                    <label for="remember-login">Remember me on this device<small>Keep me securely signed in for 30 days.</small></label>
                                 </div>
                                 <button class="btn btn-lg btn-primary w-100" type="submit">Login</button>
                                 <div class="text-center dont-have mt-3">Do not have an account? <a href="<?= site_url('admin/register') ?>">Register</a></div>

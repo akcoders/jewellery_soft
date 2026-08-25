@@ -4,6 +4,7 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\AdminUserModel;
+use App\Services\AdminRememberMeService;
 use CodeIgniter\HTTP\RedirectResponse;
 
 class AuthController extends BaseController
@@ -53,7 +54,15 @@ class AuthController extends BaseController
             'admin_email'     => $admin['email'],
         ]);
 
-        return redirect()->to(site_url('admin/dashboard'));
+        $response = redirect()->to(site_url('admin/dashboard'));
+        $remember = new AdminRememberMeService();
+        if ((string) $this->request->getPost('remember') === '1') {
+            $remember->issue((int) $admin['id'], $this->request, $response);
+        } else {
+            $remember->forget($this->request, $response);
+        }
+
+        return $response;
     }
 
     public function register(): string
@@ -100,9 +109,11 @@ class AuthController extends BaseController
 
     public function logout(): RedirectResponse
     {
+        $response = redirect()->to(site_url('admin/login'));
+        (new AdminRememberMeService())->forget($this->request, $response);
         session()->destroy();
 
-        return redirect()->to(site_url('admin/login'))->with('success', 'You have been logged out.');
+        return $response->with('success', 'You have been logged out.');
     }
 
     private function firstValidationError(): string
