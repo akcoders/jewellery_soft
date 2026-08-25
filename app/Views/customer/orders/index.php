@@ -53,8 +53,8 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
         <span class="small text-muted"><?= count($orders) ?> record<?= count($orders) === 1 ? '' : 's' ?></span>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table mobile-card-table mb-0">
+        <div class="table-responsive portal-scroll-shell">
+            <table class="table portal-scroll-table mb-0">
                 <thead><tr><th>Order</th><th>Order Type</th><th>Design</th><th>Sales Person</th><th>Required By</th><th>Current Status</th></tr></thead>
                 <tbody>
                     <?php if ($orders === []): ?><tr><td colspan="6" class="text-center text-muted py-5">No orders available for this login.</td></tr><?php endif; ?>

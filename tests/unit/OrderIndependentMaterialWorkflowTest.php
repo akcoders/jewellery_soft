@@ -71,14 +71,22 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $dashboard = (string) file_get_contents(APPPATH . 'Views/admin/orders/dashboard.php');
         $purchaseBills = (string) file_get_contents(APPPATH . 'Views/admin/accounts/purchase_bills.php');
         $orderDetail = (string) file_get_contents(APPPATH . 'Views/admin/orders/show.php');
+        $customerLayout = (string) file_get_contents(APPPATH . 'Views/customer/layout.php');
+        $customerOrders = (string) file_get_contents(APPPATH . 'Views/customer/orders/index.php');
         $inventoryController = (string) file_get_contents(APPPATH . 'Controllers/Admin/JewelleryInventoryController.php');
 
         $this->assertStringContainsString("renderSection('styles')", $layout);
         $this->assertStringContainsString('dataRowCount > 10', $layout);
         $this->assertStringContainsString('usePaging', $layout);
         $this->assertStringContainsString("<body class=\"<?= \$isOrders ? 'module-orders' : '' ?>\">", $layout);
-        $this->assertStringContainsString('preserveOrderTable', $layout);
         $this->assertStringContainsString('erp-mobile-scroll-table', $layout);
+        $this->assertStringContainsString('erp-scroll-shell', $layout);
+        $this->assertStringContainsString("if (hasTabularHeader)", $layout);
+        $this->assertStringNotContainsString("addClass('erp-mobile-table')", $layout);
+        $this->assertStringNotContainsString('table.erp-mobile-table tbody tr', $layout);
+        $this->assertStringContainsString('portal-scroll-table', $customerLayout);
+        $this->assertStringContainsString('portal-scroll-table', $customerOrders);
+        $this->assertStringNotContainsString('mobile-card-table', $customerLayout . $customerOrders);
         $this->assertStringContainsString('order-workflow-panel', $dashboard);
         $this->assertStringContainsString('Schedule &amp; Karigar', $dashboard);
         $this->assertStringNotContainsString('.order-dashboard-table { min-width: 0; }', $dashboard);

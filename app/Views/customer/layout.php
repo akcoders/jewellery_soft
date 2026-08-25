@@ -54,15 +54,17 @@
             .portal-hero { align-items: stretch; flex-direction: column; padding: 19px; }
             .portal-hero .btn { width: 100%; }
             .portal-user-chip { background: transparent; border: 0; padding: 0; }
-            .mobile-card-table thead { display: none; }
-            .mobile-card-table, .mobile-card-table tbody, .mobile-card-table tr, .mobile-card-table td { display: block; width: 100%; }
-            .mobile-card-table tbody { padding: 8px; }
-            .mobile-card-table tr { background: #fff; border: 1px solid #e5e8ef; border-left: 3px solid var(--portal-gold); border-radius: 14px; margin: 8px 0 14px; overflow: hidden; }
-            .mobile-card-table td { align-items: flex-start; border: 0 !important; border-bottom: 1px solid #edf0f4 !important; display: flex; gap: 15px; justify-content: space-between; padding: 10px 11px; text-align: right; }
-            .mobile-card-table td:last-child { border-bottom: 0 !important; }
-            .mobile-card-table td::before { color: var(--portal-muted); content: attr(data-label); flex: 0 0 38%; font-size: .62rem; font-weight: 800; letter-spacing: .06em; text-align: left; text-transform: uppercase; }
-            .mobile-card-table td[colspan] { display: block; text-align: center; }
-            .mobile-card-table td[colspan]::before { display: none; }
+            .portal-scroll-shell { border: 1px solid var(--portal-border); border-radius: 0; overflow-x: auto; overscroll-behavior-inline: contain; }
+            .portal-scroll-shell::before { background: #f7f8fa; border-bottom: 1px solid var(--portal-border); color: var(--portal-muted); content: 'Swipe horizontally to view all columns  →'; display: block; font-size: 10px; font-weight: 700; padding: 8px 10px; text-align: right; }
+            .portal-scroll-table { min-width: 760px; table-layout: auto; width: 100%; }
+            .portal-scroll-table thead { display: table-header-group; }
+            .portal-scroll-table tbody { display: table-row-group; }
+            .portal-scroll-table tr { display: table-row; }
+            .portal-scroll-table th, .portal-scroll-table td { display: table-cell; font-size: 11px; padding: 10px 11px !important; text-align: left; vertical-align: middle; white-space: nowrap; }
+            .portal-scroll-table th:first-child, .portal-scroll-table td:first-child { left: 0; position: sticky; }
+            .portal-scroll-table th:first-child { box-shadow: 5px 0 10px -9px rgba(15, 23, 42, .9); z-index: 3; }
+            .portal-scroll-table td:first-child { background: #fff; box-shadow: 5px 0 10px -9px rgba(15, 23, 42, .7); z-index: 2; }
+            .portal-scroll-table td::before { content: none; display: none; }
         }
     </style>
 </head>

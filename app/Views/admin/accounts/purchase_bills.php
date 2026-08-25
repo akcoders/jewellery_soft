@@ -41,14 +41,10 @@ foreach (($rows ?? []) as $summaryRow) {
     .purchase-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; min-width: 140px; }
     .purchase-actions .btn { white-space: nowrap; }
     @media (max-width: 767px) {
-        .purchase-bills-table { min-width: 0; }
-        .purchase-bills-table tbody td:first-child { display: block !important; text-align: left !important; }
-        .purchase-bills-table tbody td:first-child::before { display: block; margin-bottom: 9px; width: 100%; }
-        .purchase-bills-table tbody td:first-child > .erp-mobile-value { max-width: 100%; text-align: left; }
         .purchase-address { margin-left: 0; max-width: none; }
         .purchase-invoice-meta { justify-content: flex-start; }
-        .purchase-material { justify-items: end; }
-        .purchase-actions { justify-content: flex-end; min-width: 0; }
+        .purchase-material { justify-items: start; }
+        .purchase-actions { justify-content: flex-start; min-width: 0; }
         .purchase-payment { min-width: 0; }
     }
 </style>
