@@ -1,9 +1,9 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="erp-page-toolbar erp-command-toolbar flex-wrap mb-3">
     <h4 class="mb-0">Issue #<?= (int) $issue['id'] ?></h4>
-    <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap gap-2">
         <a href="<?= site_url('admin/stone-inventory/issues/voucher/' . $issue['id']) ?>" target="_blank" class="btn btn-outline-success">
             <i class="fe fe-printer"></i> Print Voucher
         </a>
@@ -14,9 +14,9 @@
     </div>
 </div>
 
-<div class="card mb-3">
+<div class="card erp-record-card mb-3">
     <div class="card-body">
-        <div class="row">
+        <div class="row erp-record-grid">
             <div class="col-md-3"><strong>Voucher:</strong> <?= esc((string) ($issue['voucher_no'] ?? '-')) ?></div>
             <div class="col-md-3"><strong>Date:</strong> <?= esc((string) $issue['issue_date']) ?></div>
             <div class="col-md-3"><strong>Karigar:</strong> <?= esc((string) ($issue['karigar_name'] ?: $issue['issue_to'] ?: '-')) ?></div>
@@ -36,8 +36,8 @@
     </div>
 </div>
 
-<div class="card">
-    <div class="card-body">
+<div class="card erp-data-card">
+    <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table datatable table-bordered table-hover mb-0">
                 <thead>

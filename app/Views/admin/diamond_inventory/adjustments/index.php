@@ -1,7 +1,7 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="erp-page-toolbar d-flex align-items-center justify-content-between flex-wrap mb-3">
     <h4 class="mb-0">Diamond Stock Adjustments</h4>
     <a href="<?= site_url('admin/diamond-inventory/adjustments/create') ?>" class="btn btn-primary">
         <i class="fe fe-plus"></i> Create Adjustment
@@ -74,4 +74,3 @@
     </div>
 </div>
 <?= $this->endSection() ?>
-

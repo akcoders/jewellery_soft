@@ -242,6 +242,38 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             font-weight: 650;
             margin-bottom: 7px;
         }
+        .form-control:focus,
+        .form-select:focus,
+        .select2-container--default.select2-container--focus .select2-selection--single,
+        .select2-container--default.select2-container--open .select2-selection--single {
+            border-color: rgba(200, 155, 30, .78);
+            box-shadow: 0 0 0 3px rgba(200, 155, 30, .13);
+        }
+        .btn:focus-visible,
+        a:focus-visible {
+            outline: 3px solid rgba(200, 155, 30, .32);
+            outline-offset: 2px;
+        }
+        .nav-tabs {
+            border-bottom-color: var(--erp-border);
+            gap: 5px;
+        }
+        .nav-tabs .nav-link {
+            border-radius: 9px 9px 0 0;
+            color: var(--erp-muted);
+            font-weight: 650;
+            padding: 10px 14px;
+        }
+        .nav-tabs .nav-link.active {
+            border-color: var(--erp-border) var(--erp-border) #fff;
+            color: var(--erp-red);
+        }
+        .alert {
+            border: 0;
+            border-left: 4px solid currentColor;
+            border-radius: 11px;
+            box-shadow: 0 5px 18px rgba(31, 41, 55, .045);
+        }
         .table > :not(caption) > * > * {
             border-bottom-color: #edf0f4;
             padding: 13px 14px;
@@ -384,6 +416,195 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             width: 100%;
         }
         .erp-design-thumb-empty { color: #98a2b3; }
+        .erp-auto-toolbar,
+        .erp-command-toolbar {
+            background:
+                radial-gradient(circle at 92% -35%, rgba(200, 155, 30, .18), transparent 16rem),
+                linear-gradient(135deg, #ffffff 0%, #fffdfa 100%);
+            border: 1px solid #e6e1d4;
+            border-left: 4px solid var(--erp-red);
+            border-radius: 16px;
+            box-shadow: 0 12px 30px rgba(31, 41, 55, .065);
+            min-height: 92px;
+            overflow: hidden;
+            padding: 19px 21px;
+            position: relative;
+        }
+        .erp-auto-toolbar::after,
+        .erp-command-toolbar::after {
+            background: linear-gradient(180deg, rgba(200, 155, 30, .14), transparent);
+            content: '';
+            height: 90px;
+            pointer-events: none;
+            position: absolute;
+            right: -26px;
+            top: -28px;
+            transform: rotate(24deg);
+            width: 100px;
+        }
+        .erp-toolbar-copy {
+            min-width: 0;
+            position: relative;
+            z-index: 1;
+        }
+        .erp-toolbar-copy h4,
+        .erp-auto-toolbar > h4 {
+            font-size: clamp(19px, 2vw, 24px);
+            font-weight: 780;
+            letter-spacing: -.025em;
+            line-height: 1.2;
+            margin: 0;
+        }
+        .erp-toolbar-copy p {
+            color: var(--erp-muted);
+            font-size: 12px;
+            margin: 5px 0 0;
+        }
+        .erp-auto-toolbar > .d-flex,
+        .erp-command-toolbar > .d-flex {
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            position: relative;
+            z-index: 2;
+        }
+        .erp-record-card {
+            background:
+                linear-gradient(#fff, #fff) padding-box,
+                linear-gradient(135deg, rgba(179, 18, 31, .4), rgba(200, 155, 30, .35)) border-box;
+            border: 1px solid transparent;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .erp-record-card::before {
+            background: linear-gradient(90deg, var(--erp-red), var(--erp-gold));
+            content: '';
+            display: block;
+            height: 4px;
+        }
+        .erp-record-card .card-body {
+            padding: 18px;
+        }
+        .erp-record-grid {
+            display: grid;
+            gap: 11px;
+            grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+            margin: 0;
+        }
+        .erp-record-grid > [class*="col-"] {
+            background: #f9fafb;
+            border: 1px solid #eceff3;
+            border-radius: 11px;
+            color: #273142;
+            line-height: 1.45;
+            margin: 0 !important;
+            min-height: 68px;
+            padding: 12px 13px !important;
+            width: auto;
+        }
+        .erp-record-grid > [class*="col-"] > strong:first-child {
+            color: #7b8494;
+            display: block;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: .08em;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .erp-record-grid > [class*="col-"] a {
+            font-weight: 700;
+        }
+        .erp-record-list {
+            display: grid;
+            gap: 11px;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        }
+        .erp-record-list > p {
+            background: #f9fafb;
+            border: 1px solid #eceff3;
+            border-radius: 11px;
+            line-height: 1.45;
+            margin: 0 !important;
+            min-height: 68px;
+            overflow-wrap: anywhere;
+            padding: 12px 13px;
+        }
+        .erp-record-list > p > strong:first-child {
+            color: #7b8494;
+            display: block;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: .08em;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .erp-data-card {
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .erp-data-card > .card-header {
+            background: linear-gradient(135deg, #fff, #fcfaf4);
+            padding: 16px 18px;
+        }
+        .erp-data-card > .card-header h5,
+        .erp-data-card > .card-header h6 {
+            color: var(--erp-ink);
+            font-size: 14px;
+            font-weight: 760;
+        }
+        .erp-data-card > .card-body:has(> .table-responsive:only-child) {
+            padding: 0;
+        }
+        .erp-data-card .table {
+            margin-bottom: 0 !important;
+        }
+        .erp-data-card .table thead th {
+            background: #f5f7fa;
+            border-color: #e3e8ef !important;
+            color: #465267;
+        }
+        .erp-data-card .table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+        .erp-filter-card {
+            background: linear-gradient(135deg, #fff, #fafbfc);
+            border-color: #dfe4eb;
+            box-shadow: 0 7px 20px rgba(31, 41, 55, .04);
+        }
+        .erp-filter-card .card-body {
+            padding: 15px 18px;
+        }
+        .erp-filter-card .form-label {
+            font-size: 10px;
+            letter-spacing: .065em;
+            text-transform: uppercase;
+        }
+        .erp-form-shell {
+            border-top: 4px solid var(--erp-gold);
+        }
+        .erp-form-shell .card-header {
+            background: linear-gradient(135deg, #fffdf8, #fff);
+        }
+        .erp-action-cell .btn {
+            align-items: center;
+            display: inline-flex;
+            justify-content: center;
+        }
+        .erp-money,
+        .erp-number {
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        .erp-entry-table {
+            min-width: 860px;
+        }
+        .table-responsive:has(> .erp-entry-table)::before {
+            color: #8a93a3;
+            content: 'Scroll horizontally to complete all line-item fields →';
+            display: block;
+            font-size: 10px;
+            padding: 0 0 8px;
+            text-align: right;
+        }
         .erp-page-toolbar {
             align-items: center;
             background: rgba(255, 255, 255, 0.88);
@@ -716,6 +937,141 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                 padding: 16px;
                 width: 100%;
             }
+            .erp-auto-toolbar,
+            .erp-command-toolbar {
+                align-items: stretch !important;
+                flex-direction: column;
+                gap: 15px;
+                min-height: auto;
+                padding: 16px;
+            }
+            .erp-auto-toolbar > .d-flex,
+            .erp-command-toolbar > .d-flex {
+                display: grid !important;
+                gap: 8px !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                justify-content: stretch;
+                width: 100%;
+            }
+            .erp-auto-toolbar > .d-flex > .btn,
+            .erp-command-toolbar > .d-flex > .btn,
+            .erp-auto-toolbar > .d-flex > form,
+            .erp-command-toolbar > .d-flex > form {
+                width: 100%;
+            }
+            .erp-auto-toolbar > .d-flex > form .btn,
+            .erp-command-toolbar > .d-flex > form .btn {
+                width: 100%;
+            }
+            .erp-record-card .card-body {
+                padding: 13px;
+            }
+            .erp-record-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .erp-record-list {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .erp-record-grid > [class*="col-"] {
+                min-height: 64px;
+                overflow-wrap: anywhere;
+            }
+            .erp-data-card > .card-body,
+            .erp-table-card > .card-body {
+                padding: 0;
+            }
+            .erp-responsive-wide {
+                min-width: 0;
+            }
+            .dataTables_wrapper .row:first-child,
+            .dataTables_wrapper .row:last-child {
+                gap: 8px;
+                margin: 0;
+                padding: 11px 12px;
+            }
+            .dataTables_wrapper .dataTables_length,
+            .dataTables_wrapper .dataTables_filter,
+            .dataTables_wrapper .dataTables_filter label,
+            .dataTables_wrapper .dataTables_filter input {
+                margin: 0 !important;
+                width: 100% !important;
+            }
+            .dataTables_wrapper .dataTables_filter {
+                text-align: left !important;
+            }
+            table.erp-mobile-table,
+            table.erp-mobile-table tbody,
+            table.erp-mobile-table tr,
+            table.erp-mobile-table td {
+                display: block !important;
+                min-width: 0 !important;
+                width: 100% !important;
+            }
+            table.erp-mobile-table thead {
+                border: 0 !important;
+                clip: rect(0 0 0 0) !important;
+                height: 1px !important;
+                margin: -1px !important;
+                overflow: hidden !important;
+                padding: 0 !important;
+                position: absolute !important;
+                width: 1px !important;
+            }
+            table.erp-mobile-table tbody {
+                padding: 3px 10px 10px;
+            }
+            table.erp-mobile-table tbody tr {
+                background: #fff !important;
+                border: 1px solid #e2e7ee !important;
+                border-left: 3px solid var(--erp-gold) !important;
+                border-radius: 12px;
+                box-shadow: 0 5px 15px rgba(31, 41, 55, .045);
+                margin: 10px 0 !important;
+                overflow: hidden;
+            }
+            table.erp-mobile-table tbody td {
+                align-items: flex-start;
+                background: #fff !important;
+                border: 0 !important;
+                border-bottom: 1px solid #edf0f4 !important;
+                display: flex !important;
+                gap: 16px;
+                justify-content: space-between;
+                min-height: 42px;
+                padding: 10px 12px !important;
+                text-align: right;
+                white-space: normal !important;
+            }
+            table.erp-mobile-table tbody td:last-child {
+                border-bottom: 0 !important;
+            }
+            table.erp-mobile-table tbody td::before {
+                color: #7b8494;
+                content: attr(data-label);
+                flex: 0 0 39%;
+                font-size: 9px;
+                font-weight: 800;
+                letter-spacing: .055em;
+                text-align: left;
+                text-transform: uppercase;
+            }
+            table.erp-mobile-table tbody td[colspan] {
+                display: block !important;
+                padding: 30px 15px !important;
+                text-align: center;
+            }
+            table.erp-mobile-table tbody td[colspan]::before {
+                display: none;
+            }
+            table.erp-mobile-table tbody td .d-flex {
+                flex-wrap: wrap;
+                justify-content: flex-end;
+            }
+            table.erp-mobile-table tbody td .small,
+            table.erp-mobile-table tbody td small {
+                overflow-wrap: anywhere;
+                white-space: normal;
+            }
             .erp-page-toolbar > .d-flex {
                 width: 100%;
             }
@@ -758,6 +1114,16 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             }
             .erp-finance-metric {
                 min-height: 88px;
+            }
+            .erp-record-grid {
+                grid-template-columns: 1fr;
+            }
+            .erp-record-list {
+                grid-template-columns: 1fr;
+            }
+            .erp-auto-toolbar > .d-flex,
+            .erp-command-toolbar > .d-flex {
+                grid-template-columns: 1fr;
             }
         }
         .sidebar .sidebar-inner {
@@ -1380,9 +1746,11 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
     </script>
     <script>
         (function () {
-            if (typeof jQuery === 'undefined' || typeof jQuery.fn.DataTable === 'undefined') {
+            if (typeof jQuery === 'undefined') {
                 return;
             }
+
+            const dataTablesReady = typeof jQuery.fn.DataTable !== 'undefined';
 
             function boolAttr(value, fallback) {
                 if (value === undefined || value === null || value === '') {
@@ -1392,6 +1760,25 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             }
 
             jQuery(function ($) {
+                const $contentRoot = $('.content.container-fluid');
+                const $firstToolbar = $contentRoot.children('.erp-page-toolbar, .d-flex.align-items-center.justify-content-between.mb-3').first();
+                if ($firstToolbar.length) {
+                    $firstToolbar.addClass('erp-auto-toolbar');
+                    const $heading = $firstToolbar.children('h4').first();
+                    if ($heading.length) {
+                        const pathParts = window.location.pathname.split('/').filter(Boolean);
+                        const adminIndex = pathParts.indexOf('admin');
+                        const moduleLabel = String(pathParts[adminIndex + 1] || 'Admin').replace(/-/g, ' ');
+                        const $copy = $('<div class="erp-toolbar-copy"></div>');
+                        $heading.before($copy);
+                        $copy.append($('<span class="erp-eyebrow"></span>').text(moduleLabel));
+                        $copy.append($heading);
+                    } else {
+                        $firstToolbar.children('div').first().addClass('erp-toolbar-copy');
+                    }
+                    $contentRoot.children('.page-header').hide();
+                }
+
                 $('table.table').each(function () {
                     const $table = $(this);
                     if (!$table.hasClass('table-borderless')) {
@@ -1400,13 +1787,68 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                     $table.addClass('table-striped align-middle');
 
                     // Keep entry/input grids stable; enable DataTable on the rest.
-                    const hasFormControls = $table.find('tbody input, tbody select, tbody textarea, tbody button').length > 0;
+                    const hasEditableControls = $table.find('tbody input:not([type="hidden"]), tbody select, tbody textarea').length > 0;
                     const hasTabularHeader = $table.find('thead th').length > 0;
                     const skipAutoDatatable = boolAttr($table.attr('data-dt-skip'), false);
-                    if (!hasFormControls && hasTabularHeader && !skipAutoDatatable && !$table.hasClass('datatable')) {
+                    if (!hasEditableControls && hasTabularHeader && !skipAutoDatatable && !$table.hasClass('datatable')) {
                         $table.addClass('datatable');
                     }
+                    if (hasEditableControls && hasTabularHeader) {
+                        $table.addClass('erp-entry-table');
+                    }
+                    if (hasTabularHeader && !hasEditableControls) {
+                        $table.addClass('erp-mobile-table');
+                        const labels = $table.find('thead th').map(function () {
+                            return $(this).text().trim();
+                        }).get();
+                        $table.find('tbody tr').each(function () {
+                            $(this).children('td').each(function (index) {
+                                if (!$(this).attr('colspan')) {
+                                    $(this).attr('data-label', labels[index] || 'Detail');
+                                }
+                            });
+                        });
+                    }
+
+                    const $card = $table.closest('.card');
+                    if ($card.length && !hasEditableControls) {
+                        $card.addClass('erp-data-card');
+                    }
+                    $table.find('tbody td:last-child').each(function () {
+                        if ($(this).find('.btn, form').length) $(this).addClass('erp-action-cell');
+                    });
                 });
+
+                $contentRoot.find('.card').each(function () {
+                    const $card = $(this);
+                    const $body = $card.children('.card-body');
+                    const $row = $body.children('.row').first();
+                    const $fieldColumns = $row.children('[class*="col-"]');
+                    const hasFields = $fieldColumns.filter(function () {
+                        return $(this).children('strong:first-child, small:first-child, .text-muted:first-child').length > 0;
+                    }).length > 1;
+                    const hasForm = $body.find('form').length > 0;
+                    const $recordParagraphs = $body.children('p').filter(function () {
+                        return $(this).children('strong:first-child').length > 0;
+                    });
+                    if (hasFields && !hasForm) {
+                        $card.addClass('erp-record-card');
+                        $row.addClass('erp-record-grid');
+                    }
+                    if ($recordParagraphs.length > 1 && !hasForm) {
+                        $card.addClass('erp-record-card');
+                        $body.addClass('erp-record-list');
+                    }
+                    if ($body.children('form[method="get"]').length > 0) {
+                        $card.addClass('erp-filter-card');
+                    } else if (hasForm && !$card.hasClass('erp-data-card')) {
+                        $card.addClass('erp-form-shell');
+                    }
+                });
+
+                if (!dataTablesReady) {
+                    return;
+                }
 
                 $('.datatable').each(function () {
                     const $table = $(this);

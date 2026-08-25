@@ -1,7 +1,7 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
+<div class="erp-page-toolbar d-flex align-items-center justify-content-between flex-wrap mb-3">
     <h4 class="mb-0">Stone Returns</h4>
     <a href="<?= site_url('admin/stone-inventory/returns/create') ?>" class="btn btn-primary">
         <i class="fe fe-plus"></i> Create Return

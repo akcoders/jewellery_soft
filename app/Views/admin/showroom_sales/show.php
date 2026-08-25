@@ -1,20 +1,26 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
+<div class="erp-page-toolbar erp-command-toolbar flex-wrap mb-3">
+    <div>
+        <span class="erp-eyebrow">Showroom transaction</span>
+        <h4 class="mb-1">Sale <?= esc((string) ($sale['sale_no'] ?? '-')) ?></h4>
+        <p class="mb-0">Customer, tax, receipt and jewellery line-item details in one view.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <?php if ((int) ($sale['invoice_id'] ?? 0) > 0): ?>
+            <a href="<?= site_url('api/documents/invoice/' . (int) $sale['invoice_id']) ?>?download=1" target="_blank" data-loader-off="1" class="btn btn-outline-primary"><i class="fe fe-download me-1"></i>Invoice PDF</a>
+        <?php endif; ?>
+        <a href="<?= site_url('admin/showroom-sales') ?>" class="btn btn-light"><i class="fe fe-arrow-left me-1"></i>Back</a>
+    </div>
+</div>
+
 <div class="row g-3 mb-3">
     <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">Sale Summary</h5>
-                <div class="d-flex gap-2">
-                    <?php if ((int) ($sale['invoice_id'] ?? 0) > 0): ?>
-                        <a href="<?= site_url('api/documents/invoice/' . (int) $sale['invoice_id']) ?>?download=1" target="_blank" data-loader-off="1" class="btn btn-outline-primary"><i class="fe fe-download"></i> Invoice PDF</a>
-                    <?php endif; ?>
-                    <a href="<?= site_url('admin/showroom-sales') ?>" class="btn btn-light">Back</a>
-                </div>
-            </div>
+        <div class="card erp-record-card">
+            <div class="card-header"><h5 class="card-title mb-0">Sale Summary</h5></div>
             <div class="card-body">
-                <div class="row g-3 mb-2">
+                <div class="row erp-record-grid mb-2">
                     <div class="col-md-3"><small class="text-muted d-block">Sale No</small><strong><?= esc((string) ($sale['sale_no'] ?? '-')) ?></strong></div>
                     <div class="col-md-3"><small class="text-muted d-block">Invoice</small><strong><?= esc((string) ($sale['invoice_no'] ?? '-')) ?></strong></div>
                     <div class="col-md-3"><small class="text-muted d-block">Sale Date</small><strong><?= esc((string) ($sale['sale_date'] ?? '-')) ?></strong></div>
@@ -56,9 +62,9 @@
     </div>
 </div>
 
-<div class="card">
+<div class="card erp-data-card">
     <div class="card-header"><h5 class="card-title mb-0">Sale Line Items</h5></div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-bordered table-striped mb-0">
                 <thead>

@@ -1,15 +1,19 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Create Common Issuement</h4>
-    <a href="<?= site_url('admin/issuements') ?>" class="btn btn-outline-primary">Back</a>
+<div class="erp-page-toolbar erp-command-toolbar flex-wrap mb-3">
+    <div>
+        <span class="erp-eyebrow">Material movement</span>
+        <h4 class="mb-1">Create Common Issuement</h4>
+        <p class="mb-0">Issue gold, diamond and stone to a karigar from one clean entry screen.</p>
+    </div>
+    <a href="<?= site_url('admin/issuements') ?>" class="btn btn-outline-primary"><i class="fe fe-arrow-left me-1"></i>Back</a>
 </div>
 
 <form method="post" action="<?= site_url('admin/issuements') ?>" enctype="multipart/form-data">
     <?= csrf_field() ?>
 
-    <div class="card mb-3">
+    <div class="card erp-form-shell mb-3">
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-2">
@@ -57,7 +61,7 @@
         </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card erp-form-shell mb-3">
         <div class="card-header d-flex align-items-center justify-content-between">
             <h6 class="mb-0"><i class="fe fe-circle me-1"></i>Gold Lines</h6>
             <button type="button" class="btn btn-sm btn-primary" id="add-gold-line"><i class="fe fe-plus"></i> Add Gold</button>
@@ -80,7 +84,7 @@
         </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card erp-form-shell mb-3">
         <div class="card-header d-flex align-items-center justify-content-between">
             <h6 class="mb-0"><i class="fas fa-gem me-1"></i>Diamond Lines</h6>
             <button type="button" class="btn btn-sm btn-primary" id="add-diamond-line"><i class="fe fe-plus"></i> Add Diamond</button>
@@ -104,7 +108,7 @@
         </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card erp-form-shell mb-3">
         <div class="card-header d-flex align-items-center justify-content-between">
             <h6 class="mb-0"><i class="fe fe-disc me-1"></i>Stone Lines</h6>
             <button type="button" class="btn btn-sm btn-primary" id="add-stone-line"><i class="fe fe-plus"></i> Add Stone</button>

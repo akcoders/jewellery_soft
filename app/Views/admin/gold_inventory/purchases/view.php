@@ -21,9 +21,9 @@
     </div>
 </div>
 
-<div class="card erp-detail-card mb-3">
+<div class="card erp-detail-card erp-record-card mb-3">
     <div class="card-body">
-        <div class="row g-3">
+        <div class="row erp-record-grid">
             <div class="col-md-3"><strong>Date:</strong> <?= esc((string) $purchase['purchase_date']) ?></div>
             <div class="col-md-5"><strong>Supplier:</strong> <?= esc((string) ($purchase['resolved_supplier_name'] ?: '-')) ?></div>
             <div class="col-md-3"><strong>Invoice:</strong> <?= esc((string) ($purchase['invoice_no'] ?: '-')) ?></div>

@@ -1,17 +1,28 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Issuement Details</h4>
-    <div class="d-flex gap-2">
+<div class="erp-page-toolbar erp-command-toolbar flex-wrap mb-3">
+    <div>
+        <span class="erp-eyebrow">Material movement</span>
+        <h4 class="mb-1">Issuement <?= esc((string) ($voucherNo ?? '')) ?></h4>
+        <p class="mb-0">Complete voucher, karigar, warehouse and issued-material breakdown.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
         <a href="<?= site_url('admin/issuements') ?>" class="btn btn-outline-primary">Back</a>
         <a href="<?= site_url('admin/issuements/voucher/' . rawurlencode((string) ($voucherNo ?? ''))) ?>" target="_blank" class="btn btn-primary"><i class="fe fe-printer"></i> Print Voucher</a>
     </div>
 </div>
 
-<div class="card mb-3">
+<div class="erp-finance-summary mb-3">
+    <div class="erp-finance-metric blue"><i class="fe fe-file-text"></i><span><small>Voucher</small><strong><?= esc((string) ($voucherNo ?? '-')) ?></strong></span></div>
+    <div class="erp-finance-metric"><i class="fe fe-layers"></i><span><small>Material Type</small><strong><?= esc((string) ($materialType ?? '-')) ?></strong></span></div>
+    <div class="erp-finance-metric success"><i class="fe fe-user"></i><span><small>Issued To</small><strong><?= esc((string) ($supplierName ?? '-')) ?></strong></span></div>
+    <div class="erp-finance-metric danger"><i class="fe fe-credit-card"></i><span><small>Total Value</small><strong>₹<?= number_format((float) ($totalValue ?? 0), 2) ?></strong></span></div>
+</div>
+
+<div class="card erp-record-card mb-3">
     <div class="card-body">
-        <div class="row g-3">
+        <div class="row erp-record-grid">
             <div class="col-md-3"><strong>Voucher No:</strong> <?= esc((string) ($voucherNo ?? '-')) ?></div>
             <div class="col-md-3"><strong>Date:</strong> <?= esc((string) ($issue['issue_date'] ?? '-')) ?></div>
             <div class="col-md-3"><strong>Type:</strong> <?= esc((string) ($materialType ?? '-')) ?></div>
@@ -25,9 +36,9 @@
 </div>
 
 <?php if (($goldLines ?? []) !== []): ?>
-<div class="card mb-3">
+<div class="card erp-data-card mb-3">
     <div class="card-header"><h6 class="mb-0">Gold Lines</h6></div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-bordered datatable mb-0">
                 <thead>
@@ -59,9 +70,9 @@
 <?php endif; ?>
 
 <?php if (($diamondLines ?? []) !== []): ?>
-<div class="card mb-3">
+<div class="card erp-data-card mb-3">
     <div class="card-header"><h6 class="mb-0">Diamond Lines</h6></div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-bordered datatable mb-0">
                 <thead>
@@ -96,9 +107,9 @@
 <?php endif; ?>
 
 <?php if (($stoneLines ?? []) !== []): ?>
-<div class="card">
+<div class="card erp-data-card">
     <div class="card-header"><h6 class="mb-0">Stone Lines</h6></div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-bordered datatable mb-0">
                 <thead>

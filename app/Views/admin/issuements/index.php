@@ -1,16 +1,27 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Issuements</h4>
+<div class="erp-page-toolbar erp-command-toolbar flex-wrap mb-3">
+    <div>
+        <span class="erp-eyebrow">Production material movement</span>
+        <h4 class="mb-1">Issuements</h4>
+        <p class="mb-0">Combined gold, diamond and stone vouchers with karigar-wise traceability.</p>
+    </div>
     <a href="<?= site_url('admin/issuements/create') ?>" class="btn btn-primary"><i class="fe fe-plus"></i> Create Issuement</a>
 </div>
 
-<div class="card mb-3">
+<div class="erp-finance-summary mb-3">
+    <div class="erp-finance-metric blue"><i class="fe fe-file-text"></i><span><small>All Vouchers</small><strong><?= number_format(count($rows ?? [])) ?></strong></span></div>
+    <div class="erp-finance-metric"><i class="fe fe-circle"></i><span><small>Gold Issues</small><strong><?= number_format(count($goldRows ?? [])) ?></strong></span></div>
+    <div class="erp-finance-metric success"><i class="fe fe-box"></i><span><small>Diamond Issues</small><strong><?= number_format(count($diamondRows ?? [])) ?></strong></span></div>
+    <div class="erp-finance-metric danger"><i class="fe fe-grid"></i><span><small>Stone Issues</small><strong><?= number_format(count($stoneRows ?? [])) ?></strong></span></div>
+</div>
+
+<div class="card erp-data-card mb-3">
     <div class="card-header">
         <h6 class="mb-0">Combined Summary</h6>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table datatable table-bordered table-hover mb-0">
                 <thead>
@@ -60,11 +71,11 @@
     </div>
 </div>
 
-<div class="card mb-3">
+<div class="card erp-data-card mb-3">
     <div class="card-header">
         <h6 class="mb-0">Gold Issuements</h6>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table datatable table-bordered table-hover mb-0">
                 <thead>
@@ -114,11 +125,11 @@
     </div>
 </div>
 
-<div class="card mb-3">
+<div class="card erp-data-card mb-3">
     <div class="card-header">
         <h6 class="mb-0">Diamond Issuements</h6>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table datatable table-bordered table-hover mb-0">
                 <thead>
@@ -170,11 +181,11 @@
     </div>
 </div>
 
-<div class="card">
+<div class="card erp-data-card">
     <div class="card-header">
         <h6 class="mb-0">Stone Issuements</h6>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table datatable table-bordered table-hover mb-0">
                 <thead>

@@ -97,9 +97,9 @@ foreach (($rows ?? []) as $summaryRow) {
                                 <?php endif; ?>
                             </td>
                             <td><span class="badge <?= esc($badgeClass) ?>"><?= esc($category) ?></span></td>
-                            <td><?= number_format((float) ($row['qty'] ?? 0), 3) ?></td>
-                            <td><?= number_format((float) ($row['weight_value'] ?? 0), 3) ?> <?= esc((string) ($row['weight_unit'] ?? '')) ?></td>
-                            <td>
+                            <td class="erp-number"><?= number_format((float) ($row['qty'] ?? 0), 3) ?></td>
+                            <td class="erp-number"><?= number_format((float) ($row['weight_value'] ?? 0), 3) ?> <?= esc((string) ($row['weight_unit'] ?? '')) ?></td>
+                            <td class="erp-money">
                                 <?php if (($row['amount_available'] ?? true) === false): ?>
                                     <span class="text-muted">Not supplied</span>
                                 <?php else: ?>
