@@ -8,6 +8,7 @@ use App\Models\OrderAttachmentModel;
 use App\Models\OrderItemModel;
 use App\Models\OrderModel;
 use App\Models\OrderStatusHistoryModel;
+use App\Services\MobileNotificationEventService;
 use Throwable;
 
 class OrdersController extends BaseController
@@ -146,6 +147,13 @@ class OrdersController extends BaseController
             return redirect()->back()->withInput()->with('error', 'Could not create the order. Please try again.');
         }
         $db->transComplete();
+
+        try {
+            (new MobileNotificationEventService())->notifyOrderCreated($orderId, 'customer_portal');
+        } catch (Throwable $e) {
+            log_message('error', 'Customer order push notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+
         return redirect()->to(site_url('customer/orders'))->with('success', 'Order submitted successfully.');
     }
 

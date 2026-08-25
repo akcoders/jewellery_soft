@@ -4,6 +4,8 @@ namespace App\Controllers\Api\Mobile;
 
 use App\Models\MobileTaskModel;
 use App\Services\MobilePushService;
+use DateTimeImmutable;
+use DateTimeZone;
 use Throwable;
 
 class TasksController extends MobileBaseController
@@ -61,12 +63,17 @@ class TasksController extends MobileBaseController
             return $this->fail('scheduled_at is required.', 422);
         }
 
-        $scheduledTs = strtotime($scheduledAtRaw);
-        if ($scheduledTs === false) {
+        try {
+            $scheduledAtValue = new DateTimeImmutable($scheduledAtRaw, new DateTimeZone('Asia/Kolkata'));
+        } catch (Throwable $e) {
             return $this->fail('Invalid scheduled_at format.', 422);
         }
+        $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Kolkata'));
+        if ($scheduledAtValue <= $now) {
+            return $this->fail('Task reminder time must be in the future.', 422);
+        }
 
-        $scheduledAt = date('Y-m-d H:i:s', $scheduledTs);
+        $scheduledAt = $scheduledAtValue->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('Y-m-d H:i:s');
         $taskId = 0;
         $push = ['queued' => false, 'message' => 'Notification was not queued.'];
 
@@ -87,6 +94,8 @@ class TasksController extends MobileBaseController
                 'type' => 'task',
                 'reference_table' => 'mobile_tasks',
                 'reference_id' => $taskId,
+                'dedupe_key' => 'task:' . $taskId . ':admin:' . (int) ($this->mobileAdmin['id'] ?? 0),
+                'device_fallback_on_failure' => true,
                 'title' => 'Task Reminder',
                 'message' => $note !== '' ? $note : $title,
                 'scheduled_at' => $scheduledAt,

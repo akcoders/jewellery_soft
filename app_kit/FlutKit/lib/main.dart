@@ -1,4 +1,5 @@
 import 'package:flutkit/jewellery_mobile/jewellery_mobile_app.dart';
+import 'package:flutkit/jewellery_mobile/services/local_notification_service.dart';
 import 'package:flutkit/jewellery_mobile/services/onesignal_service.dart';
 import 'package:flutkit/jewellery_mobile/session/mobile_session_store.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await OneSignalService.init();
+  await LocalNotificationService.instance.init();
   final session = await MobileSessionStore.load();
   runApp(MyApp(initialSession: session));
 }

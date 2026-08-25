@@ -1,3 +1,5 @@
+import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -15,54 +17,82 @@ class LocalNotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  String? _lastError;
+
+  bool get isSupported =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool get isInitialized => _initialized;
+  String? get lastError => _lastError;
 
   Future<void> init() async {
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const settings = InitializationSettings(android: android);
-    await _plugin.initialize(settings);
-    final tzInfo = await FlutterTimezone.getLocalTimezone();
-    final String timeZoneName = tzInfo.identifier;
-    tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation(timeZoneName));
+    if (_initialized || !isSupported) return;
 
-    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-      AndroidFlutterLocalNotificationsPlugin
-    >();
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        channelId,
-        channelName,
-        description: 'Task and followup reminders',
-        importance: Importance.high,
-        playSound: true,
-        sound: RawResourceAndroidNotificationSound(customSoundName),
-      ),
-    );
-    _initialized = true;
+    try {
+      const android = AndroidInitializationSettings(
+        'ic_stat_onesignal_default',
+      );
+      const settings = InitializationSettings(android: android);
+      await _plugin.initialize(
+        settings,
+        onDidReceiveNotificationResponse: (_) => TaskRefreshBus.notify(),
+      );
+      final tzInfo = await FlutterTimezone.getLocalTimezone();
+      final String timeZoneName = tzInfo.identifier;
+      tz.initializeTimeZones();
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          channelId,
+          channelName,
+          description: 'Task and followup reminders',
+          importance: Importance.high,
+          playSound: true,
+          sound: RawResourceAndroidNotificationSound(customSoundName),
+        ),
+      );
+      _initialized = true;
+      _lastError = null;
+    } catch (error) {
+      _initialized = false;
+      _lastError = error.toString();
+    }
   }
 
-  Future<void> requestPermission() async {
+  Future<bool> requestPermission() async {
+    if (!isSupported) return false;
+    if (!_initialized) await init();
+    if (!_initialized) return false;
     final android = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >();
-    await android?.requestNotificationsPermission();
+    final notificationsGranted = await android
+        ?.requestNotificationsPermission();
     await android?.requestExactAlarmsPermission();
+    return notificationsGranted ?? true;
   }
 
-  Future<void> scheduleNotification({
+  Future<bool> scheduleNotification({
     required int id,
     required String title,
     required String body,
     required DateTime scheduledAt,
   }) async {
+    if (!isSupported) return false;
     if (!_initialized) {
       await init();
     }
-    await requestPermission();
+    if (!_initialized) return false;
+    if (!await requestPermission()) return false;
 
     final now = DateTime.now();
-    final safeDateTime = scheduledAt.isBefore(now.add(const Duration(seconds: 2)))
+    final safeDateTime =
+        scheduledAt.isBefore(now.add(const Duration(seconds: 2)))
         ? now.add(const Duration(seconds: 5))
         : scheduledAt;
 
@@ -103,9 +133,21 @@ class LocalNotificationService {
         matchDateTimeComponents: null,
       );
     }
+    return true;
   }
 
   Future<void> cancel(int id) async {
-    await _plugin.cancel(id);
+    if (!isSupported) return;
+    try {
+      if (!_initialized) await init();
+      if (!_initialized) return;
+      await _plugin.cancel(id);
+      _lastError = null;
+    } catch (error) {
+      // The server-side task/notification is already complete at this point;
+      // a device cancellation failure must not make that completed API action
+      // look unsuccessful to the user.
+      _lastError = error.toString();
+    }
   }
 }

@@ -2,19 +2,19 @@
 
 namespace App\Controllers\Api\Mobile;
 
-use App\Services\MobilePushService;
+use App\Services\MobileNotificationEventService;
 use Config\Jewellery;
 use Throwable;
 
 class OrdersController extends MobileBaseController
 {
     private Jewellery $jewelleryConfig;
-    private MobilePushService $mobilePushService;
+    private MobileNotificationEventService $mobileNotificationEvents;
 
     public function __construct()
     {
         $this->jewelleryConfig = config(Jewellery::class);
-        $this->mobilePushService = new MobilePushService();
+        $this->mobileNotificationEvents = new MobileNotificationEventService();
     }
 
     public function index()
@@ -210,28 +210,17 @@ class OrdersController extends MobileBaseController
                 ]);
             }
 
-            if ($nextFollowupDateTime !== null) {
-                $push = $this->mobilePushService->queueForAdminRow($this->mobileAdmin ?? [], [
-                    'type' => 'followup',
-                    'reference_table' => 'order_followups',
-                    'reference_id' => $followupId,
-                    'title' => 'Followup Reminder',
-                    'message' => 'Order ' . (string) ($order['order_no'] ?? '-') . ' followup is due.',
-                    'scheduled_at' => $nextFollowupDateTime,
-                    'payload' => [
-                        'type' => 'followup',
-                        'order_id' => $id,
-                        'followup_id' => $followupId,
-                        'order_no' => (string) ($order['order_no'] ?? ''),
-                        'stage' => $stage,
-                    ],
-                ]);
-            }
-
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
             return $this->fail('Could not save followup: ' . $e->getMessage(), 500);
+        }
+
+        try {
+            $push = $this->mobileNotificationEvents->notifyFollowupAdded($id, $followupId);
+        } catch (Throwable $e) {
+            log_message('error', 'Mobile followup push notification failed: {message}', ['message' => $e->getMessage()]);
+            $push = ['queued' => false, 'message' => 'Followup saved, but push notification failed.'];
         }
 
         return $this->ok([
@@ -398,4 +387,3 @@ class OrdersController extends MobileBaseController
         ];
     }
 }
-

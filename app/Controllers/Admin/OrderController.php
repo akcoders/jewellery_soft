@@ -32,6 +32,7 @@ use App\Services\AdminPostingService;
 use App\Services\FinishedJewelleryService;
 use App\Services\GoldInventory\StockService as GoldInventoryStockService;
 use App\Services\KarigarMaterialAccountingService;
+use App\Services\MobileNotificationEventService;
 use App\Services\OrderWhatsAppService;
 use App\Services\PdfService;
 use App\Services\StoneInventory\StockService as StoneInventoryStockService;
@@ -68,6 +69,7 @@ class OrderController extends BaseController
     private AdminPostingService $adminPostingService;
     private FinishedJewelleryService $finishedJewelleryService;
     private OrderWhatsAppService $orderWhatsAppService;
+    private MobileNotificationEventService $mobileNotificationEvents;
     private PdfService $pdfService;
     private Jewellery $jewelleryConfig;
 
@@ -101,6 +103,7 @@ class OrderController extends BaseController
         $this->adminPostingService = new AdminPostingService();
         $this->finishedJewelleryService = new FinishedJewelleryService();
         $this->orderWhatsAppService = new OrderWhatsAppService();
+        $this->mobileNotificationEvents = new MobileNotificationEventService();
         $this->pdfService = new PdfService();
         $this->jewelleryConfig = config(Jewellery::class);
     }
@@ -706,6 +709,12 @@ class OrderController extends BaseController
             $this->dispatchWhatsappOrderCreated((int) $orderId);
         }
 
+        try {
+            $this->mobileNotificationEvents->notifyOrderCreated((int) $orderId, 'admin');
+        } catch (Throwable $e) {
+            log_message('error', 'Order push notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+
         return redirect()->to(site_url('admin/orders/' . $orderId))->with('success', 'Order created successfully.');
     }
 
@@ -1153,7 +1162,7 @@ class OrderController extends BaseController
         try {
             $db->transException(true)->transStart();
 
-            $this->followupModel->insert([
+            $followupId = (int) $this->followupModel->insert([
                 'order_id' => $id,
                 'stage' => $stage,
                 'description' => $description,
@@ -1162,7 +1171,7 @@ class OrderController extends BaseController
                 'followup_taken_on' => date('Y-m-d H:i:s'),
                 'image_name' => $imageName,
                 'image_path' => $imagePath,
-            ]);
+            ], true);
 
             $oldStatus = (string) ($order['status'] ?? '');
             if ($oldStatus !== $stage) {
@@ -1187,6 +1196,12 @@ class OrderController extends BaseController
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+
+        try {
+            $this->mobileNotificationEvents->notifyFollowupAdded($id, $followupId);
+        } catch (Throwable $e) {
+            log_message('error', 'Followup push notification failed: {message}', ['message' => $e->getMessage()]);
         }
 
         $returnTo = trim((string) $this->request->getPost('return_to'));

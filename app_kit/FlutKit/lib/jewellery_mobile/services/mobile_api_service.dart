@@ -144,8 +144,23 @@ class MobileApiService {
     return (res['data'] as List?) ?? <dynamic>[];
   }
 
+  Future<Map<String, dynamic>> fetchNotificationStatus() async {
+    final res = await _get('/api/mobile/notifications/status');
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<void> markNotificationDone(int id) async {
     await _post('/api/mobile/notifications/$id/done', body: const {});
+  }
+
+  Future<void> confirmNotificationLocalFallback(
+    int id, {
+    required bool scheduled,
+  }) async {
+    await _post(
+      '/api/mobile/notifications/$id/local-fallback',
+      body: {'scheduled': scheduled},
+    );
   }
 
   Future<Map<String, dynamic>> fetchInventorySummary() async {
@@ -484,16 +499,7 @@ class MobileApiService {
   }
 
   Map<String, dynamic> _decode(http.Response response) {
-    final parsed = jsonDecode(response.body);
-    if (parsed is! Map<String, dynamic>) {
-      throw Exception('Invalid API response.');
-    }
-    final success = parsed['success'] == true;
-    if (!success) {
-      final message = (parsed['message'] ?? 'API request failed.').toString();
-      throw Exception(message);
-    }
-    return parsed;
+    return decodeMobileApiResponse(response);
   }
 
   String _resolvedFileName(http.Response response, String fallback) {
@@ -540,4 +546,84 @@ class MobileApiService {
     }
     return normalized;
   }
+}
+
+/// Decodes both the current API envelope and responses returned by older
+/// deployments of the mobile API.
+///
+/// The current server responds with `{success, message, data}`. Some older
+/// lookup endpoints returned their list/map directly, which made opening an
+/// issuement form fail even though the response itself was valid JSON.
+Map<String, dynamic> decodeMobileApiResponse(http.Response response) {
+  final body = response.body.trim();
+  final statusCode = response.statusCode;
+  final isSuccessfulStatus = statusCode >= 200 && statusCode < 300;
+
+  if (body.isEmpty) {
+    throw Exception(
+      'Server returned an empty response (HTTP $statusCode). Please try again.',
+    );
+  }
+
+  dynamic decoded;
+  try {
+    decoded = jsonDecode(body);
+  } on FormatException {
+    final lowerBody = body.toLowerCase();
+    final isHtml =
+        lowerBody.startsWith('<!doctype') ||
+        lowerBody.startsWith('<html') ||
+        lowerBody.contains('<body');
+    throw Exception(
+      isHtml
+          ? 'Server returned an HTML error page (HTTP $statusCode). Please update the server API and try again.'
+          : 'Server returned an unreadable response (HTTP $statusCode). Please try again.',
+    );
+  }
+
+  if (decoded is List) {
+    if (!isSuccessfulStatus) {
+      throw Exception('API request failed (HTTP $statusCode).');
+    }
+    return <String, dynamic>{'success': true, 'message': 'OK', 'data': decoded};
+  }
+
+  if (decoded is! Map) {
+    throw Exception(
+      'Server returned an unsupported response (HTTP $statusCode).',
+    );
+  }
+
+  final parsed = decoded.map<String, dynamic>(
+    (key, value) => MapEntry(key.toString(), value),
+  );
+
+  // Legacy endpoints returned a data map directly instead of an envelope.
+  if (!parsed.containsKey('success')) {
+    if (!isSuccessfulStatus) {
+      final message = (parsed['message'] ?? parsed['error'] ?? '').toString();
+      throw Exception(
+        message.trim().isEmpty
+            ? 'API request failed (HTTP $statusCode).'
+            : message,
+      );
+    }
+    return <String, dynamic>{'success': true, 'message': 'OK', 'data': parsed};
+  }
+
+  final successValue = parsed['success'];
+  final success =
+      successValue == true ||
+      successValue == 1 ||
+      successValue?.toString().toLowerCase() == 'true';
+  if (!isSuccessfulStatus || !success) {
+    final message = (parsed['message'] ?? parsed['error'] ?? '').toString();
+    throw Exception(
+      message.trim().isEmpty
+          ? 'API request failed (HTTP $statusCode).'
+          : message,
+    );
+  }
+
+  return parsed;
 }

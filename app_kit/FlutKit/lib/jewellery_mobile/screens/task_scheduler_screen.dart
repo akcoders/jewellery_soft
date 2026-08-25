@@ -72,7 +72,8 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
       );
       if (created != null) {
         setState(() {
-          _tasks = [..._tasks, created]..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+          _tasks = [..._tasks, created]
+            ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
         });
       } else {
         await _load();
@@ -80,7 +81,7 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
       TaskRefreshBus.notify();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task saved.')),
+        SnackBar(content: Text(created?.saveConfirmation ?? 'Task saved.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -96,9 +97,9 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
       await _load();
       TaskRefreshBus.notify();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task removed.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Task removed.')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -113,53 +114,60 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
       body: _loading
           ? const FullScreenLoader(message: 'Loading tasks...')
           : _error.isNotEmpty
-              ? AppErrorState(message: _error, onRetry: _load)
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: _tasks.isEmpty
-                      ? ListView(
-                          padding: const EdgeInsets.all(AppSpacing.lg),
-                          children: const [
-                            AppEmptyState(
-                              title: 'No tasks yet',
-                              message: 'Create a task to schedule reminders.',
-                            ),
-                          ],
-                        )
-                      : ListView(
-                          padding: const EdgeInsets.all(AppSpacing.lg),
-                          children: [
-                            const AppSectionTitle('Scheduled Tasks'),
-                            const SizedBox(height: AppSpacing.md),
-                            ..._tasks.map((task) {
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                                decoration: BoxDecoration(
-                                  color: AppColors.card,
-                                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                                  border: Border.all(color: AppColors.border),
-                                  boxShadow: AppShadows.soft,
-                                ),
-                                child: ListTile(
-                                  leading: const Icon(Icons.alarm, color: AppColors.brandRed),
-                                  title: Text(
-                                    task.title,
-                                    style: const TextStyle(fontWeight: FontWeight.w700),
-                                  ),
-                                  subtitle: Text(
-                                    '${AppFormatters.dateTime(task.scheduledAt)}'
-                                    '${task.note.isNotEmpty ? '\n${task.note}' : ''}',
-                                  ),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete_outline),
-                                    onPressed: () => _deleteTask(task),
-                                  ),
-                                ),
-                              );
-                            }),
-                          ],
+          ? AppErrorState(message: _error, onRetry: _load)
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: _tasks.isEmpty
+                  ? ListView(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      children: const [
+                        AppEmptyState(
+                          title: 'No tasks yet',
+                          message: 'Create a task to schedule reminders.',
                         ),
-                ),
+                      ],
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      children: [
+                        const AppSectionTitle('Scheduled Tasks'),
+                        const SizedBox(height: AppSpacing.md),
+                        ..._tasks.map((task) {
+                          return Container(
+                            margin: const EdgeInsets.only(
+                              bottom: AppSpacing.md,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.card,
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
+                              border: Border.all(color: AppColors.border),
+                              boxShadow: AppShadows.soft,
+                            ),
+                            child: ListTile(
+                              leading: const Icon(
+                                Icons.alarm,
+                                color: AppColors.brandRed,
+                              ),
+                              title: Text(
+                                task.title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${AppFormatters.dateTime(task.scheduledAt)}'
+                                '${task.note.isNotEmpty ? '\n${task.note}' : ''}',
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () => _deleteTask(task),
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addTask,
         icon: const Icon(Icons.add),

@@ -295,7 +295,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _openTransaction(String material, String action) async {
-    final title = 'Create ${material[0].toUpperCase()}${material.substring(1)} ${action[0].toUpperCase()}${action.substring(1)}';
+    final title =
+        'Create ${material[0].toUpperCase()}${material.substring(1)} ${action[0].toUpperCase()}${action.substring(1)}';
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TransactionCreateScreen(
@@ -310,9 +311,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _showInfo(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _addQuickTask() async {
@@ -322,7 +323,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (result == null) return;
 
     try {
-      await _taskRepo.create(
+      final created = await _taskRepo.create(
         title: (result['title'] ?? '').toString(),
         note: (result['note'] ?? '').toString(),
         scheduledAt: result['scheduledAt'] as DateTime,
@@ -331,7 +332,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       TaskRefreshBus.notify();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task scheduled')),
+        SnackBar(content: Text(created?.saveConfirmation ?? 'Task scheduled.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -422,7 +423,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (blockedStatuses.contains(status)) continue;
       final nextFollowup = (row['next_followup_date'] ?? '').toString();
       if (nextFollowup.isEmpty) continue;
-      final parsed = FollowupNotificationService.normalizedFollowupTime(nextFollowup);
+      final parsed = FollowupNotificationService.normalizedFollowupTime(
+        nextFollowup,
+      );
       if (parsed == null) continue;
       final dateKey = DateTime(parsed.year, parsed.month, parsed.day);
       if (dateKey == todayKey) {
@@ -433,10 +436,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     int sortByFollowup(Map<String, dynamic> a, Map<String, dynamic> b) {
-      final ad = FollowupNotificationService.normalizedFollowupTime(a['next_followup_date']) ?? DateTime(2100);
-      final bd = FollowupNotificationService.normalizedFollowupTime(b['next_followup_date']) ?? DateTime(2100);
+      final ad =
+          FollowupNotificationService.normalizedFollowupTime(
+            a['next_followup_date'],
+          ) ??
+          DateTime(2100);
+      final bd =
+          FollowupNotificationService.normalizedFollowupTime(
+            b['next_followup_date'],
+          ) ??
+          DateTime(2100);
       return ad.compareTo(bd);
     }
+
     todayRows.sort(sortByFollowup);
     otherRows.sort(sortByFollowup);
 
@@ -444,7 +456,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   (String, Color) _followupStatus(dynamic nextFollowupDate) {
-    final parsed = FollowupNotificationService.normalizedFollowupTime(nextFollowupDate);
+    final parsed = FollowupNotificationService.normalizedFollowupTime(
+      nextFollowupDate,
+    );
     if (parsed == null) {
       return ('No date', AppColors.textSecondary);
     }

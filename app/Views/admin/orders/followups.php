@@ -96,8 +96,8 @@
                             <input type="text" name="description" class="form-control" placeholder="Followup description" required>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label mb-1">Next Followup Date</label>
-                            <input type="date" name="next_followup_date" class="form-control">
+                            <label class="form-label mb-1">Next Followup Date &amp; Time</label>
+                            <input type="datetime-local" name="next_followup_date" class="form-control">
                         </div>
                         <div class="col-md-2">
                             <label class="form-label mb-1">Image</label>

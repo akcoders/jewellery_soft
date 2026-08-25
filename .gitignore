@@ -67,6 +67,9 @@ writable/uploads/*
 writable/debugbar/*
 !writable/debugbar/index.html
 
+writable/mobile-push-cycle.lock
+writable/mobile-push-cycle-heartbeat.json
+
 php_errors.log
 
 #-------------------------

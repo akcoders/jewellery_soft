@@ -371,11 +371,6 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
 });
 
 $routes->group('api', static function ($routes): void {
-    $routes->get('orders', 'Api\OrdersController::index');
-    $routes->get('orders/(:num)', 'Api\OrdersController::show/$1');
-    $routes->post('orders', 'Api\OrdersController::create');
-    $routes->post('orders/(:num)/status', 'Api\OrdersController::updateStatus/$1');
-
     $routes->post('jobcards', 'Api\JobcardsController::create');
     $routes->post('jobcards/(:num)/assign', 'Api\JobcardsController::assign/$1');
     $routes->post('jobcards/(:num)/stages', 'Api\JobcardsController::stageUpdate/$1');
@@ -433,6 +428,8 @@ $routes->group('api', static function ($routes): void {
         $routes->post('tasks', 'Api\Mobile\TasksController::create');
         $routes->post('tasks/(:num)/delete', 'Api\Mobile\TasksController::delete/$1');
         $routes->get('notifications', 'Api\Mobile\NotificationsController::index');
+        $routes->get('notifications/status', 'Api\Mobile\NotificationsController::status');
+        $routes->post('notifications/(:num)/local-fallback', 'Api\Mobile\NotificationsController::localFallback/$1');
         $routes->post('notifications/(:num)/done', 'Api\Mobile\NotificationsController::done/$1');
 
         $routes->get('orders', 'Api\Mobile\OrdersController::index');
