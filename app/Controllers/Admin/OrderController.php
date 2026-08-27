@@ -503,7 +503,7 @@ class OrderController extends BaseController
 
         $title = 'All Orders';
         if ($mode === 'fresh') {
-            $title = 'Fresh Orders';
+            $title = 'All Orders';
         } elseif ($mode === 'ready') {
             $title = 'Ready Orders';
         } elseif ($mode === 'repair') {

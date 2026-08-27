@@ -9,7 +9,7 @@ $assetBase = base_url($assetBasePath);
 $isDash     = $segment2 === 'dashboard';
 $isCustomers= $segment2 === 'customers';
 $isOrders   = $segment2 === 'orders';
-$isOrdersAll   = $isOrders && ($segment3 === '' || ctype_digit($segment3));
+$isOrdersAll   = $isOrders && ($segment3 === '' || $segment3 === 'fresh' || ctype_digit($segment3));
 $isOrdersDashboard = $isOrders && $segment3 === 'dashboard';
 $isOrdersReady = $isOrders && $segment3 === 'ready';
 $isOrdersRepair = $isOrders && $segment3 === 'repair';
@@ -1572,7 +1572,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                             <a href="javascript:void(0);" data-app-tour-module="orders"><i class="fe fe-clipboard"></i> <span>Orders</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isOrders ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isOrdersDashboard ? 'active' : '' ?>" href="<?= site_url('admin/orders/dashboard') ?>"><i class="fe fe-pie-chart"></i> Order Dashboard</a></li>
-                                <li><a class="<?= ($isOrdersAll || $isOrdersCreate) ? 'active' : '' ?>" href="<?= site_url('admin/orders') ?>"><i class="fe fe-list"></i> All Orders</a></li>
+                                <li><a class="<?= ($isOrdersAll || $isOrdersCreate) ? 'active' : '' ?>" href="<?= site_url('admin/orders/fresh') ?>"><i class="fe fe-list"></i> All Orders</a></li>
                                 <li><a class="<?= $isOrdersReady ? 'active' : '' ?>" href="<?= site_url('admin/orders/ready') ?>"><i class="fe fe-package"></i> Ready Orders</a></li>
                                 <?php if ($canOrdersCreate): ?>
                                 <li><a class="<?= ($isOrdersRepair || $isOrdersRepairCreate) ? 'active' : '' ?>" href="<?= site_url('admin/orders/repair') ?>"><i class="fe fe-settings"></i> Repair Orders</a></li>
