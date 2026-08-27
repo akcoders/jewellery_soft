@@ -27,10 +27,15 @@ $routes->group('admin', ['filter' => 'adminGuest'], static function ($routes): v
 $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): void {
     $routes->get('dashboard', 'Admin\DashboardController::index', ['filter' => 'permission:dashboard.read']);
     $routes->get('logout', 'Admin\AuthController::logout');
+    $routes->get('application-tour/state', 'Admin\ApplicationTourController::state');
+    $routes->post('application-tour/state', 'Admin\ApplicationTourController::update', ['filter' => 'csrf']);
 
     $routes->get('customers', 'Admin\CustomerController::index', ['filter' => 'permission:customers.read']);
     $routes->get('customers/create', 'Admin\CustomerController::create', ['filter' => 'permission:customers.create']);
     $routes->post('customers', 'Admin\CustomerController::store', ['filter' => 'permission:customers.create']);
+    $routes->get('customers/(:num)', 'Admin\CustomerController::show/$1', ['filter' => 'permission:customers.read']);
+    $routes->post('customers/(:num)/users', 'Admin\CustomerController::storePortalUser/$1', ['filter' => 'permission:customers.create']);
+    $routes->post('customers/(:num)/users/(:num)/password', 'Admin\CustomerController::updatePortalPassword/$1/$2', ['filter' => 'permission:customers.create']);
 
     $routes->get('designs', 'Admin\DesignController::index', ['filter' => 'permission:masters.designs.read']);
     $routes->get('designs/create', 'Admin\DesignController::create', ['filter' => 'permission:masters.designs.manage']);
@@ -119,8 +124,11 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('access/permissions/(:num)/update', 'Admin\Access\PermissionsController::update/$1', ['filter' => 'permission:access.permissions.manage']);
     $routes->post('access/permissions/(:num)/status', 'Admin\Access\PermissionsController::toggleStatus/$1', ['filter' => 'permission:access.permissions.manage']);
     $routes->get('access/users', 'Admin\Access\UsersController::index', ['filter' => 'permission:access.users.read']);
-    $routes->get('access/users/(:num)', 'Admin\Access\UsersController::edit/$1', ['filter' => 'permission:access.users.manage']);
+    $routes->get('access/users/create', 'Admin\Access\UsersController::create', ['filter' => 'permission:access.users.manage']);
+    $routes->post('access/users', 'Admin\Access\UsersController::store', ['filter' => 'permission:access.users.manage']);
+    $routes->get('access/users/(:num)', 'Admin\Access\UsersController::edit/$1', ['filter' => 'permission:access.users.read']);
     $routes->post('access/users/(:num)/update', 'Admin\Access\UsersController::update/$1', ['filter' => 'permission:access.users.manage']);
+    $routes->post('access/users/(:num)/password', 'Admin\Access\UsersController::updatePassword/$1', ['filter' => 'permission:access.users.manage']);
     $routes->get('karigars', 'Admin\KarigarController::index', ['filter' => 'permission:masters.karigars.read']);
     $routes->get('karigars/create', 'Admin\KarigarController::create', ['filter' => 'permission:masters.karigars.manage']);
     $routes->post('karigars', 'Admin\KarigarController::store', ['filter' => 'permission:masters.karigars.manage']);

@@ -146,3 +146,8 @@ public/uploads/ready-orders/*
 # required by migration 063 is versioned; invoices and temporary Office files stay local.
 anuj/*
 !anuj/PL-2026-2027 order ready.xlsx
+
+# Generated visual-guide assets stay local; the self-contained PDF is versioned.
+docs/aabhushan-user-guide/screenshots/
+docs/aabhushan-user-guide/Aabhushan-User-Guide.html
+docs/aabhushan-user-guide/Aabhushan-User-Guide.md

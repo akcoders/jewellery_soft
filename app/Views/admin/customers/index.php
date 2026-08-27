@@ -25,11 +25,12 @@
                         <th>GSTIN</th>
                         <th>Portal Access</th>
                         <th>Sales Team</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ($customers === []): ?>
-                        <tr><td colspan="7" class="text-center text-muted py-5">No customers found.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted py-5">No customers found.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($customers as $customer): ?>
                         <tr>
@@ -46,6 +47,7 @@
                                 <?php endif; ?>
                             </td>
                             <td><strong><?= (int) ($customer['sales_person_count'] ?? 0) ?></strong> salesperson<?= (int) ($customer['sales_person_count'] ?? 0) === 1 ? '' : 's' ?></td>
+                            <td class="text-end"><a href="<?= site_url('admin/customers/' . (int) $customer['id']) ?>" class="btn btn-sm btn-outline-primary"><i class="fe fe-eye me-1"></i> Details</a></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

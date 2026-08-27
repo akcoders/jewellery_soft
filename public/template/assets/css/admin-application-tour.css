@@ -1,0 +1,249 @@
+.app-tour-shade,
+.app-tour-highlight,
+.app-tour-card {
+    position: fixed;
+}
+
+.app-tour-shade {
+    z-index: 20000;
+    background: rgba(15, 23, 42, 0.76);
+    backdrop-filter: blur(1px);
+    transition: inset 180ms ease, width 180ms ease, height 180ms ease;
+}
+
+.app-tour-highlight {
+    z-index: 20001;
+    pointer-events: none;
+    border: 3px solid #d4a72c;
+    border-radius: 14px;
+    box-shadow:
+        0 0 0 4px rgba(255, 255, 255, 0.82),
+        0 0 0 8px rgba(179, 18, 31, 0.35),
+        0 14px 42px rgba(0, 0, 0, 0.28);
+    transition: inset 180ms ease, width 180ms ease, height 180ms ease;
+}
+
+.app-tour-card {
+    z-index: 20002;
+    width: min(390px, calc(100vw - 24px));
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.32);
+    color: #18202f;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.app-tour-card.is-ready {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.app-tour-card-header {
+    padding: 19px 21px 13px;
+    background:
+        radial-gradient(circle at 100% 0, rgba(200, 155, 30, 0.22), transparent 11rem),
+        linear-gradient(135deg, #fff 0%, #fff9ea 100%);
+    border-bottom: 1px solid #eee7d6;
+}
+
+.app-tour-kicker {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+    color: #a67f14;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.app-tour-counter {
+    color: #667085;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+.app-tour-title {
+    margin: 0;
+    color: #18202f;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.28;
+}
+
+.app-tour-card-body {
+    padding: 17px 21px 14px;
+}
+
+.app-tour-description {
+    margin: 0;
+    color: #536074;
+    font-size: 14px;
+    line-height: 1.65;
+}
+
+.app-tour-message {
+    display: none;
+    margin-top: 12px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    background: #fce9eb;
+    color: #8f0d18;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.app-tour-message.is-visible {
+    display: block;
+}
+
+.app-tour-progress {
+    height: 4px;
+    overflow: hidden;
+    background: #edf0f4;
+}
+
+.app-tour-progress-bar {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #b3121f, #d4a72c);
+    transition: width 180ms ease;
+}
+
+.app-tour-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 18px 17px;
+    border-top: 1px solid #edf0f4;
+}
+
+.app-tour-secondary-actions,
+.app-tour-primary-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.app-tour-btn {
+    min-height: 38px;
+    padding: 8px 13px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.app-tour-btn:focus-visible {
+    outline: 3px solid rgba(179, 18, 31, 0.2);
+    outline-offset: 2px;
+}
+
+.app-tour-btn:disabled {
+    cursor: wait;
+    opacity: 0.62;
+}
+
+.app-tour-btn-muted {
+    color: #667085;
+}
+
+.app-tour-btn-never {
+    color: #8f0d18;
+}
+
+.app-tour-btn-back {
+    border-color: #d9dee7;
+    color: #344054;
+    background: #fff;
+}
+
+.app-tour-btn-next {
+    min-width: 78px;
+    color: #fff;
+    background: #b3121f;
+    box-shadow: 0 7px 18px rgba(179, 18, 31, 0.22);
+}
+
+.app-tour-btn-next:hover {
+    background: #8f0d18;
+}
+
+body.app-tour-active {
+    overflow: hidden;
+}
+
+body.app-tour-active .sidebar-overlay {
+    z-index: 19990;
+}
+
+@media (max-width: 640px) {
+    .app-tour-card.app-tour-card-mobile {
+        right: 12px !important;
+        bottom: 12px !important;
+        left: 12px !important;
+        top: auto !important;
+        width: auto;
+        max-height: min(58vh, 470px);
+        overflow-y: auto;
+        border-radius: 15px;
+    }
+
+    .app-tour-card-header {
+        padding: 15px 16px 11px;
+    }
+
+    .app-tour-title {
+        font-size: 17px;
+    }
+
+    .app-tour-card-body {
+        padding: 13px 16px 11px;
+    }
+
+    .app-tour-description {
+        font-size: 13px;
+        line-height: 1.52;
+    }
+
+    .app-tour-card-footer {
+        align-items: stretch;
+        flex-direction: column;
+        padding: 11px 13px 13px;
+    }
+
+    .app-tour-secondary-actions,
+    .app-tour-primary-actions {
+        justify-content: space-between;
+    }
+
+    .app-tour-primary-actions .app-tour-btn {
+        flex: 1;
+    }
+
+    .app-tour-btn {
+        padding: 7px 10px;
+        font-size: 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-tour-shade,
+    .app-tour-highlight,
+    .app-tour-card,
+    .app-tour-progress-bar {
+        transition: none;
+    }
+}

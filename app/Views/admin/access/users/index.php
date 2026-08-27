@@ -6,6 +6,9 @@
         <h4 class="mb-1">User Access Control</h4>
         <p class="text-muted mb-0">Assign reusable roles first, then use direct permission overrides only where exceptions are needed.</p>
     </div>
+    <?php if (admin_can('access.users.manage')): ?>
+        <a href="<?= site_url('admin/access/users/create') ?>" class="btn btn-primary"><i class="fe fe-user-plus me-1"></i> Create User</a>
+    <?php endif; ?>
 </div>
 
 <div class="card">
@@ -46,10 +49,8 @@
                                 </span>
                             </td>
                             <td class="text-end">
-                                <?php if (admin_can('access.users.manage')): ?>
-                                    <a href="<?= site_url('admin/access/users/' . (int) $row['id']) ?>" class="btn btn-sm btn-outline-primary">
-                                        <i class="fe fe-shield"></i>
-                                    </a>
+                                <?php if (admin_can('access.users.read')): ?>
+                                    <a href="<?= site_url('admin/access/users/' . (int) $row['id']) ?>" class="btn btn-sm btn-outline-primary"><i class="fe fe-eye me-1"></i> Details</a>
                                 <?php endif; ?>
                             </td>
                         </tr>

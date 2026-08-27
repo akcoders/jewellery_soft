@@ -16,7 +16,7 @@ $orderSource = static function (array $row): string {
 };
 ?>
 
-<section class="erp-dashboard-hero mb-4">
+<section class="erp-dashboard-hero mb-4" data-app-tour="dashboard-overview">
     <div>
         <span class="erp-eyebrow">Jewellery operations</span>
         <h2 class="mb-2">Good day, <?= esc((string) (session('admin_name') ?: 'Admin')) ?></h2>
@@ -36,7 +36,7 @@ $orderSource = static function (array $row): string {
     </div>
 </section>
 
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4" data-app-tour="dashboard-kpis">
     <div class="col-xl-3 col-sm-6">
         <a href="<?= site_url('admin/orders/fresh') ?>" class="erp-kpi-card erp-kpi-danger">
             <span class="erp-kpi-icon"><i class="fe fe-user-plus"></i></span>
@@ -79,7 +79,7 @@ $orderSource = static function (array $row): string {
     </div>
 </div>
 
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4" data-app-tour="inventory-summary">
     <div class="col-xl-4 col-md-6">
         <div class="erp-metal-card h-100">
             <div class="erp-metal-icon"><i class="fas fa-coins"></i></div>
@@ -119,7 +119,7 @@ $orderSource = static function (array $row): string {
     </div>
 </div>
 
-<div class="row g-3">
+<div class="row g-3" data-app-tour="dashboard-activity">
     <div class="col-xl-7 d-flex">
         <div class="card erp-section-card w-100">
             <div class="card-header">

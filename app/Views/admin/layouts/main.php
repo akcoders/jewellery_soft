@@ -143,6 +143,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
     <link rel="stylesheet" href="<?= esc($assetBase) ?>/css/bootstrap-datetimepicker.min.css">
     <link rel="stylesheet" href="<?= esc($assetBase) ?>/plugins/datatables/datatables.min.css">
     <link rel="stylesheet" href="<?= esc($assetBase) ?>/css/style.css">
+    <link rel="stylesheet" href="<?= esc($assetBase) ?>/css/admin-application-tour.css">
     <script src="<?= esc($assetBase) ?>/js/layout.js"></script>
     <style>
         :root {
@@ -1474,10 +1475,10 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
     </div>
     <div class="main-wrapper">
         <div class="header header-one">
-            <a href="<?= site_url('admin/dashboard') ?>" class="d-inline-flex d-sm-inline-flex align-items-center d-md-inline-flex d-lg-none align-items-center device-logo">
+            <a href="<?= site_url('admin/dashboard') ?>" class="d-inline-flex d-sm-inline-flex align-items-center d-md-inline-flex d-lg-none align-items-center device-logo" data-app-tour="brand">
                 <img src="<?= esc($assetBase) ?>/img/logo.png" class="img-fluid logo2" alt="Logo">
             </a>
-            <div class="main-logo d-inline float-start d-lg-flex align-items-center d-none d-sm-none d-md-none">
+            <div class="main-logo d-inline float-start d-lg-flex align-items-center d-none d-sm-none d-md-none" data-app-tour="brand">
                 <div class="logo-white">
                     <a href="<?= site_url('admin/dashboard') ?>">
                         <img src="<?= esc($assetBase) ?>/img/logo-full-white.png" class="img-fluid logo-blue" alt="Logo">
@@ -1516,7 +1517,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                 <i class="fas fa-bars"></i>
             </a>
 
-            <ul class="nav nav-tabs user-menu">
+            <ul class="nav nav-tabs user-menu" data-app-tour="profile">
                 <li class="nav-item dropdown">
                     <a href="javascript:void(0)" class="user-link nav-link" data-bs-toggle="dropdown">
                         <span class="user-img">
@@ -1533,6 +1534,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                             <div class="subscription-menu">
                                 <ul>
                                     <li><a class="dropdown-item" href="<?= site_url('admin/dashboard') ?>">Dashboard</a></li>
+                                    <li><a class="dropdown-item" href="#" data-app-tour-replay><i class="fe fe-compass me-2"></i>Application Tour</a></li>
                                 </ul>
                             </div>
                             <div class="subscription-logout">
@@ -1546,14 +1548,14 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             </ul>
         </div>
 
-        <div class="sidebar" id="sidebar">
+        <div class="sidebar" id="sidebar" data-app-tour="navigation">
             <div class="sidebar-inner">
                 <div id="sidebar-menu" class="sidebar-menu">
                     <ul class="sidebar-vertical">
                         <li class="menu-title"><span>Main</span></li>
                         <?php if ($canDashboard): ?>
                         <li class="<?= $isDash ? 'active' : '' ?>">
-                            <a href="<?= site_url('admin/dashboard') ?>"><i class="fe fe-home"></i> <span>Dashboard</span></a>
+                            <a href="<?= site_url('admin/dashboard') ?>" data-app-tour-module="dashboard"><i class="fe fe-home"></i> <span>Dashboard</span></a>
                         </li>
                         <?php endif; ?>
 
@@ -1562,12 +1564,12 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php endif; ?>
                         <?php if ($canCustomers): ?>
                         <li class="<?= $isCustomers ? 'active' : '' ?>">
-                            <a href="<?= site_url('admin/customers') ?>"><i class="fe fe-users"></i> <span>Customers</span></a>
+                            <a href="<?= site_url('admin/customers') ?>" data-app-tour-module="customers"><i class="fe fe-users"></i> <span>Customers</span></a>
                         </li>
                         <?php endif; ?>
                         <?php if ($canOrders): ?>
                         <li class="submenu <?= $isOrders ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-clipboard"></i> <span>Orders</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);" data-app-tour-module="orders"><i class="fe fe-clipboard"></i> <span>Orders</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isOrders ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isOrdersDashboard ? 'active' : '' ?>" href="<?= site_url('admin/orders/dashboard') ?>"><i class="fe fe-pie-chart"></i> Order Dashboard</a></li>
                                 <li><a class="<?= ($isOrdersAll || $isOrdersCreate) ? 'active' : '' ?>" href="<?= site_url('admin/orders') ?>"><i class="fe fe-list"></i> All Orders</a></li>
@@ -1581,7 +1583,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php endif; ?>
 
                         <?php if ($canProductionMenu): ?>
-                        <li class="menu-title"><span>Production</span></li>
+                        <li class="menu-title" data-app-tour-module="production"><span>Production</span></li>
                         <?php endif; ?>
                         <?php if ($canKarigars): ?>
                         <li class="<?= $isKarigars ? 'active' : '' ?>">
@@ -1604,7 +1606,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php endif; ?>
                         <?php if ($canGoldInventory): ?>
                         <li class="submenu <?= $isGoldInventory ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-circle"></i> <span>Gold Inventory</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);" data-app-tour-module="gold-inventory"><i class="fe fe-circle"></i> <span>Gold Inventory</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isGoldInventory ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isGoldInventoryPurities ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/purities') ?>"><i class="fe fe-percent"></i> Purity Master</a></li>
                                 <li><a class="<?= $isGoldInventoryProducts ? 'active' : '' ?>" href="<?= site_url('admin/gold-inventory/products') ?>"><i class="fe fe-package"></i> Product Master</a></li>
@@ -1618,7 +1620,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php endif; ?>
                         <?php if ($canDiamondInventory): ?>
                         <li class="submenu <?= $isDiamondInventory ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fas fa-gem"></i> <span>Diamond Inventory</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);" data-app-tour-module="diamond-inventory"><i class="fas fa-gem"></i> <span>Diamond Inventory</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isDiamondInventory ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isDiamondInventoryItems ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/items') ?>"><i class="fe fe-tag"></i> Item Master</a></li>
                                 <li><a class="<?= $isDiamondInventoryPurchases ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/purchases') ?>"><i class="fe fe-shopping-bag"></i> Purchases</a></li>
@@ -1630,7 +1632,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php endif; ?>
                         <?php if ($canStoneInventory): ?>
                         <li class="submenu <?= $isStoneInventory ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-disc"></i> <span>Stone Inventory</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);" data-app-tour-module="stone-inventory"><i class="fe fe-disc"></i> <span>Stone Inventory</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isStoneInventory ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isStoneInventoryItems ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/items') ?>"><i class="fe fe-tag"></i> Item Master</a></li>
                                 <li><a class="<?= $isStoneInventoryPurchases ? 'active' : '' ?>" href="<?= site_url('admin/stone-inventory/purchases') ?>"><i class="fe fe-shopping-bag"></i> Purchases</a></li>
@@ -1642,7 +1644,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php endif; ?>
                         <?php if ($canInventorySettings): ?>
                         <li class="submenu <?= $isInventory ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-settings"></i> <span>Inventory Setup</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);" data-app-tour-module="inventory-setup"><i class="fe fe-settings"></i> <span>Inventory Setup</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isInventory ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isInventoryWarehouses ? 'active' : '' ?>" href="<?= site_url('admin/inventory/warehouses') ?>"><i class="fe fe-home"></i> Warehouse</a></li>
                             </ul>
@@ -1652,7 +1654,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php if ($canShowroomMenu): ?>
                         <li class="menu-title"><span>Showroom</span></li>
                         <li class="submenu <?= $isShowroomModule ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-shopping-bag"></i> <span>Retail Showroom</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);" data-app-tour-module="showroom"><i class="fe fe-shopping-bag"></i> <span>Retail Showroom</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isShowroomModule ? 'display:block;' : 'display:none;' ?>">
                                 <?php if ($canShowroomSales): ?><li><a class="<?= $isShowroomSales ? 'active' : '' ?>" href="<?= site_url('admin/showroom-sales') ?>"><i class="fe fe-credit-card"></i> Showroom Sales</a></li><?php endif; ?>
                                 <?php if ($canShowroomStock): ?><li><a class="<?= $isShowroomStock ? 'active' : '' ?>" href="<?= site_url('admin/showroom-stock') ?>"><i class="fe fe-layers"></i> Showroom Stock</a></li><?php endif; ?>
@@ -1667,7 +1669,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php if ($canAccounts): ?>
                         <li class="menu-title"><span>Accounts</span></li>
                         <li class="submenu <?= $isAccounts ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-file-text"></i> <span>Accounts</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);" data-app-tour-module="accounts"><i class="fe fe-file-text"></i> <span>Accounts</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isAccounts ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isAccountsDashboard ? 'active' : '' ?>" href="<?= site_url('admin/accounts') ?>"><i class="fe fe-grid"></i> Dashboard</a></li>
                                 <li><a class="<?= $isAccountsJournalVouchers ? 'active' : '' ?>" href="<?= site_url('admin/accounts/journal-vouchers') ?>"><i class="fe fe-edit-3"></i> Journal Voucher</a></li>
@@ -1690,7 +1692,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php if ($canReports): ?>
                         <li class="menu-title"><span>Reports</span></li>
                         <li class="submenu <?= $isReports ? 'active' : '' ?>">
-                            <a href="javascript:void(0);"><i class="fe fe-bar-chart-2"></i> <span>Reports</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);" data-app-tour-module="reports"><i class="fe fe-bar-chart-2"></i> <span>Reports</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isReports ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isReportsTransactions ? 'active' : '' ?>" href="<?= site_url('admin/reports/transactions') ?>"><i class="fe fe-repeat"></i> All Transactions</a></li>
                                 <li><a class="<?= $isReportsGoldLedger ? 'active' : '' ?>" href="<?= site_url('admin/reports/gold-ledger') ?>"><i class="fe fe-book"></i> Gold Ledger</a></li>
@@ -1703,7 +1705,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <?php endif; ?>
 
                         <?php if ($canAdminMenu): ?>
-                        <li class="menu-title"><span>Admin</span></li>
+                        <li class="menu-title" data-app-tour-module="administration"><span>Admin</span></li>
                         <?php endif; ?>
                         <?php if ($canVendors): ?>
                         <li class="<?= $isVendors ? 'active' : '' ?>">
@@ -1757,7 +1759,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             </div>
         </div>
 
-        <div class="page-wrapper">
+        <div class="page-wrapper" data-app-tour="page-content">
             <div class="content container-fluid pb-0">
                 <div class="page-header">
                     <div class="content-page-header">
@@ -2040,6 +2042,15 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             });
         });
     </script>
+    <script>
+        window.AabhushanTourConfig = <?= json_encode([
+            'stateUrl' => site_url('admin/application-tour/state'),
+            'csrfToken' => csrf_token(),
+            'csrfHash' => csrf_hash(),
+            'adminId' => (int) (session('admin_id') ?? 0),
+        ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    </script>
+    <script src="<?= esc($assetBase) ?>/js/admin-application-tour.js"></script>
     <?= $this->renderSection('scripts') ?>
 </body>
 </html>

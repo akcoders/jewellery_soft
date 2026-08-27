@@ -5,11 +5,12 @@
 $user = is_array($user ?? null) ? $user : [];
 $selectedRoleIds = array_map('intval', $selectedRoleIds ?? []);
 $permissionOverrides = is_array($permissionOverrides ?? null) ? $permissionOverrides : [];
+$canManage = admin_can('access.users.manage');
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div>
-        <h4 class="mb-1">Manage User Access</h4>
-        <p class="text-muted mb-0">Review role assignments and user-specific allow or deny overrides for this admin account.</p>
+        <h4 class="mb-1">User Details & Access</h4>
+        <p class="text-muted mb-0">Review account details, roles, permission overrides and password security.</p>
     </div>
     <a href="<?= site_url('admin/access/users') ?>" class="btn btn-outline-secondary">
         <i class="fe fe-arrow-left me-1"></i> Back
@@ -18,6 +19,7 @@ $permissionOverrides = is_array($permissionOverrides ?? null) ? $permissionOverr
 
 <form action="<?= esc($formAction ?? site_url('admin/access/users/' . (int) ($user['id'] ?? 0) . '/update')) ?>" method="post">
     <?= csrf_field() ?>
+    <fieldset <?= $canManage ? '' : 'disabled' ?>>
     <div class="row">
         <div class="col-xl-4 d-flex">
             <div class="card w-100">
@@ -32,7 +34,11 @@ $permissionOverrides = is_array($permissionOverrides ?? null) ? $permissionOverr
                     <div class="small text-muted">Department / Designation</div>
                     <div class="fw-semibold mb-2"><?= esc((string) ($user['department_name'] ?? '-')) ?> / <?= esc((string) ($user['designation_name'] ?? '-')) ?></div>
                     <div class="small text-muted">Status</div>
-                    <div class="fw-semibold"><?= (int) ($user['is_active'] ?? 0) === 1 ? 'Active' : 'Inactive' ?></div>
+                    <div class="fw-semibold mb-2"><span class="badge <?= (int) ($user['is_active'] ?? 0) === 1 ? 'bg-success' : 'bg-secondary' ?>"><?= (int) ($user['is_active'] ?? 0) === 1 ? 'Active' : 'Inactive' ?></span></div>
+                    <div class="small text-muted">Created</div>
+                    <div class="fw-semibold mb-2"><?= ! empty($user['created_at']) ? esc(date('d M Y, h:i A', strtotime((string) $user['created_at']))) : '-' ?></div>
+                    <div class="small text-muted">Last Updated</div>
+                    <div class="fw-semibold"><?= ! empty($user['updated_at']) ? esc(date('d M Y, h:i A', strtotime((string) $user['updated_at']))) : '-' ?></div>
                 </div>
             </div>
         </div>
@@ -96,12 +102,28 @@ $permissionOverrides = is_array($permissionOverrides ?? null) ? $permissionOverr
                             </div>
                         </div>
                     <?php endforeach; ?>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fe fe-save me-1"></i> Save Access Control
-                    </button>
+                    <?php if ($canManage): ?><button type="submit" class="btn btn-primary"><i class="fe fe-save me-1"></i> Save Access Control</button><?php else: ?><div class="alert alert-light border mb-0"><i class="fe fe-eye me-1"></i> View-only access</div><?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
+    </fieldset>
 </form>
+
+<?php if ($canManage): ?>
+<div class="card mt-3">
+    <div class="card-header"><h5 class="card-title mb-0">Password Security</h5></div>
+    <div class="card-body">
+        <div class="alert alert-light border mb-3"><i class="fe fe-shield me-1"></i> Existing passwords cannot be viewed. Updating a password also revokes remember-me and Flutter mobile sessions for this user.</div>
+        <form action="<?= site_url('admin/access/users/' . (int) ($user['id'] ?? 0) . '/password') ?>" method="post" autocomplete="off">
+            <?= csrf_field() ?>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-5"><label class="form-label">New Password</label><input type="password" name="password" class="form-control" minlength="8" maxlength="72" autocomplete="new-password" required><small class="text-muted">Minimum 8 characters.</small></div>
+                <div class="col-md-5"><label class="form-label">Confirm Password</label><input type="password" name="password_confirm" class="form-control" minlength="8" maxlength="72" autocomplete="new-password" required></div>
+                <div class="col-md-2"><button type="submit" class="btn btn-primary w-100"><i class="fe fe-key me-1"></i> Update</button></div>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
 <?= $this->endSection() ?>
