@@ -45,6 +45,7 @@ if ($rows === []) {
 }
 
 $issueDate = old('issue_date', (string) ($issue['issue_date'] ?? date('Y-m-d')));
+$voucherNo = old('voucher_no', (string) ($issue['voucher_no'] ?? ($suggestedVoucherNo ?? '')));
 $selectedKarigarId = old('karigar_id', (string) ($issue['karigar_id'] ?? ''));
 $issueTo = old('issue_to', (string) ($issue['issue_to'] ?? ''));
 $purpose = old('purpose', (string) ($issue['purpose'] ?? ''));
@@ -56,6 +57,11 @@ $existingAttachment = (string) ($issue['attachment_path'] ?? '');
 <div class="card mb-3">
     <div class="card-body">
         <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Voucher Number <span class="text-danger">*</span></label>
+                <input type="text" name="voucher_no" class="form-control text-uppercase" maxlength="80" required value="<?= esc((string) $voucherNo) ?>">
+                <small class="text-muted">Suggested automatically; editable before saving.</small>
+            </div>
             <div class="col-md-2">
                 <label class="form-label">Issue Date <span class="text-danger">*</span></label>
                 <input type="date" name="issue_date" class="form-control" required value="<?= esc((string) $issueDate) ?>">

@@ -47,15 +47,20 @@
                     <input type="text" name="address_line" class="form-control" value="<?= esc((string) old('address_line', (string) ($setting['address_line'] ?? ''))) ?>">
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">Issuement Prefix</label>
                     <input type="text" name="issuement_suffix" class="form-control" value="<?= esc((string) old('issuement_suffix', (string) ($setting['issuement_suffix'] ?? 'ISS'))) ?>">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <label class="form-label">Issuement Start Count</label>
+                    <input type="number" min="1" max="999999999" step="1" name="issuement_start_count" class="form-control" required value="<?= esc((string) old('issuement_start_count', (string) ($setting['issuement_start_count'] ?? '1'))) ?>">
+                    <small class="text-muted">Minimum serial used for the next auto voucher.</small>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label">Delivery Challan Prefix</label>
                     <input type="text" name="delivery_challan_suffix" class="form-control" value="<?= esc((string) old('delivery_challan_suffix', (string) ($setting['delivery_challan_suffix'] ?? 'DC'))) ?>">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">Sale Bill Prefix</label>
                     <input type="text" name="sale_bill_suffix" class="form-control" value="<?= esc((string) old('sale_bill_suffix', (string) ($setting['sale_bill_suffix'] ?? 'SB'))) ?>">
                 </div>

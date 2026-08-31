@@ -11,6 +11,7 @@ use App\Models\ItemModel;
 use App\Models\KarigarModel;
 use App\Services\DiamondInventory\StockService;
 use App\Services\KarigarMaterialAccountingService;
+use App\Services\IssuementVoucherNumberService;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use Throwable;
 
@@ -70,6 +71,8 @@ class IssuesController extends BaseController
 
     public function create(): string
     {
+        $suggestedVoucherNo = (new IssuementVoucherNumberService())->next();
+
         return view('admin/diamond_inventory/issues/create', [
             'title' => 'Create Diamond Issue',
             'items' => $this->itemOptions(),
@@ -78,6 +81,7 @@ class IssuesController extends BaseController
             'issue' => null,
             'lines' => [],
             'action' => site_url('admin/diamond-inventory/issues'),
+            'suggestedVoucherNo' => $suggestedVoucherNo,
         ]);
     }
 
@@ -90,6 +94,12 @@ class IssuesController extends BaseController
 
         $db = db_connect();
         $service = new StockService($db);
+        try {
+            $voucherNo = (new IssuementVoucherNumberService($db))
+                ->resolveForCreate((string) $this->request->getPost('voucher_no'));
+        } catch (Throwable $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
         $parsed = $this->collectLinesFromRequest();
         if ($parsed['error'] !== null) {
             return redirect()->back()->withInput()->with('error', $parsed['error']);
@@ -110,7 +120,7 @@ class IssuesController extends BaseController
             }
 
             $issueId = (int) $this->headerModel->insert([
-                'voucher_no' => $this->generateVoucherNo(),
+                'voucher_no' => $voucherNo,
                 'issue_date' => (string) $this->request->getPost('issue_date'),
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
@@ -230,6 +240,14 @@ class IssuesController extends BaseController
 
         $db = db_connect();
         $service = new StockService($db);
+        try {
+            $voucherNo = (new IssuementVoucherNumberService($db))->resolveForUpdate(
+                (string) $this->request->getPost('voucher_no'),
+                (string) ($issue['voucher_no'] ?? '')
+            );
+        } catch (Throwable $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
         $parsed = $this->collectLinesFromRequest();
         if ($parsed['error'] !== null) {
             return redirect()->back()->withInput()->with('error', $parsed['error']);
@@ -252,6 +270,7 @@ class IssuesController extends BaseController
             }
 
             $this->headerModel->update($id, [
+                'voucher_no' => $voucherNo,
                 'issue_date' => (string) $this->request->getPost('issue_date'),
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
@@ -443,6 +462,7 @@ class IssuesController extends BaseController
     {
         if (! $this->validate([
             'issue_date' => 'required|valid_date',
+            'voucher_no' => 'required|max_length[80]',
             'karigar_id' => 'required|integer|greater_than[0]',
             'location_id' => 'required|integer|greater_than[0]',
             'purpose' => 'required|max_length[50]',
@@ -586,57 +606,6 @@ class IssuesController extends BaseController
         if (is_file($full)) {
             @unlink($full);
         }
-    }
-
-    private function generateVoucherNo(): string
-    {
-        $db = db_connect();
-        $prefix = strtoupper(trim((string) ($this->companySetting()['issuement_suffix'] ?? 'ISS')));
-        $prefix = preg_replace('/[^A-Z0-9]/', '', $prefix) ?? 'ISS';
-        if ($prefix === '') {
-            $prefix = 'ISS';
-        }
-
-        $tables = ['gold_inventory_issue_headers', 'issue_headers', 'stone_inventory_issue_headers'];
-        $maxSerial = 0;
-        $pattern = '/^' . preg_quote($prefix, '/') . '(\d+)$/';
-        foreach ($tables as $table) {
-            if (! $db->tableExists($table)) {
-                continue;
-            }
-            $rows = $db->table($table)
-                ->select('voucher_no')
-                ->like('voucher_no', $prefix, 'after')
-                ->get()
-                ->getResultArray();
-
-            foreach ($rows as $row) {
-                $voucherNo = (string) ($row['voucher_no'] ?? '');
-                if (preg_match($pattern, $voucherNo, $m) === 1) {
-                    $n = (int) $m[1];
-                    if ($n > $maxSerial) {
-                        $maxSerial = $n;
-                    }
-                }
-            }
-        }
-
-        do {
-            $maxSerial++;
-            $voucher = $prefix . str_pad((string) $maxSerial, 3, '0', STR_PAD_LEFT);
-            $exists = false;
-            foreach ($tables as $table) {
-                if (! $db->tableExists($table)) {
-                    continue;
-                }
-                if ($db->table($table)->where('voucher_no', $voucher)->countAllResults() > 0) {
-                    $exists = true;
-                    break;
-                }
-            }
-        } while ($exists);
-
-        return $voucher;
     }
 
     /**

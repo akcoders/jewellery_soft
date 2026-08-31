@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\CustomerAddressModel;
 use App\Models\CustomerModel;
 use App\Models\CustomerUserModel;
+use App\Services\CustomerRememberMeService;
 use RuntimeException;
 use Throwable;
 
@@ -150,12 +151,13 @@ class CustomerController extends BaseController
             $this->customerUserModel->update($userId, [
                 'password_hash' => password_hash((string) $this->request->getPost('password'), PASSWORD_DEFAULT),
             ]);
+            (new CustomerRememberMeService())->revokeUser($userId);
         } catch (Throwable $e) {
             log_message('error', 'Customer portal password update failed: {message}', ['message' => $e->getMessage()]);
             return redirect()->to(site_url('admin/customers/' . $customerId))->with('error', 'Portal password could not be updated.');
         }
 
-        return redirect()->to(site_url('admin/customers/' . $customerId))->with('success', 'Password updated for ' . (string) ($portalUser['name'] ?? 'customer user') . '.');
+        return redirect()->to(site_url('admin/customers/' . $customerId))->with('success', 'Password updated and remembered sessions revoked for ' . (string) ($portalUser['name'] ?? 'customer user') . '.');
     }
 
     public function storePortalUser(int $customerId)

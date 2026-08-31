@@ -4,6 +4,7 @@ namespace App\Controllers\Customer;
 
 use App\Controllers\BaseController;
 use App\Models\CustomerUserModel;
+use App\Services\CustomerRememberMeService;
 
 class AuthController extends BaseController
 {
@@ -12,6 +13,15 @@ class AuthController extends BaseController
         if (session('customer_user_logged_in')) {
             return redirect()->to(site_url('customer/orders'));
         }
+
+        $remember = new CustomerRememberMeService();
+        if ($remember->restore($this->request)) {
+            $response = $this->response->redirect(site_url('customer/orders'));
+            $remember->completePending($this->request, $response);
+            return $response;
+        }
+        $remember->completePending($this->request, $this->response);
+
         return view('customer/login', ['title' => 'Customer Login']);
     }
 
@@ -43,15 +53,25 @@ class AuthController extends BaseController
             'customer_user_role' => (string) $user['role'],
         ]);
         (new CustomerUserModel())->update((int) $user['id'], ['last_login_at' => date('Y-m-d H:i:s')]);
-        return redirect()->to(site_url('customer/orders'));
+        $response = redirect()->to(site_url('customer/orders'));
+        $remember = new CustomerRememberMeService();
+        if ((string) $this->request->getPost('remember') === '1') {
+            $remember->issue((int) $user['id'], $this->request, $response);
+        } else {
+            $remember->forget($this->request, $response);
+        }
+
+        return $response;
     }
 
     public function logout()
     {
+        $response = redirect()->to(site_url('customer/login'));
+        (new CustomerRememberMeService())->forget($this->request, $response);
         session()->remove([
             'customer_user_logged_in', 'customer_user_id', 'customer_id',
             'customer_user_name', 'customer_name', 'customer_user_role',
         ]);
-        return redirect()->to(site_url('customer/login'))->with('success', 'You have been logged out.');
+        return $response->with('success', 'You have been logged out.');
     }
 }

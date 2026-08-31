@@ -1,9 +1,22 @@
+<?php
+$customerManifestUrl = base_url('customer-portal-manifest.json');
+$customerServiceWorkerUrl = base_url('customer-portal-sw.js');
+$customerServiceWorkerScope = (string) (parse_url(base_url('customer/'), PHP_URL_PATH) ?: '/customer/');
+?>
 <!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#171d2c">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Aabhushan">
     <title><?= esc($title ?? 'Customer Portal') ?> · Aabhushan</title>
+    <link rel="manifest" href="<?= esc($customerManifestUrl) ?>">
+    <link rel="icon" type="image/png" sizes="192x192" href="<?= base_url('pwa/customer/icon-192.png') ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= base_url('pwa/customer/apple-touch-icon.png') ?>">
     <link rel="stylesheet" href="<?= base_url('template/assets/css/bootstrap.min.css') ?>">
     <link rel="stylesheet" href="<?= base_url('template/assets/plugins/feather/feather.css') ?>">
     <link rel="stylesheet" href="<?= base_url('template/assets/plugins/select2/css/select2.min.css') ?>">
@@ -48,6 +61,17 @@
         .table > :not(caption) > * > * { border-color: #edf0f4; padding: .9rem .85rem; vertical-align: middle; }
         .table thead th { background: #f7f8fa; color: #596579; font-size: 10px; font-weight: 800; letter-spacing: .055em; text-transform: uppercase; }
         .alert { border: 0; border-left: 4px solid currentColor; border-radius: 12px; box-shadow: 0 5px 18px rgba(28, 37, 56, .05); }
+        .portal-remember { align-items: flex-start; display: flex; gap: 10px; padding-left: 0; }
+        .portal-remember .form-check-input { border-color: #cbd1dc; cursor: pointer; flex: 0 0 auto; height: 18px; margin: 2px 0 0; width: 18px; }
+        .portal-remember .form-check-input:checked { background-color: var(--portal-gold); border-color: var(--portal-gold); }
+        .portal-remember .form-check-label { color: #344054; cursor: pointer; font-size: 12px; line-height: 1.3; }
+        .portal-remember .form-check-label strong, .portal-remember .form-check-label small { display: block; }
+        .portal-remember .form-check-label small { color: var(--portal-muted); font-size: 10px; font-weight: 450; margin-top: 3px; }
+        .portal-install-app { align-items: center; background: linear-gradient(135deg, #d6b26e, #a77028); border: 1px solid rgba(255, 255, 255, .45); border-radius: 999px; bottom: max(18px, env(safe-area-inset-bottom)); box-shadow: 0 12px 30px rgba(23, 29, 44, .28); color: #fff; display: none; font-size: 12px; font-weight: 750; gap: 8px; min-height: 44px; padding: 10px 16px; position: fixed; right: 18px; z-index: 1080; }
+        .portal-install-app.is-visible { display: inline-flex; }
+        .portal-install-app:hover { color: #fff; transform: translateY(-1px); }
+        .portal-install-icon { align-items: center; background: rgba(255, 255, 255, .18); border-radius: 8px; display: inline-flex; height: 27px; justify-content: center; width: 27px; }
+        .portal-install-steps { color: var(--portal-muted); font-size: 12px; line-height: 1.65; margin: 0; padding-left: 20px; }
         @media (max-width: 767px) {
             .form-control, .form-select { font-size: 16px; }
             .portal-shell { padding: 18px 12px 42px; }
@@ -89,6 +113,16 @@
         </div>
     <?php endif; ?>
 </nav>
+<button type="button" class="portal-install-app" id="customer-install-app" aria-label="Install Aabhushan Customer Portal">
+    <span class="portal-install-icon"><i class="fe fe-download"></i></span>
+    <span>Install Customer App</span>
+</button>
+<div class="modal fade" id="customer-ios-install" tabindex="-1" aria-labelledby="customer-ios-install-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered mx-3"><div class="modal-content border-0 rounded-4">
+        <div class="modal-header border-0 pb-0"><div><span class="eyebrow">Install on iPhone / iPad</span><h5 class="modal-title mt-1" id="customer-ios-install-title">Add Aabhushan to Home Screen</h5></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body pt-3"><ol class="portal-install-steps"><li>Open this page in Safari.</li><li>Tap the <strong>Share</strong> button.</li><li>Select <strong>Add to Home Screen</strong>, then tap <strong>Add</strong>.</li></ol></div>
+    </div></div>
+</div>
 <main class="portal-shell">
     <?php if (session('success')): ?><div class="alert alert-success"><?= esc((string) session('success')) ?></div><?php endif; ?>
     <?php if (session('error')): ?><div class="alert alert-danger"><?= esc((string) session('error')) ?></div><?php endif; ?>
@@ -108,6 +142,52 @@
             });
         });
     });
+
+    (function () {
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register(<?= json_encode($customerServiceWorkerUrl) ?>, {
+                    scope: <?= json_encode($customerServiceWorkerScope) ?>
+                }).catch(function () {
+                    // The portal remains fully usable if service-worker registration is unavailable.
+                });
+            });
+        }
+
+        const installButton = document.getElementById('customer-install-app');
+        if (!installButton) return;
+        const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        if (standalone) return;
+
+        let installPrompt = null;
+        const userAgent = window.navigator.userAgent || '';
+        const isiOS = /iphone|ipad|ipod/i.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (isiOS) installButton.classList.add('is-visible');
+
+        window.addEventListener('beforeinstallprompt', function (event) {
+            event.preventDefault();
+            installPrompt = event;
+            installButton.classList.add('is-visible');
+        });
+
+        installButton.addEventListener('click', async function () {
+            if (installPrompt) {
+                installPrompt.prompt();
+                const choice = await installPrompt.userChoice;
+                installPrompt = null;
+                if (choice.outcome === 'accepted') installButton.classList.remove('is-visible');
+                return;
+            }
+            if (isiOS && window.bootstrap) {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('customer-ios-install')).show();
+            }
+        });
+
+        window.addEventListener('appinstalled', function () {
+            installPrompt = null;
+            installButton.classList.remove('is-visible');
+        });
+    })();
 </script>
 <?= $this->renderSection('scripts') ?>
 </body>

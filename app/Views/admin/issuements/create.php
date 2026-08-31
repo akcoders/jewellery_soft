@@ -16,6 +16,11 @@
     <div class="card erp-form-shell mb-3">
         <div class="card-body">
             <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Voucher Number <span class="text-danger">*</span></label>
+                    <input type="text" name="voucher_no" class="form-control text-uppercase" maxlength="80" required value="<?= esc((string) old('voucher_no', (string) ($suggestedVoucherNo ?? ''))) ?>">
+                    <small class="text-muted">You can keep the suggested number or enter your own.</small>
+                </div>
                 <div class="col-md-2">
                     <label class="form-label">Issue Date <span class="text-danger">*</span></label>
                     <input type="date" name="issue_date" class="form-control" required value="<?= esc((string) old('issue_date', date('Y-m-d'))) ?>">

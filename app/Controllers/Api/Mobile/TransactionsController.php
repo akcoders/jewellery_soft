@@ -31,6 +31,7 @@ use App\Services\DiamondInventory\StockService as DiamondStockService;
 use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\StoneInventory\StockService as StoneStockService;
 use App\Services\KarigarMaterialAccountingService;
+use App\Services\IssuementVoucherNumberService;
 use App\Services\PdfService;
 use Throwable;
 
@@ -186,12 +187,18 @@ class TransactionsController extends MobileBaseController
 
         $db = db_connect();
         $service = new DiamondStockService($db);
+        try {
+            $voucherNo = (new IssuementVoucherNumberService($db))
+                ->resolveForCreate((string) ($payload['voucher_no'] ?? ''));
+        } catch (Throwable $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
 
         try {
             $db->transException(true)->transStart();
 
             $issueId = (int) (new IssueHeaderModel())->insert([
-                'voucher_no' => $this->generateIssueVoucherNo($db),
+                'voucher_no' => $voucherNo,
                 'issue_date' => $issueDate,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
@@ -604,12 +611,18 @@ class TransactionsController extends MobileBaseController
 
         $db = db_connect();
         $service = new GoldStockService($db);
+        try {
+            $voucherNo = (new IssuementVoucherNumberService($db))
+                ->resolveForCreate((string) ($payload['voucher_no'] ?? ''));
+        } catch (Throwable $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
 
         try {
             $db->transException(true)->transStart();
 
             $issueId = (int) (new GoldInventoryIssueHeaderModel())->insert([
-                'voucher_no' => $this->generateIssueVoucherNo($db),
+                'voucher_no' => $voucherNo,
                 'issue_date' => $issueDate,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
@@ -1016,12 +1029,18 @@ class TransactionsController extends MobileBaseController
 
         $db = db_connect();
         $service = new StoneStockService($db);
+        try {
+            $voucherNo = (new IssuementVoucherNumberService($db))
+                ->resolveForCreate((string) ($payload['voucher_no'] ?? ''));
+        } catch (Throwable $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
 
         try {
             $db->transException(true)->transStart();
 
             $issueId = (int) (new StoneInventoryIssueHeaderModel())->insert([
-                'voucher_no' => $this->generateIssueVoucherNo($db),
+                'voucher_no' => $voucherNo,
                 'issue_date' => $issueDate,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
@@ -1632,54 +1651,6 @@ class TransactionsController extends MobileBaseController
             'name' => $name,
             'path' => trim($relativeRoot, '/') . '/' . $name,
         ];
-    }
-
-    private function generateIssueVoucherNo($db): string
-    {
-        $prefix = strtoupper(trim((string) ($this->companySetting()['issuement_suffix'] ?? 'ISS')));
-        $prefix = preg_replace('/[^A-Z0-9]/', '', $prefix) ?: 'ISS';
-
-        $tables = ['gold_inventory_issue_headers', 'issue_headers', 'stone_inventory_issue_headers'];
-        $maxSerial = 0;
-        $pattern = '/^' . preg_quote($prefix, '/') . '(\d+)$/';
-
-        foreach ($tables as $table) {
-            if (! $db->tableExists($table)) {
-                continue;
-            }
-            $rows = $db->table($table)
-                ->select('voucher_no')
-                ->like('voucher_no', $prefix, 'after')
-                ->get()
-                ->getResultArray();
-
-            foreach ($rows as $row) {
-                $voucherNo = (string) ($row['voucher_no'] ?? '');
-                if (preg_match($pattern, $voucherNo, $m) === 1) {
-                    $n = (int) $m[1];
-                    if ($n > $maxSerial) {
-                        $maxSerial = $n;
-                    }
-                }
-            }
-        }
-
-        do {
-            $maxSerial++;
-            $voucher = $prefix . str_pad((string) $maxSerial, 3, '0', STR_PAD_LEFT);
-            $exists = false;
-            foreach ($tables as $table) {
-                if (! $db->tableExists($table)) {
-                    continue;
-                }
-                if ($db->table($table)->where('voucher_no', $voucher)->countAllResults() > 0) {
-                    $exists = true;
-                    break;
-                }
-            }
-        } while ($exists);
-
-        return $voucher;
     }
 
     private function generateReturnVoucherNo($db, string $table): string

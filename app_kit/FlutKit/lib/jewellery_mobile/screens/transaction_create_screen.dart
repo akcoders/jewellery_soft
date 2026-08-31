@@ -39,6 +39,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   String _purpose = 'Jobwork';
   String _notes = '';
   String _invoiceNo = '';
+  String _voucherNo = '';
   String _supplierName = '';
   String _taxPercent = '';
   String _dueDate = '';
@@ -181,6 +182,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
           payload['due_date'] = _dueDate.trim();
         }
       } else if (widget.action == 'issue') {
+        payload['voucher_no'] = _voucherNo.trim();
         payload['issue_date'] = _formatDate(_txnDate);
         payload['karigar_id'] = _karigarId;
         payload['location_id'] = _locationId;
@@ -413,6 +415,18 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
               const SizedBox(height: AppSpacing.md),
             ],
             if (widget.action == 'issue') ...[
+              TextFormField(
+                initialValue: _voucherNo,
+                decoration: const InputDecoration(
+                  labelText: 'Voucher Number (optional)',
+                  helperText:
+                      'Leave blank to use the next company voucher number.',
+                ),
+                textCapitalization: TextCapitalization.characters,
+                maxLength: 80,
+                onChanged: (v) => _voucherNo = v,
+              ),
+              const SizedBox(height: AppSpacing.md),
               DropdownButtonFormField<int>(
                 initialValue: _karigarId,
                 decoration: const InputDecoration(labelText: 'Karigar'),

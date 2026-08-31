@@ -20,6 +20,7 @@ class CompanySettingModel extends Model
         'gstin',
         'logo_path',
         'issuement_suffix',
+        'issuement_start_count',
         'delivery_challan_suffix',
         'sale_bill_suffix',
         'onesignal_enabled',

@@ -9,8 +9,12 @@
                 <p class="text-muted mb-4">Login to create orders and track their current status.</p>
                 <form method="post" action="<?= site_url('customer/login') ?>">
                     <?= csrf_field() ?>
-                    <div class="mb-3"><label class="form-label">Email address</label><input type="email" name="email" class="form-control form-control-lg" value="<?= esc(old('email')) ?>" autocomplete="email" required></div>
-                    <div class="mb-4"><label class="form-label">Password</label><input type="password" name="password" class="form-control form-control-lg" autocomplete="current-password" required></div>
+                    <div class="mb-3"><label class="form-label">Email address</label><input type="email" name="email" class="form-control form-control-lg" value="<?= esc(old('email')) ?>" autocomplete="username" required></div>
+                    <div class="mb-3"><label class="form-label">Password</label><input type="password" name="password" class="form-control form-control-lg" autocomplete="current-password" required></div>
+                    <div class="form-check portal-remember mb-4">
+                        <input class="form-check-input" type="checkbox" name="remember" value="1" id="customer-remember" <?= (string) old('remember', '', false) === '1' ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="customer-remember"><strong>Remember me on this device</strong><small>Keep this customer or salesperson login securely signed in for 30 days.</small></label>
+                    </div>
                     <button class="btn btn-dark btn-lg w-100">Login to Portal</button>
                 </form>
             </div>
