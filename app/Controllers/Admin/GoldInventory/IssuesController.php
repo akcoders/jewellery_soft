@@ -269,14 +269,15 @@ class IssuesController extends BaseController
         try {
             $db->transException(true)->transStart();
             $accounting = new KarigarMaterialAccountingService($db);
-            $accounting->reverseHeaderVoucher('gold_inventory_issue_headers', $id, 'Gold issue edited', (int) session('admin_id'));
             $service->reverseIssue($id, [
                 'txn_date' => (string) ($issue['issue_date'] ?? ''),
                 'karigar_id' => isset($issue['karigar_id']) ? (int) $issue['karigar_id'] : null,
                 'location_id' => isset($issue['location_id']) ? (int) $issue['location_id'] : null,
                 'created_by' => (int) session('admin_id'),
                 'notes' => 'Issue reversal for edit',
+                'record_ledger' => false,
             ]);
+            $service->clearLedgerEntriesForReference('gold_inventory_issue_headers', $id);
 
             $issueDate = (string) $this->request->getPost('issue_date');
             $locationId = (int) $this->request->getPost('location_id');
@@ -323,7 +324,8 @@ class IssuesController extends BaseController
                 'created_by' => (int) session('admin_id'),
                 'notes' => 'Gold issue posting',
             ]);
-            $accounting->postInventoryHeader('gold', 'issue', $id);
+            $service->recalculateLedgerBalances();
+            $accounting->refreshInventoryHeaderVoucher('gold', 'issue', $id);
 
             $db->transComplete();
         } catch (Throwable $e) {

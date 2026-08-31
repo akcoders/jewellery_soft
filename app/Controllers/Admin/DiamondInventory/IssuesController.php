@@ -258,7 +258,7 @@ class IssuesController extends BaseController
 
         try {
             $db->transException(true)->transStart();
-            (new KarigarMaterialAccountingService($db))->reverseHeaderVoucher('issue_headers', $id, 'Diamond issue updated', (int) session('admin_id'));
+            $accounting = new KarigarMaterialAccountingService($db);
             $service->reverseIssue($id);
 
             $karigarId = (int) $this->request->getPost('karigar_id');
@@ -299,7 +299,7 @@ class IssuesController extends BaseController
             }
 
             $service->applyIssue($id);
-            (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $id);
+            $accounting->refreshInventoryHeaderVoucher('diamond', 'issue', $id);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();

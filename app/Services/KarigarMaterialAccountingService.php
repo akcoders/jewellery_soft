@@ -72,6 +72,50 @@ class KarigarMaterialAccountingService
         return $voucherId;
     }
 
+    /**
+     * Refresh the accounting effect of an edited material transaction in place.
+     * This deliberately keeps one voucher and one set of ledger rows per source.
+     */
+    public function refreshInventoryHeaderVoucher(string $material, string $direction, int $headerId): int
+    {
+        $config = $this->movementConfig($material, $direction);
+        $header = $this->db->table($config['header_table'])->where('id', $headerId)->get()->getRowArray();
+        if (! $header) {
+            throw new RuntimeException('Material transaction header was not found.');
+        }
+
+        $voucherId = (int) ($header['account_voucher_id'] ?? 0);
+        if ($voucherId <= 0) {
+            return $this->postInventoryHeader($material, $direction, $headerId);
+        }
+
+        $karigarId = (int) ($header['karigar_id'] ?? 0);
+        $locationId = (int) ($header['location_id'] ?? 0);
+        if ($karigarId <= 0 || $locationId <= 0) {
+            throw new RuntimeException('Karigar and location are required for material accounting.');
+        }
+
+        $line = $this->aggregateLine($material, $config, $headerId);
+        return $this->postAccountMovement(
+            $direction,
+            strtoupper($material . '_' . $direction),
+            $karigarId,
+            $locationId,
+            [$line],
+            [
+                'voucher_date' => (string) ($header[$config['date_field']] ?? date('Y-m-d')),
+                'remarks' => sprintf(
+                    '%s %s %s',
+                    ucfirst($material),
+                    $direction,
+                    trim((string) ($header['voucher_no'] ?? ('#' . $headerId)))
+                ),
+                'created_by' => (int) ($header['created_by'] ?? (session('admin_id') ?: 0)),
+            ],
+            $voucherId
+        );
+    }
+
     public function reverseHeaderVoucher(string $headerTable, int $headerId, string $reason, int $createdBy = 0): void
     {
         if (! $this->db->fieldExists('account_voucher_id', $headerTable)) {
@@ -178,7 +222,8 @@ class KarigarMaterialAccountingService
         int $karigarId,
         int $locationId,
         array $lines,
-        array $meta
+        array $meta,
+        ?int $replaceVoucherId = null
     ): int {
         $warehouse = $this->adminPostingService->resolveWarehouseBinByLocation($locationId);
         $warehouseAccountId = $this->postingService->ensureAccount(
@@ -220,7 +265,9 @@ class KarigarMaterialAccountingService
             ];
         }
 
-        $result = $this->postingService->postVoucher($header, $lines);
+        $result = $replaceVoucherId !== null && $replaceVoucherId > 0
+            ? $this->postingService->replaceVoucher($replaceVoucherId, $header, $lines)
+            : $this->postingService->postVoucher($header, $lines);
         return (int) $result['voucher_id'];
     }
 

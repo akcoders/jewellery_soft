@@ -142,6 +142,125 @@ class PostingService
     }
 
     /**
+     * Replace an existing posted voucher without creating a reversal voucher.
+     * The old balance effect is removed first and the refreshed lines are then
+     * posted against the same voucher id/number.
+     *
+     * @param array<string,mixed> $header
+     * @param array<int,array<string,mixed>> $lines
+     * @return array<string,mixed>
+     */
+    public function replaceVoucher(int $voucherId, array $header, array $lines): array
+    {
+        if ($lines === []) {
+            throw new RuntimeException('Voucher lines are required.');
+        }
+
+        $this->db->transException(true)->transStart();
+
+        $voucher = $this->voucherModel->find($voucherId);
+        if (! $voucher) {
+            throw new RuntimeException('Voucher not found.');
+        }
+        if ((int) ($voucher['is_reversal'] ?? 0) === 1 || (string) ($voucher['status'] ?? '') === 'Reversed') {
+            throw new RuntimeException('A reversed voucher cannot be updated.');
+        }
+
+        $oldLines = $this->voucherLineModel->where('voucher_id', $voucherId)->orderBy('line_no', 'ASC')->findAll();
+        $oldDebitAccountId = (int) ($voucher['debit_account_id'] ?? 0);
+        $oldCreditAccountId = (int) ($voucher['credit_account_id'] ?? 0);
+        foreach ($oldLines as $oldLine) {
+            $normalizedOldLine = $this->normalizeLine($oldLine);
+            $this->updateAccountBalance($oldDebitAccountId, $normalizedOldLine, -1);
+            $this->updateAccountBalance($oldCreditAccountId, $normalizedOldLine, 1);
+
+            if (empty($header['skip_inventory_movement'])) {
+                $oldFromWarehouseId = (int) ($voucher['from_warehouse_id'] ?? 0);
+                $oldFromBinId = (int) ($voucher['from_bin_id'] ?? 0);
+                $oldToWarehouseId = (int) ($voucher['to_warehouse_id'] ?? 0);
+                $oldToBinId = (int) ($voucher['to_bin_id'] ?? 0);
+                if ($oldFromWarehouseId > 0) {
+                    $this->updateInventoryBalance($oldFromWarehouseId, $oldFromBinId, $normalizedOldLine, 1);
+                }
+                if ($oldToWarehouseId > 0) {
+                    $this->updateInventoryBalance($oldToWarehouseId, $oldToBinId, $normalizedOldLine, -1);
+                }
+            }
+        }
+
+        $voucherType = strtoupper(trim((string) ($header['voucher_type'] ?? $voucher['voucher_type'] ?? 'GENERAL')));
+        $voucherDate = trim((string) ($header['voucher_date'] ?? $voucher['voucher_date'] ?? date('Y-m-d')));
+        $createdBy = (int) ($header['created_by'] ?? 0);
+        $createdIp = trim((string) ($header['created_ip'] ?? ''));
+        if ($createdIp === '') {
+            $createdIp = service('request')->getIPAddress() ?? null;
+        }
+        $fromWarehouseId = (int) ($header['from_warehouse_id'] ?? 0);
+        $fromBinId = (int) ($header['from_bin_id'] ?? 0);
+        $toWarehouseId = (int) ($header['to_warehouse_id'] ?? 0);
+        $toBinId = (int) ($header['to_bin_id'] ?? 0);
+        $debitAccountId = (int) ($header['debit_account_id'] ?? 0);
+        $creditAccountId = (int) ($header['credit_account_id'] ?? 0);
+        if ($debitAccountId <= 0 || $creditAccountId <= 0) {
+            throw new RuntimeException('Both debit_account_id and credit_account_id are required.');
+        }
+
+        $this->db->table('ledger_entries')->where('voucher_id', $voucherId)->delete();
+        $this->db->table('voucher_lines')->where('voucher_id', $voucherId)->delete();
+        $this->db->table('vouchers')->where('id', $voucherId)->update([
+            'voucher_type' => $voucherType,
+            'voucher_date' => $voucherDate,
+            'voucher_datetime' => date('Y-m-d H:i:s'),
+            'from_warehouse_id' => $fromWarehouseId > 0 ? $fromWarehouseId : null,
+            'from_bin_id' => $fromBinId > 0 ? $fromBinId : null,
+            'to_warehouse_id' => $toWarehouseId > 0 ? $toWarehouseId : null,
+            'to_bin_id' => $toBinId > 0 ? $toBinId : null,
+            'order_id' => isset($header['order_id']) ? (int) $header['order_id'] : null,
+            'job_card_id' => isset($header['job_card_id']) ? (int) $header['job_card_id'] : null,
+            'party_id' => isset($header['party_id']) ? (int) $header['party_id'] : null,
+            'debit_account_id' => $debitAccountId,
+            'credit_account_id' => $creditAccountId,
+            'status' => 'Posted',
+            'remarks' => trim((string) ($header['remarks'] ?? '')),
+        ]);
+
+        foreach (array_values($lines) as $index => $line) {
+            $normalized = $this->normalizeLine($line);
+            $normalized['voucher_id'] = $voucherId;
+            $normalized['line_no'] = $index + 1;
+            $this->voucherLineModel->insert($normalized);
+
+            if (empty($header['skip_inventory_movement'])) {
+                $this->applyInventoryMovement($fromWarehouseId, $fromBinId, $toWarehouseId, $toBinId, $normalized);
+            }
+            $this->applyAccountMovement($debitAccountId, $creditAccountId, $normalized);
+            $this->ledgerEntryModel->insert([
+                'voucher_id' => $voucherId,
+                'line_no' => $index + 1,
+                'debit_account_id' => $debitAccountId,
+                'credit_account_id' => $creditAccountId,
+                'item_type' => $normalized['item_type'],
+                'item_key' => $normalized['item_key'],
+                'qty_pcs' => $normalized['qty_pcs'],
+                'qty_cts' => $normalized['qty_cts'],
+                'qty_weight' => $normalized['qty_weight'],
+                'fine_gold_qty' => $normalized['fine_gold'],
+                'order_id' => isset($header['order_id']) ? (int) $header['order_id'] : null,
+                'job_card_id' => isset($header['job_card_id']) ? (int) $header['job_card_id'] : null,
+            ]);
+        }
+
+        $this->logAudit('voucher', $voucherId, 'UPDATE', $voucher, ['header' => $header, 'lines' => $lines], $createdBy, $createdIp);
+        $this->db->transComplete();
+
+        return [
+            'voucher_id' => $voucherId,
+            'voucher_no' => (string) $voucher['voucher_no'],
+            'status' => 'Posted',
+        ];
+    }
+
+    /**
      * @param array<string,mixed> $newHeader
      * @param array<int,array<string,mixed>> $newLines
      * @return array<string,mixed>

@@ -215,7 +215,9 @@ class PurchasesController extends BaseController
                 'location_id' => (int) ($purchase['location_id'] ?? 0),
                 'created_by' => (int) session('admin_id'),
                 'notes' => 'Purchase reversal for edit',
+                'record_ledger' => false,
             ]);
+            $service->clearLedgerEntriesForReference('gold_inventory_purchase_headers', $id);
 
             $purchaseDate = (string) $this->request->getPost('purchase_date');
             $locationId = (int) $this->request->getPost('location_id');
@@ -247,6 +249,7 @@ class PurchasesController extends BaseController
                 'created_by' => (int) session('admin_id'),
                 'notes' => 'Gold purchase posting',
             ]);
+            $service->recalculateLedgerBalances();
 
             $db->transComplete();
         } catch (Throwable $e) {

@@ -102,26 +102,28 @@ class StockService
             $stockValue = $newWeight * $newAvg;
 
             $this->updateStock($itemId, $newWeight, $newFine, $newAvg, $stockValue);
-            $this->insertLedgerEntry([
-                'txn_date' => $txnDate,
-                'txn_type' => $txnType,
-                'reference_table' => $referenceTable,
-                'reference_id' => $purchaseId,
-                'order_id' => $this->nullableInt($meta['order_id'] ?? null),
-                'karigar_id' => $this->nullableInt($meta['karigar_id'] ?? null),
-                'location_id' => $this->nullableInt($meta['location_id'] ?? null),
-                'item_id' => $itemId,
-                'debit_weight_gm' => round($addWeight, 3),
-                'credit_weight_gm' => 0,
-                'debit_fine_gm' => round($addFine, 3),
-                'credit_fine_gm' => 0,
-                'balance_weight_gm' => round($newWeight, 3),
-                'balance_fine_gm' => round($newFine, 3),
-                'rate_per_gm' => $addWeight > 0 ? round($addValue / $addWeight, 2) : null,
-                'line_value' => round($addValue, 2),
-                'notes' => $this->stringOrNull($meta['notes'] ?? null),
-                'created_by' => $this->nullableInt($meta['created_by'] ?? null),
-            ]);
+            if (($meta['record_ledger'] ?? true) === true) {
+                $this->insertLedgerEntry([
+                    'txn_date' => $txnDate,
+                    'txn_type' => $txnType,
+                    'reference_table' => $referenceTable,
+                    'reference_id' => $purchaseId,
+                    'order_id' => $this->nullableInt($meta['order_id'] ?? null),
+                    'karigar_id' => $this->nullableInt($meta['karigar_id'] ?? null),
+                    'location_id' => $this->nullableInt($meta['location_id'] ?? null),
+                    'item_id' => $itemId,
+                    'debit_weight_gm' => round($addWeight, 3),
+                    'credit_weight_gm' => 0,
+                    'debit_fine_gm' => round($addFine, 3),
+                    'credit_fine_gm' => 0,
+                    'balance_weight_gm' => round($newWeight, 3),
+                    'balance_fine_gm' => round($newFine, 3),
+                    'rate_per_gm' => $addWeight > 0 ? round($addValue / $addWeight, 2) : null,
+                    'line_value' => round($addValue, 2),
+                    'notes' => $this->stringOrNull($meta['notes'] ?? null),
+                    'created_by' => $this->nullableInt($meta['created_by'] ?? null),
+                ]);
+            }
         }
     }
 
@@ -166,25 +168,62 @@ class StockService
             $stockValue = $newWeight * $newAvg;
 
             $this->updateStock($itemId, $newWeight, $newFine, $newAvg, $stockValue);
-            $this->insertLedgerEntry([
-                'txn_date' => $txnDate,
-                'txn_type' => $txnType,
-                'reference_table' => $referenceTable,
-                'reference_id' => $purchaseId,
-                'order_id' => $this->nullableInt($meta['order_id'] ?? null),
-                'karigar_id' => $this->nullableInt($meta['karigar_id'] ?? null),
-                'location_id' => $this->nullableInt($meta['location_id'] ?? null),
-                'item_id' => $itemId,
-                'debit_weight_gm' => 0,
-                'credit_weight_gm' => round($removeWeight, 3),
-                'debit_fine_gm' => 0,
-                'credit_fine_gm' => round($removeFine, 3),
-                'balance_weight_gm' => round($newWeight, 3),
-                'balance_fine_gm' => round($newFine, 3),
-                'rate_per_gm' => $removeWeight > 0 ? round($removeValue / $removeWeight, 2) : null,
-                'line_value' => round($removeValue, 2),
-                'notes' => $this->stringOrNull($meta['notes'] ?? null),
-                'created_by' => $this->nullableInt($meta['created_by'] ?? null),
+            if (($meta['record_ledger'] ?? true) === true) {
+                $this->insertLedgerEntry([
+                    'txn_date' => $txnDate,
+                    'txn_type' => $txnType,
+                    'reference_table' => $referenceTable,
+                    'reference_id' => $purchaseId,
+                    'order_id' => $this->nullableInt($meta['order_id'] ?? null),
+                    'karigar_id' => $this->nullableInt($meta['karigar_id'] ?? null),
+                    'location_id' => $this->nullableInt($meta['location_id'] ?? null),
+                    'item_id' => $itemId,
+                    'debit_weight_gm' => 0,
+                    'credit_weight_gm' => round($removeWeight, 3),
+                    'debit_fine_gm' => 0,
+                    'credit_fine_gm' => round($removeFine, 3),
+                    'balance_weight_gm' => round($newWeight, 3),
+                    'balance_fine_gm' => round($newFine, 3),
+                    'rate_per_gm' => $removeWeight > 0 ? round($removeValue / $removeWeight, 2) : null,
+                    'line_value' => round($removeValue, 2),
+                    'notes' => $this->stringOrNull($meta['notes'] ?? null),
+                    'created_by' => $this->nullableInt($meta['created_by'] ?? null),
+                ]);
+            }
+        }
+    }
+
+    public function clearLedgerEntriesForReference(string $referenceTable, int $referenceId): void
+    {
+        if ($referenceTable === '' || $referenceId <= 0) {
+            return;
+        }
+
+        $this->db->table('gold_inventory_ledger_entries')
+            ->where('reference_table', $referenceTable)
+            ->where('reference_id', $referenceId)
+            ->delete();
+    }
+
+    public function recalculateLedgerBalances(): void
+    {
+        $balances = [];
+        $rows = $this->db->table('gold_inventory_ledger_entries')
+            ->select('id, item_id, debit_weight_gm, credit_weight_gm, debit_fine_gm, credit_fine_gm')
+            ->orderBy('txn_date', 'ASC')
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        foreach ($rows as $row) {
+            $itemId = (int) $row['item_id'];
+            $balances[$itemId] ??= ['weight' => 0.0, 'fine' => 0.0];
+            $balances[$itemId]['weight'] += (float) $row['debit_weight_gm'] - (float) $row['credit_weight_gm'];
+            $balances[$itemId]['fine'] += (float) $row['debit_fine_gm'] - (float) $row['credit_fine_gm'];
+
+            $this->db->table('gold_inventory_ledger_entries')->where('id', (int) $row['id'])->update([
+                'balance_weight_gm' => round($balances[$itemId]['weight'], 3),
+                'balance_fine_gm' => round($balances[$itemId]['fine'], 3),
             ]);
         }
     }
@@ -274,26 +313,28 @@ class StockService
             $this->updateStock($itemId, $newWeight, $newFine, $oldAvg, $stockValue);
 
             $lineValue = $addWeight * $oldAvg;
-            $this->insertLedgerEntry([
-                'txn_date' => $txnDate,
-                'txn_type' => $txnType,
-                'reference_table' => $referenceTable,
-                'reference_id' => $issueId,
-                'order_id' => $this->nullableInt($meta['order_id'] ?? null),
-                'karigar_id' => $this->nullableInt($meta['karigar_id'] ?? null),
-                'location_id' => $this->nullableInt($meta['location_id'] ?? null),
-                'item_id' => $itemId,
-                'debit_weight_gm' => round($addWeight, 3),
-                'credit_weight_gm' => 0,
-                'debit_fine_gm' => round($addFine, 3),
-                'credit_fine_gm' => 0,
-                'balance_weight_gm' => round($newWeight, 3),
-                'balance_fine_gm' => round($newFine, 3),
-                'rate_per_gm' => round($oldAvg, 2),
-                'line_value' => round($lineValue, 2),
-                'notes' => $this->stringOrNull($meta['notes'] ?? null),
-                'created_by' => $this->nullableInt($meta['created_by'] ?? null),
-            ]);
+            if (($meta['record_ledger'] ?? true) === true) {
+                $this->insertLedgerEntry([
+                    'txn_date' => $txnDate,
+                    'txn_type' => $txnType,
+                    'reference_table' => $referenceTable,
+                    'reference_id' => $issueId,
+                    'order_id' => $this->nullableInt($meta['order_id'] ?? null),
+                    'karigar_id' => $this->nullableInt($meta['karigar_id'] ?? null),
+                    'location_id' => $this->nullableInt($meta['location_id'] ?? null),
+                    'item_id' => $itemId,
+                    'debit_weight_gm' => round($addWeight, 3),
+                    'credit_weight_gm' => 0,
+                    'debit_fine_gm' => round($addFine, 3),
+                    'credit_fine_gm' => 0,
+                    'balance_weight_gm' => round($newWeight, 3),
+                    'balance_fine_gm' => round($newFine, 3),
+                    'rate_per_gm' => round($oldAvg, 2),
+                    'line_value' => round($lineValue, 2),
+                    'notes' => $this->stringOrNull($meta['notes'] ?? null),
+                    'created_by' => $this->nullableInt($meta['created_by'] ?? null),
+                ]);
+            }
         }
     }
 
