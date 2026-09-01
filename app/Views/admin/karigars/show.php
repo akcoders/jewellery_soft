@@ -2,18 +2,89 @@
 
 <?= $this->section('styles') ?>
 <style>
-    .karigar-ledger-card { overflow: hidden; }
+    .karigar-ledger-zone { margin-top: 1.5rem; }
+    .karigar-ledger-heading {
+        align-items: center;
+        background: linear-gradient(135deg, #fff 0%, #fffaf0 100%);
+        border: 1px solid #eadfc9;
+        border-left: 4px solid var(--erp-gold);
+        border-radius: 14px;
+        display: flex;
+        gap: 16px;
+        justify-content: space-between;
+        padding: 18px 20px;
+    }
+    .karigar-ledger-heading h4 { color: #172235; font-size: 1.15rem; margin: 0 0 3px; }
+    .karigar-ledger-heading p { color: #6b778c; font-size: .82rem; margin: 0; }
+    .karigar-ledger-jump { display: flex; flex-wrap: wrap; gap: 7px; }
+    .karigar-ledger-jump a {
+        background: #fff;
+        border: 1px solid #d9e0e8;
+        border-radius: 999px;
+        color: #344054;
+        font-size: .75rem;
+        font-weight: 700;
+        padding: 7px 11px;
+    }
+    .karigar-ledger-jump a:hover { border-color: var(--erp-red); color: var(--erp-red); }
+    .karigar-ledger-filter {
+        background: #fff;
+        border: 1px solid #dfe5ec;
+        border-radius: 12px;
+        box-shadow: 0 8px 22px rgba(26, 39, 57, .05);
+        padding: 15px 18px;
+    }
+    .karigar-ledger-card { border: 1px solid #dfe5ec !important; border-radius: 14px !important; overflow: hidden; scroll-margin-top: 90px; }
     .karigar-ledger-card .card-header {
         align-items: center;
-        background: linear-gradient(180deg, #fff, #fffdf8);
+        background: #fff;
         border-bottom: 1px solid var(--erp-border);
         display: flex;
         justify-content: space-between;
+        padding: 15px 18px;
     }
+    .karigar-ledger-card .card-header h5 { color: #172235; font-size: .98rem; font-weight: 800; }
+    .karigar-ledger-card .card-header small { color: #748094; display: block; font-size: .72rem; font-weight: 500; margin-top: 3px; }
+    .karigar-ledger-card .card-body { padding: 18px; }
     .karigar-ledger-card .table-responsive { max-width: 100%; }
     .karigar-ledger-table { min-width: 820px; width: 100% !important; }
+    .karigar-ledger-table thead tr:first-child th { background: #f4f6f9 !important; color: #425066 !important; font-size: .69rem !important; letter-spacing: .035em; padding: .72rem .65rem !important; text-transform: uppercase; }
+    .karigar-ledger-table tbody td { color: #354158; font-size: .78rem; padding: .68rem .65rem !important; vertical-align: middle; }
+    .karigar-ledger-table tbody tr:nth-child(even) td { background: #fbfcfd; }
+    .karigar-ledger-table .ledger-number { font-variant-numeric: tabular-nums; text-align: right; }
+    .karigar-ledger-table .ledger-balance { background: #f5f3ff !important; color: #382e72; font-weight: 800; }
+    .karigar-ledger-table .ledger-in { color: #137647; font-weight: 750; }
+    .karigar-ledger-table .ledger-out { color: #b42331; font-weight: 750; }
+    .karigar-ledger-summary { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(145px, 1fr)); margin-bottom: 16px; }
+    .karigar-ledger-metric { background: #f8fafc; border: 1px solid #e3e8ef; border-radius: 10px; padding: 11px 13px; }
+    .karigar-ledger-metric small { color: #778397; display: block; font-size: .67rem; font-weight: 750; letter-spacing: .035em; text-transform: uppercase; }
+    .karigar-ledger-metric strong { color: #1e293b; display: block; font-size: .98rem; margin-top: 3px; }
+    .karigar-ledger-metric.is-in { background: #f0faf5; border-color: #ccebdc; }
+    .karigar-ledger-metric.is-in strong { color: #137647; }
+    .karigar-ledger-metric.is-out { background: #fff5f5; border-color: #f1d1d4; }
+    .karigar-ledger-metric.is-out strong { color: #b42331; }
+    .karigar-ledger-metric.is-closing { background: #f4f1ff; border-color: #ddd5fa; }
+    .karigar-ledger-metric.is-closing strong { color: #4a3a88; }
+    .karigar-entry-badge { border-radius: 999px; display: inline-flex; font-size: .68rem; font-weight: 800; padding: .28rem .52rem; text-transform: uppercase; }
+    .karigar-entry-badge.is-issue { background: #eaf8f1; color: #137647; }
+    .karigar-entry-badge.is-receive { background: #fff0f1; color: #b42331; }
+    .karigar-ledger-legend { color: #6f7b8e; display: flex; flex-wrap: wrap; font-size: .72rem; gap: 12px; }
+    .karigar-ledger-legend span::before { border-radius: 50%; content: ''; display: inline-block; height: 7px; margin-right: 5px; width: 7px; }
+    .karigar-ledger-legend .given::before { background: #22a06b; }
+    .karigar-ledger-legend .returned::before { background: #df4c59; }
     @media (min-width: 768px) {
         .karigar-ledger-table { min-width: 980px; }
+    }
+    @media (max-width: 991.98px) {
+        .karigar-ledger-heading { align-items: flex-start; flex-direction: column; }
+        .karigar-ledger-summary { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
+    }
+    @media (max-width: 575.98px) {
+        .karigar-ledger-heading, .karigar-ledger-filter, .karigar-ledger-card .card-body { padding: 13px; }
+        .karigar-ledger-summary { gap: 8px; }
+        .karigar-ledger-metric { padding: 9px 10px; }
+        .karigar-ledger-metric strong { font-size: .88rem; }
+        .karigar-ledger-card .dataTables_length, .karigar-ledger-card .dataTables_filter { text-align: left !important; }
     }
 </style>
 <?= $this->endSection() ?>
@@ -29,6 +100,7 @@ $statementRange = static function (array $rows, string $openingKey, string $clos
 $goldRange = $statementRange($goldStatement ?? [], 'opening_gm', 'closing_gm');
 $diamondRange = $statementRange($diamondStatement ?? [], 'opening_weight', 'closing_weight');
 $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_weight');
+$paymentRange = $statementRange($paymentStatement ?? [], 'opening_amount', 'closing_amount');
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Karigar Profile: <?= esc($karigar['name']) ?></h4>
@@ -97,7 +169,7 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
         <div class="card w-100">
             <div class="card-body py-3">
                 <div class="text-muted">Payment Due</div>
-                <h4 class="mb-0"><?= esc(number_format((float) $paymentSummary['balance'], 2)) ?></h4>
+                <h4 class="mb-0"><?= esc(number_format($paymentRange['closing'], 2)) ?></h4>
             </div>
         </div>
     </div>
@@ -194,14 +266,26 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
     </div>
 </div>
 
-<div class="card mb-3">
-    <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
-            <div class="col-md-3"><label class="form-label">Ledger From</label><input type="date" name="ledger_from" class="form-control" value="<?= esc((string) ($ledgerFilters['from'] ?? '')) ?>"></div>
-            <div class="col-md-3"><label class="form-label">Ledger To</label><input type="date" name="ledger_to" class="form-control" value="<?= esc((string) ($ledgerFilters['to'] ?? '')) ?>"></div>
-            <div class="col-md-6"><button class="btn btn-primary"><i class="fe fe-filter me-1"></i>Apply to all ledgers</button> <a class="btn btn-light" href="<?= site_url('admin/karigars/' . $karigar['id']) ?>">Reset</a></div>
-        </form>
+<div class="karigar-ledger-zone">
+<div class="karigar-ledger-heading mb-3">
+    <div>
+        <h4><i class="fe fe-book-open me-2 text-warning"></i>Karigar Account Ledgers</h4>
+        <p>Material given increases the karigar balance. Material returned or jewellery received reduces it.</p>
     </div>
+    <div class="karigar-ledger-jump">
+        <a href="#pure-gold-ledger">Pure Gold</a>
+        <a href="#diamond-ledger">Diamond</a>
+        <a href="#stone-ledger">Stone</a>
+        <a href="#payment-ledger">Payments</a>
+    </div>
+</div>
+
+<div class="karigar-ledger-filter mb-3">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-sm-6 col-lg-3"><label class="form-label mb-1">From date</label><input type="date" name="ledger_from" class="form-control" value="<?= esc((string) ($ledgerFilters['from'] ?? '')) ?>"></div>
+        <div class="col-sm-6 col-lg-3"><label class="form-label mb-1">To date</label><input type="date" name="ledger_to" class="form-control" value="<?= esc((string) ($ledgerFilters['to'] ?? '')) ?>"></div>
+        <div class="col-lg-6"><button class="btn btn-primary"><i class="fe fe-filter me-1"></i>Apply date range</button> <a class="btn btn-light" href="<?= site_url('admin/karigars/' . $karigar['id']) ?>">Clear</a><small class="d-block text-muted mt-1">The selected date range applies to every ledger below.</small></div>
+    </form>
 </div>
 
 <div class="card karigar-ledger-card">
@@ -236,51 +320,14 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
     </div>
 </div>
 
-<div class="row">
-    <div class="col-lg-4 d-flex">
-        <div class="card w-100">
-            <div class="card-header"><h5 class="card-title mb-0">Gold Ledger Stats</h5></div>
-            <div class="card-body">
-                <p class="mb-1"><strong>Opening:</strong> <?= esc(number_format($goldRange['opening'], 3)) ?> gm</p>
-                <p class="mb-1"><strong>Pure Issued:</strong> <?= esc(number_format((float) $goldSummary['issue_pure'], 3)) ?> gm <small class="text-muted">(In)</small></p>
-                <p class="mb-1"><strong>Pure Received:</strong> <?= esc(number_format((float) $goldSummary['receive_pure'], 3)) ?> gm <small class="text-muted">(Out)</small></p>
-                <p class="mb-0"><strong>Pure Balance:</strong> <?= esc(number_format($goldRange['closing'], 3)) ?> gm <small class="text-muted">(Closing)</small></p>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-4 d-flex">
-        <div class="card w-100">
-            <div class="card-header"><h5 class="card-title mb-0">Diamond Ledger Stats</h5></div>
-            <div class="card-body">
-                <p class="mb-1"><strong>Opening:</strong> <?= esc(number_format($diamondRange['opening'], 3)) ?> cts</p>
-                <p class="mb-1"><strong>In (Issued):</strong> <?= esc(number_format((float) $diamondSummary['issue_weight'], 3)) ?> cts / <?= esc(number_format((float) $diamondSummary['issue_pcs'], 0)) ?> pcs</p>
-                <p class="mb-1"><strong>Out (Received):</strong> <?= esc(number_format((float) $diamondSummary['receive_weight'], 3)) ?> cts / <?= esc(number_format((float) $diamondSummary['receive_pcs'], 0)) ?> pcs</p>
-                <p class="mb-0"><strong>Closing:</strong> <?= esc(number_format($diamondRange['closing'], 3)) ?> cts</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-4 d-flex">
-        <div class="card w-100">
-            <div class="card-header"><h5 class="card-title mb-0">Stone Ledger Stats</h5></div>
-            <div class="card-body">
-                <p class="mb-1"><strong>Opening:</strong> <?= esc(number_format($stoneRange['opening'], 3)) ?> cts</p>
-                <p class="mb-1"><strong>In (Issued):</strong> <?= esc(number_format((float) $stoneSummary['issue_weight'], 3)) ?> cts / <?= esc(number_format((float) $stoneSummary['issue_pcs'], 0)) ?> pcs</p>
-                <p class="mb-1"><strong>Out (Received):</strong> <?= esc(number_format((float) $stoneSummary['receive_weight'], 3)) ?> cts / <?= esc(number_format((float) $stoneSummary['receive_pcs'], 0)) ?> pcs</p>
-                <p class="mb-0"><strong>Closing:</strong> <?= esc(number_format($stoneRange['closing'], 3)) ?> cts</p>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="card karigar-ledger-card">
-    <div class="card-header"><h5 class="card-title mb-0">Issue / Receive Movement History</h5></div>
+    <div class="card-header"><div><h5 class="card-title mb-0">Combined Material Movement</h5><small>Quick audit trail of gold and diamond given or received</small></div></div>
     <div class="card-body">
-        <div class="mb-3">
-            <span class="me-3"><strong>Gold Issued:</strong> <?= esc(number_format((float) $movementSummary['issue_gold'], 3)) ?> gm</span>
-            <span class="me-3"><strong>Gold Received:</strong> <?= esc(number_format((float) $movementSummary['receive_gold'], 3)) ?> gm</span>
-            <span class="me-3"><strong>Gold Balance:</strong> <?= esc(number_format((float) $movementSummary['balance_gold'], 3)) ?> gm</span>
-            <span class="me-3"><strong>Diamond Issued:</strong> <?= esc(number_format((float) $movementSummary['issue_diamond'], 3)) ?> cts</span>
-            <span><strong>Diamond Balance:</strong> <?= esc(number_format((float) $movementSummary['balance_diamond'], 3)) ?> cts</span>
+        <div class="karigar-ledger-summary">
+            <div class="karigar-ledger-metric is-in"><small>Gold given</small><strong><?= esc(number_format((float) $movementSummary['issue_gold'], 3)) ?> gm</strong></div>
+            <div class="karigar-ledger-metric is-out"><small>Gold returned</small><strong><?= esc(number_format((float) $movementSummary['receive_gold'], 3)) ?> gm</strong></div>
+            <div class="karigar-ledger-metric is-closing"><small>Gold with karigar</small><strong><?= esc(number_format((float) $movementSummary['balance_gold'], 3)) ?> gm</strong></div>
+            <div class="karigar-ledger-metric is-closing"><small>Diamond with karigar</small><strong><?= esc(number_format((float) $movementSummary['balance_diamond'], 3)) ?> cts</strong></div>
         </div>
         <div class="table-responsive">
             <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
@@ -302,7 +349,7 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
                         <tr>
                             <td><?= esc((string) $mv['created_at']) ?></td>
                             <td><?= esc($mv['order_no'] ?: '-') ?></td>
-                            <td><?= esc(ucfirst((string) $mv['movement_type'])) ?></td>
+                            <td><span class="karigar-entry-badge <?= (string) $mv['movement_type'] === 'issue' ? 'is-issue' : 'is-receive' ?>"><?= (string) $mv['movement_type'] === 'issue' ? 'Given' : 'Returned' ?></span></td>
                             <td><?= esc($mv['location_name'] ?: '-') ?></td>
                             <td><?= esc(trim(($mv['purity_code'] ?? '') . ' ' . ($mv['color_name'] ?? '')) ?: '-') ?></td>
                             <td><?= esc(number_format((float) $mv['gold_gm'], 3)) ?></td>
@@ -319,21 +366,30 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
 
 <div class="row">
     <div class="col-12 d-flex">
-        <div class="card w-100 karigar-ledger-card">
-            <div class="card-header"><h5 class="card-title mb-0">Pure Gold Ledger (Opening / Debit / Credit / Closing) · In / Out</h5></div>
+        <div class="card w-100 karigar-ledger-card" id="pure-gold-ledger">
+            <div class="card-header">
+                <div><h5 class="card-title mb-0"><i class="fe fe-circle me-2 text-warning"></i>Pure Gold Account</h5><small>Running balance of pure gold held by this karigar</small></div>
+                <div class="karigar-ledger-legend"><span class="given">Given</span><span class="returned">Returned</span></div>
+            </div>
             <div class="card-body">
+                <div class="karigar-ledger-summary">
+                    <div class="karigar-ledger-metric"><small>Opening balance</small><strong><?= esc(number_format($goldRange['opening'], 3)) ?> gm</strong></div>
+                    <div class="karigar-ledger-metric is-in"><small>Material given</small><strong>+<?= esc(number_format((float) $goldSummary['issue_pure'], 3)) ?> gm</strong></div>
+                    <div class="karigar-ledger-metric is-out"><small>Material returned</small><strong>-<?= esc(number_format((float) $goldSummary['receive_pure'], 3)) ?> gm</strong></div>
+                    <div class="karigar-ledger-metric is-closing"><small>Closing with karigar</small><strong><?= esc(number_format($goldRange['closing'], 3)) ?> gm</strong></div>
+                </div>
                 <div class="table-responsive">
-                    <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
+                    <table id="karigar-pure-gold-ledger-table" class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
                         <thead>
                             <tr>
                                 <th>Date</th>
                                 <th>Order</th>
-                                <th>Type</th>
+                                <th>Movement</th>
                                 <th>Location</th>
-                                <th>Pure Opening (gm)</th>
-                                <th>In (Issue)</th>
-                                <th>Out (Receive)</th>
-                                <th>Pure Closing (gm)</th>
+                                <th>Opening (gm)</th>
+                                <th>Given (gm)</th>
+                                <th>Returned (gm)</th>
+                                <th>Closing (gm)</th>
                                 <th>Reference</th>
                             </tr>
                         </thead>
@@ -342,12 +398,12 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
                                 <tr>
                                     <td><?= esc((string) $gl['created_at']) ?></td>
                                     <td><?= esc($gl['order_no'] ?: '-') ?></td>
-                                    <td><?= esc(ucfirst((string) $gl['entry_type'])) ?></td>
+                                    <td><span class="karigar-entry-badge <?= (string) $gl['entry_type'] === 'issue' ? 'is-issue' : 'is-receive' ?>"><?= (string) $gl['entry_type'] === 'issue' ? 'Given' : 'Returned' ?></span></td>
                                     <td><?= esc($gl['location_name'] ?: '-') ?></td>
-                                    <td><?= esc(number_format((float) $gl['opening_gm'], 3)) ?></td>
-                                    <td><?= esc(number_format((float) $gl['debit_gm'], 3)) ?></td>
-                                    <td><?= esc(number_format((float) $gl['credit_gm'], 3)) ?></td>
-                                    <td class="fw-bold"><?= esc(number_format((float) $gl['closing_gm'], 3)) ?></td>
+                                    <td class="ledger-number"><?= esc(number_format((float) $gl['opening_gm'], 3)) ?></td>
+                                    <td class="ledger-number ledger-in"><?= (float) $gl['debit_gm'] > 0 ? '+' . esc(number_format((float) $gl['debit_gm'], 3)) : '-' ?></td>
+                                    <td class="ledger-number ledger-out"><?= (float) $gl['credit_gm'] > 0 ? '-' . esc(number_format((float) $gl['credit_gm'], 3)) : '-' ?></td>
+                                    <td class="ledger-number ledger-balance"><?= esc(number_format((float) $gl['closing_gm'], 3)) ?></td>
                                     <td><?= esc(($gl['reference_type'] ?: '-') . ($gl['reference_id'] ? ' #' . $gl['reference_id'] : '')) ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -359,20 +415,29 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
     </div>
 
     <div class="col-12 d-flex">
-        <div class="card w-100 karigar-ledger-card">
-            <div class="card-header"><h5 class="card-title mb-0">Diamond Ledger (Opening / Debit / Credit / Closing)</h5></div>
+        <div class="card w-100 karigar-ledger-card" id="diamond-ledger">
+            <div class="card-header">
+                <div><h5 class="card-title mb-0"><i class="fe fe-gitlab me-2 text-primary"></i>Diamond Account</h5><small>Carat and pieces currently held by this karigar</small></div>
+                <div class="karigar-ledger-legend"><span class="given">Given</span><span class="returned">Returned</span></div>
+            </div>
             <div class="card-body">
+                <div class="karigar-ledger-summary">
+                    <div class="karigar-ledger-metric"><small>Opening balance</small><strong><?= esc(number_format($diamondRange['opening'], 3)) ?> cts</strong></div>
+                    <div class="karigar-ledger-metric is-in"><small>Diamonds given</small><strong>+<?= esc(number_format((float) $diamondSummary['issue_weight'], 3)) ?> cts</strong></div>
+                    <div class="karigar-ledger-metric is-out"><small>Diamonds returned</small><strong>-<?= esc(number_format((float) $diamondSummary['receive_weight'], 3)) ?> cts</strong></div>
+                    <div class="karigar-ledger-metric is-closing"><small>Closing with karigar</small><strong><?= esc(number_format($diamondRange['closing'], 3)) ?> cts</strong></div>
+                </div>
                 <div class="table-responsive">
-                    <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
+                    <table id="karigar-diamond-ledger-table" class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
                         <thead>
                             <tr>
                                 <th>Date</th>
                                 <th>Order</th>
-                                <th>Type</th>
+                                <th>Movement</th>
                                 <th>Location</th>
                                 <th>Opening</th>
-                                <th>Debit</th>
-                                <th>Credit</th>
+                                <th>Given</th>
+                                <th>Returned</th>
                                 <th>Closing</th>
                                 <th>Reference</th>
                             </tr>
@@ -382,12 +447,12 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
                                 <tr>
                                     <td><?= esc((string) $dl['created_at']) ?></td>
                                     <td><?= esc($dl['order_no'] ?: '-') ?></td>
-                                    <td><?= esc(ucfirst((string) $dl['entry_type'])) ?></td>
+                                    <td><span class="karigar-entry-badge <?= (string) $dl['entry_type'] === 'issue' ? 'is-issue' : 'is-receive' ?>"><?= (string) $dl['entry_type'] === 'issue' ? 'Given' : 'Returned' ?></span></td>
                                     <td><?= esc($dl['location_name'] ?: '-') ?></td>
-                                    <td><?= esc(number_format((float) $dl['opening_weight'], 3)) ?> cts / <?= esc(number_format((float) $dl['opening_pcs'], 0)) ?> pcs</td>
-                                    <td><?= esc(number_format((float) $dl['debit_weight'], 3)) ?> cts / <?= esc(number_format((float) $dl['debit_pcs'], 0)) ?> pcs</td>
-                                    <td><?= esc(number_format((float) $dl['credit_weight'], 3)) ?> cts / <?= esc(number_format((float) $dl['credit_pcs'], 0)) ?> pcs</td>
-                                    <td class="fw-bold"><?= esc(number_format((float) $dl['closing_weight'], 3)) ?> cts / <?= esc(number_format((float) $dl['closing_pcs'], 0)) ?> pcs</td>
+                                    <td class="ledger-number"><?= esc(number_format((float) $dl['opening_weight'], 3)) ?> cts <small class="d-block text-muted"><?= esc(number_format((float) $dl['opening_pcs'], 0)) ?> pcs</small></td>
+                                    <td class="ledger-number ledger-in"><?= (float) $dl['debit_weight'] > 0 ? '+' . esc(number_format((float) $dl['debit_weight'], 3)) . ' cts' : '-' ?><small class="d-block"><?= (float) $dl['debit_pcs'] > 0 ? esc(number_format((float) $dl['debit_pcs'], 0)) . ' pcs' : '' ?></small></td>
+                                    <td class="ledger-number ledger-out"><?= (float) $dl['credit_weight'] > 0 ? '-' . esc(number_format((float) $dl['credit_weight'], 3)) . ' cts' : '-' ?><small class="d-block"><?= (float) $dl['credit_pcs'] > 0 ? esc(number_format((float) $dl['credit_pcs'], 0)) . ' pcs' : '' ?></small></td>
+                                    <td class="ledger-number ledger-balance"><?= esc(number_format((float) $dl['closing_weight'], 3)) ?> cts <small class="d-block"><?= esc(number_format((float) $dl['closing_pcs'], 0)) ?> pcs</small></td>
                                     <td><?= esc(($dl['reference_type'] ?: '-') . ($dl['reference_id'] ? ' #' . $dl['reference_id'] : '')) ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -401,20 +466,29 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
 
 <div class="row">
     <div class="col-12 d-flex">
-        <div class="card w-100 karigar-ledger-card">
-            <div class="card-header"><h5 class="card-title mb-0">Stone Ledger (Opening / Debit / Credit / Closing)</h5></div>
+        <div class="card w-100 karigar-ledger-card" id="stone-ledger">
+            <div class="card-header">
+                <div><h5 class="card-title mb-0"><i class="fe fe-disc me-2 text-info"></i>Stone Account</h5><small>Stone weight and pieces currently held by this karigar</small></div>
+                <div class="karigar-ledger-legend"><span class="given">Given</span><span class="returned">Returned</span></div>
+            </div>
             <div class="card-body">
+                <div class="karigar-ledger-summary">
+                    <div class="karigar-ledger-metric"><small>Opening balance</small><strong><?= esc(number_format($stoneRange['opening'], 3)) ?> cts</strong></div>
+                    <div class="karigar-ledger-metric is-in"><small>Stones given</small><strong>+<?= esc(number_format((float) $stoneSummary['issue_weight'], 3)) ?> cts</strong></div>
+                    <div class="karigar-ledger-metric is-out"><small>Stones returned</small><strong>-<?= esc(number_format((float) $stoneSummary['receive_weight'], 3)) ?> cts</strong></div>
+                    <div class="karigar-ledger-metric is-closing"><small>Closing with karigar</small><strong><?= esc(number_format($stoneRange['closing'], 3)) ?> cts</strong></div>
+                </div>
                 <div class="table-responsive">
-                    <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
+                    <table id="karigar-stone-ledger-table" class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
                         <thead>
                             <tr>
                                 <th>Date</th>
                                 <th>Order</th>
-                                <th>Type</th>
+                                <th>Movement</th>
                                 <th>Location</th>
                                 <th>Opening</th>
-                                <th>Debit</th>
-                                <th>Credit</th>
+                                <th>Given</th>
+                                <th>Returned</th>
                                 <th>Closing</th>
                                 <th>Reference</th>
                             </tr>
@@ -424,12 +498,12 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
                                 <tr>
                                     <td><?= esc((string) $sl['created_at']) ?></td>
                                     <td><?= esc($sl['order_no'] ?: '-') ?></td>
-                                    <td><?= esc(ucfirst((string) $sl['entry_type'])) ?></td>
+                                    <td><span class="karigar-entry-badge <?= (string) $sl['entry_type'] === 'issue' ? 'is-issue' : 'is-receive' ?>"><?= (string) $sl['entry_type'] === 'issue' ? 'Given' : 'Returned' ?></span></td>
                                     <td><?= esc($sl['location_name'] ?: '-') ?></td>
-                                    <td><?= esc(number_format((float) $sl['opening_weight'], 3)) ?> cts / <?= esc(number_format((float) $sl['opening_pcs'], 0)) ?> pcs</td>
-                                    <td><?= esc(number_format((float) $sl['debit_weight'], 3)) ?> cts / <?= esc(number_format((float) $sl['debit_pcs'], 0)) ?> pcs</td>
-                                    <td><?= esc(number_format((float) $sl['credit_weight'], 3)) ?> cts / <?= esc(number_format((float) $sl['credit_pcs'], 0)) ?> pcs</td>
-                                    <td class="fw-bold"><?= esc(number_format((float) $sl['closing_weight'], 3)) ?> cts / <?= esc(number_format((float) $sl['closing_pcs'], 0)) ?> pcs</td>
+                                    <td class="ledger-number"><?= esc(number_format((float) $sl['opening_weight'], 3)) ?> cts <small class="d-block text-muted"><?= esc(number_format((float) $sl['opening_pcs'], 0)) ?> pcs</small></td>
+                                    <td class="ledger-number ledger-in"><?= (float) $sl['debit_weight'] > 0 ? '+' . esc(number_format((float) $sl['debit_weight'], 3)) . ' cts' : '-' ?><small class="d-block"><?= (float) $sl['debit_pcs'] > 0 ? esc(number_format((float) $sl['debit_pcs'], 0)) . ' pcs' : '' ?></small></td>
+                                    <td class="ledger-number ledger-out"><?= (float) $sl['credit_weight'] > 0 ? '-' . esc(number_format((float) $sl['credit_weight'], 3)) . ' cts' : '-' ?><small class="d-block"><?= (float) $sl['credit_pcs'] > 0 ? esc(number_format((float) $sl['credit_pcs'], 0)) . ' pcs' : '' ?></small></td>
+                                    <td class="ledger-number ledger-balance"><?= esc(number_format((float) $sl['closing_weight'], 3)) ?> cts <small class="d-block"><?= esc(number_format((float) $sl['closing_pcs'], 0)) ?> pcs</small></td>
                                     <td><?= esc(($sl['reference_type'] ?: '-') . ($sl['reference_id'] ? ' #' . $sl['reference_id'] : '')) ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -441,26 +515,33 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
     </div>
 
     <div class="col-12 d-flex">
-        <div class="card w-100 karigar-ledger-card">
-            <div class="card-header"><h5 class="card-title mb-0">Payment Ledger</h5></div>
+        <div class="card w-100 karigar-ledger-card" id="payment-ledger">
+            <div class="card-header"><div><h5 class="card-title mb-0"><i class="fe fe-credit-card me-2 text-success"></i>Labour & Payment Account</h5><small>Charges increase the payable amount; payments reduce it</small></div></div>
             <div class="card-body">
                 <?php if (! $paymentLedgerEnabled): ?>
                     <div class="alert alert-warning mb-3">Payment ledger is not available. Run migration to enable.</div>
                 <?php else: ?>
-                    <form method="post" action="<?= site_url('admin/karigars/' . $karigar['id'] . '/payment') ?>" class="mb-3">
+                    <div class="karigar-ledger-summary">
+                        <div class="karigar-ledger-metric"><small>Opening payable</small><strong>₹<?= esc(number_format($paymentRange['opening'], 2)) ?></strong></div>
+                        <div class="karigar-ledger-metric is-in"><small>Labour charges</small><strong>+₹<?= esc(number_format((float) $paymentSummary['charge'], 2)) ?></strong></div>
+                        <div class="karigar-ledger-metric is-out"><small>Payments made</small><strong>-₹<?= esc(number_format((float) $paymentSummary['paid'], 2)) ?></strong></div>
+                        <div class="karigar-ledger-metric is-closing"><small>Closing payable</small><strong>₹<?= esc(number_format($paymentRange['closing'], 2)) ?></strong></div>
+                    </div>
+                    <form method="post" action="<?= site_url('admin/karigars/' . $karigar['id'] . '/payment') ?>" class="bg-light border rounded-3 p-3 mb-3">
                         <?= csrf_field() ?>
                         <div class="row">
                             <div class="col-md-3 mb-2">
-                                <select name="entry_type" class="form-control" required>
-                                    <option value="charge">Charge</option>
-                                    <option value="payment">Payment</option>
+                                <label class="form-label mb-1">Entry type</label>
+                                <select name="entry_type" class="form-select" required>
+                                    <option value="charge">Add labour charge</option>
+                                    <option value="payment">Record payment</option>
                                 </select>
                             </div>
                             <div class="col-md-3 mb-2">
-                                <input type="number" step="0.01" min="0.01" name="amount" class="form-control" placeholder="Amount" required>
+                                <label class="form-label mb-1">Amount</label><input type="number" step="0.01" min="0.01" name="amount" class="form-control" placeholder="0.00" required>
                             </div>
                             <div class="col-md-6 mb-2">
-                                <select name="order_id" class="form-control">
+                                <label class="form-label mb-1">Related order</label><select name="order_id" class="form-select">
                                     <option value="">Order (Optional)</option>
                                     <?php foreach ($assignedOrders as $o): ?>
                                         <option value="<?= esc((string) $o['id']) ?>"><?= esc($o['order_no']) ?></option>
@@ -468,33 +549,27 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
                                 </select>
                             </div>
                             <div class="col-md-4 mb-2">
-                                <input type="text" name="reference_no" class="form-control" placeholder="Reference No">
+                                <label class="form-label mb-1">Reference</label><input type="text" name="reference_no" class="form-control" placeholder="Voucher / UTR / reference">
                             </div>
                             <div class="col-md-6 mb-2">
-                                <input type="text" name="notes" class="form-control" placeholder="Notes">
+                                <label class="form-label mb-1">Notes</label><input type="text" name="notes" class="form-control" placeholder="Optional notes">
                             </div>
                             <div class="col-md-2 mb-2">
-                                <button class="btn btn-primary w-100"><i class="fe fe-plus"></i></button>
+                                <label class="form-label mb-1 d-none d-md-block">&nbsp;</label><button class="btn btn-primary w-100"><i class="fe fe-plus me-1"></i>Add</button>
                             </div>
                         </div>
                     </form>
 
-                    <div class="mb-3">
-                        <span class="me-3"><strong>Total Charge:</strong> <?= esc(number_format((float) $paymentSummary['charge'], 2)) ?></span>
-                        <span class="me-3"><strong>Total Paid:</strong> <?= esc(number_format((float) $paymentSummary['paid'], 2)) ?></span>
-                        <span><strong>Outstanding:</strong> <?= esc(number_format((float) $paymentSummary['balance'], 2)) ?></span>
-                    </div>
-
                     <div class="table-responsive">
-                        <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
+                        <table id="karigar-payment-ledger-table" class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
                             <thead>
                                 <tr>
                                     <th>Date</th>
-                                    <th>Type</th>
+                                    <th>Entry</th>
                                     <th>Order</th>
                                     <th>Opening</th>
-                                    <th>Debit</th>
-                                    <th>Credit</th>
+                                    <th>Charge</th>
+                                    <th>Paid</th>
                                     <th>Closing</th>
                                     <th>Reference</th>
                                     <th>Notes</th>
@@ -504,12 +579,12 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
                                 <?php foreach ($paymentStatement as $pl): ?>
                                     <tr>
                                         <td><?= esc((string) $pl['created_at']) ?></td>
-                                        <td><?= esc(ucfirst((string) $pl['entry_type'])) ?></td>
+                                        <td><span class="karigar-entry-badge <?= (string) $pl['entry_type'] === 'charge' ? 'is-issue' : 'is-receive' ?>"><?= (string) $pl['entry_type'] === 'charge' ? 'Charge' : 'Payment' ?></span></td>
                                         <td><?= esc($pl['order_no'] ?: '-') ?></td>
-                                        <td><?= esc(number_format((float) $pl['opening_amount'], 2)) ?></td>
-                                        <td><?= esc(number_format((float) $pl['debit_amount'], 2)) ?></td>
-                                        <td><?= esc(number_format((float) $pl['credit_amount'], 2)) ?></td>
-                                        <td class="fw-bold"><?= esc(number_format((float) $pl['closing_amount'], 2)) ?></td>
+                                        <td class="ledger-number">₹<?= esc(number_format((float) $pl['opening_amount'], 2)) ?></td>
+                                        <td class="ledger-number ledger-in"><?= (float) $pl['debit_amount'] > 0 ? '+₹' . esc(number_format((float) $pl['debit_amount'], 2)) : '-' ?></td>
+                                        <td class="ledger-number ledger-out"><?= (float) $pl['credit_amount'] > 0 ? '-₹' . esc(number_format((float) $pl['credit_amount'], 2)) : '-' ?></td>
+                                        <td class="ledger-number ledger-balance">₹<?= esc(number_format((float) $pl['closing_amount'], 2)) ?></td>
                                         <td><?= esc($pl['reference_no'] ?: '-') ?></td>
                                         <td><?= esc($pl['notes'] ?: '-') ?></td>
                                     </tr>
@@ -577,5 +652,6 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
             </table>
         </div>
     </div>
+</div>
 </div>
 <?= $this->endSection() ?>

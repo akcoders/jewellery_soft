@@ -313,7 +313,7 @@ class KarigarController extends BaseController
             'paymentLedgers' => $filteredPaymentLedgers,
             'sourceIssueLines' => $sourceIssueLines,
             'finishedItems' => $finishedItems,
-            'paymentSummary' => $this->buildPaymentSummary($paymentLedgers),
+            'paymentSummary' => $this->buildPaymentSummary($filteredPaymentLedgers),
             'paymentLedgerEnabled' => $paymentLedgerEnabled,
             'goldStatement' => $goldStatement,
             'diamondStatement' => $diamondStatement,

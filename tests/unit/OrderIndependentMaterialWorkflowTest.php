@@ -110,17 +110,14 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         );
 
         $this->assertGreaterThanOrEqual(5, substr_count($karigarProfile, 'karigar-ledger-table'));
-        $this->assertStringContainsString('Gold Ledger (Opening / Debit / Credit / Closing)', $karigarProfile);
-        $this->assertStringContainsString('Diamond Ledger (Opening / Debit / Credit / Closing)', $karigarProfile);
-        $this->assertStringContainsString('Stone Ledger (Opening / Debit / Credit / Closing)', $karigarProfile);
-        $this->assertStringContainsString('Payment Ledger', $karigarProfile);
-        $this->assertSame(1, preg_match('/Gold Ledger Stats.*?<\/div>\s*<\/div>\s*<\/div>/s', $karigarProfile, $goldStats));
-        $this->assertStringContainsString('Pure Issued:', $goldStats[0]);
-        $this->assertStringContainsString('Pure Received:', $goldStats[0]);
-        $this->assertStringContainsString('Pure Balance:', $goldStats[0]);
-        $this->assertStringNotContainsString('<strong>Issued:</strong>', $goldStats[0]);
-        $this->assertStringNotContainsString('<strong>Received:</strong>', $goldStats[0]);
-        $this->assertStringNotContainsString('<strong>Balance:</strong>', $goldStats[0]);
+        $this->assertStringContainsString('Pure Gold Account', $karigarProfile);
+        $this->assertStringContainsString('Diamond Account', $karigarProfile);
+        $this->assertStringContainsString('Stone Account', $karigarProfile);
+        $this->assertStringContainsString('Labour & Payment Account', $karigarProfile);
+        $this->assertStringContainsString('Material given', $karigarProfile);
+        $this->assertStringContainsString('Material returned', $karigarProfile);
+        $this->assertStringContainsString('Closing with karigar', $karigarProfile);
+        $this->assertStringNotContainsString('Gold Ledger Stats', $karigarProfile);
 
         $this->assertStringContainsString('name="stone_item_id[]"', $orderList);
         $this->assertStringContainsString('name="stone_item_id[]"', $orderDetail);
