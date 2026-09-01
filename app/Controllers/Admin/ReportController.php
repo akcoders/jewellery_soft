@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\KarigarModel;
 use App\Models\DepartmentModel;
 use App\Models\DesignationModel;
+use App\Services\DiamondLedgerService;
 
 class ReportController extends BaseController
 {
@@ -91,6 +92,35 @@ class ReportController extends BaseController
     }
 
     public function diamondLedger(): string
+    {
+        $filters = [
+            'from' => trim((string) $this->request->getGet('from')),
+            'to' => trim((string) $this->request->getGet('to')),
+            'karigar_id' => (int) ($this->request->getGet('karigar_id') ?? 0),
+            'order_no' => trim((string) $this->request->getGet('order_no')),
+            'product' => trim((string) $this->request->getGet('product')),
+            'txn_type' => trim((string) $this->request->getGet('txn_type')),
+        ];
+        $data = (new DiamondLedgerService())->build($filters);
+        $inventoryContext = str_contains($this->request->getUri()->getPath(), '/diamond-inventory/');
+
+        return view('admin/reports/diamond_ledger', [
+            'title' => 'Diamond Product Ledger',
+            'filters' => $filters,
+            'karigars' => $this->karigarOptions(),
+            'products' => $data['products'],
+            'productOptions' => $data['product_options'],
+            'rows' => $data['rows'],
+            'opening' => $data['opening'],
+            'totals' => $data['totals'],
+            'summary' => $data['summary'],
+            'transactionTypes' => $data['transaction_types'],
+            'ledgerBaseUrl' => site_url($inventoryContext ? 'admin/diamond-inventory/ledger' : 'admin/reports/diamond-ledger'),
+            'inventoryContext' => $inventoryContext,
+        ]);
+    }
+
+    private function legacyDiamondLedger(): string
     {
         $filters = [
             'from' => trim((string) $this->request->getGet('from')),

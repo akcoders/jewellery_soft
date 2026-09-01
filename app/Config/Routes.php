@@ -216,6 +216,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('issuements', 'Admin\IssuementController::store', ['filter' => 'permission:issuements.create']);
 
     $routes->get('diamond-inventory/items', 'Admin\DiamondInventory\ItemsController::index', ['filter' => 'permission:diamond.inventory.read']);
+    $routes->get('diamond-inventory/ledger', 'Admin\ReportController::diamondLedger', ['filter' => 'permission:diamond.inventory.read']);
     $routes->get('diamond-inventory/items/create', 'Admin\DiamondInventory\ItemsController::create', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->post('diamond-inventory/items', 'Admin\DiamondInventory\ItemsController::store', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->get('diamond-inventory/items/(:num)/edit', 'Admin\DiamondInventory\ItemsController::edit/$1', ['filter' => 'permission:diamond.inventory.manage']);

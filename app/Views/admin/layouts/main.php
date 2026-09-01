@@ -78,6 +78,7 @@ $isInventoryCategories = $isInventory && $segment3 === 'categories';
 $isInventoryProducts = $isInventory && $segment3 === 'products';
 $isDiamondBags = $segment2 === 'diamond-bags';
 $isDiamondInventory = $segment2 === 'diamond-inventory';
+$isDiamondInventoryLedger = $isDiamondInventory && $segment3 === 'ledger';
 $isDiamondInventoryItems = $isDiamondInventory && $segment3 === 'items';
 $isDiamondInventoryPurchases = $isDiamondInventory && $segment3 === 'purchases';
 $isDiamondInventoryIssues = $isDiamondInventory && $segment3 === 'issues';
@@ -1655,6 +1656,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                             <a href="javascript:void(0);" data-app-tour-module="diamond-inventory"><i class="fas fa-gem"></i> <span>Diamond Inventory</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isDiamondInventory ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isDiamondInventoryItems ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/items') ?>"><i class="fe fe-tag"></i> Item Master</a></li>
+                                <li><a class="<?= $isDiamondInventoryLedger ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/ledger') ?>"><i class="fe fe-book-open"></i> Ledger</a></li>
                                 <li><a class="<?= $isDiamondInventoryPurchases ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/purchases') ?>"><i class="fe fe-shopping-bag"></i> Purchases</a></li>
                                 <li><a class="<?= $isDiamondInventoryReturns ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/returns') ?>"><i class="fe fe-corner-up-left"></i> Returns</a></li>
                                 <li><a class="<?= $isDiamondInventoryAdjustments ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/adjustments') ?>"><i class="fe fe-sliders"></i> Adjustments</a></li>
@@ -2114,7 +2116,11 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                             });
                             $table.find('thead').append($filters);
                         }
-                        $headRow.children('th').each(function (index) {
+                        const $filterRow = $table.find('thead .erp-column-filters').first();
+                        const leafColumnCount = $filterRow.children('th').length || $table.find('tbody tr').filter(function () {
+                            return $(this).children('td[colspan]').length === 0;
+                        }).first().children('td').length || $headRow.children('th').length;
+                        for (let index = 0; index < leafColumnCount; index++) {
                             let seen = 0, numeric = 0;
                             $table.find('tbody tr').each(function () {
                                 const $cell = $(this).children('td').eq(index);
@@ -2125,11 +2131,10 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                                 if (ledgerValues($cell.html()) !== null) numeric++;
                             });
                             if (seen > 0 && numeric / seen >= .75) numericColumns.push(index);
-                        });
+                        }
                         if (!$table.children('tfoot').length) {
-                            const count = $headRow.children('th').length;
                             const $foot = $('<tr></tr>');
-                            for (let i = 0; i < count; i++) $foot.append('<th></th>');
+                            for (let i = 0; i < leafColumnCount; i++) $foot.append('<th></th>');
                             $foot.children().first().text('Filtered total');
                             $table.append($('<tfoot></tfoot>').append($foot));
                         }
