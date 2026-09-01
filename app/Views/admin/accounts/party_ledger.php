@@ -35,10 +35,11 @@
 </form>
 
 <div class="row g-3 mb-3">
-    <div class="col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted d-block">Entries</small><h5 class="mb-0"><?= (int) ($summary['row_count'] ?? 0) ?></h5></div></div></div>
-    <div class="col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted d-block">Debit</small><h5 class="mb-0">Rs <?= number_format((float) ($summary['debit_amount'] ?? 0), 2) ?></h5></div></div></div>
-    <div class="col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted d-block">Credit</small><h5 class="mb-0">Rs <?= number_format((float) ($summary['credit_amount'] ?? 0), 2) ?></h5></div></div></div>
-    <div class="col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted d-block">Open Balance</small><h5 class="mb-0">Rs <?= number_format((float) ($summary['balance_amount'] ?? 0), 2) ?></h5></div></div></div>
+    <div class="col-6 col-xl"><div class="card h-100"><div class="card-body py-3"><small class="text-muted d-block">Opening</small><h5 class="mb-0">Rs <?= number_format((float) ($summary['opening_amount'] ?? 0), 2) ?></h5></div></div></div>
+    <div class="col-6 col-xl"><div class="card h-100"><div class="card-body py-3"><small class="text-muted d-block">In / Debit</small><h5 class="mb-0">Rs <?= number_format((float) ($summary['debit_amount'] ?? 0), 2) ?></h5></div></div></div>
+    <div class="col-6 col-xl"><div class="card h-100"><div class="card-body py-3"><small class="text-muted d-block">Out / Credit</small><h5 class="mb-0">Rs <?= number_format((float) ($summary['credit_amount'] ?? 0), 2) ?></h5></div></div></div>
+    <div class="col-6 col-xl"><div class="card h-100"><div class="card-body py-3"><small class="text-muted d-block">Closing</small><h5 class="mb-0">Rs <?= number_format((float) ($summary['closing_amount'] ?? 0), 2) ?></h5></div></div></div>
+    <div class="col-6 col-xl"><div class="card h-100"><div class="card-body py-3"><small class="text-muted d-block">Entries</small><h5 class="mb-0"><?= (int) ($summary['row_count'] ?? 0) ?></h5></div></div></div>
 </div>
 
 <div class="card">
@@ -54,7 +55,7 @@
                         <th>Order</th>
                         <th>Debit</th>
                         <th>Credit</th>
-                        <th>Open Balance</th>
+                        <th>Document Balance</th>
                         <th>Status</th>
                         <th>Mode</th>
                         <th>Details</th>

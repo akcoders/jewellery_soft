@@ -500,6 +500,13 @@ class OrderController extends BaseController
             $row['avg_purity_percent'] = (float) ($purityMap[$oid] ?? 100);
         }
         unset($row);
+        $karigarDiamondOptions = [];
+        foreach ($rows as $row) {
+            $karigarId = (int) ($row['assigned_karigar_id'] ?? 0);
+            if ($karigarId > 0 && ! array_key_exists($karigarId, $karigarDiamondOptions)) {
+                $karigarDiamondOptions[$karigarId] = $this->karigarDiamondOptions($karigarId);
+            }
+        }
 
         $title = 'All Orders';
         if ($mode === 'fresh') {
@@ -518,6 +525,7 @@ class OrderController extends BaseController
             'customers'=> $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'locations'=> $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'stoneInventoryItems' => $this->stoneInventoryOptions(),
+            'karigarDiamondOptions' => $karigarDiamondOptions,
             'statuses' => $this->jewelleryConfig->orderStatuses,
         ]);
     }
@@ -768,6 +776,7 @@ class OrderController extends BaseController
             'attachments'=> $this->attachmentModel->where('order_id', $id)->orderBy('id', 'DESC')->findAll(),
             'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'stoneInventoryItems' => $this->stoneInventoryOptions(),
+            'karigarDiamondOptions' => $this->karigarDiamondOptions((int) ($order['assigned_karigar_id'] ?? 0)),
             'followups' => $followups,
             'readyImages' => $this->productionReadyImages($id),
             'receiveSummary' => is_array($receiveSummary) ? $receiveSummary : [],
@@ -1541,6 +1550,10 @@ class OrderController extends BaseController
             (array) $this->request->getPost('studded_diamond_weight'),
             (array) $this->request->getPost('studded_diamond_rate')
         );
+        $diamondError = $this->validateReceivedDiamondSelection($karigarId, $diamond['rows']);
+        if ($diamondError !== null) {
+            return redirect()->back()->withInput()->with('error', $diamondError);
+        }
         $stone = $this->collectReceiveComponentRows(
             (array) $this->request->getPost('stone_type'),
             (array) $this->request->getPost('stone_pcs'),
@@ -2101,6 +2114,132 @@ class OrderController extends BaseController
             ->orderBy('i.product_name', 'ASC')
             ->get()
             ->getResultArray();
+    }
+
+    /**
+     * Diamond accounting is pooled, while the issue screens retain the exact item
+     * signature. Expose those signatures during receiving without allowing the
+     * received total to exceed the karigar's authoritative pooled balance.
+     *
+     * @return list<array{value:string,label:string,available_cts:float,available_pcs:float}>
+     */
+    private function karigarDiamondOptions(int $karigarId): array
+    {
+        if ($karigarId <= 0) {
+            return [];
+        }
+
+        $db = db_connect();
+        if (! $db->tableExists('accounts') || ! $db->tableExists('account_balances')) {
+            return [];
+        }
+
+        $pool = $db->table('account_balances ab')
+            ->select('COALESCE(SUM(ab.qty_pcs), 0) AS pcs, COALESCE(SUM(ab.qty_cts), 0) AS cts', false)
+            ->join('accounts a', 'a.id = ab.account_id', 'inner')
+            ->where('a.account_type', 'KARIGAR')
+            ->where('a.reference_table', 'karigars')
+            ->where('a.reference_id', $karigarId)
+            ->whereIn('ab.item_type', ['DIAMOND', 'DIAMOND_BAG'])
+            ->get()->getRowArray() ?? [];
+        $poolCts = round(max(0, (float) ($pool['cts'] ?? 0)), 3);
+        $poolPcs = round(max(0, (float) ($pool['pcs'] ?? 0)), 3);
+        if ($poolCts <= 0 && $poolPcs <= 0) {
+            return [];
+        }
+
+        $items = [];
+        if ($db->tableExists('issue_headers') && $db->tableExists('issue_lines') && $db->tableExists('items')) {
+            $issued = $db->table('issue_lines il')
+                ->select('il.item_id, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, SUM(il.pcs) AS pcs, SUM(il.carat) AS cts', false)
+                ->join('issue_headers ih', 'ih.id = il.issue_id', 'inner')
+                ->join('items i', 'i.id = il.item_id', 'left')
+                ->where('ih.karigar_id', $karigarId)
+                ->groupBy('il.item_id, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity')
+                ->get()->getResultArray();
+
+            $returned = [];
+            if ($db->tableExists('return_headers') && $db->tableExists('return_lines')) {
+                foreach ($db->table('return_lines rl')
+                    ->select('rl.item_id, SUM(rl.pcs) AS pcs, SUM(rl.carat) AS cts', false)
+                    ->join('return_headers rh', 'rh.id = rl.return_id', 'inner')
+                    ->where('rh.karigar_id', $karigarId)
+                    ->groupBy('rl.item_id')->get()->getResultArray() as $row) {
+                    $returned[(int) $row['item_id']] = $row;
+                }
+            }
+
+            foreach ($issued as $row) {
+                $itemId = (int) ($row['item_id'] ?? 0);
+                $cts = max(0, (float) ($row['cts'] ?? 0) - (float) ($returned[$itemId]['cts'] ?? 0));
+                $pcs = max(0, (float) ($row['pcs'] ?? 0) - (float) ($returned[$itemId]['pcs'] ?? 0));
+                if ($cts <= 0 && $pcs <= 0) {
+                    continue;
+                }
+                $parts = array_values(array_filter([
+                    trim((string) ($row['diamond_type'] ?? '')),
+                    trim((string) ($row['shape'] ?? '')),
+                    trim((string) ($row['chalni_from'] ?? '')) !== '' || trim((string) ($row['chalni_to'] ?? '')) !== ''
+                        ? trim((string) ($row['chalni_from'] ?? '')) . '-' . trim((string) ($row['chalni_to'] ?? ''))
+                        : '',
+                    trim((string) ($row['color'] ?? '')),
+                    trim((string) ($row['clarity'] ?? '')),
+                ], static fn(string $value): bool => trim($value, ' -') !== ''));
+                $label = $parts === [] ? ('Diamond item #' . $itemId) : implode(' / ', $parts);
+                $items[] = ['value' => $label, 'label' => $label, 'available_cts' => round($cts, 3), 'available_pcs' => round($pcs, 3)];
+            }
+        }
+
+        if ($items === []) {
+            return [[
+                'value' => 'Diamond',
+                'label' => 'Diamond (pooled balance)',
+                'available_cts' => $poolCts,
+                'available_pcs' => $poolPcs,
+            ]];
+        }
+
+        // The account balance is authoritative after finished receipts. Cap the
+        // displayed varieties so their combined availability cannot exceed it.
+        $remainingCts = $poolCts;
+        $remainingPcs = $poolPcs;
+        $options = [];
+        foreach ($items as $item) {
+            if ($remainingCts <= 0 && $remainingPcs <= 0) {
+                break;
+            }
+            $item['available_cts'] = round(min($item['available_cts'], $remainingCts), 3);
+            $item['available_pcs'] = round(min($item['available_pcs'], $remainingPcs), 3);
+            $remainingCts = round(max(0, $remainingCts - $item['available_cts']), 3);
+            $remainingPcs = round(max(0, $remainingPcs - $item['available_pcs']), 3);
+            if ($item['available_cts'] > 0 || $item['available_pcs'] > 0) {
+                $options[] = $item;
+            }
+        }
+
+        return $options;
+    }
+
+    /** @param list<array<string,mixed>> $rows */
+    private function validateReceivedDiamondSelection(int $karigarId, array $rows): ?string
+    {
+        if ($rows === []) {
+            return null;
+        }
+        $options = $this->karigarDiamondOptions($karigarId);
+        $allowed = [];
+        foreach ($options as $option) {
+            $allowed[(string) $option['value']] = true;
+        }
+        if ($allowed === []) {
+            return 'This karigar has no diamond balance available for receiving.';
+        }
+        foreach ($rows as $row) {
+            if (! isset($allowed[(string) ($row['name'] ?? '')])) {
+                return 'Select the diamond type from this karigar\'s available diamond balance.';
+            }
+        }
+        return null;
     }
 
     /**

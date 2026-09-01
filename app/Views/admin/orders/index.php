@@ -123,7 +123,7 @@
                                                     </button>
                                                 <?php endif; ?>
                                             <?php endif; ?>
-                                            <?php if (admin_can('orders.receive')): ?>
+                                            <?php if (admin_can('orders.receive') && ! empty($order['assigned_karigar_id'])): ?>
                                                 <button
                                                     type="button"
                                                     class="btn btn-sm btn-outline-success js-receive-btn"
@@ -131,6 +131,7 @@
                                                     data-order-no="<?= esc($order['order_no']) ?>"
                                                     data-order-purity="<?= esc((string) number_format((float) ($order['avg_purity_percent'] ?? 100), 3, '.', '')) ?>"
                                                     data-karigar-rate="<?= esc((string) number_format((float) ($order['karigar_rate_per_gm'] ?? 0), 2, '.', '')) ?>"
+                                                    data-diamond-options="<?= esc(json_encode($karigarDiamondOptions[(int) $order['assigned_karigar_id']] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'attr') ?>"
                                                     data-bs-toggle="modal"
                                                     data-bs-target="#receiveModal"
                                                     title="Receive">
@@ -300,10 +301,10 @@
                             <div class="card-body p-0">
                                 <div class="table-responsive">
                                     <table class="table table-bordered mb-0" data-dt-skip="1">
-                                        <thead><tr><th>Dia Type</th><th>Pcs</th><th>Weight (cts)</th><th>Rate</th><th>Total</th><th></th></tr></thead>
+                                        <thead><tr><th>Available Diamond Type</th><th>Pcs</th><th>Weight (cts)</th><th>Rate</th><th>Total</th><th></th></tr></thead>
                                         <tbody class="js-dia-body">
                                             <tr>
-                                                <td><input type="text" name="studded_diamond_type[]" class="form-control"></td>
+                                                <td><select name="studded_diamond_type[]" class="form-select js-diamond-balance-select"><option value="">Select available diamond</option></select></td>
                                                 <td><input type="number" step="0.001" min="0" name="studded_diamond_pcs[]" class="form-control js-dia-pcs" value="0"></td>
                                                 <td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="0"></td>
                                                 <td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="0"></td>
@@ -456,6 +457,7 @@
         const assignBase = '<?= site_url('admin/orders') ?>';
         const summaryBase = '<?= site_url('admin/karigars') ?>';
         const stoneInventoryItems = <?= json_encode(array_values($stoneInventoryItems ?? []), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        let activeDiamondOptions = [];
         let summaryRequestSeq = 0;
 
         function num(v) {
@@ -482,14 +484,24 @@
             return options;
         }
 
+        function diamondBalanceOptions(selectedValue) {
+            let options = '<option value="">Select available diamond</option>';
+            activeDiamondOptions.forEach(function (item) {
+                const value = String(item.value || '');
+                const label = String(item.label || value || 'Diamond') + ' · ' + num(item.available_cts).toFixed(3) + ' cts / ' + num(item.available_pcs).toFixed(0) + ' pcs';
+                options += '<option value="' + attr(value) + '"' + (String(selectedValue || '') === value ? ' selected' : '') + '>' + attr(label) + '</option>';
+            });
+            return options;
+        }
+
         function initStoneInventorySelects() {
             if (!receiveModal || !window.jQuery || !window.jQuery.fn || !window.jQuery.fn.select2) return;
-            window.jQuery(receiveModal).find('.js-stone-inventory-select').each(function () {
+            window.jQuery(receiveModal).find('.js-stone-inventory-select, .js-diamond-balance-select').each(function () {
                 if (window.jQuery(this).hasClass('select2-hidden-accessible')) return;
                 window.jQuery(this).select2({
                     width: '100%',
                     allowClear: true,
-                    placeholder: 'Search inventory item',
+                    placeholder: window.jQuery(this).hasClass('js-diamond-balance-select') ? 'Search available diamond' : 'Search inventory item',
                     dropdownParent: window.jQuery(receiveModal)
                 });
             });
@@ -504,7 +516,7 @@
             const total = wt * rate;
             if (kind === 'dia') {
                 return '<tr>'
-                    + '<td><input type="text" name="studded_diamond_type[]" class="form-control" value="' + type + '"></td>'
+                    + '<td><select name="studded_diamond_type[]" class="form-select js-diamond-balance-select">' + diamondBalanceOptions(r.type || '') + '</select></td>'
                     + '<td><input type="number" step="0.001" min="0" name="studded_diamond_pcs[]" class="form-control js-dia-pcs" value="' + pcs.toFixed(3) + '"></td>'
                     + '<td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="' + wt.toFixed(3) + '"></td>'
                     + '<td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="' + rate.toFixed(2) + '"></td>'
@@ -666,6 +678,7 @@
             }
 
             if (btn.classList.contains('js-receive-btn')) {
+                try { activeDiamondOptions = JSON.parse(btn.getAttribute('data-diamond-options') || '[]'); } catch (error) { activeDiamondOptions = []; }
                 if (receiveForm && orderId) receiveForm.setAttribute('action', assignBase + '/' + orderId + '/receive');
                 if (receiveOrderLabel) receiveOrderLabel.textContent = orderNo;
                 if (receiveModal) {

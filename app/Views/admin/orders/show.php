@@ -262,13 +262,26 @@ $statusClass = match ($status) {
     </div>
     <div class="table-responsive">
         <table class="table table-bordered align-middle" data-dt-skip="true">
-            <thead><tr><?php if ($key === 'stone'): ?><th>Inventory Item</th><?php endif; ?><th>Description</th><th>PCS</th><th><?= $key === 'other' ? 'Weight (gm)' : 'Weight (cts)' ?></th><th><?= $key === 'other' ? 'Price' : 'Rate / cts' ?></th><th>Total</th><th></th></tr></thead>
+            <thead><tr><?php if ($key === 'stone'): ?><th>Inventory Item</th><?php endif; ?><th><?= $key === 'dia' ? 'Available Diamond Type' : 'Description' ?></th><th>PCS</th><th><?= $key === 'other' ? 'Weight (gm)' : 'Weight (cts)' ?></th><th><?= $key === 'other' ? 'Price' : 'Rate / cts' ?></th><th>Total</th><th></th></tr></thead>
             <tbody class="js-<?= esc($key) ?>-body">
                 <tr>
                     <?php if ($key === 'stone'): ?>
                         <td><select name="stone_item_id[]" class="form-select js-stone-inventory-select"><option value="">Select stone</option><?php foreach (($stoneInventoryItems ?? []) as $stoneItem): ?><option value="<?= (int) $stoneItem['id'] ?>"><?= esc((string) $stoneItem['product_name'] . ' · ' . number_format((float) $stoneItem['qty_balance'], 3) . ' available') ?></option><?php endforeach; ?></select></td>
                     <?php endif; ?>
-                    <td><input type="text" name="<?= esc($names[0]) ?>[]" class="form-control"></td>
+                    <td>
+                        <?php if ($key === 'dia'): ?>
+                            <select name="<?= esc($names[0]) ?>[]" class="form-select js-diamond-balance-select">
+                                <option value="">Select available diamond</option>
+                                <?php foreach (($karigarDiamondOptions ?? []) as $diamondOption): ?>
+                                    <option value="<?= esc((string) $diamondOption['value'], 'attr') ?>">
+                                        <?= esc((string) $diamondOption['label']) ?> · <?= number_format((float) $diamondOption['available_cts'], 3) ?> cts / <?= number_format((float) $diamondOption['available_pcs'], 0) ?> pcs
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        <?php else: ?>
+                            <input type="text" name="<?= esc($names[0]) ?>[]" class="form-control">
+                        <?php endif; ?>
+                    </td>
                     <td><input type="number" step="0.001" min="0" name="<?= esc($names[1]) ?>[]" class="form-control"></td>
                     <td><input type="number" step="0.001" min="0" name="<?= esc($names[2]) ?>[]" class="form-control js-<?= esc($key) ?>-weight"></td>
                     <td><input type="number" step="0.01" min="0" name="<?= esc($names[3]) ?>[]" class="form-control js-<?= esc($key) ?>-rate"></td>
@@ -289,6 +302,7 @@ $statusClass = match ($status) {
     const modal = document.getElementById('receiveModal');
     if (!modal) return;
     const stoneInventoryItems = <?= json_encode(array_values($stoneInventoryItems ?? []), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const karigarDiamondOptions = <?= json_encode(array_values($karigarDiamondOptions ?? []), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     const fields = {
         dia: ['studded_diamond_type', 'studded_diamond_pcs', 'studded_diamond_weight', 'studded_diamond_rate'],
         stone: ['stone_type', 'stone_pcs', 'stone_weight', 'stone_rate'],
@@ -310,12 +324,21 @@ $statusClass = match ($status) {
         return options;
     }
 
+    function diamondOptions() {
+        let options = '<option value="">Select available diamond</option>';
+        karigarDiamondOptions.forEach(item => {
+            const label = String(item.label || item.value || 'Diamond') + ' · ' + n(item.available_cts).toFixed(3) + ' cts / ' + n(item.available_pcs).toFixed(0) + ' pcs';
+            options += '<option value="' + escapeHtml(item.value) + '">' + escapeHtml(label) + '</option>';
+        });
+        return options;
+    }
+
     function initStoneSelects() {
         if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.select2) return;
-        window.jQuery(modal).find('.js-stone-inventory-select').each(function () {
+        window.jQuery(modal).find('.js-stone-inventory-select, .js-diamond-balance-select').each(function () {
             if (window.jQuery(this).hasClass('select2-hidden-accessible')) return;
             window.jQuery(this).select2({
-                width: '100%', allowClear: true, placeholder: 'Search inventory item', dropdownParent: window.jQuery(modal)
+                width: '100%', allowClear: true, placeholder: window.jQuery(this).hasClass('js-diamond-balance-select') ? 'Search available diamond' : 'Search inventory item', dropdownParent: window.jQuery(modal)
             });
         });
     }
@@ -325,8 +348,11 @@ $statusClass = match ($status) {
         const inventoryCell = kind === 'stone'
             ? '<td><select name="stone_item_id[]" class="form-select js-stone-inventory-select">' + stoneOptions() + '</select></td>'
             : '';
+        const descriptionControl = kind === 'dia'
+            ? '<select name="' + names[0] + '[]" class="form-select js-diamond-balance-select">' + diamondOptions() + '</select>'
+            : '<input type="text" name="' + names[0] + '[]" class="form-control">';
         return '<tr>' + inventoryCell
-            + '<td><input type="text" name="' + names[0] + '[]" class="form-control"></td>'
+            + '<td>' + descriptionControl + '</td>'
             + '<td><input type="number" step="0.001" min="0" name="' + names[1] + '[]" class="form-control"></td>'
             + '<td><input type="number" step="0.001" min="0" name="' + names[2] + '[]" class="form-control js-' + kind + '-weight"></td>'
             + '<td><input type="number" step="0.01" min="0" name="' + names[3] + '[]" class="form-control js-' + kind + '-rate"></td>'

@@ -2,27 +2,33 @@
 
 <?= $this->section('content') ?>
 <div class="row g-3 mb-3">
-    <div class="col-md-3">
+    <div class="col-6 col-xl">
         <div class="card"><div class="card-body py-2">
-            <small class="text-muted d-block">Debit (gm)</small>
+            <small class="text-muted d-block">Opening (gm)</small>
+            <strong><?= number_format((float) ($cards['opening_weight'] ?? 0), 3) ?></strong>
+        </div></div>
+    </div>
+    <div class="col-6 col-xl">
+        <div class="card"><div class="card-body py-2">
+            <small class="text-muted d-block">In / Debit (gm)</small>
             <strong><?= number_format((float) ($cards['debit_weight'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
-    <div class="col-md-3">
+    <div class="col-6 col-xl">
         <div class="card"><div class="card-body py-2">
-            <small class="text-muted d-block">Credit (gm)</small>
+            <small class="text-muted d-block">Out / Credit (gm)</small>
             <strong><?= number_format((float) ($cards['credit_weight'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
-    <div class="col-md-3">
+    <div class="col-6 col-xl">
         <div class="card"><div class="card-body py-2">
-            <small class="text-muted d-block">Balance (gm)</small>
+            <small class="text-muted d-block">Closing (gm)</small>
             <strong><?= number_format((float) ($cards['balance_weight'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
-    <div class="col-md-3">
+    <div class="col-6 col-xl">
         <div class="card"><div class="card-body py-2">
-            <small class="text-muted d-block">Fine Balance (gm)</small>
+            <small class="text-muted d-block">Pure Closing (gm)</small>
             <strong><?= number_format((float) ($cards['balance_fine'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
@@ -74,7 +80,7 @@
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0">
+            <table class="table datatable table-hover mb-0" data-ledger-table="true" data-dt-page-length="25">
                 <thead>
                     <tr>
                         <th>Date</th>

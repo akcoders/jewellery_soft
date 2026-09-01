@@ -194,6 +194,10 @@ class KarigarController extends BaseController
 
         $db = db_connect();
         $today = date('Y-m-d');
+        $ledgerFilters = [
+            'from' => trim((string) $this->request->getGet('ledger_from')),
+            'to' => trim((string) $this->request->getGet('ledger_to')),
+        ];
         $pendingStatuses = ['Confirmed', 'In Production', 'QC', 'Ready', 'Packed'];
 
         $assignedOrders = $db->table('orders')
@@ -265,10 +269,17 @@ class KarigarController extends BaseController
                 ->get()->getResultArray();
         }
 
-        $goldStatement = $this->buildGoldLedgerStatement($goldLedgers);
-        $diamondStatement = $this->buildQtyLedgerStatement($diamondLedgers, 'weight_cts');
-        $stoneStatement = $this->buildQtyLedgerStatement($stoneLedgers, 'weight_cts');
-        $paymentStatement = $this->buildPaymentLedgerStatement($paymentLedgers);
+        // Build statements from full history first, then apply the date window so
+        // the first visible row retains the true brought-forward opening balance.
+        $goldStatement = $this->filterRowsByDate($this->buildGoldLedgerStatement($goldLedgers), $ledgerFilters);
+        $diamondStatement = $this->filterRowsByDate($this->buildQtyLedgerStatement($diamondLedgers, 'weight_cts'), $ledgerFilters);
+        $stoneStatement = $this->filterRowsByDate($this->buildQtyLedgerStatement($stoneLedgers, 'weight_cts'), $ledgerFilters);
+        $paymentStatement = $this->filterRowsByDate($this->buildPaymentLedgerStatement($paymentLedgers), $ledgerFilters);
+        $filteredGoldLedgers = $this->filterRowsByDate($goldLedgers, $ledgerFilters);
+        $filteredDiamondLedgers = $this->filterRowsByDate($diamondLedgers, $ledgerFilters);
+        $filteredStoneLedgers = $this->filterRowsByDate($stoneLedgers, $ledgerFilters);
+        $filteredPaymentLedgers = $this->filterRowsByDate($paymentLedgers, $ledgerFilters);
+        $filteredMaterialMovements = $this->filterRowsByDate($materialMovements, $ledgerFilters);
 
         $allActivity = array_merge(
             array_column($materialRows, 'created_at'),
@@ -291,15 +302,15 @@ class KarigarController extends BaseController
             'documents' => $docs,
             'assignedOrders' => $assignedOrders,
             'orderStats' => $orderStats,
-            'materialMovements' => $materialMovements,
-            'movementSummary' => $this->buildMovementSummary($materialMovements),
-            'goldLedgers' => $goldLedgers,
-            'goldSummary' => $this->buildGoldSummary($goldLedgers),
-            'diamondLedgers' => $diamondLedgers,
-            'diamondSummary' => $this->buildQtyWeightSummary($diamondLedgers, 'weight_cts'),
-            'stoneLedgers' => $stoneLedgers,
-            'stoneSummary' => $this->buildQtyWeightSummary($stoneLedgers, 'weight_cts'),
-            'paymentLedgers' => $paymentLedgers,
+            'materialMovements' => $filteredMaterialMovements,
+            'movementSummary' => $this->buildMovementSummary($filteredMaterialMovements),
+            'goldLedgers' => $filteredGoldLedgers,
+            'goldSummary' => $this->buildGoldSummary($filteredGoldLedgers),
+            'diamondLedgers' => $filteredDiamondLedgers,
+            'diamondSummary' => $this->buildQtyWeightSummary($filteredDiamondLedgers, 'weight_cts'),
+            'stoneLedgers' => $filteredStoneLedgers,
+            'stoneSummary' => $this->buildQtyWeightSummary($filteredStoneLedgers, 'weight_cts'),
+            'paymentLedgers' => $filteredPaymentLedgers,
             'sourceIssueLines' => $sourceIssueLines,
             'finishedItems' => $finishedItems,
             'paymentSummary' => $this->buildPaymentSummary($paymentLedgers),
@@ -308,6 +319,7 @@ class KarigarController extends BaseController
             'diamondStatement' => $diamondStatement,
             'stoneStatement' => $stoneStatement,
             'paymentStatement' => $paymentStatement,
+            'ledgerFilters' => $ledgerFilters,
             'profileStats' => [
                 'documents' => count($docs),
                 'ledger_entries' => $ledgerEntryCount,
@@ -883,8 +895,8 @@ class KarigarController extends BaseController
 
         foreach ($ordered as $row) {
             $type = strtolower(trim((string) ($row['entry_type'] ?? '')));
-            $debit = $type === 'issue' ? (float) ($row['weight_gm'] ?? 0) : 0.0;
-            $credit = $type === 'receive' ? (float) ($row['weight_gm'] ?? 0) : 0.0;
+            $debit = $type === 'issue' ? (float) ($row['pure_gold_weight_gm'] ?? 0) : 0.0;
+            $credit = $type === 'receive' ? (float) ($row['pure_gold_weight_gm'] ?? 0) : 0.0;
             $opening = $running;
             $closing = $opening + $debit - $credit;
             $running = $closing;
@@ -983,6 +995,28 @@ class KarigarController extends BaseController
         });
 
         return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array{from:string,to:string} $filters
+     * @return list<array<string,mixed>>
+     */
+    private function filterRowsByDate(array $rows, array $filters): array
+    {
+        $from = trim((string) ($filters['from'] ?? ''));
+        $to = trim((string) ($filters['to'] ?? ''));
+        if ($from === '' && $to === '') {
+            return $rows;
+        }
+
+        return array_values(array_filter($rows, static function (array $row) use ($from, $to): bool {
+            $date = substr(trim((string) ($row['created_at'] ?? '')), 0, 10);
+            if ($date === '') {
+                return false;
+            }
+            return ! ($from !== '' && $date < $from) && ! ($to !== '' && $date > $to);
+        }));
     }
 
     private function nullableInt($value): ?int

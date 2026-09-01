@@ -10,27 +10,33 @@
 </div>
 
 <div class="row g-3 mb-3">
-    <div class="col-6 col-xl-3">
+    <div class="col-6 col-xl">
+        <div class="card"><div class="card-body py-2">
+            <small class="text-muted d-block">Opening</small>
+            <strong><?= number_format((float) ($summary['opening_weight'] ?? 0), 3) ?></strong>
+        </div></div>
+    </div>
+    <div class="col-6 col-xl">
         <div class="card"><div class="card-body py-2">
             <small class="text-muted d-block">Gold In</small>
             <strong><?= number_format((float) ($summary['debit_weight'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
-    <div class="col-6 col-xl-3">
+    <div class="col-6 col-xl">
         <div class="card"><div class="card-body py-2">
             <small class="text-muted d-block">Gold Out</small>
             <strong><?= number_format((float) ($summary['credit_weight'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
-    <div class="col-6 col-xl-3">
+    <div class="col-6 col-xl">
         <div class="card"><div class="card-body py-2">
-            <small class="text-muted d-block">Gold Balance</small>
+            <small class="text-muted d-block">Closing</small>
             <strong><?= number_format((float) ($summary['balance_weight'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
-    <div class="col-6 col-xl-3">
+    <div class="col-6 col-xl">
         <div class="card"><div class="card-body py-2">
-            <small class="text-muted d-block">Pure Gold Balance</small>
+            <small class="text-muted d-block">Pure Closing</small>
             <strong><?= number_format((float) ($summary['balance_fine'] ?? 0), 3) ?></strong>
         </div></div>
     </div>
@@ -86,7 +92,7 @@
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table datatable table-hover align-middle mb-0">
+            <table class="table datatable table-hover align-middle mb-0" data-ledger-table="true" data-dt-page-length="25">
                 <thead>
                     <tr>
                         <th>Date</th>

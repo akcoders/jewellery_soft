@@ -29,12 +29,6 @@ class LedgerController extends BaseController
             ->orderBy('gle.txn_date', 'DESC')
             ->orderBy('gle.id', 'DESC');
 
-        if ($filters['from'] !== '') {
-            $builder->where('gle.txn_date >=', $filters['from']);
-        }
-        if ($filters['to'] !== '') {
-            $builder->where('gle.txn_date <=', $filters['to']);
-        }
         if ($filters['txn_type'] !== '') {
             $builder->where('gle.txn_type', $filters['txn_type']);
         }
@@ -43,6 +37,19 @@ class LedgerController extends BaseController
         }
         if ($filters['karigar_id'] !== '') {
             $builder->where('gle.karigar_id', (int) $filters['karigar_id']);
+        }
+
+        $opening = ['weight' => 0.0, 'fine' => 0.0];
+        if ($filters['from'] !== '') {
+            $openingRows = (clone $builder)->where('gle.txn_date <', $filters['from'])->get()->getResultArray();
+            foreach ($openingRows as $openingRow) {
+                $opening['weight'] += (float) ($openingRow['debit_weight_gm'] ?? 0) - (float) ($openingRow['credit_weight_gm'] ?? 0);
+                $opening['fine'] += (float) ($openingRow['debit_fine_gm'] ?? 0) - (float) ($openingRow['credit_fine_gm'] ?? 0);
+            }
+            $builder->where('gle.txn_date >=', $filters['from']);
+        }
+        if ($filters['to'] !== '') {
+            $builder->where('gle.txn_date <=', $filters['to']);
         }
 
         $rows = $builder->get()->getResultArray();
@@ -54,6 +61,8 @@ class LedgerController extends BaseController
             'debit_fine' => 0.0,
             'credit_fine' => 0.0,
             'balance_fine' => 0.0,
+            'opening_weight' => $opening['weight'],
+            'opening_fine' => $opening['fine'],
         ];
         foreach ($rows as $row) {
             $summary['debit_weight'] += (float) ($row['debit_weight_gm'] ?? 0);
@@ -61,8 +70,8 @@ class LedgerController extends BaseController
             $summary['debit_fine'] += (float) ($row['debit_fine_gm'] ?? 0);
             $summary['credit_fine'] += (float) ($row['credit_fine_gm'] ?? 0);
         }
-        $summary['balance_weight'] = $summary['debit_weight'] - $summary['credit_weight'];
-        $summary['balance_fine'] = $summary['debit_fine'] - $summary['credit_fine'];
+        $summary['balance_weight'] = $summary['opening_weight'] + $summary['debit_weight'] - $summary['credit_weight'];
+        $summary['balance_fine'] = $summary['opening_fine'] + $summary['debit_fine'] - $summary['credit_fine'];
 
         return view('admin/gold_inventory/ledger/index', [
             'title' => 'Gold Ledger',

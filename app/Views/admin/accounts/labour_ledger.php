@@ -56,9 +56,10 @@
 </form>
 
 <div class="row g-3 mb-3">
-    <div class="col-md-4"><div class="card h-100"><div class="card-body"><small class="text-muted d-block">Bill Amount</small><h4 class="mb-0">Rs <?= number_format((float) ($summary['bill_amount'] ?? 0), 2) ?></h4></div></div></div>
-    <div class="col-md-4"><div class="card h-100"><div class="card-body"><small class="text-muted d-block">Paid Amount</small><h4 class="mb-0">Rs <?= number_format((float) ($summary['payment_amount'] ?? 0), 2) ?></h4></div></div></div>
-    <div class="col-md-4"><div class="card h-100"><div class="card-body"><small class="text-muted d-block">Open Balance</small><h4 class="mb-0">Rs <?= number_format((float) ($summary['pending_amount'] ?? 0), 2) ?></h4></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><small class="text-muted d-block">Opening</small><h4 class="mb-0">Rs <?= number_format((float) ($summary['opening_amount'] ?? 0), 2) ?></h4></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><small class="text-muted d-block">In / Bills</small><h4 class="mb-0">Rs <?= number_format((float) ($summary['bill_amount'] ?? 0), 2) ?></h4></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><small class="text-muted d-block">Out / Payments</small><h4 class="mb-0">Rs <?= number_format((float) ($summary['payment_amount'] ?? 0), 2) ?></h4></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><small class="text-muted d-block">Closing</small><h4 class="mb-0">Rs <?= number_format((float) ($summary['closing_amount'] ?? 0), 2) ?></h4></div></div></div>
 </div>
 
 <div class="card">

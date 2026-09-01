@@ -1463,6 +1463,38 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
         .swal2-confirm {
             background-color: var(--erp-red) !important;
         }
+        .erp-ledger-table thead .erp-column-filters th {
+            background: #fff !important;
+            padding: .42rem .5rem !important;
+        }
+        .erp-ledger-table .erp-column-filter {
+            border: 1px solid #dbe2ea;
+            border-radius: .45rem;
+            font-size: .72rem;
+            min-width: 86px;
+            padding: .38rem .5rem;
+            width: 100%;
+        }
+        .erp-ledger-table tfoot th {
+            background: #f8fafc;
+            border-top: 2px solid #d9e1ea !important;
+            color: #243447;
+            font-size: .78rem;
+            white-space: nowrap;
+        }
+        .erp-ledger-tools {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .45rem;
+            justify-content: flex-end;
+            margin-bottom: .65rem;
+        }
+        .erp-ledger-tools .btn { padding: .38rem .7rem; }
+        @media (max-width: 767.98px) {
+            .erp-ledger-tools { justify-content: flex-start; }
+            .erp-ledger-table thead .erp-column-filters th { min-width: 118px; }
+        }
     </style>
     <?= $this->renderSection('styles') ?>
 </head>
@@ -1889,6 +1921,77 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                 return ['1', 'true', 'yes', 'on'].indexOf(String(value).toLowerCase()) !== -1;
             }
 
+            function ledgerNumber(value) {
+                const text = jQuery('<div>').html(String(value === null || value === undefined ? '' : value)).text().trim();
+                if (!text || text === '-' || /^\d{4}-\d{2}-\d{2}/.test(text) || text.indexOf('/') !== -1) return null;
+                const normalized = text
+                    .replace(/(?:Rs\.?|₹)/gi, '')
+                    .replace(/,/g, '')
+                    .replace(/\b(?:gm|gms|cts|pcs|ct|kg)\b/gi, '')
+                    .trim();
+                return /^[-+]?\d+(?:\.\d+)?$/.test(normalized) ? parseFloat(normalized) : null;
+            }
+
+            function ledgerValues(value) {
+                const text = jQuery('<div>').html(String(value === null || value === undefined ? '' : value)).text().trim();
+                if (!text || text === '-' || /^\d{4}-\d{2}-\d{2}/.test(text)) return null;
+                if (text.indexOf('/') !== -1) {
+                    const values = {};
+                    const pattern = /([-+]?\d[\d,]*(?:\.\d+)?)\s*(gm|gms|cts|pcs|ct|kg)\b/gi;
+                    let match;
+                    while ((match = pattern.exec(text)) !== null) {
+                        const unit = match[2].toLowerCase();
+                        values[unit] = (values[unit] || 0) + parseFloat(match[1].replace(/,/g, ''));
+                    }
+                    return Object.keys(values).length ? values : null;
+                }
+                const number = ledgerNumber(value);
+                return number === null ? null : { value: number };
+            }
+
+            function csvCell(value) {
+                return '"' + String(value === null || value === undefined ? '' : value).replace(/"/g, '""') + '"';
+            }
+
+            function addLedgerTools($table, api) {
+                const $wrapper = $table.closest('.dataTables_wrapper');
+                if ($wrapper.children('.erp-ledger-tools').length) return;
+                const title = ($contentRoot.find('h1,h2,h3,h4').first().text().trim() || 'ledger').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+                const $tools = $('<div class="erp-ledger-tools"></div>');
+                [['copy', 'fe-copy', 'Copy'], ['csv', 'fe-download', 'CSV / Excel'], ['print', 'fe-printer', 'Print']].forEach(function (item) {
+                    $tools.append($('<button type="button" class="btn btn-sm btn-outline-primary"></button>')
+                        .attr('data-ledger-export', item[0]).html('<i class="fe ' + item[1] + ' me-1"></i>' + item[2]));
+                });
+                $wrapper.prepend($tools);
+                $tools.on('click', '[data-ledger-export]', function () {
+                    const mode = String($(this).attr('data-ledger-export'));
+                    const headers = api.columns(':visible').header().toArray().map(function (cell) { return $(cell).text().trim(); });
+                    const rows = api.rows({ search: 'applied' }).data().toArray().map(function (row) {
+                        return Array.from(row).map(function (cell) { return $('<div>').html(String(cell)).text().trim(); });
+                    });
+                    const csv = [headers].concat(rows).map(function (row) { return row.map(csvCell).join(','); }).join('\r\n');
+                    if (mode === 'copy') {
+                        const copyText = [headers].concat(rows).map(function (row) { return row.join('\t'); }).join('\n');
+                        if (navigator.clipboard) navigator.clipboard.writeText(copyText);
+                        return;
+                    }
+                    if (mode === 'csv') {
+                        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = (title || 'ledger') + '.csv';
+                        document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
+                        return;
+                    }
+                    const printWindow = window.open('', '_blank');
+                    if (!printWindow) return;
+                    const head = '<tr>' + headers.map(function (v) { return '<th>' + $('<div>').text(v).html() + '</th>'; }).join('') + '</tr>';
+                    const body = rows.map(function (row) { return '<tr>' + row.map(function (v) { return '<td>' + $('<div>').text(v).html() + '</td>'; }).join('') + '</tr>'; }).join('');
+                    printWindow.document.write('<!doctype html><title>' + title + '</title><style>body{font:12px Arial;padding:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:6px;text-align:left}th{background:#f2f4f7}</style><h2>' + title + '</h2><table><thead>' + head + '</thead><tbody>' + body + '</tbody></table>');
+                    printWindow.document.close(); printWindow.focus(); printWindow.print();
+                });
+            }
+
             jQuery(function ($) {
                 const $contentRoot = $('.content.container-fluid');
                 const $firstToolbar = $contentRoot.children('.erp-page-toolbar, .d-flex.align-items-center.justify-content-between.mb-3').first();
@@ -1982,6 +2085,8 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
 
                 $('.datatable').each(function () {
                     const $table = $(this);
+                    const tableId = String($table.attr('id') || '').toLowerCase();
+                    const isLedgerTable = tableId.indexOf('ledger') !== -1 || $table.hasClass('karigar-ledger-table') || boolAttr($table.attr('data-ledger-table'), false);
                     const searching = boolAttr($table.attr('data-dt-searching'), true);
                     const ordering = boolAttr($table.attr('data-dt-ordering'), true);
                     const paging = boolAttr($table.attr('data-dt-paging'), true);
@@ -1998,7 +2103,39 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         $table.DataTable().destroy();
                     }
 
-                    $table.DataTable({
+                    let numericColumns = [];
+                    if (isLedgerTable) {
+                        $table.addClass('erp-ledger-table');
+                        const $headRow = $table.find('thead tr').first();
+                        if (!$table.find('thead .erp-column-filters').length) {
+                            const $filters = $('<tr class="erp-column-filters"></tr>');
+                            $headRow.children('th').each(function () {
+                                $filters.append('<th><input type="search" class="erp-column-filter" placeholder="Filter ' + $('<div>').text($(this).text().trim()).html() + '"></th>');
+                            });
+                            $table.find('thead').append($filters);
+                        }
+                        $headRow.children('th').each(function (index) {
+                            let seen = 0, numeric = 0;
+                            $table.find('tbody tr').each(function () {
+                                const $cell = $(this).children('td').eq(index);
+                                if (!$cell.length || $cell.is('[colspan]')) return;
+                                const text = $cell.text().trim();
+                                if (!text || text === '-') return;
+                                seen++;
+                                if (ledgerValues($cell.html()) !== null) numeric++;
+                            });
+                            if (seen > 0 && numeric / seen >= .75) numericColumns.push(index);
+                        });
+                        if (!$table.children('tfoot').length) {
+                            const count = $headRow.children('th').length;
+                            const $foot = $('<tr></tr>');
+                            for (let i = 0; i < count; i++) $foot.append('<th></th>');
+                            $foot.children().first().text('Filtered total');
+                            $table.append($('<tfoot></tfoot>').append($foot));
+                        }
+                    }
+
+                    const api = $table.DataTable({
                         pageLength: pageLength,
                         lengthMenu: [
                             [10, 25, 50, 100, -1],
@@ -2011,6 +2148,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         info: info && paging,
                         order: [],
                         autoWidth: false,
+                        orderCellsTop: isLedgerTable,
                         dom:
                             "<'row align-items-center g-2 mb-2'<'col-md-6 col-sm-12'l><'col-md-6 col-sm-12'f>>" +
                             "<'row'<'col-sm-12'tr>>" +
@@ -2020,7 +2158,33 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                             searchPlaceholder: 'Search records...',
                             lengthMenu: '_MENU_',
                             emptyTable: 'No records available'
-                        }
+                        },
+                        footerCallback: isLedgerTable ? function () {
+                            const tableApi = this.api();
+                            numericColumns.forEach(function (index) {
+                                const totals = {};
+                                tableApi.column(index, { search: 'applied' }).data().each(function (value) {
+                                    const values = ledgerValues(value);
+                                    if (!values) return;
+                                    Object.keys(values).forEach(function (unit) { totals[unit] = (totals[unit] || 0) + values[unit]; });
+                                });
+                                const output = Object.keys(totals).map(function (unit) {
+                                    const formatted = totals[unit].toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+                                    return unit === 'value' ? formatted : formatted + ' ' + unit;
+                                }).join(' / ');
+                                $(tableApi.column(index).footer()).text(output);
+                            });
+                        } : null,
+                        initComplete: isLedgerTable ? function () {
+                            const tableApi = this.api();
+                            $table.find('thead .erp-column-filters input').each(function (index) {
+                                $(this).on('click keydown', function (event) { event.stopPropagation(); });
+                                $(this).on('input', function () {
+                                    if (tableApi.column(index).search() !== this.value) tableApi.column(index).search(this.value).draw();
+                                });
+                            });
+                            addLedgerTools($table, tableApi);
+                        } : null
                     });
 
                     const $wrapper = $table.closest('.dataTables_wrapper');

@@ -19,6 +19,17 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
+<?php
+$statementRange = static function (array $rows, string $openingKey, string $closingKey): array {
+    if ($rows === []) return ['opening' => 0.0, 'closing' => 0.0];
+    $newest = $rows[0];
+    $oldest = $rows[count($rows) - 1];
+    return ['opening' => (float) ($oldest[$openingKey] ?? 0), 'closing' => (float) ($newest[$closingKey] ?? 0)];
+};
+$goldRange = $statementRange($goldStatement ?? [], 'opening_gm', 'closing_gm');
+$diamondRange = $statementRange($diamondStatement ?? [], 'opening_weight', 'closing_weight');
+$stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_weight');
+?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Karigar Profile: <?= esc($karigar['name']) ?></h4>
     <div class="d-flex gap-2">
@@ -183,6 +194,16 @@
     </div>
 </div>
 
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3"><label class="form-label">Ledger From</label><input type="date" name="ledger_from" class="form-control" value="<?= esc((string) ($ledgerFilters['from'] ?? '')) ?>"></div>
+            <div class="col-md-3"><label class="form-label">Ledger To</label><input type="date" name="ledger_to" class="form-control" value="<?= esc((string) ($ledgerFilters['to'] ?? '')) ?>"></div>
+            <div class="col-md-6"><button class="btn btn-primary"><i class="fe fe-filter me-1"></i>Apply to all ledgers</button> <a class="btn btn-light" href="<?= site_url('admin/karigars/' . $karigar['id']) ?>">Reset</a></div>
+        </form>
+    </div>
+</div>
+
 <div class="card karigar-ledger-card">
     <div class="card-header"><h5 class="card-title mb-0">Order Assignment History</h5></div>
     <div class="card-body">
@@ -220,9 +241,10 @@
         <div class="card w-100">
             <div class="card-header"><h5 class="card-title mb-0">Gold Ledger Stats</h5></div>
             <div class="card-body">
-                <p class="mb-1"><strong>Pure Issued:</strong> <?= esc(number_format((float) $goldSummary['issue_pure'], 3)) ?> gm</p>
-                <p class="mb-1"><strong>Pure Received:</strong> <?= esc(number_format((float) $goldSummary['receive_pure'], 3)) ?> gm</p>
-                <p class="mb-0"><strong>Pure Balance:</strong> <?= esc(number_format((float) $goldSummary['balance_pure'], 3)) ?> gm</p>
+                <p class="mb-1"><strong>Opening:</strong> <?= esc(number_format($goldRange['opening'], 3)) ?> gm</p>
+                <p class="mb-1"><strong>Pure Issued:</strong> <?= esc(number_format((float) $goldSummary['issue_pure'], 3)) ?> gm <small class="text-muted">(In)</small></p>
+                <p class="mb-1"><strong>Pure Received:</strong> <?= esc(number_format((float) $goldSummary['receive_pure'], 3)) ?> gm <small class="text-muted">(Out)</small></p>
+                <p class="mb-0"><strong>Pure Balance:</strong> <?= esc(number_format($goldRange['closing'], 3)) ?> gm <small class="text-muted">(Closing)</small></p>
             </div>
         </div>
     </div>
@@ -230,9 +252,10 @@
         <div class="card w-100">
             <div class="card-header"><h5 class="card-title mb-0">Diamond Ledger Stats</h5></div>
             <div class="card-body">
-                <p class="mb-1"><strong>Issued:</strong> <?= esc(number_format((float) $diamondSummary['issue_weight'], 3)) ?> cts / <?= esc(number_format((float) $diamondSummary['issue_pcs'], 0)) ?> pcs</p>
-                <p class="mb-1"><strong>Received:</strong> <?= esc(number_format((float) $diamondSummary['receive_weight'], 3)) ?> cts / <?= esc(number_format((float) $diamondSummary['receive_pcs'], 0)) ?> pcs</p>
-                <p class="mb-0"><strong>Balance:</strong> <?= esc(number_format((float) $diamondSummary['balance_weight'], 3)) ?> cts / <?= esc(number_format((float) $diamondSummary['balance_pcs'], 0)) ?> pcs</p>
+                <p class="mb-1"><strong>Opening:</strong> <?= esc(number_format($diamondRange['opening'], 3)) ?> cts</p>
+                <p class="mb-1"><strong>In (Issued):</strong> <?= esc(number_format((float) $diamondSummary['issue_weight'], 3)) ?> cts / <?= esc(number_format((float) $diamondSummary['issue_pcs'], 0)) ?> pcs</p>
+                <p class="mb-1"><strong>Out (Received):</strong> <?= esc(number_format((float) $diamondSummary['receive_weight'], 3)) ?> cts / <?= esc(number_format((float) $diamondSummary['receive_pcs'], 0)) ?> pcs</p>
+                <p class="mb-0"><strong>Closing:</strong> <?= esc(number_format($diamondRange['closing'], 3)) ?> cts</p>
             </div>
         </div>
     </div>
@@ -240,9 +263,10 @@
         <div class="card w-100">
             <div class="card-header"><h5 class="card-title mb-0">Stone Ledger Stats</h5></div>
             <div class="card-body">
-                <p class="mb-1"><strong>Issued:</strong> <?= esc(number_format((float) $stoneSummary['issue_weight'], 3)) ?> cts / <?= esc(number_format((float) $stoneSummary['issue_pcs'], 0)) ?> pcs</p>
-                <p class="mb-1"><strong>Received:</strong> <?= esc(number_format((float) $stoneSummary['receive_weight'], 3)) ?> cts / <?= esc(number_format((float) $stoneSummary['receive_pcs'], 0)) ?> pcs</p>
-                <p class="mb-0"><strong>Balance:</strong> <?= esc(number_format((float) $stoneSummary['balance_weight'], 3)) ?> cts / <?= esc(number_format((float) $stoneSummary['balance_pcs'], 0)) ?> pcs</p>
+                <p class="mb-1"><strong>Opening:</strong> <?= esc(number_format($stoneRange['opening'], 3)) ?> cts</p>
+                <p class="mb-1"><strong>In (Issued):</strong> <?= esc(number_format((float) $stoneSummary['issue_weight'], 3)) ?> cts / <?= esc(number_format((float) $stoneSummary['issue_pcs'], 0)) ?> pcs</p>
+                <p class="mb-1"><strong>Out (Received):</strong> <?= esc(number_format((float) $stoneSummary['receive_weight'], 3)) ?> cts / <?= esc(number_format((float) $stoneSummary['receive_pcs'], 0)) ?> pcs</p>
+                <p class="mb-0"><strong>Closing:</strong> <?= esc(number_format($stoneRange['closing'], 3)) ?> cts</p>
             </div>
         </div>
     </div>
@@ -296,7 +320,7 @@
 <div class="row">
     <div class="col-12 d-flex">
         <div class="card w-100 karigar-ledger-card">
-            <div class="card-header"><h5 class="card-title mb-0">Gold Ledger (Opening / Debit / Credit / Closing)</h5></div>
+            <div class="card-header"><h5 class="card-title mb-0">Pure Gold Ledger (Opening / Debit / Credit / Closing) · In / Out</h5></div>
             <div class="card-body">
                 <div class="table-responsive">
                     <table class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
@@ -306,10 +330,10 @@
                                 <th>Order</th>
                                 <th>Type</th>
                                 <th>Location</th>
-                                <th>Opening (gm)</th>
-                                <th>Debit (Issue)</th>
-                                <th>Credit (Return)</th>
-                                <th>Closing (gm)</th>
+                                <th>Pure Opening (gm)</th>
+                                <th>In (Issue)</th>
+                                <th>Out (Receive)</th>
+                                <th>Pure Closing (gm)</th>
                                 <th>Reference</th>
                             </tr>
                         </thead>

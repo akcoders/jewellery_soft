@@ -1984,11 +1984,26 @@ class AccountsController extends BaseController
             return strcmp((string) ($a['entry_type'] ?? ''), (string) ($b['entry_type'] ?? ''));
         });
 
+        $openingAmount = 0.0;
+        if ($dateFrom !== '') {
+            $allFilters = $filters;
+            $allFilters['date_from'] = '';
+            $allFilters['date_to'] = '';
+            foreach ($this->labourLedgerDataset($allFilters)['rows'] as $historic) {
+                if ((string) ($historic['entry_date'] ?? '') >= $dateFrom) continue;
+                $openingAmount += (float) ($historic['bill_amount'] ?? 0) - (float) ($historic['payment_amount'] ?? 0);
+            }
+        }
+        $billAmount = array_sum(array_column($rows, 'bill_amount'));
+        $paymentAmount = array_sum(array_column($rows, 'payment_amount'));
+
         return [
             'rows' => $rows,
             'summary' => [
-                'bill_amount' => array_sum(array_column($rows, 'bill_amount')),
-                'payment_amount' => array_sum(array_column($rows, 'payment_amount')),
+                'opening_amount' => $openingAmount,
+                'bill_amount' => $billAmount,
+                'payment_amount' => $paymentAmount,
+                'closing_amount' => $openingAmount + $billAmount - $paymentAmount,
                 'pending_amount' => array_sum(array_column($rows, 'pending_amount')),
             ],
         ];
@@ -2384,18 +2399,31 @@ class AccountsController extends BaseController
         $statuses = array_values(array_unique(array_filter(array_map(static fn(array $row): string => (string) ($row['status'] ?? ''), $rows))));
         sort($statuses);
 
+        $allFilteredRows = $this->filterGeneralLedgerRows($rows, array_merge($filters, ['date_from' => '', 'date_to' => '']));
+        $openingAmount = 0.0;
+        $dateFrom = trim((string) ($filters['date_from'] ?? ''));
+        if ($dateFrom !== '') {
+            foreach ($allFilteredRows as $historic) {
+                if ((string) ($historic['transaction_date'] ?? '') >= $dateFrom) continue;
+                $openingAmount += (float) ($historic['debit_amount'] ?? 0) - (float) ($historic['credit_amount'] ?? 0);
+            }
+        }
         $rows = $this->filterGeneralLedgerRows($rows, $filters);
         usort($rows, static function (array $a, array $b): int {
             $dateCmp = strcmp((string) ($b['transaction_date'] ?? ''), (string) ($a['transaction_date'] ?? ''));
             return $dateCmp !== 0 ? $dateCmp : strcmp((string) ($b['reference_no'] ?? ''), (string) ($a['reference_no'] ?? ''));
         });
 
+        $debitAmount = array_sum(array_column($rows, 'debit_amount'));
+        $creditAmount = array_sum(array_column($rows, 'credit_amount'));
         return [
             'rows' => $rows,
             'summary' => [
                 'row_count' => count($rows),
-                'debit_amount' => array_sum(array_column($rows, 'debit_amount')),
-                'credit_amount' => array_sum(array_column($rows, 'credit_amount')),
+                'opening_amount' => $openingAmount,
+                'debit_amount' => $debitAmount,
+                'credit_amount' => $creditAmount,
+                'closing_amount' => $openingAmount + $debitAmount - $creditAmount,
                 'balance_amount' => array_sum(array_column($rows, 'balance_amount')),
             ],
             'transaction_types' => $transactionTypes,
@@ -2536,16 +2564,41 @@ class AccountsController extends BaseController
             return $dateCmp !== 0 ? $dateCmp : strcmp((string) ($b['reference_no'] ?? ''), (string) ($a['reference_no'] ?? ''));
         });
 
+        $opening = ['gold' => 0.0, 'cts' => 0.0, 'money' => 0.0];
+        $dateFrom = trim((string) ($filters['date_from'] ?? ''));
+        if ($dateFrom !== '') {
+            $allFilters = $filters;
+            $allFilters['date_from'] = '';
+            $allFilters['date_to'] = '';
+            foreach ($this->vendorTransactionLedgerDataset($allFilters)['rows'] as $historic) {
+                if ((string) ($historic['transaction_date'] ?? '') >= $dateFrom) continue;
+                $opening['gold'] += (float) ($historic['issue_gold_gm'] ?? 0) - (float) ($historic['receive_gold_gm'] ?? 0);
+                $opening['cts'] += (float) ($historic['issue_cts'] ?? 0) - (float) ($historic['receive_cts'] ?? 0);
+                $opening['money'] += (float) ($historic['payable_amount'] ?? 0) - (float) ($historic['paid_amount'] ?? 0);
+            }
+        }
+        $issueGold = array_sum(array_column($rows, 'issue_gold_gm'));
+        $receiveGold = array_sum(array_column($rows, 'receive_gold_gm'));
+        $issueCts = array_sum(array_column($rows, 'issue_cts'));
+        $receiveCts = array_sum(array_column($rows, 'receive_cts'));
+        $payable = array_sum(array_column($rows, 'payable_amount'));
+        $paid = array_sum(array_column($rows, 'paid_amount'));
         return [
             'rows' => $rows,
             'summary' => [
                 'row_count' => count($rows),
-                'issue_gold_gm' => array_sum(array_column($rows, 'issue_gold_gm')),
-                'receive_gold_gm' => array_sum(array_column($rows, 'receive_gold_gm')),
-                'issue_cts' => array_sum(array_column($rows, 'issue_cts')),
-                'receive_cts' => array_sum(array_column($rows, 'receive_cts')),
-                'payable_amount' => array_sum(array_column($rows, 'payable_amount')),
-                'paid_amount' => array_sum(array_column($rows, 'paid_amount')),
+                'opening_gold_gm' => $opening['gold'],
+                'issue_gold_gm' => $issueGold,
+                'receive_gold_gm' => $receiveGold,
+                'closing_gold_gm' => $opening['gold'] + $issueGold - $receiveGold,
+                'opening_cts' => $opening['cts'],
+                'issue_cts' => $issueCts,
+                'receive_cts' => $receiveCts,
+                'closing_cts' => $opening['cts'] + $issueCts - $receiveCts,
+                'opening_amount' => $opening['money'],
+                'payable_amount' => $payable,
+                'paid_amount' => $paid,
+                'closing_amount' => $opening['money'] + $payable - $paid,
                 'balance_amount' => array_sum(array_column($rows, 'balance_amount')),
             ],
             'categories' => $categories,

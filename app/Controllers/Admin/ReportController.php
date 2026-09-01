@@ -38,12 +38,6 @@ class ReportController extends BaseController
             ->orderBy('gle.txn_date', 'DESC')
             ->orderBy('gle.id', 'DESC');
 
-        if ($filters['from'] !== '') {
-            $builder->where('gle.txn_date >=', $filters['from']);
-        }
-        if ($filters['to'] !== '') {
-            $builder->where('gle.txn_date <=', $filters['to']);
-        }
         if ($filters['karigar_id'] > 0) {
             $builder->where('gle.karigar_id', $filters['karigar_id']);
         }
@@ -54,6 +48,19 @@ class ReportController extends BaseController
             $builder->where('gle.txn_type', $filters['txn_type']);
         }
 
+        $openingWeight = 0.0;
+        $openingFine = 0.0;
+        if ($filters['from'] !== '') {
+            foreach ((clone $builder)->where('gle.txn_date <', $filters['from'])->get()->getResultArray() as $openingRow) {
+                $openingWeight += (float) ($openingRow['debit_weight_gm'] ?? 0) - (float) ($openingRow['credit_weight_gm'] ?? 0);
+                $openingFine += (float) ($openingRow['debit_fine_gm'] ?? 0) - (float) ($openingRow['credit_fine_gm'] ?? 0);
+            }
+            $builder->where('gle.txn_date >=', $filters['from']);
+        }
+        if ($filters['to'] !== '') {
+            $builder->where('gle.txn_date <=', $filters['to']);
+        }
+
         $rows = $builder->get()->getResultArray();
 
         $cards = [
@@ -61,6 +68,8 @@ class ReportController extends BaseController
             'credit_weight' => 0.0,
             'debit_fine' => 0.0,
             'credit_fine' => 0.0,
+            'opening_weight' => $openingWeight,
+            'opening_fine' => $openingFine,
         ];
         foreach ($rows as $row) {
             $cards['debit_weight'] += (float) ($row['debit_weight_gm'] ?? 0);
@@ -68,8 +77,8 @@ class ReportController extends BaseController
             $cards['debit_fine'] += (float) ($row['debit_fine_gm'] ?? 0);
             $cards['credit_fine'] += (float) ($row['credit_fine_gm'] ?? 0);
         }
-        $cards['balance_weight'] = $cards['debit_weight'] - $cards['credit_weight'];
-        $cards['balance_fine'] = $cards['debit_fine'] - $cards['credit_fine'];
+        $cards['balance_weight'] = $cards['opening_weight'] + $cards['debit_weight'] - $cards['credit_weight'];
+        $cards['balance_fine'] = $cards['opening_fine'] + $cards['debit_fine'] - $cards['credit_fine'];
 
         return view('admin/reports/gold_ledger', [
             'title' => 'Gold Ledger Report',
@@ -196,6 +205,7 @@ class ReportController extends BaseController
             'return_pcs' => 0.0,
             'return_cts' => 0.0,
         ];
+        $broughtForward = $this->diamondBroughtForward($filters, $karigarName);
         foreach ($rows as $row) {
             if ((string) ($row['txn_type'] ?? '') === 'Opening') {
                 $cards['opening_cts'] += (float) ($row['carat'] ?? 0);
@@ -212,9 +222,12 @@ class ReportController extends BaseController
                 $cards['return_cts'] += (float) ($row['carat'] ?? 0);
             }
         }
+        $cards['brought_forward_cts'] = $filters['karigar_id'] > 0 || $filters['order_no'] !== ''
+            ? $broughtForward['karigar_cts']
+            : $broughtForward['warehouse_cts'];
         $cards['balance_pcs'] = $cards['issue_pcs'] - $cards['return_pcs'];
-        $cards['balance_cts'] = $cards['issue_cts'] - $cards['return_cts'];
-        $cards['stock_balance_cts'] = $cards['opening_cts'] + $cards['purchase_cts'] + $cards['return_cts'] - $cards['issue_cts'];
+        $cards['balance_cts'] = $broughtForward['karigar_cts'] + $cards['issue_cts'] - $cards['return_cts'];
+        $cards['stock_balance_cts'] = $broughtForward['warehouse_cts'] + $cards['opening_cts'] + $cards['purchase_cts'] + $cards['return_cts'] - $cards['issue_cts'];
 
         return view('admin/reports/diamond_ledger', [
             'title' => 'Diamond Ledger Report',
@@ -1606,6 +1619,57 @@ class ReportController extends BaseController
         }
 
         return $unique;
+    }
+
+    /**
+     * @param array<string,mixed> $filters
+     * @return array{warehouse_cts:float,karigar_cts:float}
+     */
+    private function diamondBroughtForward(array $filters, string $karigarName): array
+    {
+        $from = trim((string) ($filters['from'] ?? ''));
+        if ($from === '') {
+            return ['warehouse_cts' => 0.0, 'karigar_cts' => 0.0];
+        }
+        $db = db_connect();
+        $sumMovement = function (string $direction) use ($db, $filters, $karigarName, $from): float {
+            $isIssue = $direction === 'issue';
+            $headerTable = $isIssue ? 'issue_headers' : 'return_headers';
+            $lineTable = $isIssue ? 'issue_lines' : 'return_lines';
+            $headerAlias = $isIssue ? 'ih' : 'rh';
+            $lineAlias = $isIssue ? 'il' : 'rl';
+            $dateField = $isIssue ? 'issue_date' : 'return_date';
+            if (! $db->tableExists($headerTable) || ! $db->tableExists($lineTable)) return 0.0;
+            $builder = $db->table($headerTable . ' ' . $headerAlias)
+                ->select('COALESCE(SUM(' . $lineAlias . '.carat), 0) AS total', false)
+                ->join($lineTable . ' ' . $lineAlias, $lineAlias . '.' . ($isIssue ? 'issue_id' : 'return_id') . ' = ' . $headerAlias . '.id', 'inner')
+                ->join('orders o', 'o.id = ' . $headerAlias . '.order_id', 'left')
+                ->where($headerAlias . '.' . $dateField . ' <', $from);
+            if ((int) ($filters['karigar_id'] ?? 0) > 0) {
+                $builder->groupStart()->where($headerAlias . '.karigar_id', (int) $filters['karigar_id']);
+                if ($karigarName !== '') {
+                    $builder->orLike($headerAlias . '.' . ($isIssue ? 'issue_to' : 'return_from'), $karigarName);
+                }
+                $builder->groupEnd();
+            }
+            if (trim((string) ($filters['order_no'] ?? '')) !== '') {
+                $builder->like('o.order_no', (string) $filters['order_no']);
+            }
+            return (float) (($builder->get()->getRowArray()['total'] ?? 0));
+        };
+
+        $issued = $sumMovement('issue');
+        $returned = $sumMovement('return');
+        $warehouse = $returned - $issued;
+        if ((int) ($filters['karigar_id'] ?? 0) <= 0 && trim((string) ($filters['order_no'] ?? '')) === '') {
+            if ($db->tableExists('diamond_inventory_opening_balances')) {
+                $warehouse += (float) (($db->table('diamond_inventory_opening_balances')->select('COALESCE(SUM(carat),0) AS total', false)->where('opening_date <', $from)->get()->getRowArray()['total'] ?? 0));
+            }
+            if ($db->tableExists('purchase_headers') && $db->tableExists('purchase_lines')) {
+                $warehouse += (float) (($db->table('purchase_headers ph')->select('COALESCE(SUM(pl.carat),0) AS total', false)->join('purchase_lines pl', 'pl.purchase_id = ph.id', 'inner')->where('ph.purchase_date <', $from)->get()->getRowArray()['total'] ?? 0));
+            }
+        }
+        return ['warehouse_cts' => round($warehouse, 3), 'karigar_cts' => round($issued - $returned, 3)];
     }
 
     /**

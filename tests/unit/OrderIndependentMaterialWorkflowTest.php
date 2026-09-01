@@ -126,8 +126,13 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('name="stone_item_id[]"', $orderDetail);
         $this->assertStringContainsString('js-stone-inventory-select', $orderList);
         $this->assertStringContainsString('js-stone-inventory-select', $orderDetail);
+        $this->assertStringContainsString('js-diamond-balance-select', $orderList);
+        $this->assertStringContainsString('js-diamond-balance-select', $orderDetail);
+        $this->assertStringContainsString("admin_can('orders.receive') && ! empty(\$order['assigned_karigar_id'])", $orderList);
 
         $this->assertStringContainsString('backflushReceivedStone(', $controller);
+        $this->assertStringContainsString('validateReceivedDiamondSelection(', $controller);
+        $this->assertStringContainsString('karigarDiamondOptions(', $controller);
         $this->assertStringContainsString('stoneReceiptShortfall(', $controller);
         $this->assertStringContainsString('applyReceiptBackflushIssue($issueId)', $controller);
         $this->assertStringContainsString("postInventoryHeader('stone', 'issue', \$issueId)", $controller);

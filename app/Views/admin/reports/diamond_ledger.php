@@ -4,8 +4,8 @@
 <div class="row g-3 mb-3">
     <div class="col-md-2">
         <div class="card"><div class="card-body py-2">
-            <small class="text-muted d-block">Opening (cts)</small>
-            <strong><?= number_format((float) ($cards['opening_cts'] ?? 0), 3) ?></strong>
+            <small class="text-muted d-block">Opening / Brought Forward (cts)</small>
+            <strong><?= number_format((float) (($filters['from'] ?? '') !== '' ? ($cards['brought_forward_cts'] ?? 0) : ($cards['opening_cts'] ?? 0)), 3) ?></strong>
         </div></div>
     </div>
     <div class="col-md-2">
@@ -77,7 +77,7 @@
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0">
+            <table class="table datatable table-hover mb-0" data-ledger-table="true" data-dt-page-length="25">
                 <thead>
                     <tr>
                         <th>Date</th>
