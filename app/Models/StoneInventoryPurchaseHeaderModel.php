@@ -13,9 +13,15 @@ class StoneInventoryPurchaseHeaderModel extends Model
         'purchase_date',
         'vendor_id',
         'supplier_name',
+        'supplier_address',
+        'supplier_gstin',
+        'supplier_phone',
+        'supplier_email',
         'invoice_no',
         'due_date',
         'tax_percentage',
+        'taxable_amount',
+        'gst_amount',
         'invoice_total',
         'notes',
     ];
@@ -23,4 +29,3 @@ class StoneInventoryPurchaseHeaderModel extends Model
     protected $useTimestamps = true;
     protected $dateFormat = 'datetime';
 }
-

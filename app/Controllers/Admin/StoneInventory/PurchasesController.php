@@ -102,9 +102,15 @@ class PurchasesController extends BaseController
                 'purchase_date' => (string) $this->request->getPost('purchase_date'),
                 'vendor_id' => $vendorId,
                 'supplier_name' => (string) ($vendor['name'] ?? ''),
+                'supplier_address' => $vendor['address'] ?? null,
+                'supplier_gstin' => $vendor['gstin'] ?? null,
+                'supplier_phone' => $vendor['phone'] ?? null,
+                'supplier_email' => $vendor['email'] ?? null,
                 'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
                 'due_date' => trim((string) $this->request->getPost('due_date')) ?: null,
                 'tax_percentage' => $taxPercentage,
+                'taxable_amount' => $totals['subtotal'],
+                'gst_amount' => $totals['tax_value'],
                 'invoice_total' => $totals['invoice_total'],
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
             ], true);
@@ -216,9 +222,15 @@ class PurchasesController extends BaseController
                 'purchase_date' => (string) $this->request->getPost('purchase_date'),
                 'vendor_id' => $vendorId,
                 'supplier_name' => (string) ($vendor['name'] ?? ''),
+                'supplier_address' => $vendor['address'] ?? null,
+                'supplier_gstin' => $vendor['gstin'] ?? null,
+                'supplier_phone' => $vendor['phone'] ?? null,
+                'supplier_email' => $vendor['email'] ?? null,
                 'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
                 'due_date' => trim((string) $this->request->getPost('due_date')) ?: null,
                 'tax_percentage' => $taxPercentage,
+                'taxable_amount' => $totals['subtotal'],
+                'gst_amount' => $totals['tax_value'],
                 'invoice_total' => $totals['invoice_total'],
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
             ]);
@@ -522,4 +534,3 @@ class PurchasesController extends BaseController
         $this->attachmentModel->where('purchase_id', $purchaseId)->delete();
     }
 }
-

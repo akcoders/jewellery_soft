@@ -92,16 +92,22 @@ $locationId = old('location_id', (string) ($purchase['location_id'] ?? ''));
             </div>
             <div class="col-md-4">
                 <label class="form-label">Vendor</label>
-                <select name="vendor_id" class="form-select">
+                <select name="vendor_id" id="vendor_id" class="form-select select2">
                     <option value="">Select vendor</option>
                     <?php foreach (($vendors ?? []) as $vendor): ?>
-                        <option value="<?= (int) $vendor['id'] ?>" <?= (string) $vendorId === (string) $vendor['id'] ? 'selected' : '' ?>><?= esc((string) $vendor['name']) ?></option>
+                        <option value="<?= (int) $vendor['id'] ?>"
+                            data-name="<?= esc((string) ($vendor['name'] ?? '')) ?>"
+                            data-address="<?= esc((string) ($vendor['address'] ?? '')) ?>"
+                            data-gstin="<?= esc((string) ($vendor['gstin'] ?? '')) ?>"
+                            data-phone="<?= esc((string) ($vendor['phone'] ?? '')) ?>"
+                            data-email="<?= esc((string) ($vendor['email'] ?? '')) ?>"
+                            <?= (string) $vendorId === (string) $vendor['id'] ? 'selected' : '' ?>><?= esc((string) $vendor['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Supplier Name</label>
-                <input type="text" name="supplier_name" class="form-control" value="<?= esc((string) $supplierName) ?>">
+                <input type="text" name="supplier_name" id="supplier_name" class="form-control" value="<?= esc((string) $supplierName) ?>">
             </div>
             <div class="col-md-3">
                 <label class="form-label">Invoice No</label>
@@ -120,11 +126,11 @@ $locationId = old('location_id', (string) ($purchase['location_id'] ?? ''));
             </div>
             <div class="col-md-8">
                 <label class="form-label">Supplier Address</label>
-                <input type="text" name="supplier_address" class="form-control" value="<?= esc((string) $supplierAddress) ?>">
+                <input type="text" name="supplier_address" id="supplier_address" class="form-control" value="<?= esc((string) $supplierAddress) ?>">
             </div>
-            <div class="col-md-3"><label class="form-label">Supplier GSTIN</label><input type="text" name="supplier_gstin" class="form-control" value="<?= esc((string) $supplierGstin) ?>"></div>
-            <div class="col-md-3"><label class="form-label">Supplier Phone</label><input type="text" name="supplier_phone" class="form-control" value="<?= esc((string) $supplierPhone) ?>"></div>
-            <div class="col-md-3"><label class="form-label">Supplier Email</label><input type="email" name="supplier_email" class="form-control" value="<?= esc((string) $supplierEmail) ?>"></div>
+            <div class="col-md-3"><label class="form-label">Supplier GSTIN</label><input type="text" name="supplier_gstin" id="supplier_gstin" class="form-control" value="<?= esc((string) $supplierGstin) ?>"></div>
+            <div class="col-md-3"><label class="form-label">Supplier Phone</label><input type="text" name="supplier_phone" id="supplier_phone" class="form-control" value="<?= esc((string) $supplierPhone) ?>"></div>
+            <div class="col-md-3"><label class="form-label">Supplier Email</label><input type="email" name="supplier_email" id="supplier_email" class="form-control" value="<?= esc((string) $supplierEmail) ?>"></div>
             <div class="col-md-3"><label class="form-label">Due Date</label><input type="date" name="due_date" class="form-control" value="<?= esc((string) $dueDate) ?>"></div>
             <div class="col-md-4"><label class="form-label">Place of Supply</label><input type="text" name="place_of_supply" class="form-control" value="<?= esc((string) $placeOfSupply) ?>"></div>
             <div class="col-md-8"><label class="form-label">Purchase Description</label><input type="text" name="purchase_description" class="form-control" value="<?= esc((string) $purchaseDescription) ?>"></div>
@@ -132,26 +138,6 @@ $locationId = old('location_id', (string) ($purchase['location_id'] ?? ''));
                 <label class="form-label">Notes</label>
                 <input type="text" name="notes" class="form-control" value="<?= esc((string) $notes) ?>">
             </div>
-        </div>
-    </div>
-</div>
-
-<div class="card mb-3">
-    <div class="card-header"><h6 class="mb-0">Tax & Payment Details</h6></div>
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-3"><label class="form-label">Taxable Amount</label><input type="number" step="0.01" min="0" name="taxable_amount" class="form-control" value="<?= esc((string) $taxableAmount) ?>"></div>
-            <div class="col-md-2"><label class="form-label">CGST %</label><input type="number" step="0.001" min="0" name="cgst_rate" class="form-control" value="<?= esc((string) $cgstRate) ?>"></div>
-            <div class="col-md-2"><label class="form-label">CGST Amount</label><input type="number" step="0.01" min="0" name="cgst_amount" class="form-control" value="<?= esc((string) $cgstAmount) ?>"></div>
-            <div class="col-md-2"><label class="form-label">SGST %</label><input type="number" step="0.001" min="0" name="sgst_rate" class="form-control" value="<?= esc((string) $sgstRate) ?>"></div>
-            <div class="col-md-3"><label class="form-label">SGST Amount</label><input type="number" step="0.01" min="0" name="sgst_amount" class="form-control" value="<?= esc((string) $sgstAmount) ?>"></div>
-            <div class="col-md-2"><label class="form-label">IGST %</label><input type="number" step="0.001" min="0" name="igst_rate" class="form-control" value="<?= esc((string) $igstRate) ?>"></div>
-            <div class="col-md-2"><label class="form-label">IGST Amount</label><input type="number" step="0.01" min="0" name="igst_amount" class="form-control" value="<?= esc((string) $igstAmount) ?>"></div>
-            <div class="col-md-2"><label class="form-label">Round Off</label><input type="number" step="0.01" name="round_off_amount" class="form-control" value="<?= esc((string) $roundOff) ?>"></div>
-            <div class="col-md-3"><label class="form-label">Invoice Total</label><input type="number" step="0.01" min="0" name="invoice_total" class="form-control" value="<?= esc((string) $invoiceTotal) ?>"></div>
-            <div class="col-md-3"><label class="form-label">Payment Status</label><select name="payment_status" class="form-select"><?php foreach (['Pending', 'Partial', 'Paid'] as $status): ?><option value="<?= $status ?>" <?= $paymentStatus === $status ? 'selected' : '' ?>><?= $status ?></option><?php endforeach; ?></select></div>
-            <div class="col-md-3"><label class="form-label">Paid Amount</label><input type="number" step="0.01" min="0" name="paid_amount" class="form-control" value="<?= esc((string) $paidAmount) ?>"></div>
-            <div class="col-md-3"><label class="form-label">Payment Date</label><input type="date" name="payment_date" class="form-control" value="<?= esc((string) $paymentDate) ?>"></div>
         </div>
     </div>
 </div>
@@ -239,6 +225,26 @@ $locationId = old('location_id', (string) ($purchase['location_id'] ?? ''));
     </div>
 </div>
 
+<div class="card mb-3">
+    <div class="card-header"><h6 class="mb-0">Tax & Payment Information</h6></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3"><label class="form-label">Taxable Amount</label><input type="number" step="0.01" min="0" name="taxable_amount" id="taxable_amount" class="form-control" readonly value="<?= esc((string) $taxableAmount) ?>"></div>
+            <div class="col-md-2"><label class="form-label">CGST %</label><input type="number" step="0.001" min="0" name="cgst_rate" id="cgst_rate" class="form-control" value="<?= esc((string) $cgstRate) ?>"></div>
+            <div class="col-md-2"><label class="form-label">CGST Amount</label><input type="number" step="0.01" min="0" name="cgst_amount" id="cgst_amount" class="form-control" readonly value="<?= esc((string) $cgstAmount) ?>"></div>
+            <div class="col-md-2"><label class="form-label">SGST %</label><input type="number" step="0.001" min="0" name="sgst_rate" id="sgst_rate" class="form-control" value="<?= esc((string) $sgstRate) ?>"></div>
+            <div class="col-md-3"><label class="form-label">SGST Amount</label><input type="number" step="0.01" min="0" name="sgst_amount" id="sgst_amount" class="form-control" readonly value="<?= esc((string) $sgstAmount) ?>"></div>
+            <div class="col-md-2"><label class="form-label">IGST %</label><input type="number" step="0.001" min="0" name="igst_rate" id="igst_rate" class="form-control" value="<?= esc((string) $igstRate) ?>"></div>
+            <div class="col-md-2"><label class="form-label">IGST Amount</label><input type="number" step="0.01" min="0" name="igst_amount" id="igst_amount" class="form-control" readonly value="<?= esc((string) $igstAmount) ?>"></div>
+            <div class="col-md-2"><label class="form-label">Round Off</label><input type="number" step="0.01" name="round_off_amount" id="round_off_amount" class="form-control" value="<?= esc((string) $roundOff) ?>"></div>
+            <div class="col-md-3"><label class="form-label">Invoice Total</label><input type="number" step="0.01" min="0" name="invoice_total" id="invoice_total" class="form-control fw-semibold" readonly value="<?= esc((string) $invoiceTotal) ?>"></div>
+            <div class="col-md-3"><label class="form-label">Payment Status</label><select name="payment_status" class="form-select"><?php foreach (['Pending', 'Partial', 'Paid'] as $status): ?><option value="<?= $status ?>" <?= $paymentStatus === $status ? 'selected' : '' ?>><?= $status ?></option><?php endforeach; ?></select></div>
+            <div class="col-md-3"><label class="form-label">Paid Amount</label><input type="number" step="0.01" min="0" name="paid_amount" class="form-control" value="<?= esc((string) $paidAmount) ?>"></div>
+            <div class="col-md-3"><label class="form-label">Payment Date</label><input type="date" name="payment_date" class="form-control" value="<?= esc((string) $paymentDate) ?>"></div>
+        </div>
+    </div>
+</div>
+
 <div class="mb-4">
     <button type="submit" class="btn btn-primary">Save Purchase</button>
 </div>
@@ -314,6 +320,34 @@ $locationId = old('location_id', (string) ($purchase['location_id'] ?? ''));
             if (fineOutput) {
                 fineOutput.value = purityPercent > 0 ? (weight * purityPercent / 100).toFixed(3) : '';
             }
+            recalcTotals();
+        }
+
+        function numberValue(id) {
+            const element = document.getElementById(id);
+            return Math.max(0, parseFloat((element || {}).value || '0') || 0);
+        }
+
+        function recalcTotals() {
+            let taxable = 0;
+            body.querySelectorAll('tr').forEach(function(row) {
+                const weight = parseFloat((row.querySelector('.line-weight') || {}).value || '0') || 0;
+                const rate = parseFloat((row.querySelector('.line-rate') || {}).value || '0') || 0;
+                taxable += weight * rate;
+            });
+
+            const cgst = taxable * numberValue('cgst_rate') / 100;
+            const sgst = taxable * numberValue('sgst_rate') / 100;
+            const igst = taxable * numberValue('igst_rate') / 100;
+            const roundOffElement = document.getElementById('round_off_amount');
+            const roundOff = parseFloat((roundOffElement || {}).value || '0') || 0;
+            const invoiceTotal = taxable + cgst + sgst + igst + roundOff;
+
+            document.getElementById('taxable_amount').value = taxable.toFixed(2);
+            document.getElementById('cgst_amount').value = cgst.toFixed(2);
+            document.getElementById('sgst_amount').value = sgst.toFixed(2);
+            document.getElementById('igst_amount').value = igst.toFixed(2);
+            document.getElementById('invoice_total').value = Math.max(0, invoiceTotal).toFixed(2);
         }
 
         function bindRow(row) {
@@ -362,6 +396,7 @@ $locationId = old('location_id', (string) ($purchase['location_id'] ?? ''));
                         return;
                     }
                     row.remove();
+                    recalcTotals();
                 });
             }
 
@@ -376,5 +411,31 @@ $locationId = old('location_id', (string) ($purchase['location_id'] ?? ''));
         });
 
         body.querySelectorAll('tr').forEach(function(row) { bindRow(row); });
+
+        ['cgst_rate', 'sgst_rate', 'igst_rate', 'round_off_amount'].forEach(function(id) {
+            const element = document.getElementById(id);
+            if (element) element.addEventListener('input', recalcTotals);
+        });
+
+        const vendorSelect = document.getElementById('vendor_id');
+        function fillVendorDetails() {
+            const selected = vendorSelect ? vendorSelect.options[vendorSelect.selectedIndex] : null;
+            const fields = {
+                supplier_name: 'name',
+                supplier_address: 'address',
+                supplier_gstin: 'gstin',
+                supplier_phone: 'phone',
+                supplier_email: 'email'
+            };
+            Object.keys(fields).forEach(function(id) {
+                const input = document.getElementById(id);
+                if (input) input.value = selected && selected.value ? (selected.getAttribute('data-' + fields[id]) || '') : '';
+            });
+        }
+        if (vendorSelect) vendorSelect.addEventListener('change', fillVendorDetails);
+        if (typeof jQuery !== 'undefined' && typeof jQuery.fn.select2 !== 'undefined') {
+            jQuery('#vendor_id').select2({ width: '100%' });
+        }
+        recalcTotals();
     })();
 </script>

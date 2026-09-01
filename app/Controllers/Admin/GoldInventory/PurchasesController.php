@@ -388,11 +388,11 @@ class PurchasesController extends BaseController
             'due_date' => 'permit_empty|valid_date',
             'place_of_supply' => 'permit_empty|max_length[100]',
             'taxable_amount' => 'permit_empty|decimal',
-            'cgst_rate' => 'permit_empty|decimal',
+            'cgst_rate' => 'permit_empty|decimal|greater_than_equal_to[0]|less_than_equal_to[100]',
             'cgst_amount' => 'permit_empty|decimal',
-            'sgst_rate' => 'permit_empty|decimal',
+            'sgst_rate' => 'permit_empty|decimal|greater_than_equal_to[0]|less_than_equal_to[100]',
             'sgst_amount' => 'permit_empty|decimal',
-            'igst_rate' => 'permit_empty|decimal',
+            'igst_rate' => 'permit_empty|decimal|greater_than_equal_to[0]|less_than_equal_to[100]',
             'igst_amount' => 'permit_empty|decimal',
             'round_off_amount' => 'permit_empty|decimal',
             'invoice_total' => 'permit_empty|decimal',
@@ -461,18 +461,15 @@ class PurchasesController extends BaseController
     {
         $vendorId = (int) $this->request->getPost('vendor_id');
         $vendor = $vendorId > 0 ? $this->vendorModel->find($vendorId) : null;
-        $taxable = $this->decimalPost('taxable_amount');
-        if ($taxable <= 0) {
-            $taxable = round(array_sum(array_column($lines, 'line_value')), 2);
-        }
-        $cgst = $this->decimalPost('cgst_amount');
-        $sgst = $this->decimalPost('sgst_amount');
-        $igst = $this->decimalPost('igst_amount');
+        $taxable = round(array_sum(array_column($lines, 'line_value')), 2);
+        $cgstRate = $this->nullableDecimalPost('cgst_rate');
+        $sgstRate = $this->nullableDecimalPost('sgst_rate');
+        $igstRate = $this->nullableDecimalPost('igst_rate');
+        $cgst = round($taxable * max(0, min(100, (float) $cgstRate)) / 100, 2);
+        $sgst = round($taxable * max(0, min(100, (float) $sgstRate)) / 100, 2);
+        $igst = round($taxable * max(0, min(100, (float) $igstRate)) / 100, 2);
         $roundOff = $this->decimalPost('round_off_amount');
-        $invoiceTotal = $this->decimalPost('invoice_total');
-        if ($invoiceTotal <= 0) {
-            $invoiceTotal = round($taxable + $cgst + $sgst + $igst + $roundOff, 2);
-        }
+        $invoiceTotal = max(0, round($taxable + $cgst + $sgst + $igst + $roundOff, 2));
         $status = trim((string) $this->request->getPost('payment_status')) ?: 'Pending';
         $paid = max(0, $this->decimalPost('paid_amount'));
         if ($status === 'Paid' && $paid <= 0) {
@@ -502,11 +499,11 @@ class PurchasesController extends BaseController
             'place_of_supply' => trim((string) $this->request->getPost('place_of_supply')) ?: null,
             'purchase_description' => trim((string) $this->request->getPost('purchase_description')) ?: null,
             'taxable_amount' => $taxable,
-            'cgst_rate' => $this->nullableDecimalPost('cgst_rate'),
+            'cgst_rate' => $cgstRate,
             'cgst_amount' => $cgst,
-            'sgst_rate' => $this->nullableDecimalPost('sgst_rate'),
+            'sgst_rate' => $sgstRate,
             'sgst_amount' => $sgst,
-            'igst_rate' => $this->nullableDecimalPost('igst_rate'),
+            'igst_rate' => $igstRate,
             'igst_amount' => $igst,
             'gst_amount' => round($cgst + $sgst + $igst, 2),
             'round_off_amount' => $roundOff,

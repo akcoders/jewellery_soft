@@ -22,9 +22,13 @@
             <div class="col-md-3"><strong>Supplier:</strong> <?= esc((string) ($purchase['vendor_name'] ?: $purchase['supplier_name'] ?: '-')) ?></div>
             <div class="col-md-3"><strong>Invoice:</strong> <?= esc((string) ($purchase['invoice_no'] ?: '-')) ?></div>
             <div class="col-md-3"><strong>Due Date:</strong> <?= esc((string) ($purchase['due_date'] ?: '-')) ?></div>
-            <div class="col-md-3"><strong>Total Qty:</strong> <?= number_format((float) ($totals['total_qty'] ?? 0), 3) ?></div>
-            <div class="col-md-3 mt-2"><strong>Subtotal:</strong> <?= number_format((float) ($totals['total_value'] ?? 0), 2) ?></div>
+            <div class="col-md-3 mt-2"><strong>GSTIN:</strong> <?= esc((string) ($purchase['supplier_gstin'] ?? '-')) ?></div>
+            <div class="col-md-5 mt-2"><strong>Address:</strong> <?= esc((string) ($purchase['supplier_address'] ?? '-')) ?></div>
+            <div class="col-md-4 mt-2"><strong>Contact:</strong> <?= esc(trim((string) ($purchase['supplier_phone'] ?? '') . ' ' . (string) ($purchase['supplier_email'] ?? '')) ?: '-') ?></div>
+            <div class="col-md-3 mt-2"><strong>Total Qty:</strong> <?= number_format((float) ($totals['total_qty'] ?? 0), 3) ?></div>
+            <div class="col-md-3 mt-2"><strong>Taxable:</strong> <?= number_format((float) ($purchase['taxable_amount'] ?? $totals['total_value'] ?? 0), 2) ?></div>
             <div class="col-md-3 mt-2"><strong>Tax %:</strong> <?= number_format((float) ($purchase['tax_percentage'] ?? 0), 3) ?></div>
+            <div class="col-md-3 mt-2"><strong>GST Amount:</strong> <?= number_format((float) ($purchase['gst_amount'] ?? 0), 2) ?></div>
             <div class="col-md-3 mt-2"><strong>Invoice Total:</strong> <?= number_format((float) ($purchase['invoice_total'] ?? $totals['total_value'] ?? 0), 2) ?></div>
             <div class="col-md-6 mt-2"><strong>Notes:</strong> <?= esc((string) ($purchase['notes'] ?: '-')) ?></div>
         </div>
