@@ -3,6 +3,7 @@
 namespace App\Controllers\Api\Mobile;
 
 use App\Services\MobileNotificationEventService;
+use App\Services\StaffPerformanceService;
 use Config\Jewellery;
 use Throwable;
 
@@ -10,11 +11,13 @@ class OrdersController extends MobileBaseController
 {
     private Jewellery $jewelleryConfig;
     private MobileNotificationEventService $mobileNotificationEvents;
+    private StaffPerformanceService $staffPerformanceService;
 
     public function __construct()
     {
         $this->jewelleryConfig = config(Jewellery::class);
         $this->mobileNotificationEvents = new MobileNotificationEventService();
+        $this->staffPerformanceService = new StaffPerformanceService();
     }
 
     public function index()
@@ -32,9 +35,10 @@ class OrdersController extends MobileBaseController
         $offset = ($page - 1) * $limit;
 
         $builder = $db->table('orders o')
-            ->select('o.id, o.order_no, o.status, o.priority, o.due_date, o.order_type, o.created_at, c.name as customer_name, k.name as karigar_name')
+            ->select('o.id, o.order_no, o.status, o.priority, o.due_date, o.order_type, o.created_at, o.followup_assigned_to, o.followup_due_at, c.name as customer_name, k.name as karigar_name, follower.name as follower_name')
             ->join('customers c', 'c.id = o.customer_id', 'left')
-            ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left');
+            ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
+            ->join('admin_users follower', 'follower.id = o.followup_assigned_to', 'left');
 
         if ($status !== '') {
             $builder->where('o.status', $status);
@@ -44,6 +48,7 @@ class OrdersController extends MobileBaseController
                 ->like('o.order_no', $search)
                 ->orLike('c.name', $search)
                 ->orLike('k.name', $search)
+                ->orLike('follower.name', $search)
                 ->groupEnd();
         }
 
@@ -73,9 +78,10 @@ class OrdersController extends MobileBaseController
 
         $db = db_connect();
         $order = $db->table('orders o')
-            ->select('o.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, k.name as karigar_name, k.phone as karigar_phone')
+            ->select('o.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, k.name as karigar_name, k.phone as karigar_phone, follower.name as follower_name')
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
+            ->join('admin_users follower', 'follower.id = o.followup_assigned_to', 'left')
             ->where('o.id', $id)
             ->get()
             ->getRowArray();
@@ -149,6 +155,19 @@ class OrdersController extends MobileBaseController
         if (in_array($currentStatus, ['Cancelled', 'Completed', 'Complete', 'Ready', 'Packed', 'Delivered', 'Dispatched'], true)) {
             return $this->fail('Followup not allowed for this order status.', 422);
         }
+        $assignedFollowerId = (int) ($order['followup_assigned_to'] ?? 0);
+        $currentUserId = (int) ($this->mobileAdmin['id'] ?? 0);
+        if ($assignedFollowerId <= 0) {
+            return $this->fail('This order does not have an assigned follower yet.', 422);
+        }
+        if ($assignedFollowerId !== $currentUserId) {
+            return $this->fail('Only the assigned order follower can submit this follow-up.', 403);
+        }
+
+        $terminalStage = in_array($stage, ['Ready', 'Packed', 'Dispatched', 'Completed', 'Cancelled'], true);
+        if (! $terminalStage && $nextFollowupDate === '') {
+            return $this->fail('next_followup_date is required while the order remains open.', 422);
+        }
 
         $imageName = null;
         $imagePath = null;
@@ -165,10 +184,13 @@ class OrdersController extends MobileBaseController
         $nextFollowupDateTime = null;
         if ($nextFollowupDate !== '') {
             $ts = strtotime($nextFollowupDate);
-            if ($ts === false) {
-                return $this->fail('Invalid next_followup_date format.', 422);
+            if ($ts === false || $ts <= time()) {
+                return $this->fail('next_followup_date must be a future date and time.', 422);
             }
             $nextFollowupDateTime = date('Y-m-d H:i:s', $ts);
+        }
+        if ($terminalStage) {
+            $nextFollowupDateTime = null;
         }
 
         $push = ['queued' => false, 'message' => 'No followup notification queued.'];
@@ -209,6 +231,13 @@ class OrdersController extends MobileBaseController
                     'updated_at' => date('Y-m-d H:i:s'),
                 ]);
             }
+
+            $this->staffPerformanceService->completeOrderFollowup(
+                $id,
+                $followupId,
+                (int) ($this->mobileAdmin['id'] ?? 0),
+                $nextFollowupDateTime
+            );
 
             $db->transComplete();
         } catch (Throwable $e) {
@@ -286,7 +315,7 @@ class OrdersController extends MobileBaseController
             $order['last_followup_stage'] = (string) ($latest['stage'] ?? '-');
             $order['last_followup_on'] = (string) ($latest['followup_taken_on'] ?? '');
             $order['last_followup_by'] = (string) ($latest['followup_taken_by_name'] ?? '');
-            $order['next_followup_date'] = (string) ($latest['next_followup_date'] ?? '');
+            $order['next_followup_date'] = (string) (($order['followup_due_at'] ?? '') ?: ($latest['next_followup_date'] ?? ''));
         }
         unset($order);
 

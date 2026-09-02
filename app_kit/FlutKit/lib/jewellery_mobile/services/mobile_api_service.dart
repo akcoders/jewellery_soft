@@ -119,24 +119,24 @@ class MobileApiService {
     return (res['data'] as List?) ?? <dynamic>[];
   }
 
-  Future<Map<String, dynamic>> createTask({
-    required String title,
-    required String note,
-    required String scheduledAt,
+  Future<Map<String, dynamic>> completeTask({
+    required int id,
+    required String proofBase64,
+    required String proofNote,
   }) async {
     final res = await _post(
-      '/api/mobile/tasks',
-      body: {
-        'title': title.trim(),
-        'note': note.trim(),
-        'scheduled_at': scheduledAt.trim(),
-      },
+      '/api/mobile/tasks/$id/complete',
+      body: {'proof_base64': proofBase64, 'proof_note': proofNote.trim()},
     );
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
-  Future<void> deleteTask(int id) async {
-    await _post('/api/mobile/tasks/$id/delete', body: const {});
+  Future<Map<String, dynamic>> fetchPerformance({int? year, int? month}) async {
+    final query = <String, String>{};
+    if (year != null) query['year'] = '$year';
+    if (month != null) query['month'] = '$month';
+    final res = await _get('/api/mobile/performance', query: query);
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
   Future<List<dynamic>> fetchNotifications() async {

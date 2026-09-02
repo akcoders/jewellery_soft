@@ -65,38 +65,6 @@ class AuthController extends BaseController
         return $response;
     }
 
-    public function register(): string
-    {
-        return view('admin/auth/register', [
-            'assetBase' => $this->assetBase(),
-            'error'     => session('error'),
-            'success'   => session('success'),
-        ]);
-    }
-
-    public function storeUser(): RedirectResponse
-    {
-        $rules = [
-            'name'             => 'required|min_length[3]|max_length[150]',
-            'email'            => 'required|valid_email|is_unique[admin_users.email]',
-            'password'         => 'required|min_length[6]|max_length[64]',
-            'password_confirm' => 'required|matches[password]',
-        ];
-
-        if (! $this->validate($rules)) {
-            return redirect()->back()->withInput()->with('error', $this->firstValidationError());
-        }
-
-        $this->adminUsers->insert([
-            'name'          => trim((string) $this->request->getPost('name')),
-            'email'         => strtolower(trim((string) $this->request->getPost('email'))),
-            'password_hash' => password_hash((string) $this->request->getPost('password'), PASSWORD_DEFAULT),
-            'is_active'     => 1,
-        ]);
-
-        return redirect()->to(site_url('admin/login'))->with('success', 'Account created. Please login.');
-    }
-
     public function dashboard(): string
     {
         return view('admin/dashboard', [

@@ -1,5 +1,6 @@
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
+import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_section_title.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_status_badge.dart';
@@ -276,6 +277,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  _infoCard(
+                    title: 'Order Follower',
+                    value: _order['follower_name'] ?? 'Not Assigned',
+                    subtitle: _order['followup_due_at'] == null
+                        ? 'No follow-up deadline'
+                        : 'Due ${AppFormatters.dateTime(_order['followup_due_at'])}',
+                    icon: Icons.follow_the_signs_outlined,
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   if (imageUrl.isNotEmpty) ...[

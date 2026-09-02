@@ -168,6 +168,8 @@ $statusClass = match ($status) {
                         ['Assigned Karigar', ($order['karigar_name'] ?? '') ?: 'Not assigned', 'fe fe-tool'],
                         ['Sales Person', ($order['sales_person_name'] ?? '') ?: '-', 'fe fe-briefcase'],
                         ['Sales Mobile', ($order['sales_person_mobile'] ?? '') ?: '-', 'fe fe-phone'],
+                        ['Order Follower', ($order['follower_name'] ?? '') ?: 'Not assigned', 'fe fe-user-check'],
+                        ['Next Follow-up Due', $formatDate((string) ($order['followup_due_at'] ?? '')), 'fe fe-clock'],
                         ['Due Date', $formatDate((string) ($order['due_date'] ?? '')), 'fe fe-calendar'],
                         ['Order Type', ($order['order_type'] ?? '') ?: '-', 'fe fe-shopping-bag'],
                         ['Design Type', ($order['order_design_type'] ?? '') ?: 'Fresh', 'fe fe-repeat'],

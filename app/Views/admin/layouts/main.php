@@ -32,9 +32,7 @@ $isShowroomSales = $segment2 === 'showroom-sales';
 $isShowroomModule = $isShowrooms || $isShowroomCounters || $isShowroomStaff || $isShowroomStock || $isJewelleryInventory || $isShowroomSales;
 $isPerformance = $segment2 === 'performance';
 $isPerformanceDashboard = $isPerformance && ($segment3 === 'dashboard' || $segment3 === '');
-$isPerformanceKpis = $isPerformance && $segment3 === 'kpis';
-$isPerformanceTargets = $isPerformance && $segment3 === 'targets';
-$isPerformanceIncentives = $isPerformance && $segment3 === 'incentives';
+$isPerformanceTasks = $isPerformance && $segment3 === 'tasks';
 $isAccess = $segment2 === 'access';
 $isAccessRoles = $isAccess && $segment3 === 'roles';
 $isAccessPermissions = $isAccess && $segment3 === 'permissions';
@@ -114,7 +112,7 @@ $canStaffHierarchy = admin_can_any(['organization.departments.read', 'organizati
 $canShowroomMasters = admin_can('showroom.masters.read');
 $canShowroomStock = admin_can('showroom.stock.read');
 $canShowroomSales = admin_can('showroom.sales.read');
-$canPerformance = admin_can_any(['performance.dashboard.read', 'performance.kpis.read', 'performance.targets.read', 'performance.incentives.read']);
+$canPerformance = admin_can_any(['performance.dashboard.read', 'performance.tasks.read']);
 $canVendors = admin_can('masters.vendors.read');
 $canCompanySettings = admin_can_any(['company-settings.read', 'company-settings.manage']);
 $canInventorySettings = admin_can('inventory.settings.read');
@@ -1761,10 +1759,8 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                         <li class="submenu <?= $isPerformance ? 'active' : '' ?>">
                             <a href="javascript:void(0);"><i class="fe fe-trending-up"></i> <span>Performance</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isPerformance ? 'display:block;' : 'display:none;' ?>">
-                                <?php if (admin_can('performance.dashboard.read')): ?><li><a class="<?= $isPerformanceDashboard ? 'active' : '' ?>" href="<?= site_url('admin/performance/dashboard') ?>"><i class="fe fe-bar-chart-2"></i> KPI Dashboard</a></li><?php endif; ?>
-                                <?php if (admin_can('performance.kpis.read')): ?><li><a class="<?= $isPerformanceKpis ? 'active' : '' ?>" href="<?= site_url('admin/performance/kpis') ?>"><i class="fe fe-activity"></i> KPI Master</a></li><?php endif; ?>
-                                <?php if (admin_can('performance.targets.read')): ?><li><a class="<?= $isPerformanceTargets ? 'active' : '' ?>" href="<?= site_url('admin/performance/targets') ?>"><i class="fe fe-target"></i> KPI Targets</a></li><?php endif; ?>
-                                <?php if (admin_can('performance.incentives.read')): ?><li><a class="<?= $isPerformanceIncentives ? 'active' : '' ?>" href="<?= site_url('admin/performance/incentives') ?>"><i class="fe fe-award"></i> Incentive Rules</a></li><?php endif; ?>
+                                <?php if (admin_can('performance.dashboard.read')): ?><li><a class="<?= $isPerformanceDashboard ? 'active' : '' ?>" href="<?= site_url('admin/performance/dashboard') ?>"><i class="fe fe-bar-chart-2"></i> Staff Performance</a></li><?php endif; ?>
+                                <?php if (admin_can('performance.tasks.read')): ?><li><a class="<?= $isPerformanceTasks ? 'active' : '' ?>" href="<?= site_url('admin/performance/tasks') ?>"><i class="fe fe-check-square"></i> Staff Tasks</a></li><?php endif; ?>
                             </ul>
                         </li>
                         <?php endif; ?>

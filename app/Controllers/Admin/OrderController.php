@@ -35,6 +35,7 @@ use App\Services\KarigarMaterialAccountingService;
 use App\Services\MobileNotificationEventService;
 use App\Services\OrderWhatsAppService;
 use App\Services\PdfService;
+use App\Services\StaffPerformanceService;
 use App\Services\StoneInventory\StockService as StoneInventoryStockService;
 use Config\Jewellery;
 use Exception;
@@ -70,6 +71,7 @@ class OrderController extends BaseController
     private FinishedJewelleryService $finishedJewelleryService;
     private OrderWhatsAppService $orderWhatsAppService;
     private MobileNotificationEventService $mobileNotificationEvents;
+    private StaffPerformanceService $staffPerformanceService;
     private PdfService $pdfService;
     private Jewellery $jewelleryConfig;
 
@@ -104,6 +106,7 @@ class OrderController extends BaseController
         $this->finishedJewelleryService = new FinishedJewelleryService();
         $this->orderWhatsAppService = new OrderWhatsAppService();
         $this->mobileNotificationEvents = new MobileNotificationEventService();
+        $this->staffPerformanceService = new StaffPerformanceService();
         $this->pdfService = new PdfService();
         $this->jewelleryConfig = config(Jewellery::class);
     }
@@ -118,9 +121,10 @@ class OrderController extends BaseController
         $this->syncCompletedOrdersFromReceive();
 
         $orders = $this->orderModel
-            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name')
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, follower.name as follower_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
+            ->join('admin_users follower', 'follower.id = orders.followup_assigned_to', 'left')
             ->orderBy('orders.id', 'DESC')
             ->findAll();
 
@@ -436,14 +440,14 @@ class OrderController extends BaseController
             $order['last_followup_stage'] = (string) ($latest['stage'] ?? '-');
             $order['last_followup_on'] = (string) ($latest['followup_taken_on'] ?? '-');
             $order['last_followup_by'] = (string) ($latest['taken_by_name'] ?? '-');
-            $order['next_followup_date'] = (string) ($latest['next_followup_date'] ?? '');
+            $order['next_followup_date'] = (string) (($order['followup_due_at'] ?? '') ?: ($latest['next_followup_date'] ?? ''));
 
             $statusLabel = 'Followup Pending';
             $statusClass = 'warning';
             $daysText = 'Not Set';
 
-            if ($latest && ! empty($latest['next_followup_date'])) {
-                $nextTs = strtotime((string) $latest['next_followup_date']);
+            if ($order['next_followup_date'] !== '') {
+                $nextTs = strtotime((string) $order['next_followup_date']);
                 if ($nextTs !== false) {
                     $diffDays = (int) floor(($nextTs - $today) / 86400);
                     if ($diffDays < 0) {
@@ -548,6 +552,7 @@ class OrderController extends BaseController
             'designs'     => $this->designModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'goldPurities'=> $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
             'salesPeople' => (new CustomerUserModel())->select('id, customer_id, name, mobile')->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'staffFollowers' => $this->staffPerformanceService->staffOptions(),
             'priorities'  => $this->jewelleryConfig->orderPriorities,
             'statuses'    => $this->jewelleryConfig->orderStatuses,
             'repairMode'  => $repairMode,
@@ -574,6 +579,8 @@ class OrderController extends BaseController
             'expected_diamond_spec' => 'permit_empty',
             'expected_stone_spec' => 'permit_empty',
             'priority_level' => 'permit_empty|integer',
+            'followup_assigned_to' => 'required|integer|greater_than[0]',
+            'followup_due_at' => 'required|valid_date',
         ];
         if ($isRepairOrder) {
             $rules = $rules + [
@@ -590,6 +597,10 @@ class OrderController extends BaseController
 
         $customerId = $this->nullableInt($this->request->getPost('customer_id'));
         $salesPersonUserId = $this->nullableInt($this->request->getPost('sales_person_user_id'));
+        $followupAssignedTo = $this->nullableInt($this->request->getPost('followup_assigned_to'));
+        if ($followupAssignedTo === null || ! $this->staffPerformanceService->isStaffUser($followupAssignedTo)) {
+            return redirect()->back()->withInput()->with('error', 'Please select an active non-admin staff follower.');
+        }
         if ($salesPersonUserId !== null) {
             if ($customerId === null || (new CustomerUserModel())->where('id', $salesPersonUserId)
                 ->where('customer_id', $customerId)->where('role', 'sales_person')->where('is_active', 1)->countAllResults() === 0) {
@@ -655,6 +666,8 @@ class OrderController extends BaseController
                 'lead_id'     => null,
                 'assigned_karigar_id' => null,
                 'assigned_at' => null,
+                'followup_assigned_to' => $followupAssignedTo,
+                'followup_due_at' => $this->nullableDateTime((string) $this->request->getPost('followup_due_at')),
                 'status'      => $status,
                 'priority'    => $priority,
                 'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
@@ -705,6 +718,12 @@ class OrderController extends BaseController
             ]);
 
             $this->storeAttachments((int) $orderId);
+            $this->staffPerformanceService->syncOrderAssignment(
+                (int) $orderId,
+                $followupAssignedTo,
+                (string) $this->request->getPost('followup_due_at'),
+                (int) session('admin_id')
+            );
         } catch (Exception $e) {
             $db->transRollback();
 
@@ -731,10 +750,11 @@ class OrderController extends BaseController
         $this->syncCompletedOrdersFromReceive([$id]);
 
         $order = $this->orderModel
-            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm, sales_person.name as sales_person_name, sales_person.mobile as sales_person_mobile')
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm, sales_person.name as sales_person_name, sales_person.mobile as sales_person_mobile, follower.name as follower_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
             ->join('customer_users sales_person', 'sales_person.id = orders.sales_person_user_id', 'left')
+            ->join('admin_users follower', 'follower.id = orders.followup_assigned_to', 'left')
             ->find($id);
 
         if (! $order) {
@@ -796,6 +816,7 @@ class OrderController extends BaseController
             'order'      => $order,
             'customers'  => $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'salesPeople'=> (new CustomerUserModel())->select('id, customer_id, name, mobile')->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'staffFollowers' => $this->staffPerformanceService->staffOptions(),
             'priorities' => $this->jewelleryConfig->orderPriorities,
         ]);
     }
@@ -827,6 +848,8 @@ class OrderController extends BaseController
             'priority'    => 'required',
             'due_date'    => 'permit_empty|valid_date',
             'order_notes' => 'permit_empty',
+            'followup_assigned_to' => 'required|integer|greater_than[0]',
+            'followup_due_at' => 'required|valid_date',
         ];
         if ($isRepairOrder) {
             $rules = $rules + [
@@ -843,6 +866,10 @@ class OrderController extends BaseController
 
         $customerId = $this->nullableInt($this->request->getPost('customer_id'));
         $salesPersonUserId = $this->nullableInt($this->request->getPost('sales_person_user_id'));
+        $followupAssignedTo = $this->nullableInt($this->request->getPost('followup_assigned_to'));
+        if ($followupAssignedTo === null || ! $this->staffPerformanceService->isStaffUser($followupAssignedTo)) {
+            return redirect()->back()->withInput()->with('error', 'Please select an active non-admin staff follower.');
+        }
         if ($salesPersonUserId !== null && ($customerId === null || (new CustomerUserModel())
             ->where('id', $salesPersonUserId)
             ->where('customer_id', $customerId)
@@ -862,6 +889,8 @@ class OrderController extends BaseController
             'order_from'  => trim((string) $this->request->getPost('order_from')) ?: null,
             'customer_id' => $customerId,
             'sales_person_user_id' => $salesPersonUserId,
+            'followup_assigned_to' => $followupAssignedTo,
+            'followup_due_at' => $this->nullableDateTime((string) $this->request->getPost('followup_due_at')),
             'priority'    => $priority,
             'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
             'order_notes' => trim((string) $this->request->getPost('order_notes')),
@@ -870,6 +899,13 @@ class OrderController extends BaseController
             'repair_receive_weight_gm' => $isRepairOrder ? (float) $this->request->getPost('repair_receive_weight_gm') : null,
             'repair_received_at' => $isRepairOrder ? $this->nullableDate((string) $this->request->getPost('repair_received_at')) : null,
         ]);
+
+        $this->staffPerformanceService->syncOrderAssignment(
+            $id,
+            $followupAssignedTo,
+            (string) $this->request->getPost('followup_due_at'),
+            (int) session('admin_id')
+        );
 
         $redirectList = $isRepairOrder ? 'admin/orders/repair' : 'admin/orders';
         return redirect()->to(site_url($redirectList))->with('success', 'Order updated successfully.');
@@ -1072,6 +1108,9 @@ class OrderController extends BaseController
         if ($newStatus === 'Completed') {
             $this->finishedJewelleryService->createForCompletedOrder($id, $adminId);
         }
+        if (in_array($newStatus, ['Ready', 'Packed', 'Dispatched', 'Completed', 'Cancelled'], true)) {
+            $this->staffPerformanceService->closeOrderFollowupSchedules($id);
+        }
 
         return redirect()->back()->with('success', 'Order status updated.');
     }
@@ -1119,6 +1158,8 @@ class OrderController extends BaseController
             'changed_by'  => (int) session('admin_id'),
         ]);
 
+        $this->staffPerformanceService->closeOrderFollowupSchedules($id);
+
         return redirect()->back()->with('success', 'Order cancelled.');
     }
 
@@ -1151,6 +1192,14 @@ class OrderController extends BaseController
         if (! in_array($stage, $this->jewelleryConfig->orderStatuses, true)) {
             return redirect()->back()->withInput()->with('error', 'Invalid followup stage.');
         }
+        $nextFollowupDate = trim((string) $this->request->getPost('next_followup_date'));
+        $terminalStage = in_array($stage, ['Ready', 'Packed', 'Dispatched', 'Completed', 'Cancelled'], true);
+        if (! $terminalStage && $nextFollowupDate === '') {
+            return redirect()->back()->withInput()->with('error', 'Next follow-up date and time is required while the order remains open.');
+        }
+        if ($nextFollowupDate !== '' && (strtotime($nextFollowupDate) === false || strtotime($nextFollowupDate) <= time())) {
+            return redirect()->back()->withInput()->with('error', 'Next follow-up date and time must be in the future.');
+        }
         $description = trim((string) $this->request->getPost('description'));
 
         $imageName = null;
@@ -1175,7 +1224,7 @@ class OrderController extends BaseController
                 'order_id' => $id,
                 'stage' => $stage,
                 'description' => $description,
-                'next_followup_date' => $this->nullableDateTime((string) $this->request->getPost('next_followup_date')),
+                'next_followup_date' => $terminalStage ? null : $this->nullableDateTime($nextFollowupDate),
                 'followup_taken_by' => (int) session('admin_id'),
                 'followup_taken_on' => date('Y-m-d H:i:s'),
                 'image_name' => $imageName,
@@ -1200,6 +1249,13 @@ class OrderController extends BaseController
                     'changed_by' => (int) session('admin_id'),
                 ]);
             }
+
+            $this->staffPerformanceService->completeOrderFollowup(
+                $id,
+                $followupId,
+                (int) session('admin_id'),
+                $terminalStage ? null : $nextFollowupDate
+            );
 
             $db->transComplete();
         } catch (Throwable $e) {

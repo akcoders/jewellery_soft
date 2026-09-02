@@ -3,6 +3,7 @@ import 'package:flutkit/jewellery_mobile/screens/followups_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/inventory_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/notification_center_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/orders_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/performance_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/task_scheduler_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transactions_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transaction_create_screen.dart';
@@ -181,6 +182,8 @@ class _AppShellState extends State<AppShell> {
         return InventoryScreen(api: _api);
       case 'tasks':
         return TaskSchedulerScreen(api: _api);
+      case 'performance':
+        return PerformanceScreen(api: _api);
       default:
         return DashboardScreen(
           api: _api,
@@ -318,11 +321,14 @@ class _AppShellState extends State<AppShell> {
                       'Inventory',
                       Icons.inventory_2_outlined,
                     ),
-                    _drawerItem(
-                      'tasks',
-                      'Task Scheduler',
-                      Icons.alarm_outlined,
-                    ),
+                    if (widget.session.canUsePerformance) ...[
+                      _drawerItem('tasks', 'My Tasks', Icons.task_alt_outlined),
+                      _drawerItem(
+                        'performance',
+                        'My Performance',
+                        Icons.insights_outlined,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -434,7 +440,9 @@ class _AppShellState extends State<AppShell> {
       case 'inventory':
         return 'Inventory';
       case 'tasks':
-        return 'Task Scheduler';
+        return 'My Tasks';
+      case 'performance':
+        return 'My Performance';
       default:
         return 'Dashboard';
     }

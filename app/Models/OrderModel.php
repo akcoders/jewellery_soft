@@ -20,6 +20,8 @@ class OrderModel extends Model
         'quotation_id',
         'assigned_karigar_id',
         'assigned_at',
+        'followup_assigned_to',
+        'followup_due_at',
         'status',
         'priority',
         'due_date',

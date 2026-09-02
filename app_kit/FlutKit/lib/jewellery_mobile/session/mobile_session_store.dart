@@ -6,14 +6,21 @@ class MobileSession {
     required this.token,
     required this.userName,
     required this.userEmail,
+    this.roleCodes = const [],
   });
 
   final String baseUrl;
   final String token;
   final String userName;
   final String userEmail;
+  final List<String> roleCodes;
 
   bool get isValid => baseUrl.trim().isNotEmpty && token.trim().isNotEmpty;
+  bool get canUsePerformance => roleCodes.isNotEmpty && !isAdmin;
+  bool get isAdmin => roleCodes.any(
+    (role) =>
+        const {'SUPER_ADMIN', 'ADMIN', 'OWNER'}.contains(role.toUpperCase()),
+  );
 }
 
 class MobileSessionStore {
@@ -21,6 +28,7 @@ class MobileSessionStore {
   static const _keyToken = 'jm_token';
   static const _keyUserName = 'jm_user_name';
   static const _keyUserEmail = 'jm_user_email';
+  static const _keyRoleCodes = 'jm_role_codes';
 
   static Future<MobileSession?> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -35,6 +43,7 @@ class MobileSessionStore {
       token: token,
       userName: prefs.getString(_keyUserName) ?? '',
       userEmail: prefs.getString(_keyUserEmail) ?? '',
+      roleCodes: prefs.getStringList(_keyRoleCodes) ?? const [],
     );
   }
 
@@ -44,6 +53,7 @@ class MobileSessionStore {
     await prefs.setString(_keyToken, session.token);
     await prefs.setString(_keyUserName, session.userName);
     await prefs.setString(_keyUserEmail, session.userEmail);
+    await prefs.setStringList(_keyRoleCodes, session.roleCodes);
   }
 
   static Future<void> clear() async {
@@ -52,5 +62,6 @@ class MobileSessionStore {
     await prefs.remove(_keyToken);
     await prefs.remove(_keyUserName);
     await prefs.remove(_keyUserEmail);
+    await prefs.remove(_keyRoleCodes);
   }
 }

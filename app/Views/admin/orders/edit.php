@@ -5,6 +5,8 @@
 $orderTypeValue = (string) old('order_type', (string) ($order['order_type'] ?? 'Sales'));
 $selectedCustomerId = (string) old('customer_id', (string) ($order['customer_id'] ?? ''));
 $selectedSalesPersonId = (string) old('sales_person_user_id', (string) ($order['sales_person_user_id'] ?? ''));
+$selectedFollowerId = (string) old('followup_assigned_to', (string) ($order['followup_assigned_to'] ?? ''));
+$followupDueValue = (string) old('followup_due_at', ! empty($order['followup_due_at']) ? date('Y-m-d\\TH:i', strtotime((string) $order['followup_due_at'])) : '');
 $showRepairFields = $orderTypeValue === 'Repair';
 ?>
 <div class="erp-page-toolbar mb-3">
@@ -65,6 +67,19 @@ $showRepairFields = $orderTypeValue === 'Repair';
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Due Date</label>
                     <input type="date" name="due_date" class="form-control" value="<?= esc((string) old('due_date', (string) ($order['due_date'] ?? ''))) ?>">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Order Follower <span class="text-danger">*</span></label>
+                    <select name="followup_assigned_to" class="form-control js-searchable-select" data-placeholder="Search staff follower" required>
+                        <option value=""></option>
+                        <?php foreach (($staffFollowers ?? []) as $person): ?>
+                            <option value="<?= (int) $person['id'] ?>" <?= $selectedFollowerId === (string) $person['id'] ? 'selected' : '' ?>><?= esc((string) $person['name']) ?> · <?= esc((string) ($person['role_label'] ?? 'Staff')) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Next Follow-up Due <span class="text-danger">*</span></label>
+                    <input type="datetime-local" name="followup_due_at" class="form-control" required value="<?= esc($followupDueValue) ?>">
                 </div>
                 <div class="col-12 mb-3">
                     <label class="form-label">Order Notes</label>

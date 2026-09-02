@@ -14,6 +14,7 @@
                         <th>Order No</th>
                         <th>Customer</th>
                         <th>Karigar</th>
+                        <th>Assigned Follower</th>
                         <th>Status</th>
                         <th>Due Date</th>
                         <th>Next Followup</th>
@@ -26,7 +27,7 @@
                 <tbody>
                     <?php if (($orders ?? []) === []): ?>
                         <tr>
-                            <td colspan="10" class="text-center text-muted">No orders found.</td>
+                            <td colspan="11" class="text-center text-muted">No orders found.</td>
                         </tr>
                     <?php endif; ?>
                     <?php foreach (($orders ?? []) as $order): ?>
@@ -38,6 +39,7 @@
                             </td>
                             <td><?= esc((string) ($order['customer_name'] ?? '-')) ?></td>
                             <td><?= esc((string) (($order['karigar_name'] ?? '') !== '' ? $order['karigar_name'] : 'Not Assigned')) ?></td>
+                            <td><strong><?= esc((string) (($order['follower_name'] ?? '') ?: 'Not Assigned')) ?></strong></td>
                             <td><?= esc((string) ($order['status'] ?? '-')) ?></td>
                             <td><?= esc((string) (($order['due_date'] ?? '') !== '' ? $order['due_date'] : '-')) ?></td>
                             <td><?= esc((string) (($order['next_followup_date'] ?? '') !== '' ? $order['next_followup_date'] : '-')) ?></td>

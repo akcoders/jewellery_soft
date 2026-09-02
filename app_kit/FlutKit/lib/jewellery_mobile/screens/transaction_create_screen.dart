@@ -418,7 +418,8 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
               TextFormField(
                 initialValue: _voucherNo,
                 decoration: const InputDecoration(
-                  labelText: 'Voucher Number (optional)',
+                  labelText: 'Issue Voucher Number (optional)',
+                  prefixIcon: Icon(Icons.confirmation_number_outlined),
                   helperText:
                       'Leave blank to use the next company voucher number.',
                 ),

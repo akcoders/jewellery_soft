@@ -20,8 +20,6 @@ $routes->group('customer', ['filter' => 'customerAuth'], static function ($route
 $routes->group('admin', ['filter' => 'adminGuest'], static function ($routes): void {
     $routes->get('login', 'Admin\AuthController::login');
     $routes->post('login', 'Admin\AuthController::attemptLogin');
-    $routes->get('register', 'Admin\AuthController::register');
-    $routes->post('register', 'Admin\AuthController::storeUser');
 });
 
 $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): void {
@@ -96,21 +94,9 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('showroom-sales', 'Admin\ShowroomSalesController::store', ['filter' => 'permission:showroom.sales.manage']);
     $routes->get('showroom-sales/(:num)', 'Admin\ShowroomSalesController::show/$1', ['filter' => 'permission:showroom.sales.read']);
     $routes->get('performance/dashboard', 'Admin\PerformanceController::dashboard', ['filter' => 'permission:performance.dashboard.read']);
-    $routes->get('performance/kpis', 'Admin\PerformanceController::kpis', ['filter' => 'permission:performance.kpis.read']);
-    $routes->get('performance/kpis/create', 'Admin\PerformanceController::createKpi', ['filter' => 'permission:performance.kpis.manage']);
-    $routes->post('performance/kpis', 'Admin\PerformanceController::storeKpi', ['filter' => 'permission:performance.kpis.manage']);
-    $routes->get('performance/kpis/(:num)/edit', 'Admin\PerformanceController::editKpi/$1', ['filter' => 'permission:performance.kpis.manage']);
-    $routes->post('performance/kpis/(:num)/update', 'Admin\PerformanceController::updateKpi/$1', ['filter' => 'permission:performance.kpis.manage']);
-    $routes->get('performance/targets', 'Admin\PerformanceController::targets', ['filter' => 'permission:performance.targets.read']);
-    $routes->get('performance/targets/create', 'Admin\PerformanceController::createTarget', ['filter' => 'permission:performance.targets.manage']);
-    $routes->post('performance/targets', 'Admin\PerformanceController::storeTarget', ['filter' => 'permission:performance.targets.manage']);
-    $routes->get('performance/targets/(:num)/edit', 'Admin\PerformanceController::editTarget/$1', ['filter' => 'permission:performance.targets.manage']);
-    $routes->post('performance/targets/(:num)/update', 'Admin\PerformanceController::updateTarget/$1', ['filter' => 'permission:performance.targets.manage']);
-    $routes->get('performance/incentives', 'Admin\PerformanceController::incentives', ['filter' => 'permission:performance.incentives.read']);
-    $routes->get('performance/incentives/create', 'Admin\PerformanceController::createIncentive', ['filter' => 'permission:performance.incentives.manage']);
-    $routes->post('performance/incentives', 'Admin\PerformanceController::storeIncentive', ['filter' => 'permission:performance.incentives.manage']);
-    $routes->get('performance/incentives/(:num)/edit', 'Admin\PerformanceController::editIncentive/$1', ['filter' => 'permission:performance.incentives.manage']);
-    $routes->post('performance/incentives/(:num)/update', 'Admin\PerformanceController::updateIncentive/$1', ['filter' => 'permission:performance.incentives.manage']);
+    $routes->get('performance/tasks', 'Admin\PerformanceController::tasks', ['filter' => 'permission:performance.tasks.read']);
+    $routes->post('performance/tasks', 'Admin\PerformanceController::storeTask', ['filter' => 'permission:performance.tasks.manage']);
+    $routes->post('performance/tasks/(:num)/cancel', 'Admin\PerformanceController::cancelTask/$1', ['filter' => 'permission:performance.tasks.manage']);
     $routes->get('access/roles', 'Admin\Access\RolesController::index', ['filter' => 'permission:access.roles.read']);
     $routes->get('access/roles/create', 'Admin\Access\RolesController::create', ['filter' => 'permission:access.roles.manage']);
     $routes->post('access/roles', 'Admin\Access\RolesController::store', ['filter' => 'permission:access.roles.manage']);
@@ -434,8 +420,8 @@ $routes->group('api', static function ($routes): void {
         $routes->get('me', 'Api\Mobile\AuthController::me');
         $routes->post('logout', 'Api\Mobile\AuthController::logout');
         $routes->get('tasks', 'Api\Mobile\TasksController::index');
-        $routes->post('tasks', 'Api\Mobile\TasksController::create');
-        $routes->post('tasks/(:num)/delete', 'Api\Mobile\TasksController::delete/$1');
+        $routes->post('tasks/(:num)/complete', 'Api\Mobile\TasksController::complete/$1');
+        $routes->get('performance', 'Api\Mobile\PerformanceController::index');
         $routes->get('notifications', 'Api\Mobile\NotificationsController::index');
         $routes->get('notifications/status', 'Api\Mobile\NotificationsController::status');
         $routes->post('notifications/(:num)/local-fallback', 'Api\Mobile\NotificationsController::localFallback/$1');

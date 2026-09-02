@@ -45,7 +45,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   void initState() {
     super.initState();
-    _status = _statuses.contains(widget.initialStatus) ? widget.initialStatus : 'All';
+    _status = _statuses.contains(widget.initialStatus)
+        ? widget.initialStatus
+        : 'All';
     _load();
   }
 
@@ -83,7 +85,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   String _apiStatusFilter() {
-    if (_status == 'All' || _status == 'Pending' || _status == 'Completed Bucket') {
+    if (_status == 'All' ||
+        _status == 'Pending' ||
+        _status == 'Completed Bucket') {
       return '';
     }
     return _status;
@@ -177,7 +181,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       final row = (_orders[index] as Map)
                           .cast<String, dynamic>();
                       final status = (row['status'] ?? '').toString();
-                      final id = int.tryParse(
+                      final id =
+                          int.tryParse(
                             (row['id'] ?? row['order_id'] ?? '').toString(),
                           ) ??
                           0;
@@ -233,6 +238,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 ),
                                 Text(
                                   'Karigar: ${row['karigar_name'] ?? 'Not Assigned'}',
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                Text(
+                                  'Follower: ${row['follower_name'] ?? 'Not Assigned'}',
                                   style: const TextStyle(
                                     color: AppColors.textSecondary,
                                   ),

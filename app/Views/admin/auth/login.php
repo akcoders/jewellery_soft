@@ -62,7 +62,6 @@ $asset = rtrim((string) $assetBase, '/');
                                     <label for="remember-login">Remember me on this device<small>Keep me securely signed in for 30 days.</small></label>
                                 </div>
                                 <button class="btn btn-lg btn-primary w-100" type="submit">Login</button>
-                                <div class="text-center dont-have mt-3">Do not have an account? <a href="<?= site_url('admin/register') ?>">Register</a></div>
                             </form>
                         </div>
                     </div>

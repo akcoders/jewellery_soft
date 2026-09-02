@@ -76,7 +76,9 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
       if (blockedStatuses.contains(status)) continue;
       final nextFollowup = (row['next_followup_date'] ?? '').toString();
       if (nextFollowup.isEmpty) continue;
-      final parsed = FollowupNotificationService.normalizedFollowupTime(nextFollowup);
+      final parsed = FollowupNotificationService.normalizedFollowupTime(
+        nextFollowup,
+      );
       if (parsed == null) continue;
       final dateKey = DateTime(parsed.year, parsed.month, parsed.day);
       if (dateKey == todayKey) {
@@ -87,10 +89,19 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
     }
 
     int sortByFollowup(Map<String, dynamic> a, Map<String, dynamic> b) {
-      final ad = FollowupNotificationService.normalizedFollowupTime(a['next_followup_date']) ?? DateTime(2100);
-      final bd = FollowupNotificationService.normalizedFollowupTime(b['next_followup_date']) ?? DateTime(2100);
+      final ad =
+          FollowupNotificationService.normalizedFollowupTime(
+            a['next_followup_date'],
+          ) ??
+          DateTime(2100);
+      final bd =
+          FollowupNotificationService.normalizedFollowupTime(
+            b['next_followup_date'],
+          ) ??
+          DateTime(2100);
       return ad.compareTo(bd);
     }
+
     todayRows.sort(sortByFollowup);
     otherRows.sort(sortByFollowup);
 
@@ -144,7 +155,8 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
           ),
           child: ListTile(
             onTap: () {
-              final id = int.tryParse(
+              final id =
+                  int.tryParse(
                     (row['id'] ?? row['order_id'] ?? '').toString(),
                   ) ??
                   0;
@@ -168,7 +180,7 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             subtitle: Text(
-              'Customer: ${row['customer_name'] ?? '-'}\nStage: ${row['last_followup_stage'] ?? '-'}',
+              'Customer: ${row['customer_name'] ?? '-'}\nFollower: ${row['follower_name'] ?? 'Not Assigned'} · Stage: ${row['last_followup_stage'] ?? '-'}',
             ),
             trailing: Text(
               status.$1,
@@ -181,7 +193,9 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
   }
 
   (String, Color) _followupStatus(dynamic nextFollowupDate) {
-    final parsed = FollowupNotificationService.normalizedFollowupTime(nextFollowupDate);
+    final parsed = FollowupNotificationService.normalizedFollowupTime(
+      nextFollowupDate,
+    );
     if (parsed == null) {
       return ('No date', AppColors.textSecondary);
     }

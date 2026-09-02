@@ -9,6 +9,7 @@ class LoginScreen extends StatefulWidget {
     required String token,
     required String userName,
     required String userEmail,
+    required List<String> roleCodes,
   })
   onLoginSuccess;
 
@@ -55,6 +56,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     loginData['user']?['email'] ??
                     _emailCtrl.text.trim())
                 .toString(),
+        roleCodes:
+            ((me['role_codes'] ?? loginData['user']?['role_codes']) as List?)
+                ?.map((role) => role.toString())
+                .toList() ??
+            const [],
       );
     } catch (e) {
       if (!mounted) return;

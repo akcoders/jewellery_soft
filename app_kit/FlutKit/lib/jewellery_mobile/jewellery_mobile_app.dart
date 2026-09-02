@@ -27,6 +27,34 @@ class _JewelleryMobileAppState extends State<JewelleryMobileApp> {
         userEmail: session.userEmail,
         userName: session.userName,
       );
+      _refreshStoredSession(session);
+    }
+  }
+
+  Future<void> _refreshStoredSession(MobileSession existing) async {
+    try {
+      final api = MobileApiService(
+        baseUrl: existing.baseUrl,
+        token: existing.token,
+      );
+      final me = await api.me();
+      final refreshed = MobileSession(
+        baseUrl: existing.baseUrl,
+        token: existing.token,
+        userName: (me['name'] ?? existing.userName).toString(),
+        userEmail: (me['email'] ?? existing.userEmail).toString(),
+        roleCodes:
+            (me['role_codes'] as List?)
+                ?.map((role) => role.toString())
+                .toList() ??
+            const [],
+      );
+      if (!mounted || _session?.token != existing.token) return;
+      await MobileSessionStore.save(refreshed);
+      if (!mounted || _session?.token != existing.token) return;
+      setState(() => _session = refreshed);
+    } catch (_) {
+      // Keep the existing session during a temporary network interruption.
     }
   }
 
@@ -35,12 +63,14 @@ class _JewelleryMobileAppState extends State<JewelleryMobileApp> {
     required String token,
     required String userName,
     required String userEmail,
+    required List<String> roleCodes,
   }) async {
     final session = MobileSession(
       baseUrl: baseUrl,
       token: token,
       userName: userName,
       userEmail: userEmail,
+      roleCodes: roleCodes,
     );
     await MobileSessionStore.save(session);
     await OneSignalService.syncUser(userEmail: userEmail, userName: userName);

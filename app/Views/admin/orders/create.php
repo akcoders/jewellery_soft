@@ -90,6 +90,20 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     <input type="date" name="due_date" class="form-control" value="<?= esc((string) old('due_date')) ?>">
                 </div>
                 <div class="col-md-3 mb-3">
+                    <label class="form-label">Order Follower <span class="text-danger">*</span></label>
+                    <select name="followup_assigned_to" class="form-control js-searchable-select" data-placeholder="Search staff follower" required>
+                        <option value=""></option>
+                        <?php foreach (($staffFollowers ?? []) as $person): ?>
+                            <option value="<?= (int) $person['id'] ?>" <?= (string) old('followup_assigned_to') === (string) $person['id'] ? 'selected' : '' ?>><?= esc((string) $person['name']) ?> · <?= esc((string) ($person['role_label'] ?? 'Staff')) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text">This staff member owns each scheduled order follow-up.</div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">First Follow-up Due <span class="text-danger">*</span></label>
+                    <input type="datetime-local" name="followup_due_at" class="form-control" required value="<?= esc((string) old('followup_due_at', date('Y-m-d\\T11:00', strtotime('+1 day')))) ?>">
+                </div>
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Priority Level</label>
                     <input type="number" name="priority_level" min="0" max="10" class="form-control" value="<?= esc((string) old('priority_level', '0')) ?>">
                 </div>

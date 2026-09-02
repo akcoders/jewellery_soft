@@ -36,6 +36,7 @@ class AuthController extends MobileBaseController
             'expires_at' => $expiresAt,
             'revoked_at' => null,
         ]);
+        $roleCodes = $this->roleCodes((int) $admin['id']);
 
         return $this->ok([
             'token' => $plainToken,
@@ -45,6 +46,8 @@ class AuthController extends MobileBaseController
                 'id' => (int) $admin['id'],
                 'name' => (string) ($admin['name'] ?? ''),
                 'email' => (string) ($admin['email'] ?? ''),
+                'role_codes' => $roleCodes,
+                'is_admin' => $this->isAdminRole($roleCodes),
             ],
         ], 'Login successful.');
     }
@@ -56,10 +59,13 @@ class AuthController extends MobileBaseController
             return $authFail;
         }
 
+        $roleCodes = $this->roleCodes((int) ($this->mobileAdmin['id'] ?? 0));
         return $this->ok([
             'id' => (int) ($this->mobileAdmin['id'] ?? 0),
             'name' => (string) ($this->mobileAdmin['name'] ?? ''),
             'email' => (string) ($this->mobileAdmin['email'] ?? ''),
+            'role_codes' => $roleCodes,
+            'is_admin' => $this->isAdminRole($roleCodes),
         ]);
     }
 
@@ -78,5 +84,29 @@ class AuthController extends MobileBaseController
 
         return $this->ok(null, 'Logged out.');
     }
-}
 
+    /** @return list<string> */
+    private function roleCodes(int $adminUserId): array
+    {
+        if ($adminUserId <= 0) {
+            return [];
+        }
+
+        $rows = db_connect()->table('user_roles ur')
+            ->select('r.role_code')
+            ->join('roles r', 'r.id = ur.role_id', 'inner')
+            ->where('ur.user_id', $adminUserId)
+            ->orderBy('r.role_code', 'ASC')
+            ->get()->getResultArray();
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn(array $row): string => strtoupper(trim((string) ($row['role_code'] ?? ''))),
+            $rows
+        ))));
+    }
+
+    private function isAdminRole(array $roleCodes): bool
+    {
+        return array_intersect(['SUPER_ADMIN', 'ADMIN', 'OWNER'], $roleCodes) !== [];
+    }
+}

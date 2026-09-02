@@ -1,8 +1,6 @@
 import 'package:flutkit/jewellery_mobile/services/followup_notification_service.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
-import 'package:flutkit/jewellery_mobile/services/task_repository.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
-import 'package:flutkit/jewellery_mobile/screens/task_form_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transaction_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
@@ -30,12 +28,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _loading = true;
   String _error = '';
   List<dynamic> _orders = [];
-  late final TaskRepository _taskRepo;
 
   @override
   void initState() {
     super.initState();
-    _taskRepo = TaskRepository(api: widget.api);
     TaskRefreshBus.tick.addListener(_load);
     _load();
   }
@@ -265,12 +261,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onTap: () => _showInfo('Order creation is not available yet.'),
             ),
             _actionChip(
-              label: 'Add Task',
-              icon: Icons.task_alt,
-              color: AppColors.brandGold,
-              onTap: _addQuickTask,
-            ),
-            _actionChip(
               label: 'Diamond Purchase',
               icon: Icons.diamond_outlined,
               color: AppColors.diamond,
@@ -314,32 +304,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _addQuickTask() async {
-    final result = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(builder: (_) => const TaskFormScreen()),
-    );
-    if (result == null) return;
-
-    try {
-      final created = await _taskRepo.create(
-        title: (result['title'] ?? '').toString(),
-        note: (result['note'] ?? '').toString(),
-        scheduledAt: result['scheduledAt'] as DateTime,
-      );
-      await _load();
-      TaskRefreshBus.notify();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(created?.saveConfirmation ?? 'Task scheduled.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    }
   }
 
   Widget _actionChip({
