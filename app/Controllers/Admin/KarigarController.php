@@ -5,7 +5,6 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\KarigarDocumentModel;
 use App\Models\KarigarModel;
-use App\Models\KarigarPaymentLedgerModel;
 use App\Models\OrderModel;
 use App\Services\PostingService;
 
@@ -13,7 +12,6 @@ class KarigarController extends BaseController
 {
     private KarigarModel $karigarModel;
     private KarigarDocumentModel $documentModel;
-    private KarigarPaymentLedgerModel $paymentLedgerModel;
     private OrderModel $orderModel;
     private PostingService $postingService;
 
@@ -22,7 +20,6 @@ class KarigarController extends BaseController
         helper(['form', 'url']);
         $this->karigarModel = new KarigarModel();
         $this->documentModel = new KarigarDocumentModel();
-        $this->paymentLedgerModel = new KarigarPaymentLedgerModel();
         $this->orderModel = new OrderModel();
         $this->postingService = new PostingService();
     }
@@ -238,31 +235,38 @@ class KarigarController extends BaseController
         }
         $materialMovements = $this->buildMovementRowsFromLedgers($goldLedgers, $diamondLedgers);
 
-        $paymentLedgerEnabled = $db->tableExists('karigar_payment_ledgers');
-        $paymentLedgers = [];
-        if ($paymentLedgerEnabled) {
-            $paymentLedgers = $db->table('karigar_payment_ledgers')
-                ->select('karigar_payment_ledgers.*, orders.order_no')
-                ->join('orders', 'orders.id = karigar_payment_ledgers.order_id', 'left')
-                ->where('karigar_payment_ledgers.karigar_id', $id)
-                ->orderBy('karigar_payment_ledgers.id', 'DESC')
-                ->get()
-                ->getResultArray();
+        $labourBills = [];
+        $labourPayments = [];
+        if ($db->tableExists('labour_bills')) {
+            $labourBills = $db->table('labour_bills lb')
+                ->select('lb.*, COALESCE(pay.paid_amount,0) paid_amount, COALESCE(jobs.jobwork_count,0) jobwork_count, jobs.order_numbers', false)
+                ->join('(SELECT labour_bill_id, SUM(amount) paid_amount FROM labour_bill_payments GROUP BY labour_bill_id) pay', 'pay.labour_bill_id = lb.id', 'left', false)
+                ->join('(SELECT j.labour_bill_id, COUNT(*) jobwork_count, GROUP_CONCAT(DISTINCT o.order_no ORDER BY o.order_no SEPARATOR ", ") order_numbers FROM labour_bill_jobworks j LEFT JOIN orders o ON o.id = j.order_id GROUP BY j.labour_bill_id) jobs', 'jobs.labour_bill_id = lb.id', 'left', false)
+                ->where('lb.karigar_id', $id)
+                ->orderBy('lb.bill_date', 'DESC')->orderBy('lb.id', 'DESC')->get()->getResultArray();
         }
-
-        $sourceIssueLines = [];
-        if ($db->tableExists('production_diamond_issue_lines')) {
-            $sourceIssueLines = $db->table('production_diamond_issue_lines')
-                ->where('karigar_id', $id)
-                ->orderBy('issue_date', 'DESC')
-                ->orderBy('id', 'DESC')
-                ->get()->getResultArray();
+        if ($db->tableExists('account_payments')) {
+            $labourPayments = $db->table('account_payments ap')
+                ->select('ap.*, lb.bill_no')
+                ->join('labour_bills lb', 'lb.id = ap.labour_bill_id', 'left')
+                ->where('ap.party_type', 'karigar')->where('ap.karigar_id', $id)
+                ->orderBy('ap.payment_date', 'DESC')->orderBy('ap.id', 'DESC')->get()->getResultArray();
         }
+        $labourBilled = array_sum(array_map(static fn(array $row): float => (float) ($row['total_amount'] ?? 0), $labourBills));
+        $labourPaid = array_sum(array_map(static fn(array $row): float => (float) ($row['paid_amount'] ?? 0), $labourBills));
+        $unallocatedPaid = array_sum(array_map(static fn(array $row): float => empty($row['labour_bill_id']) ? (float) ($row['amount'] ?? 0) : 0.0, $labourPayments));
+        $labourSummary = [
+            'billed' => round($labourBilled, 2),
+            'paid' => round($labourPaid + $unallocatedPaid, 2),
+            'outstanding' => round(max(0, $labourBilled - $labourPaid - $unallocatedPaid), 2),
+            'bill_count' => count($labourBills),
+        ];
         $finishedItems = [];
         if ($db->tableExists('production_ready_items') && $db->fieldExists('fg_item_id', 'production_ready_items')) {
             $finishedItems = $db->table('production_ready_items p')
-                ->select('p.*, fg.tag_no, fg.status as inventory_status, fg.showroom_stock_status', false)
+                ->select('p.*, fg.tag_no, fg.status as inventory_status, fg.showroom_stock_status, o.order_no', false)
                 ->join('fg_items fg', 'fg.id = p.fg_item_id', 'left')
+                ->join('orders o', 'o.id = p.order_id', 'left')
                 ->where('p.karigar_id', $id)
                 ->orderBy('p.ready_date', 'DESC')
                 ->orderBy('p.id', 'DESC')
@@ -274,16 +278,15 @@ class KarigarController extends BaseController
         $goldStatement = $this->filterRowsByDate($this->buildGoldLedgerStatement($goldLedgers), $ledgerFilters);
         $diamondStatement = $this->filterRowsByDate($this->buildQtyLedgerStatement($diamondLedgers, 'weight_cts'), $ledgerFilters);
         $stoneStatement = $this->filterRowsByDate($this->buildQtyLedgerStatement($stoneLedgers, 'weight_cts'), $ledgerFilters);
-        $paymentStatement = $this->filterRowsByDate($this->buildPaymentLedgerStatement($paymentLedgers), $ledgerFilters);
         $filteredGoldLedgers = $this->filterRowsByDate($goldLedgers, $ledgerFilters);
         $filteredDiamondLedgers = $this->filterRowsByDate($diamondLedgers, $ledgerFilters);
         $filteredStoneLedgers = $this->filterRowsByDate($stoneLedgers, $ledgerFilters);
-        $filteredPaymentLedgers = $this->filterRowsByDate($paymentLedgers, $ledgerFilters);
         $filteredMaterialMovements = $this->filterRowsByDate($materialMovements, $ledgerFilters);
 
         $allActivity = array_merge(
             array_column($materialRows, 'created_at'),
-            array_column($paymentLedgers, 'created_at')
+            array_column($labourBills, 'created_at'),
+            array_column($labourPayments, 'created_at')
         );
         $lastActivity = '-';
         if ($allActivity !== []) {
@@ -294,7 +297,7 @@ class KarigarController extends BaseController
             }
         }
 
-        $ledgerEntryCount = count($materialRows) + count($paymentLedgers);
+        $ledgerEntryCount = count($materialRows) + count($labourBills) + count($labourPayments);
 
         return view('admin/karigars/show', [
             'title' => 'Karigar Profile',
@@ -310,15 +313,13 @@ class KarigarController extends BaseController
             'diamondSummary' => $this->buildQtyWeightSummary($filteredDiamondLedgers, 'weight_cts'),
             'stoneLedgers' => $filteredStoneLedgers,
             'stoneSummary' => $this->buildQtyWeightSummary($filteredStoneLedgers, 'weight_cts'),
-            'paymentLedgers' => $filteredPaymentLedgers,
-            'sourceIssueLines' => $sourceIssueLines,
+            'labourBills' => $labourBills,
+            'labourPayments' => $labourPayments,
+            'labourSummary' => $labourSummary,
             'finishedItems' => $finishedItems,
-            'paymentSummary' => $this->buildPaymentSummary($filteredPaymentLedgers),
-            'paymentLedgerEnabled' => $paymentLedgerEnabled,
             'goldStatement' => $goldStatement,
             'diamondStatement' => $diamondStatement,
             'stoneStatement' => $stoneStatement,
-            'paymentStatement' => $paymentStatement,
             'ledgerFilters' => $ledgerFilters,
             'profileStats' => [
                 'documents' => count($docs),
@@ -327,54 +328,6 @@ class KarigarController extends BaseController
                 'last_activity' => $lastActivity,
             ],
         ]);
-    }
-
-    public function addPaymentEntry(int $id)
-    {
-        $karigar = $this->karigarModel->find($id);
-        if (! $karigar) {
-            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Karigar not found.');
-        }
-
-        $db = db_connect();
-        if (! $db->tableExists('karigar_payment_ledgers')) {
-            return redirect()->back()->with('error', 'Payment ledger table not available. Run migration first.');
-        }
-
-        $rules = [
-            'entry_type'   => 'required|in_list[charge,payment]',
-            'amount'       => 'required|decimal|greater_than[0]',
-            'order_id'     => 'permit_empty|integer',
-            'reference_no' => 'permit_empty|max_length[80]',
-            'notes'        => 'permit_empty',
-        ];
-
-        if (! $this->validate($rules)) {
-            return redirect()->back()->withInput()->with('error', $this->firstValidationError());
-        }
-
-        $orderId = $this->nullableInt($this->request->getPost('order_id'));
-        if ($orderId !== null) {
-            $order = $this->orderModel->find($orderId);
-            if (! $order) {
-                return redirect()->back()->withInput()->with('error', 'Selected order not found.');
-            }
-            if ((int) ($order['assigned_karigar_id'] ?? 0) !== $id) {
-                return redirect()->back()->withInput()->with('error', 'Selected order is not assigned to this karigar.');
-            }
-        }
-
-        $this->paymentLedgerModel->insert([
-            'karigar_id'   => $id,
-            'order_id'     => $orderId,
-            'entry_type'   => trim((string) $this->request->getPost('entry_type')),
-            'amount'       => (float) $this->request->getPost('amount'),
-            'reference_no' => $this->nullableString($this->request->getPost('reference_no')),
-            'notes'        => $this->nullableString($this->request->getPost('notes')),
-            'created_by'   => (int) session('admin_id'),
-        ]);
-
-        return redirect()->to(site_url('admin/karigars/' . $id))->with('success', 'Payment ledger entry added successfully.');
     }
 
     private function storeDocuments(int $karigarId): void
@@ -566,18 +519,14 @@ class KarigarController extends BaseController
         $paymentCount = 0;
         $paymentCharge = 0.0;
         $paymentPaid = 0.0;
-        if ($db->tableExists('karigar_payment_ledgers')) {
-            $paymentCount = $db->table('karigar_payment_ledgers')->where('karigar_id', $karigarId)->countAllResults();
-            $paymentRow = $db->table('karigar_payment_ledgers')
-                ->select(
-                    "SUM(CASE WHEN entry_type = 'charge' THEN amount ELSE 0 END) as total_charge,
-                     SUM(CASE WHEN entry_type = 'payment' THEN amount ELSE 0 END) as total_paid",
-                    false
-                )
-                ->where('karigar_id', $karigarId)
-                ->get()
-                ->getRowArray();
-            $paymentCharge = (float) ($paymentRow['total_charge'] ?? 0);
+        if ($db->tableExists('labour_bills')) {
+            $paymentCount += $db->table('labour_bills')->where('karigar_id', $karigarId)->countAllResults();
+            $billRow = $db->table('labour_bills')->select('SUM(total_amount) total_charge')->where('karigar_id', $karigarId)->get()->getRowArray();
+            $paymentCharge = (float) ($billRow['total_charge'] ?? 0);
+        }
+        if ($db->tableExists('account_payments')) {
+            $paymentCount += $db->table('account_payments')->where('party_type', 'karigar')->where('karigar_id', $karigarId)->countAllResults();
+            $paymentRow = $db->table('account_payments')->select('SUM(amount) total_paid')->where('party_type', 'karigar')->where('karigar_id', $karigarId)->get()->getRowArray();
             $paymentPaid = (float) ($paymentRow['total_paid'] ?? 0);
         }
 

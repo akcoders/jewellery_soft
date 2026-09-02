@@ -2,6 +2,8 @@
 
 namespace App\Controllers\Api\Mobile;
 
+use App\Services\TaxMasterService;
+
 class LookupsController extends MobileBaseController
 {
     public function karigars()
@@ -36,6 +38,16 @@ class LookupsController extends MobileBaseController
             ->getResultArray();
 
         return $this->ok($rows);
+    }
+
+    public function gstMasters()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        return $this->ok((new TaxMasterService())->options());
     }
 
     public function locations()

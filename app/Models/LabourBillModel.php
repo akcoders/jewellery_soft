@@ -16,6 +16,7 @@ class LabourBillModel extends Model
         'receive_movement_id',
         'karigar_id',
         'gst_master_id',
+        'tax_breakup_json',
         'gold_weight_gm',
         'rate_per_gm',
         'labour_amount',

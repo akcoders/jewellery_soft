@@ -5,8 +5,9 @@
     <div>
         <span class="erp-eyebrow">Karigar accounts</span>
         <h4 class="mb-1">Labour Bills</h4>
-        <p class="mb-0">Order-wise labour charges, payments and outstanding balances.</p>
+        <p class="mb-0">Supplier invoices that may combine multiple completed job works.</p>
     </div>
+    <a href="<?= site_url('admin/accounts/labour-bills/create') ?>" class="btn btn-primary"><i class="fe fe-plus me-1"></i>Add Labour Bill</a>
 </div>
 
 <?php if (! $labourTableEnabled): ?>
@@ -21,12 +22,11 @@
                     <tr>
                         <th>Bill No</th>
                         <th>Bill Date</th>
-                        <th>Order Ref</th>
                         <th>Karigar</th>
-                        <th>Gold (gm)</th>
-                        <th>Rate/gm</th>
-                        <th>Labour Amount</th>
-                        <th>Other Bill</th>
+                        <th>Job Works</th>
+                        <th>Source</th>
+                        <th>Taxable</th>
+                        <th>GST</th>
                         <th>Total</th>
                         <th>Paid</th>
                         <th>Pending</th>
@@ -38,7 +38,7 @@
                 </thead>
                 <tbody>
                     <?php if ($rows === []): ?>
-                        <tr><td colspan="15" class="text-center text-muted">No labour bills found.</td></tr>
+                        <tr><td colspan="14" class="text-center text-muted">No labour bills found.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($rows as $row): ?>
                         <?php
@@ -51,14 +51,13 @@
                             }
                         ?>
                         <tr>
-                            <td><?= esc((string) ($row['bill_no'] ?? '-')) ?></td>
+                            <td><a class="fw-semibold" href="<?= site_url('admin/accounts/labour-bills/' . (int) $row['id']) ?>"><?= esc((string) ($row['bill_no'] ?? '-')) ?></a></td>
                             <td><?= esc((string) ($row['bill_date'] ?: '-')) ?></td>
-                            <td><?= esc((string) ($row['order_no'] ?: '-')) ?></td>
                             <td><?= esc((string) ($row['karigar_name'] ?: '-')) ?></td>
-                            <td><?= number_format((float) ($row['gold_weight_gm'] ?? 0), 3) ?></td>
-                            <td>₹ <?= number_format((float) ($row['rate_per_gm'] ?? 0), 2) ?></td>
-                            <td>₹ <?= number_format((float) ($row['labour_amount'] ?? 0), 2) ?></td>
-                            <td>₹ <?= number_format((float) ($row['other_amount'] ?? 0), 2) ?></td>
+                            <td><span class="badge bg-light text-dark"><?= (int) ($row['jobwork_count'] ?? 0) ?> work<?= (int) ($row['jobwork_count'] ?? 0) === 1 ? '' : 's' ?></span><small class="d-block text-muted text-truncate mt-1" style="max-width:220px" title="<?= esc((string) ($row['order_no'] ?? '')) ?>"><?= esc((string) ($row['order_no'] ?: 'Unlinked invoice')) ?></small></td>
+                            <td><span class="badge <?= ($row['source_type'] ?? '') === 'Imported invoice' ? 'bg-info text-dark' : 'bg-secondary' ?>"><?= esc((string) ($row['source_type'] ?? 'Manual')) ?></span></td>
+                            <td>₹ <?= number_format((float) ($row['taxable_amount'] ?? 0), 2) ?></td>
+                            <td>₹ <?= number_format((float) ($row['gst_amount'] ?? 0), 2) ?><small class="d-block text-muted"><?= esc((string) ($row['gst_master_name'] ?? '-')) ?></small></td>
                             <td>₹ <?= number_format((float) ($row['total_amount'] ?? 0), 2) ?></td>
                             <td>₹ <?= number_format((float) ($row['paid_amount'] ?? 0), 2) ?></td>
                             <td>₹ <?= number_format((float) ($row['pending_amount'] ?? 0), 2) ?></td>
@@ -66,6 +65,15 @@
                             <td><?= esc((string) ($row['days_left'] ?? '-')) ?></td>
                             <td><span class="badge <?= esc($statusClass) ?>"><?= esc($status) ?></span></td>
                             <td>
+                                <a
+                                    href="<?= site_url('admin/accounts/labour-bills/' . (int) ($row['id'] ?? 0)) ?>"
+                                    class="btn btn-sm btn-outline-dark"
+                                    title="View Bill">
+                                    <i class="fe fe-eye"></i>
+                                </a>
+                                <?php if (! empty($row['attachment_path'])): ?>
+                                <a href="<?= site_url('admin/accounts/labour-bills/' . (int) ($row['id'] ?? 0) . '/attachment') ?>" class="btn btn-sm btn-outline-secondary" title="Original attachment"><i class="fe fe-paperclip"></i></a>
+                                <?php endif; ?>
                                 <a
                                     href="<?= site_url('api/documents/labour-bill/' . (int) ($row['id'] ?? 0)) ?>?download=1"
                                     class="btn btn-sm btn-outline-primary"

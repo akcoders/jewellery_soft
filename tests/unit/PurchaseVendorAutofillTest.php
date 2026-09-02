@@ -58,8 +58,8 @@ final class PurchaseVendorAutofillTest extends CIUnitTestCase
     {
         $controller = (string) file_get_contents(APPPATH . 'Controllers/Admin/GoldInventory/PurchasesController.php');
         $this->assertStringContainsString("array_sum(array_column(\$lines, 'line_value'))", $controller);
-        $this->assertStringContainsString('$taxable * max(0, min(100, (float) $cgstRate)) / 100', $controller);
-        $this->assertStringContainsString('$taxable * max(0, min(100, (float) $sgstRate)) / 100', $controller);
-        $this->assertStringContainsString('$taxable * max(0, min(100, (float) $igstRate)) / 100', $controller);
+        $this->assertStringContainsString('TaxMasterService', $controller);
+        $this->assertStringContainsString("calculate((int) \$this->request->getPost('gst_master_id')", $controller);
+        $this->assertStringContainsString("'tax_breakup_json' => \$tax['tax_breakup_json']", $controller);
     }
 }

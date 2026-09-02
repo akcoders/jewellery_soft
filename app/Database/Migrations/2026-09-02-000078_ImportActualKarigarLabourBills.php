@@ -45,6 +45,7 @@ class ImportActualKarigarLabourBills extends Migration
                 'receive_movement_id' => null,
                 'karigar_id' => (int) $karigar['id'],
                 'gst_master_id' => $gstMasterId,
+                'tax_breakup_json' => json_encode($components, JSON_UNESCAPED_SLASHES),
                 'gold_weight_gm' => $bill['net_weight'],
                 'rate_per_gm' => (float) $bill['net_weight'] > 0 ? round($taxable / (float) $bill['net_weight'], 2) : 0,
                 'labour_amount' => $taxable,
@@ -64,7 +65,7 @@ class ImportActualKarigarLabourBills extends Migration
                 'attachment_path' => 'app/Database/Data/labour_bills/' . $bill['attachment'],
                 'attachment_name' => basename((string) $bill['attachment']),
                 'source_type' => 'Imported invoice',
-                'notes' => 'Imported from verified labour invoice. Payment history intentionally reset for fresh manual entry. Tax breakup: ' . json_encode($components, JSON_UNESCAPED_SLASHES),
+                'notes' => 'Imported from verified labour invoice. Payment history intentionally reset for fresh manual entry.',
                 'created_by' => null,
                 'created_at' => $bill['bill_date'] . ' 12:00:00',
                 'updated_at' => date('Y-m-d H:i:s'),
@@ -96,16 +97,16 @@ class ImportActualKarigarLabourBills extends Migration
     private function clearLegacyBillAndPaymentData(): void
     {
         if ($this->db->tableExists('labour_bill_payments')) {
-            $this->db->table('labour_bill_payments')->truncate();
+            $this->db->query('DELETE FROM `labour_bill_payments`');
         }
         if ($this->db->tableExists('account_payments')) {
             $this->db->table('account_payments')->where('party_type', 'karigar')->delete();
         }
         if ($this->db->tableExists('karigar_payment_ledgers')) {
-            $this->db->table('karigar_payment_ledgers')->truncate();
+            $this->db->query('DELETE FROM `karigar_payment_ledgers`');
         }
-        $this->db->table('labour_bill_jobworks')->truncate();
-        $this->db->table('labour_bills')->truncate();
+        $this->db->query('DELETE FROM `labour_bill_jobworks`');
+        $this->db->query('DELETE FROM `labour_bills`');
         if ($this->db->tableExists('production_ready_items')) {
             $this->db->table('production_ready_items')->update(['payment_status' => 'Pending', 'payment_date' => null]);
         }

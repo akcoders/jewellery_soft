@@ -58,6 +58,7 @@ writable/session/*
 !writable/session/index.html
 
 writable/exports/*
+writable/backups/*
 
 writable/uploads/*
 !writable/uploads/index.html

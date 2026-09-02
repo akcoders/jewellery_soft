@@ -42,7 +42,7 @@
                         <th>Supplier</th>
                         <th>Invoice</th>
                         <th>Due Date</th>
-                        <th>Tax %</th>
+                        <th>GST Breakup</th>
                         <th>Lines</th>
                         <th>Total Carat</th>
                         <th>Subtotal</th>
@@ -61,7 +61,7 @@
                             <td><?= esc((string) ($purchase['vendor_name'] ?: $purchase['supplier_name'] ?: '-')) ?></td>
                             <td><?= esc((string) ($purchase['invoice_no'] ?? '-')) ?></td>
                             <td><?= esc((string) ($purchase['due_date'] ?? '-')) ?></td>
-                            <td><?= number_format((float) ($purchase['tax_percentage'] ?? 0), 3) ?></td>
+                            <td><small class="d-block">CGST ₹<?= number_format((float) ($purchase['cgst_amount'] ?? 0), 2) ?></small><small class="d-block">SGST ₹<?= number_format((float) ($purchase['sgst_amount'] ?? 0), 2) ?></small><small class="d-block">IGST ₹<?= number_format((float) ($purchase['igst_amount'] ?? 0), 2) ?></small></td>
                             <td><?= (int) $purchase['line_count'] ?></td>
                             <td><?= number_format((float) $purchase['total_carat'], 3) ?></td>
                             <td><?= number_format((float) $purchase['total_value'], 2) ?></td>

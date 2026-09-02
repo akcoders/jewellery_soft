@@ -498,10 +498,11 @@ class DocumentsController extends ApiBaseController
         }
 
         $bill = $db->table('labour_bills lb')
-            ->select('lb.*, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode, k.pan_no as karigar_pan_no, k.bank_name as karigar_bank_name, k.bank_account_no as karigar_bank_account_no, k.ifsc_code as karigar_ifsc_code, k.department as karigar_department, k.skills_text as karigar_skills, k.wastage_percentage as karigar_wastage_percentage, o.order_no, o.customer_id, c.name as customer_name, c.gstin as customer_gstin')
+            ->select('lb.*, k.name as karigar_name, k.phone as karigar_phone, k.email as karigar_email, k.address as karigar_address, k.city as karigar_city, k.state as karigar_state, k.pincode as karigar_pincode, k.pan_no as karigar_pan_no, k.bank_name as karigar_bank_name, k.bank_account_no as karigar_bank_account_no, k.ifsc_code as karigar_ifsc_code, k.department as karigar_department, k.skills_text as karigar_skills, k.wastage_percentage as karigar_wastage_percentage, o.order_no, o.customer_id, c.name as customer_name, c.gstin as customer_gstin, gm.name as gst_master_name')
             ->join('karigars k', 'k.id = lb.karigar_id', 'left')
             ->join('orders o', 'o.id = lb.order_id', 'left')
             ->join('customers c', 'c.id = o.customer_id', 'left')
+            ->join('gst_masters gm', 'gm.id = lb.gst_master_id', 'left')
             ->where('lb.id', $billId)
             ->get()
             ->getRowArray();
@@ -509,6 +510,10 @@ class DocumentsController extends ApiBaseController
         if (! is_array($bill)) {
             return null;
         }
+
+        $jobworks = $db->tableExists('labour_bill_jobworks')
+            ? $db->table('labour_bill_jobworks j')->select('j.*, o.order_no')->join('orders o', 'o.id = j.order_id', 'left')->where('j.labour_bill_id', $billId)->orderBy('j.jobwork_date')->get()->getResultArray()
+            : [];
 
         $orderId = (int) ($bill['order_id'] ?? 0);
         $movementId = (int) ($bill['receive_movement_id'] ?? 0);
@@ -530,6 +535,17 @@ class DocumentsController extends ApiBaseController
             'labour_amount' => round((float) ($bill['labour_amount'] ?? 0), 2),
             'total_valuation' => round((float) ($bill['total_amount'] ?? 0), 2),
         ];
+
+        if ($jobworks !== []) {
+            $receive['gross_weight_gm'] = round(array_sum(array_map(static fn(array $row): float => (float) ($row['gross_weight_gm'] ?? 0), $jobworks)), 3);
+            $receive['net_gold_weight_gm'] = round(array_sum(array_map(static fn(array $row): float => (float) ($row['net_weight_gm'] ?? 0), $jobworks)), 3);
+            $receive['labour_amount'] = round((float) ($bill['labour_amount'] ?? 0), 2);
+            $receive['total_valuation'] = round((float) ($bill['total_amount'] ?? 0), 2);
+            $firstOrderId = (int) ($jobworks[0]['order_id'] ?? 0);
+            if ($firstOrderId > 0) {
+                $orderId = $firstOrderId;
+            }
+        }
 
         if ($db->tableExists('order_receive_summaries')) {
             $receiveRow = $db->table('order_receive_summaries')
@@ -575,28 +591,34 @@ class DocumentsController extends ApiBaseController
 
         $wastagePercent = round((float) ($bill['karigar_wastage_percentage'] ?? 0), 3);
         $wastageWeight = round((float) ($receive['net_gold_weight_gm'] ?? 0) * ($wastagePercent / 100), 3);
-        $taxableAmount = round((float) ($bill['total_amount'] ?? 0), 2);
-        $igstPercent = 5.0;
-        $igstAmount = round($taxableAmount * ($igstPercent / 100), 2);
-        $totalWithTax = round($taxableAmount + $igstAmount, 2);
+        $taxableAmount = round((float) ($bill['taxable_amount'] ?? ((float) ($bill['labour_amount'] ?? 0) + (float) ($bill['other_amount'] ?? 0))), 2);
+        $igstPercent = round((float) ($bill['igst_rate'] ?? 0), 3);
+        $igstAmount = round((float) ($bill['igst_amount'] ?? 0), 2);
+        $totalWithTax = round((float) ($bill['total_amount'] ?? 0), 2);
         $company = $this->companySetting();
+        $taxBreakup = json_decode((string) ($bill['tax_breakup_json'] ?? ''), true);
+        if (! is_array($taxBreakup)) {
+            $taxBreakup = [];
+        }
 
         return [
             'bill' => $bill,
             'company' => $company,
             'receive' => $receive,
+            'jobworks' => $jobworks,
             'purityCode' => $purityCode,
             'stateCode' => $this->stateCode((string) ($bill['karigar_state'] ?? ($company['state'] ?? ''))),
             'wastagePercent' => $wastagePercent,
             'wastageWeight' => $wastageWeight,
             'taxableAmount' => $taxableAmount,
-            'sgstPercent' => 0.0,
-            'sgstAmount' => 0.0,
-            'cgstPercent' => 0.0,
-            'cgstAmount' => 0.0,
+            'sgstPercent' => round((float) ($bill['sgst_rate'] ?? 0), 3),
+            'sgstAmount' => round((float) ($bill['sgst_amount'] ?? 0), 2),
+            'cgstPercent' => round((float) ($bill['cgst_rate'] ?? 0), 3),
+            'cgstAmount' => round((float) ($bill['cgst_amount'] ?? 0), 2),
             'igstPercent' => $igstPercent,
             'igstAmount' => $igstAmount,
             'totalWithTax' => $totalWithTax,
+            'taxBreakup' => $taxBreakup,
             'amountInWords' => $this->amountInWordsIndian($totalWithTax),
         ];
     }

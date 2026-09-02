@@ -12,6 +12,7 @@ use App\Models\PurchaseModel;
 use App\Models\VendorModel;
 use App\Services\AdminPostingService;
 use App\Services\PostingService;
+use App\Services\TaxMasterService;
 use Throwable;
 
 class PurchaseController extends BaseController
@@ -24,6 +25,7 @@ class PurchaseController extends BaseController
     private GoldPurityModel $goldPurityModel;
     private InventoryTransactionModel $inventoryTxnModel;
     private AdminPostingService $adminPostingService;
+    private TaxMasterService $taxMasterService;
 
     public function __construct()
     {
@@ -36,6 +38,7 @@ class PurchaseController extends BaseController
         $this->goldPurityModel = new GoldPurityModel();
         $this->inventoryTxnModel = new InventoryTransactionModel();
         $this->adminPostingService = new AdminPostingService();
+        $this->taxMasterService = new TaxMasterService();
     }
 
     public function index(): string
@@ -106,6 +109,7 @@ class PurchaseController extends BaseController
             'sizeOptions'      => $this->distinctInventoryValues('diamond_sieve'),
             'colorOptions'     => $this->distinctInventoryValues('diamond_color'),
             'qualityOptions'   => $this->distinctInventoryValues('diamond_clarity'),
+            'gstMasters'       => $this->taxMasterService->options(),
         ]);
     }
 
@@ -119,6 +123,8 @@ class PurchaseController extends BaseController
             'location_id'    => 'required|integer',
             'invoice_no'     => 'required|max_length[80]',
             'invoice_amount' => 'required|decimal|greater_than[0]',
+            'gst_master_id'  => 'required|integer',
+            'round_off_amount' => 'permit_empty|decimal',
             'notes'          => 'permit_empty',
         ];
 
@@ -147,6 +153,16 @@ class PurchaseController extends BaseController
             return redirect()->back()->withInput()->with('error', 'At least one valid item row is required.');
         }
 
+        try {
+            $tax = $this->taxMasterService->calculate(
+                (int) $this->request->getPost('gst_master_id'),
+                (float) $this->request->getPost('invoice_amount'),
+                (float) ($this->request->getPost('round_off_amount') ?: 0)
+            );
+        } catch (Throwable $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+
         $paymentStatus = $isGold ? 'Paid' : 'Pending';
         $paymentDueDate = $isGold ? null : trim((string) $this->request->getPost('payment_due_date'));
         if ($paymentDueDate === '') {
@@ -168,7 +184,12 @@ class PurchaseController extends BaseController
                 'vendor_id'        => $vendorId,
                 'purchase_date'    => $purchaseDate,
                 'invoice_no'       => $invoiceNo,
-                'invoice_amount'   => (float) $this->request->getPost('invoice_amount'),
+                'invoice_amount'   => (float) $tax['invoice_total'],
+                'taxable_amount'   => (float) $tax['taxable_amount'],
+                'gst_master_id'    => (int) $tax['gst_master_id'],
+                'tax_breakup_json' => (string) $tax['tax_breakup_json'],
+                'gst_amount'       => (float) $tax['gst_amount'],
+                'round_off_amount' => (float) $tax['round_off_amount'],
                 'payment_due_date' => $paymentDueDate,
                 'payment_status'   => $paymentStatus,
                 'location_id'      => $locationId,

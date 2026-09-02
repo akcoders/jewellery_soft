@@ -46,9 +46,15 @@ $postUrl = $isGold
                     <input type="text" name="invoice_no" class="form-control" value="<?= esc(old('invoice_no')) ?>" required>
                 </div>
                 <div class="col-md-2 mb-3">
-                    <label class="form-label">Invoice Amount</label>
-                    <input type="number" name="invoice_amount" class="form-control" min="0.01" step="0.01" value="<?= esc(old('invoice_amount') ?: '0.00') ?>" required>
+                    <label class="form-label">Taxable Amount</label>
+                    <input type="number" name="invoice_amount" id="taxable-amount" class="form-control" min="0.01" step="0.01" value="<?= esc(old('invoice_amount') ?: '0.00') ?>" required>
                 </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">GST Master</label>
+                    <select name="gst_master_id" id="gst-master" class="form-select" required><option value="">Select tax structure</option><?php foreach (($gstMasters ?? []) as $master): ?><option value="<?= (int) $master['id'] ?>" data-components='<?= esc(json_encode($master['components']), 'attr') ?>' <?= (string) old('gst_master_id') === (string) $master['id'] ? 'selected' : '' ?>><?= esc((string) $master['name']) ?> (<?= number_format((float) $master['total_percentage'], 3) ?>%)</option><?php endforeach; ?></select>
+                </div>
+                <div class="col-md-2 mb-3"><label class="form-label">Round Off</label><input type="number" name="round_off_amount" id="purchase-round-off" class="form-control" step="0.01" value="<?= esc(old('round_off_amount') ?: '0.00') ?>"></div>
+                <div class="col-md-3 mb-3"><label class="form-label">Invoice Total</label><input type="text" id="invoice-total" class="form-control fw-semibold" value="₹0.00" readonly><small id="purchase-tax-breakup" class="text-muted"></small></div>
                 <?php if ($isGold): ?>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Payment Status</label>
@@ -247,6 +253,22 @@ $postUrl = $isGold
             if (dt) dt.row(tr).remove().draw(false);
             else tr.remove();
         });
+
+        const taxable = document.getElementById('taxable-amount');
+        const master = document.getElementById('gst-master');
+        const roundOff = document.getElementById('purchase-round-off');
+        function calculateTax() {
+            const amount = Number(taxable?.value || 0);
+            const selected = master?.options[master.selectedIndex];
+            let components = [];
+            try { components = selected?.dataset.components ? JSON.parse(selected.dataset.components) : []; } catch (e) { components = []; }
+            let gstAmount = 0;
+            const labels = components.map(function (component) { const value = amount * Number(component.percentage || 0) / 100; gstAmount += value; return component.name + ' ₹' + value.toFixed(2); });
+            document.getElementById('invoice-total').value = '₹' + (amount + gstAmount + Number(roundOff?.value || 0)).toFixed(2);
+            document.getElementById('purchase-tax-breakup').textContent = labels.join(' · ') || 'No GST';
+        }
+        [taxable, master, roundOff].forEach(function (element) { element?.addEventListener('input', calculateTax); element?.addEventListener('change', calculateTax); });
+        calculateTax();
     })();
 </script>
 <?= $this->endSection() ?>

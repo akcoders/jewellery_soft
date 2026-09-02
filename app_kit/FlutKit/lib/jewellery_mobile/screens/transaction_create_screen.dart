@@ -40,17 +40,18 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   String _invoiceNo = '';
   String _voucherNo = '';
   String _supplierName = '';
-  String _taxPercent = '';
   String _dueDate = '';
 
   int? _karigarId;
   int? _locationId;
   int? _vendorId;
+  int? _gstMasterId;
   int? _issueId;
 
   List<dynamic> _karigars = [];
   List<dynamic> _locations = [];
   List<dynamic> _vendors = [];
+  List<dynamic> _gstMasters = [];
   List<dynamic> _items = [];
   List<dynamic> _issueRefs = [];
 
@@ -94,6 +95,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
 
       if (widget.action == 'purchase') {
         _vendors = await widget.api.fetchVendors();
+        _gstMasters = await widget.api.fetchGstMasters();
       } else {
         _karigars = await widget.api.fetchKarigars();
         _locations = await widget.api.fetchLocations();
@@ -176,8 +178,8 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         payload['supplier_name'] = _supplierName.trim();
         payload['invoice_no'] = _invoiceNo.trim();
         payload['notes'] = _notes.trim();
+        payload['gst_master_id'] = _gstMasterId;
         if (widget.material == 'diamond') {
-          payload['tax_percentage'] = double.tryParse(_taxPercent) ?? 0;
           payload['due_date'] = _dueDate.trim();
         }
       } else if (widget.action == 'issue') {
@@ -359,14 +361,24 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
               decoration: const InputDecoration(labelText: 'Invoice No'),
               onChanged: (v) => _invoiceNo = v,
             ),
+            const SizedBox(height: AppSpacing.md),
+            DropdownButtonFormField<int>(
+              initialValue: _gstMasterId,
+              decoration: const InputDecoration(labelText: 'GST Master'),
+              items: _gstMasters
+                  .map(
+                    (row) => DropdownMenuItem<int>(
+                      value: _asInt(row['id']),
+                      child: Text(
+                        '${row['name'] ?? '-'} (${row['total_percentage'] ?? 0}%)',
+                      ),
+                    ),
+                  )
+                  .toList(),
+              validator: (value) => value == null ? 'Select GST master' : null,
+              onChanged: (value) => setState(() => _gstMasterId = value),
+            ),
             if (widget.material == 'diamond') ...[
-              const SizedBox(height: AppSpacing.md),
-              TextFormField(
-                initialValue: _taxPercent,
-                decoration: const InputDecoration(labelText: 'Tax %'),
-                keyboardType: TextInputType.number,
-                onChanged: (v) => _taxPercent = v,
-              ),
               const SizedBox(height: AppSpacing.md),
               TextFormField(
                 initialValue: _dueDate,

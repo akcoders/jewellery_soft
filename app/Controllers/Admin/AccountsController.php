@@ -545,19 +545,6 @@ class AccountsController extends BaseController
             if ((int) $bill['labour_bill_id'] > 0) {
                 $this->postLabourBillPayment((int) $bill['labour_bill_id'], $amount, $paymentDate, $referenceNo, $notes, false);
             }
-            if ($db->tableExists('karigar_payment_ledgers')) {
-                $db->table('karigar_payment_ledgers')->insert([
-                    'karigar_id' => $karigarId,
-                    'order_id' => $bill['order_id'],
-                    'entry_type' => 'payment',
-                    'amount' => $amount,
-                    'reference_no' => $referenceNo ?: $paymentNo,
-                    'notes' => $notes ?: 'Account payment ' . $paymentNo,
-                    'created_by' => (int) session('admin_id'),
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-            }
         } elseif ($partyType === 'vendor') {
             if ((string) $bill['bill_source_type'] !== '' && (int) $bill['bill_source_id'] > 0) {
                 $this->postPurchaseBillPayment((string) $bill['bill_source_type'], (int) $bill['bill_source_id'], $amount, $paymentDate, $referenceNo, $notes, false);
@@ -652,20 +639,23 @@ class AccountsController extends BaseController
         $this->labourBillModel->update($billId, [
             'payment_status' => $status,
         ]);
-
-        if ($db->tableExists('karigar_payment_ledgers')) {
-            $db->table('karigar_payment_ledgers')->insert([
-                'karigar_id' => (int) ($bill['karigar_id'] ?? 0),
-                'order_id' => isset($bill['order_id']) ? (int) $bill['order_id'] : null,
-                'entry_type' => 'payment',
-                'amount' => $payAmount,
-                'reference_no' => $this->nullableString($this->request->getPost('reference_no')),
-                'notes' => 'Labour Bill Payment ' . (string) ($bill['bill_no'] ?? ''),
-                'created_by' => (int) session('admin_id'),
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]);
-        }
+        $paymentNo = $this->generateAccountPaymentNumber();
+        $this->accountPaymentModel->insert([
+            'payment_no' => $paymentNo,
+            'payment_date' => (string) $this->request->getPost('payment_date'),
+            'party_type' => 'karigar',
+            'karigar_id' => (int) ($bill['karigar_id'] ?? 0),
+            'vendor_id' => null,
+            'amount' => $payAmount,
+            'payment_mode' => null,
+            'reference_no' => $this->nullableString($this->request->getPost('reference_no')),
+            'bill_type' => 'labour',
+            'bill_source_type' => 'labour_bill',
+            'bill_source_id' => $billId,
+            'labour_bill_id' => $billId,
+            'notes' => $this->nullableString($this->request->getPost('notes')),
+            'created_by' => (int) session('admin_id'),
+        ]);
 
         $db->transComplete();
         if (! $db->transStatus()) {
@@ -1049,11 +1039,11 @@ class AccountsController extends BaseController
 
         if ($db->tableExists('labour_bills')) {
             $list = $db->table('labour_bills lb')
-                ->select('lb.*, k.name as karigar_name, o.order_no, COALESCE(SUM(lbp.amount),0) as paid_amount', false)
+                ->select('lb.*, k.name as karigar_name, gm.name as gst_master_name, COALESCE(pay.paid_amount,0) as paid_amount, COALESCE(jobs.jobwork_count,0) as jobwork_count, jobs.order_numbers', false)
                 ->join('karigars k', 'k.id = lb.karigar_id', 'left')
-                ->join('orders o', 'o.id = lb.order_id', 'left')
-                ->join('labour_bill_payments lbp', 'lbp.labour_bill_id = lb.id', 'left')
-                ->groupBy('lb.id')
+                ->join('gst_masters gm', 'gm.id = lb.gst_master_id', 'left')
+                ->join('(SELECT labour_bill_id, SUM(amount) paid_amount FROM labour_bill_payments GROUP BY labour_bill_id) pay', 'pay.labour_bill_id = lb.id', 'left', false)
+                ->join('(SELECT j.labour_bill_id, COUNT(*) jobwork_count, GROUP_CONCAT(DISTINCT o.order_no ORDER BY o.order_no SEPARATOR ", ") order_numbers FROM labour_bill_jobworks j LEFT JOIN orders o ON o.id = j.order_id GROUP BY j.labour_bill_id) jobs', 'jobs.labour_bill_id = lb.id', 'left', false)
                 ->orderBy('lb.id', 'DESC')
                 ->get()
                 ->getResultArray();
@@ -1069,8 +1059,17 @@ class AccountsController extends BaseController
                     'order_id' => isset($row['order_id']) ? (int) $row['order_id'] : null,
                     'bill_no' => (string) ($row['bill_no'] ?? ''),
                     'bill_date' => (string) ($row['bill_date'] ?? ''),
-                    'order_no' => (string) ($row['order_no'] ?? '-'),
+                    'order_no' => (string) ($row['order_numbers'] ?? '-'),
                     'karigar_name' => (string) ($row['karigar_name'] ?? '-'),
+                    'jobwork_count' => (int) ($row['jobwork_count'] ?? 0),
+                    'gst_master_name' => (string) ($row['gst_master_name'] ?? '-'),
+                    'taxable_amount' => (float) ($row['taxable_amount'] ?? 0),
+                    'gst_amount' => (float) ($row['gst_amount'] ?? 0),
+                    'cgst_amount' => (float) ($row['cgst_amount'] ?? 0),
+                    'sgst_amount' => (float) ($row['sgst_amount'] ?? 0),
+                    'igst_amount' => (float) ($row['igst_amount'] ?? 0),
+                    'source_type' => (string) ($row['source_type'] ?? 'Manual'),
+                    'attachment_path' => (string) ($row['attachment_path'] ?? ''),
                     'gold_weight_gm' => (float) ($row['gold_weight_gm'] ?? 0),
                     'rate_per_gm' => (float) ($row['rate_per_gm'] ?? 0),
                     'labour_amount' => (float) ($row['labour_amount'] ?? 0),
@@ -3204,19 +3203,8 @@ class AccountsController extends BaseController
         ]);
         $this->labourBillModel->update($billId, ['payment_status' => $status]);
 
-        if ($withLedger && db_connect()->tableExists('karigar_payment_ledgers')) {
-            db_connect()->table('karigar_payment_ledgers')->insert([
-                'karigar_id' => (int) ($bill['karigar_id'] ?? 0),
-                'order_id' => isset($bill['order_id']) ? (int) $bill['order_id'] : null,
-                'entry_type' => 'payment',
-                'amount' => $amount,
-                'reference_no' => $referenceNo,
-                'notes' => $notes ?: 'Labour Bill Payment ' . (string) ($bill['bill_no'] ?? ''),
-                'created_by' => (int) session('admin_id'),
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]);
-        }
+        // Labour is accounted invoice-wise. Do not mirror bill payments into the
+        // legacy job-work ledger; that duplicate entry made balances ambiguous.
     }
 
     private function postPurchaseBillPayment(string $sourceType, int $sourceId, float $amount, string $paymentDate, ?string $referenceNo, ?string $notes, bool $updateLegacyStatus = true): void

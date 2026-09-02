@@ -17,7 +17,6 @@ use App\Models\InventoryLocationModel;
 use App\Models\InventoryTransactionModel;
 use App\Models\JobCardModel;
 use App\Models\KarigarModel;
-use App\Models\LabourBillModel;
 use App\Models\OrderAttachmentModel;
 use App\Models\OrderFollowupModel;
 use App\Models\OrderItemModel;
@@ -59,7 +58,6 @@ class OrderController extends BaseController
     private StoneLedgerEntryModel $stoneLedgerModel;
     private JobCardModel $jobCardModel;
     private KarigarModel $karigarModel;
-    private LabourBillModel $labourBillModel;
     private CompanySettingModel $companySettingModel;
     private CustomerModel $customerModel;
     private DesignMasterModel $designModel;
@@ -94,7 +92,6 @@ class OrderController extends BaseController
         $this->stoneLedgerModel = new StoneLedgerEntryModel();
         $this->jobCardModel    = new JobCardModel();
         $this->karigarModel    = new KarigarModel();
-        $this->labourBillModel = new LabourBillModel();
         $this->companySettingModel = new CompanySettingModel();
         $this->customerModel   = new CustomerModel();
         $this->designModel     = new DesignMasterModel();
@@ -1734,17 +1731,6 @@ class OrderController extends BaseController
                 ]
             );
 
-            $this->createLabourBillFromReceive(
-                $orderId,
-                $order,
-                $movementId,
-                $karigarId,
-                $netGoldWeightGm,
-                $notes,
-                $labourRate,
-                (float) $other['total_amount']
-            );
-
             $this->orderModel->update($orderId, ['status' => 'Completed']);
             $this->orderItemModel->where('order_id', $orderId)->set(['item_status' => 'Completed'])->update();
             $this->historyModel->insert([
@@ -1763,89 +1749,6 @@ class OrderController extends BaseController
 
         $this->dispatchWhatsappOrderReady($orderId, 'Completed');
         return redirect()->back()->with('success', 'Finished jewellery received, karigar material balance reduced, and inventory created.');
-    }
-
-    private function createLabourBillFromReceive(
-        int $orderId,
-        array $order,
-        int $movementId,
-        int $karigarId,
-        float $goldWeightGm,
-        string $notes,
-        float $labourRateInput = 0.0,
-        float $otherAmountInput = 0.0
-    ): void {
-        $db = db_connect();
-        if (! $db->tableExists('labour_bills')) {
-            return;
-        }
-
-        $existing = $db->table('labour_bills')->where('receive_movement_id', $movementId)->countAllResults();
-        if ($existing > 0) {
-            return;
-        }
-
-        $karigar = $this->karigarModel->find($karigarId);
-        if (! $karigar) {
-            return;
-        }
-
-        $karigarRate = round((float) ($karigar['rate_per_gm'] ?? 0), 2);
-        $ratePerGm = $labourRateInput > 0 ? round($labourRateInput, 2) : $karigarRate;
-        // Labour is always calculated on net received gold weight.
-        $labourAmount = round(max(0, $goldWeightGm) * $ratePerGm, 2);
-        $otherAmount = max(0, round($otherAmountInput, 2));
-        $totalAmount = round($labourAmount + $otherAmount, 2);
-        $billNo = $this->nextLabourBillNo();
-        $dueDate = trim((string) ($order['due_date'] ?? ''));
-        if ($dueDate === '') {
-            $dueDate = date('Y-m-d');
-        }
-
-        $billId = (int) $this->labourBillModel->insert([
-            'bill_no' => $billNo,
-            'bill_date' => date('Y-m-d'),
-            'order_id' => $orderId,
-            'receive_movement_id' => $movementId,
-            'karigar_id' => $karigarId,
-            'gold_weight_gm' => round($goldWeightGm, 3),
-            'rate_per_gm' => $ratePerGm,
-            'labour_amount' => $labourAmount,
-            'other_amount' => $otherAmount,
-            'total_amount' => $totalAmount,
-            'due_date' => $dueDate,
-            'payment_status' => $totalAmount > 0 ? 'Pending' : 'Paid',
-            'notes' => $notes,
-            'created_by' => (int) session('admin_id'),
-        ], true);
-
-        if ($billId <= 0 || ! $db->tableExists('karigar_payment_ledgers') || $totalAmount <= 0) {
-            return;
-        }
-
-        $db->table('karigar_payment_ledgers')->insert([
-            'karigar_id' => $karigarId,
-            'order_id' => $orderId,
-            'entry_type' => 'charge',
-            'amount' => $totalAmount,
-            'reference_no' => $billNo,
-            'notes' => 'Auto labour bill generated from receiving.',
-            'created_by' => (int) session('admin_id'),
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ]);
-    }
-
-    private function nextLabourBillNo(): string
-    {
-        $db = db_connect();
-        $next = 1;
-        if ($db->tableExists('labour_bills')) {
-            $lastRow = $db->table('labour_bills')->select('id')->orderBy('id', 'DESC')->get(1)->getRowArray();
-            $next = ((int) ($lastRow['id'] ?? 0)) + 1;
-        }
-
-        return 'LB' . str_pad((string) $next, 6, '0', STR_PAD_LEFT);
     }
 
     private function dispatchWhatsappOrderCreated(int $orderId): void

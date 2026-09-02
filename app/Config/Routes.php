@@ -121,7 +121,6 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->get('karigars/(:num)/edit', 'Admin\KarigarController::edit/$1', ['filter' => 'permission:masters.karigars.manage']);
     $routes->post('karigars/(:num)/update', 'Admin\KarigarController::update/$1', ['filter' => 'permission:masters.karigars.manage']);
     $routes->post('karigars/(:num)/status', 'Admin\KarigarController::updateStatus/$1', ['filter' => 'permission:masters.karigars.manage']);
-    $routes->post('karigars/(:num)/payment', 'Admin\KarigarController::addPaymentEntry/$1', ['filter' => 'permission:masters.karigars.payments']);
     $routes->get('karigars/(:num)/profile', 'Admin\KarigarController::show/$1', ['filter' => 'permission:masters.karigars.read']);
     $routes->get('karigars/(:num)', 'Admin\KarigarController::show/$1', ['filter' => 'permission:masters.karigars.read']);
     $routes->get('reports', 'Admin\ReportController::index', ['filter' => 'permission:reports.read']);
@@ -147,6 +146,10 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->get('accounts/production-purchase-register', 'Admin\ProductionImportController::purchaseRegister', ['filter' => 'permission:accounts.read']);
     $routes->post('accounts/purchase-bills/payment', 'Admin\AccountsController::updatePurchaseBillPayment', ['filter' => 'permission:accounts.payments']);
     $routes->get('accounts/labour-bills', 'Admin\AccountsController::labourBills', ['filter' => 'permission:accounts.read']);
+    $routes->get('accounts/labour-bills/create', 'Admin\LabourBillController::create', ['filter' => 'permission:accounts.payments']);
+    $routes->post('accounts/labour-bills', 'Admin\LabourBillController::store', ['filter' => 'permission:accounts.payments']);
+    $routes->get('accounts/labour-bills/(:num)', 'Admin\LabourBillController::show/$1', ['filter' => 'permission:accounts.read']);
+    $routes->get('accounts/labour-bills/(:num)/attachment', 'Admin\LabourBillController::attachment/$1', ['filter' => 'permission:accounts.read']);
     $routes->post('accounts/labour-bills/payment', 'Admin\AccountsController::updateLabourBillPayment', ['filter' => 'permission:accounts.payments']);
     $routes->get('accounts/tax-masters', 'Admin\TaxMasterController::index', ['filter' => 'permission:accounts.read']);
     $routes->post('accounts/tax-masters/tax-types', 'Admin\TaxMasterController::storeTaxType', ['filter' => 'permission:accounts.payments']);
@@ -456,6 +459,7 @@ $routes->group('api', static function ($routes): void {
 
         $routes->get('lookups/karigars', 'Api\Mobile\LookupsController::karigars');
         $routes->get('lookups/vendors', 'Api\Mobile\LookupsController::vendors');
+        $routes->get('lookups/gst-masters', 'Api\Mobile\LookupsController::gstMasters');
         $routes->get('lookups/locations', 'Api\Mobile\LookupsController::locations');
         $routes->get('lookups/diamond-items', 'Api\Mobile\LookupsController::diamondItems');
         $routes->get('lookups/gold-items', 'Api\Mobile\LookupsController::goldItems');

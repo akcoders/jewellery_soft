@@ -38,6 +38,8 @@
     $bill = is_array($bill ?? null) ? $bill : [];
     $company = is_array($company ?? null) ? $company : [];
     $receive = is_array($receive ?? null) ? $receive : [];
+    $jobworks = is_array($jobworks ?? null) ? $jobworks : [];
+    $taxBreakup = is_array($taxBreakup ?? null) ? $taxBreakup : [];
     $purityCode = trim((string) ($purityCode ?? '-')) ?: '-';
     $karigarName = strtoupper(trim((string) ($bill['karigar_name'] ?? '-')));
     $karigarAddress = trim(implode(', ', array_filter([
@@ -67,6 +69,7 @@
     $invoiceNo = (string) ($bill['bill_no'] ?? '-');
     $transportMode = 'By Hand';
     $blankRows = max(0, 2 - ($otherAmount > 0 ? 1 : 0));
+    $taxRowspan = 2 + max(1, count($taxBreakup));
 ?>
 <div class="page">
     <div class="sheet">
@@ -143,15 +146,13 @@
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td class="center"></td>
-                    <td class="center">998892</td>
-                    <td class="center desc"><?= esc($studdedLabel) ?></td>
-                    <td class="center">GRM</td>
-                    <td class="right"><?= esc(number_format($netWeight, 3)) ?></td>
-                    <td class="center"><?= esc(rtrim(rtrim(number_format($labourRate, 2), '0'), '.')) ?>/-</td>
-                    <td class="right"><?= esc(number_format($labourAmount, 2)) ?></td>
-                </tr>
+                <?php if ($jobworks === []): ?>
+                    <tr><td class="center"></td><td class="center">998892</td><td class="center desc"><?= esc($studdedLabel) ?></td><td class="center">GRM</td><td class="right"><?= esc(number_format($netWeight, 3)) ?></td><td class="center"><?= esc(rtrim(rtrim(number_format($labourRate, 2), '0'), '.')) ?>/-</td><td class="right"><?= esc(number_format($labourAmount, 2)) ?></td></tr>
+                <?php else: ?>
+                    <?php foreach ($jobworks as $index => $job): ?>
+                        <tr><td class="center"><?= $index + 1 ?></td><td class="center">998892</td><td class="desc"><?= esc((string) (($job['order_no'] ?? '') ?: ($job['description'] ?? $studdedLabel))) ?><br><small><?= esc((string) ($job['description'] ?? '')) ?></small></td><td class="center">GRM</td><td class="right"><?= number_format((float) ($job['net_weight_gm'] ?? 0), 3) ?></td><td class="center">Job work</td><td class="right"><?= number_format((float) ($job['labour_amount'] ?? 0), 2) ?></td></tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
                 <tr>
                     <td></td><td></td>
                     <td class="center desc">Gross Wt</td>
@@ -203,7 +204,7 @@
                     <tr class="spacer-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
                 <?php endfor; ?>
                 <tr>
-                    <td colspan="4" rowspan="5" class="words-box">
+                    <td colspan="4" rowspan="<?= (int) $taxRowspan ?>" class="words-box">
                         <strong>Amount in Words:</strong> <?= esc((string) ($amountInWords ?? '-')) ?>
                         <div class="declaration" style="margin-top:22px;">
                             <strong>Declaration:</strong><br>
@@ -214,18 +215,8 @@
                     <td colspan="2" class="right-box-title">Total Amount before GST</td>
                     <td class="right black"><?= esc(number_format((float) ($taxableAmount ?? 0), 2)) ?></td>
                 </tr>
-                <tr>
-                    <td colspan="2" class="right-box-title">SGST:</td>
-                    <td class="right black"><?= esc(number_format((float) ($sgstAmount ?? 0), 2)) ?></td>
-                </tr>
-                <tr>
-                    <td colspan="2" class="right-box-title">CGST:</td>
-                    <td class="right black"><?= esc(number_format((float) ($cgstAmount ?? 0), 2)) ?></td>
-                </tr>
-                <tr>
-                    <td colspan="2" class="right-box-title">IGST: <?= esc(rtrim(rtrim(number_format((float) ($igstPercent ?? 0), 2), '0'), '.')) ?>%</td>
-                    <td class="right black"><?= esc(number_format((float) ($igstAmount ?? 0), 2)) ?></td>
-                </tr>
+                <?php if ($taxBreakup === []): ?><tr><td colspan="2" class="right-box-title">GST</td><td class="right black">0.00</td></tr><?php endif; ?>
+                <?php foreach ($taxBreakup as $component): ?><tr><td colspan="2" class="right-box-title"><?= esc((string) ($component['name'] ?? 'Tax')) ?> <?= esc(rtrim(rtrim(number_format((float) ($component['percentage'] ?? 0), 3), '0'), '.')) ?>%</td><td class="right black"><?= number_format((float) ($component['amount'] ?? 0), 2) ?></td></tr><?php endforeach; ?>
                 <tr>
                     <td colspan="2" class="right-box-title">Total Amount Inclusive of GST</td>
                     <td class="right black"><?= esc(number_format((float) ($totalWithTax ?? 0), 2)) ?></td>

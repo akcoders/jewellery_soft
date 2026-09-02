@@ -27,8 +27,10 @@
             <div class="col-md-4 mt-2"><strong>Contact:</strong> <?= esc(trim((string) ($purchase['supplier_phone'] ?? '') . ' ' . (string) ($purchase['supplier_email'] ?? '')) ?: '-') ?></div>
             <div class="col-md-3 mt-2"><strong>Total Qty:</strong> <?= number_format((float) ($totals['total_qty'] ?? 0), 3) ?></div>
             <div class="col-md-3 mt-2"><strong>Taxable:</strong> <?= number_format((float) ($purchase['taxable_amount'] ?? $totals['total_value'] ?? 0), 2) ?></div>
-            <div class="col-md-3 mt-2"><strong>Tax %:</strong> <?= number_format((float) ($purchase['tax_percentage'] ?? 0), 3) ?></div>
-            <div class="col-md-3 mt-2"><strong>GST Amount:</strong> <?= number_format((float) ($purchase['gst_amount'] ?? 0), 2) ?></div>
+            <div class="col-md-3 mt-2"><strong>CGST:</strong> <?= number_format((float) ($purchase['cgst_rate'] ?? 0), 3) ?>% · ₹<?= number_format((float) ($purchase['cgst_amount'] ?? 0), 2) ?></div>
+            <div class="col-md-3 mt-2"><strong>SGST:</strong> <?= number_format((float) ($purchase['sgst_rate'] ?? 0), 3) ?>% · ₹<?= number_format((float) ($purchase['sgst_amount'] ?? 0), 2) ?></div>
+            <div class="col-md-3 mt-2"><strong>IGST:</strong> <?= number_format((float) ($purchase['igst_rate'] ?? 0), 3) ?>% · ₹<?= number_format((float) ($purchase['igst_amount'] ?? 0), 2) ?></div>
+            <div class="col-md-3 mt-2"><strong>Round Off:</strong> ₹<?= number_format((float) ($purchase['round_off_amount'] ?? 0), 2) ?></div>
             <div class="col-md-3 mt-2"><strong>Invoice Total:</strong> <?= number_format((float) ($purchase['invoice_total'] ?? $totals['total_value'] ?? 0), 2) ?></div>
             <div class="col-md-6 mt-2"><strong>Notes:</strong> <?= esc((string) ($purchase['notes'] ?: '-')) ?></div>
         </div>

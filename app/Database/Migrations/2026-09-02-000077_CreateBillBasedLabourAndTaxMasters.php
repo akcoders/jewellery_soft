@@ -48,7 +48,7 @@ class CreateBillBasedLabourAndTaxMasters extends Migration
 
         if ($this->db->tableExists('labour_bills')) {
             foreach ([
-                'gst_master_id', 'taxable_amount', 'cgst_rate', 'cgst_amount', 'sgst_rate', 'sgst_amount',
+                'gst_master_id', 'tax_breakup_json', 'taxable_amount', 'cgst_rate', 'cgst_amount', 'sgst_rate', 'sgst_amount',
                 'igst_rate', 'igst_amount', 'gst_amount', 'round_off_amount', 'attachment_path',
                 'attachment_name', 'source_type',
             ] as $column) {
@@ -125,6 +125,7 @@ class CreateBillBasedLabourAndTaxMasters extends Migration
         }
         $fields = [
             'gst_master_id' => ['type' => 'INT', 'constraint' => 11, 'unsigned' => true, 'null' => true, 'after' => 'karigar_id'],
+            'tax_breakup_json' => ['type' => 'LONGTEXT', 'null' => true, 'after' => 'gst_master_id'],
             'taxable_amount' => ['type' => 'DECIMAL', 'constraint' => '14,2', 'default' => 0, 'after' => 'other_amount'],
             'cgst_rate' => ['type' => 'DECIMAL', 'constraint' => '7,3', 'default' => 0, 'after' => 'taxable_amount'],
             'cgst_amount' => ['type' => 'DECIMAL', 'constraint' => '14,2', 'default' => 0, 'after' => 'cgst_rate'],

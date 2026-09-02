@@ -72,6 +72,11 @@
     .karigar-ledger-legend span::before { border-radius: 50%; content: ''; display: inline-block; height: 7px; margin-right: 5px; width: 7px; }
     .karigar-ledger-legend .given::before { background: #22a06b; }
     .karigar-ledger-legend .returned::before { background: #df4c59; }
+    .ready-thumb { background: #f5f6f8; border: 1px solid #e1e5eb; border-radius: 10px; height: 58px; object-fit: cover; width: 58px; }
+    .ready-thumb-empty { align-items: center; color: #98a2b3; display: inline-flex; font-size: 1.15rem; justify-content: center; }
+    .completed-table td { vertical-align: middle; }
+    .completed-design { color: #172235; font-weight: 750; max-width: 240px; }
+    .completed-design small { color: #7b8798; display: block; font-weight: 500; margin-top: 3px; }
     @media (min-width: 768px) {
         .karigar-ledger-table { min-width: 980px; }
     }
@@ -100,7 +105,6 @@ $statementRange = static function (array $rows, string $openingKey, string $clos
 $goldRange = $statementRange($goldStatement ?? [], 'opening_gm', 'closing_gm');
 $diamondRange = $statementRange($diamondStatement ?? [], 'opening_weight', 'closing_weight');
 $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_weight');
-$paymentRange = $statementRange($paymentStatement ?? [], 'opening_amount', 'closing_amount');
 ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Karigar Profile: <?= esc($karigar['name']) ?></h4>
@@ -169,7 +173,7 @@ $paymentRange = $statementRange($paymentStatement ?? [], 'opening_amount', 'clos
         <div class="card w-100">
             <div class="card-body py-3">
                 <div class="text-muted">Payment Due</div>
-                <h4 class="mb-0"><?= esc(number_format($paymentRange['closing'], 2)) ?></h4>
+                <h4 class="mb-0">₹<?= esc(number_format((float) ($labourSummary['outstanding'] ?? 0), 2)) ?></h4>
             </div>
         </div>
     </div>
@@ -516,136 +520,71 @@ $paymentRange = $statementRange($paymentStatement ?? [], 'opening_amount', 'clos
 
     <div class="col-12 d-flex">
         <div class="card w-100 karigar-ledger-card" id="payment-ledger">
-            <div class="card-header"><div><h5 class="card-title mb-0"><i class="fe fe-credit-card me-2 text-success"></i>Labour & Payment Account</h5><small>Charges increase the payable amount; payments reduce it</small></div></div>
+            <div class="card-header">
+                <div><h5 class="card-title mb-0"><i class="fe fe-file-text me-2 text-success"></i>Labour & Payment Account</h5><small>Actual supplier bills, combined job works and separately recorded payments</small></div>
+                <a class="btn btn-sm btn-primary" href="<?= site_url('admin/accounts/labour-bills/create?karigar_id=' . (int) $karigar['id']) ?>"><i class="fe fe-plus me-1"></i>Add Labour Bill</a>
+            </div>
             <div class="card-body">
-                <?php if (! $paymentLedgerEnabled): ?>
-                    <div class="alert alert-warning mb-3">Payment ledger is not available. Run migration to enable.</div>
-                <?php else: ?>
-                    <div class="karigar-ledger-summary">
-                        <div class="karigar-ledger-metric"><small>Opening payable</small><strong>₹<?= esc(number_format($paymentRange['opening'], 2)) ?></strong></div>
-                        <div class="karigar-ledger-metric is-in"><small>Labour charges</small><strong>+₹<?= esc(number_format((float) $paymentSummary['charge'], 2)) ?></strong></div>
-                        <div class="karigar-ledger-metric is-out"><small>Payments made</small><strong>-₹<?= esc(number_format((float) $paymentSummary['paid'], 2)) ?></strong></div>
-                        <div class="karigar-ledger-metric is-closing"><small>Closing payable</small><strong>₹<?= esc(number_format($paymentRange['closing'], 2)) ?></strong></div>
-                    </div>
-                    <form method="post" action="<?= site_url('admin/karigars/' . $karigar['id'] . '/payment') ?>" class="bg-light border rounded-3 p-3 mb-3">
-                        <?= csrf_field() ?>
-                        <div class="row">
-                            <div class="col-md-3 mb-2">
-                                <label class="form-label mb-1">Entry type</label>
-                                <select name="entry_type" class="form-select" required>
-                                    <option value="charge">Add labour charge</option>
-                                    <option value="payment">Record payment</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <label class="form-label mb-1">Amount</label><input type="number" step="0.01" min="0.01" name="amount" class="form-control" placeholder="0.00" required>
-                            </div>
-                            <div class="col-md-6 mb-2">
-                                <label class="form-label mb-1">Related order</label><select name="order_id" class="form-select">
-                                    <option value="">Order (Optional)</option>
-                                    <?php foreach ($assignedOrders as $o): ?>
-                                        <option value="<?= esc((string) $o['id']) ?>"><?= esc($o['order_no']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-4 mb-2">
-                                <label class="form-label mb-1">Reference</label><input type="text" name="reference_no" class="form-control" placeholder="Voucher / UTR / reference">
-                            </div>
-                            <div class="col-md-6 mb-2">
-                                <label class="form-label mb-1">Notes</label><input type="text" name="notes" class="form-control" placeholder="Optional notes">
-                            </div>
-                            <div class="col-md-2 mb-2">
-                                <label class="form-label mb-1 d-none d-md-block">&nbsp;</label><button class="btn btn-primary w-100"><i class="fe fe-plus me-1"></i>Add</button>
-                            </div>
-                        </div>
-                    </form>
-
-                    <div class="table-responsive">
-                        <table id="karigar-payment-ledger-table" class="table datatable table-hover mb-0 karigar-ledger-table" data-dt-page-length="10">
-                            <thead>
+                <div class="karigar-ledger-summary">
+                    <div class="karigar-ledger-metric"><small>Actual bills</small><strong><?= (int) ($labourSummary['bill_count'] ?? 0) ?></strong></div>
+                    <div class="karigar-ledger-metric is-in"><small>Total billed</small><strong>₹<?= esc(number_format((float) ($labourSummary['billed'] ?? 0), 2)) ?></strong></div>
+                    <div class="karigar-ledger-metric is-out"><small>Payments entered</small><strong>₹<?= esc(number_format((float) ($labourSummary['paid'] ?? 0), 2)) ?></strong></div>
+                    <div class="karigar-ledger-metric is-closing"><small>Outstanding</small><strong>₹<?= esc(number_format((float) ($labourSummary['outstanding'] ?? 0), 2)) ?></strong></div>
+                </div>
+                <h6 class="mb-2">Bills</h6>
+                <div class="table-responsive mb-4">
+                    <table id="karigar-payment-ledger-table" class="table datatable table-hover align-middle mb-0 karigar-ledger-table" data-dt-page-length="10">
+                        <thead><tr><th>Date</th><th>Bill No</th><th>Job Works</th><th>Taxable</th><th>GST</th><th>Total</th><th>Paid</th><th>Pending</th><th>Status</th><th>Files</th></tr></thead>
+                        <tbody>
+                            <?php foreach (($labourBills ?? []) as $bill): ?>
+                                <?php $billPending = max(0, (float) $bill['total_amount'] - (float) $bill['paid_amount']); ?>
                                 <tr>
-                                    <th>Date</th>
-                                    <th>Entry</th>
-                                    <th>Order</th>
-                                    <th>Opening</th>
-                                    <th>Charge</th>
-                                    <th>Paid</th>
-                                    <th>Closing</th>
-                                    <th>Reference</th>
-                                    <th>Notes</th>
+                                    <td><?= esc((string) $bill['bill_date']) ?></td>
+                                    <td><a class="fw-semibold" href="<?= site_url('admin/accounts/labour-bills/' . (int) $bill['id']) ?>"><?= esc((string) $bill['bill_no']) ?></a></td>
+                                    <td><span class="badge bg-light text-dark"><?= (int) ($bill['jobwork_count'] ?? 0) ?> work<?= (int) ($bill['jobwork_count'] ?? 0) === 1 ? '' : 's' ?></span><small class="d-block text-muted text-truncate" style="max-width:190px"><?= esc((string) ($bill['order_numbers'] ?: 'Unlinked invoice')) ?></small></td>
+                                    <td class="ledger-number">₹<?= number_format((float) ($bill['taxable_amount'] ?? 0), 2) ?></td>
+                                    <td class="ledger-number">₹<?= number_format((float) ($bill['gst_amount'] ?? 0), 2) ?></td>
+                                    <td class="ledger-number fw-semibold">₹<?= number_format((float) $bill['total_amount'], 2) ?></td>
+                                    <td class="ledger-number ledger-in">₹<?= number_format((float) $bill['paid_amount'], 2) ?></td>
+                                    <td class="ledger-number <?= $billPending > 0 ? 'ledger-out' : '' ?>">₹<?= number_format($billPending, 2) ?></td>
+                                    <td><span class="badge <?= $billPending <= 0 ? 'bg-success' : ((float) $bill['paid_amount'] > 0 ? 'bg-info text-dark' : 'bg-warning text-dark') ?>"><?= $billPending <= 0 ? 'Paid' : ((float) $bill['paid_amount'] > 0 ? 'Partial' : 'Pending') ?></span></td>
+                                    <td><a class="btn btn-sm btn-outline-primary" href="<?= site_url('api/documents/labour-bill/' . (int) $bill['id']) ?>?download=1" target="_blank" title="Generated bill"><i class="fe fe-download"></i></a><?php if (! empty($bill['attachment_path'])): ?> <a class="btn btn-sm btn-outline-secondary" href="<?= site_url('admin/accounts/labour-bills/' . (int) $bill['id'] . '/attachment') ?>" title="Source attachment"><i class="fe fe-paperclip"></i></a><?php endif; ?></td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($paymentStatement as $pl): ?>
-                                    <tr>
-                                        <td><?= esc((string) $pl['created_at']) ?></td>
-                                        <td><span class="karigar-entry-badge <?= (string) $pl['entry_type'] === 'charge' ? 'is-issue' : 'is-receive' ?>"><?= (string) $pl['entry_type'] === 'charge' ? 'Charge' : 'Payment' ?></span></td>
-                                        <td><?= esc($pl['order_no'] ?: '-') ?></td>
-                                        <td class="ledger-number">₹<?= esc(number_format((float) $pl['opening_amount'], 2)) ?></td>
-                                        <td class="ledger-number ledger-in"><?= (float) $pl['debit_amount'] > 0 ? '+₹' . esc(number_format((float) $pl['debit_amount'], 2)) : '-' ?></td>
-                                        <td class="ledger-number ledger-out"><?= (float) $pl['credit_amount'] > 0 ? '-₹' . esc(number_format((float) $pl['credit_amount'], 2)) : '-' ?></td>
-                                        <td class="ledger-number ledger-balance">₹<?= esc(number_format((float) $pl['closing_amount'], 2)) ?></td>
-                                        <td><?= esc($pl['reference_no'] ?: '-') ?></td>
-                                        <td><?= esc($pl['notes'] ?: '-') ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <h6 class="mb-2">Payments</h6>
+                <div class="table-responsive">
+                    <table class="table datatable table-hover align-middle mb-0 karigar-ledger-table" data-dt-page-length="10">
+                        <thead><tr><th>Date</th><th>Payment No</th><th>Against Bill</th><th>Mode</th><th>Reference</th><th>Notes</th><th>Amount</th></tr></thead>
+                        <tbody><?php foreach (($labourPayments ?? []) as $payment): ?><tr><td><?= esc((string) $payment['payment_date']) ?></td><td><?= esc((string) $payment['payment_no']) ?></td><td><span class="badge bg-light text-dark"><?= esc((string) ($payment['bill_no'] ?: 'Unallocated')) ?></span></td><td><?= esc((string) ($payment['payment_mode'] ?: '-')) ?></td><td><?= esc((string) ($payment['reference_no'] ?: '-')) ?></td><td><?= esc((string) ($payment['notes'] ?: '-')) ?></td><td class="ledger-number ledger-out">₹<?= number_format((float) $payment['amount'], 2) ?></td></tr><?php endforeach; ?></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <div class="card mt-3">
-    <div class="card-header"><h5 class="card-title mb-0">Imported Diamond Issuement Details</h5></div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table datatable table-hover mb-0" data-dt-page-length="25">
-                <thead><tr><th>Date</th><th>Group</th><th>Design</th><th>Quality</th><th>Shade</th><th>Size</th><th>Pcs</th><th>Cts</th><th>Bag</th><th>Source</th></tr></thead>
-                <tbody>
-                    <?php foreach (($sourceIssueLines ?? []) as $line): ?>
-                        <tr>
-                            <td><?= esc((string) ($line['issue_date'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($line['issue_group'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($line['design_no'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($line['quality'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($line['shade'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($line['size_label'] ?? '-')) ?></td>
-                            <td><?= number_format((float) ($line['pcs'] ?? 0), 0) ?></td>
-                            <td><?= number_format((float) ($line['weight_cts'] ?? 0), 3) ?></td>
-                            <td><?= esc((string) ($line['bag_label'] ?? '-')) ?></td>
-                            <td><?= esc((string) (($line['source_sheet'] ?? '') . ':' . ($line['source_row'] ?? ''))) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<div class="card mt-3">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0">Completed Jewellery</h5>
+    <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+        <div><h5 class="card-title mb-0">Completed Jewellery</h5><small class="text-muted">Ready pieces received from this karigar with inventory status</small></div>
         <a class="btn btn-sm btn-outline-primary" href="<?= site_url('admin/jewellery-inventory?karigar_id=' . (int) $karigar['id']) ?>">Open Jewellery Inventory</a>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0" data-dt-page-length="25">
-                <thead><tr><th>Ready Date</th><th>Tag</th><th>Group</th><th>Design</th><th>Gross</th><th>Net Gold</th><th>Labour</th><th>Payment</th><th>Inventory</th></tr></thead>
+            <table class="table datatable table-hover align-middle mb-0 completed-table" data-dt-page-length="25">
+                <thead><tr><th>Ready Piece</th><th>Date / Order</th><th>Design</th><th>Weight</th><th>Labour</th><th>Billing</th><th>Inventory</th></tr></thead>
                 <tbody>
                     <?php foreach (($finishedItems ?? []) as $item): ?>
                         <tr>
-                            <td><?= esc((string) ($item['ready_date'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($item['tag_no'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($item['ready_group'] ?? '-')) ?></td>
-                            <td><?= esc((string) ($item['design_name'] ?? '-')) ?></td>
-                            <td><?= number_format((float) ($item['gross_weight_gm'] ?? 0), 3) ?></td>
-                            <td><?= number_format((float) ($item['net_weight_gm'] ?? 0), 3) ?></td>
-                            <td>₹<?= number_format((float) ($item['labour_charges'] ?? 0), 2) ?></td>
+                            <td><?php if (! empty($item['image_path'])): ?><a href="<?= site_url('admin/orders/ready-image/' . (int) $item['id']) ?>" target="_blank"><img class="ready-thumb" loading="lazy" src="<?= site_url('admin/orders/ready-image/' . (int) $item['id']) ?>" alt="<?= esc((string) ($item['design_name'] ?? 'Ready jewellery')) ?>"></a><?php else: ?><span class="ready-thumb ready-thumb-empty"><i class="fe fe-image"></i></span><?php endif; ?></td>
+                            <td><strong><?= esc((string) ($item['ready_date'] ?? '-')) ?></strong><?php if (! empty($item['order_id'])): ?><small class="d-block mt-1"><a href="<?= site_url('admin/orders/' . (int) $item['order_id']) ?>"><?= esc((string) ($item['order_no'] ?: 'Open order')) ?></a></small><?php else: ?><small class="d-block text-muted mt-1">Imported ready item</small><?php endif; ?></td>
+                            <td class="completed-design"><?= esc((string) ($item['design_name'] ?: 'Unnamed design')) ?><small><?= esc((string) (($item['tag_no'] ?: $item['reference_no']) ?: ($item['ready_group'] ?: '-'))) ?></small></td>
+                            <td><strong><?= number_format((float) ($item['gross_weight_gm'] ?? 0), 3) ?> gm</strong><small class="d-block text-muted">Net <?= number_format((float) ($item['net_weight_gm'] ?? 0), 3) ?> gm</small></td>
+                            <td class="fw-semibold">₹<?= number_format((float) ($item['labour_charges'] ?? 0), 2) ?></td>
                             <td><span class="badge <?= (string) ($item['payment_status'] ?? '') === 'Paid' ? 'bg-success' : 'bg-warning text-dark' ?>"><?= esc((string) ($item['payment_status'] ?? 'Pending')) ?></span></td>
-                            <td><?= esc((string) (($item['showroom_stock_status'] ?? '') ?: ($item['inventory_status'] ?? '-'))) ?></td>
+                            <td><span class="badge bg-light text-dark"><?= esc((string) (($item['showroom_stock_status'] ?? '') ?: ($item['inventory_status'] ?? 'Ready'))) ?></span></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

@@ -243,6 +243,11 @@ class MobileApiService {
     return (res['data'] as List?) ?? <dynamic>[];
   }
 
+  Future<List<dynamic>> fetchGstMasters() async {
+    final res = await _get('/api/mobile/lookups/gst-masters');
+    return (res['data'] as List?) ?? <dynamic>[];
+  }
+
   Future<List<dynamic>> fetchLocations() async {
     final res = await _get('/api/mobile/lookups/locations');
     return (res['data'] as List?) ?? <dynamic>[];

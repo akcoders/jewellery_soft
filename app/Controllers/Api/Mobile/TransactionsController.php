@@ -33,6 +33,7 @@ use App\Services\StoneInventory\StockService as StoneStockService;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\IssuementVoucherNumberService;
 use App\Services\PdfService;
+use App\Services\TaxMasterService;
 use Throwable;
 
 class TransactionsController extends MobileBaseController
@@ -80,14 +81,11 @@ class TransactionsController extends MobileBaseController
             $supplierName = $vendor ? (string) ($vendor['name'] ?? '') : '';
         }
 
-        $taxPercent = (float) ($payload['tax_percentage'] ?? 0);
-        $invoiceTotal = (float) ($payload['invoice_total'] ?? 0);
-        if ($invoiceTotal <= 0) {
-            $sumValue = 0.0;
-            foreach ($parsed['lines'] as $line) {
-                $sumValue += (float) ($line['line_value'] ?? 0);
-            }
-            $invoiceTotal = $sumValue + ($sumValue * $taxPercent / 100);
+        $sumValue = array_sum(array_map(static fn(array $line): float => (float) ($line['line_value'] ?? 0), $parsed['lines']));
+        try {
+            $tax = (new TaxMasterService())->calculate((int) ($payload['gst_master_id'] ?? 0), $sumValue, (float) ($payload['round_off_amount'] ?? 0));
+        } catch (Throwable $e) {
+            return $this->fail($e->getMessage(), 422);
         }
 
         $db = db_connect();
@@ -102,8 +100,15 @@ class TransactionsController extends MobileBaseController
                 'supplier_name' => $supplierName !== '' ? $supplierName : null,
                 'invoice_no' => trim((string) ($payload['invoice_no'] ?? '')) ?: null,
                 'due_date' => trim((string) ($payload['due_date'] ?? '')) ?: null,
-                'tax_percentage' => $taxPercent,
-                'invoice_total' => $invoiceTotal,
+                'gst_master_id' => $tax['gst_master_id'],
+                'tax_breakup_json' => $tax['tax_breakup_json'],
+                'taxable_amount' => $tax['taxable_amount'],
+                'tax_percentage' => $tax['cgst_rate'] + $tax['sgst_rate'] + $tax['igst_rate'],
+                'cgst_rate' => $tax['cgst_rate'], 'cgst_amount' => $tax['cgst_amount'],
+                'sgst_rate' => $tax['sgst_rate'], 'sgst_amount' => $tax['sgst_amount'],
+                'igst_rate' => $tax['igst_rate'], 'igst_amount' => $tax['igst_amount'],
+                'gst_amount' => $tax['gst_amount'], 'round_off_amount' => $tax['round_off_amount'],
+                'invoice_total' => $tax['invoice_total'],
                 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
             ], true);
 
@@ -522,6 +527,13 @@ class TransactionsController extends MobileBaseController
             $supplierName = $vendor ? (string) ($vendor['name'] ?? '') : '';
         }
 
+        $sumValue = array_sum(array_map(static fn(array $line): float => (float) ($line['line_value'] ?? 0), $parsed['lines']));
+        try {
+            $tax = (new TaxMasterService())->calculate((int) ($payload['gst_master_id'] ?? 0), $sumValue, (float) ($payload['round_off_amount'] ?? 0));
+        } catch (Throwable $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
+
         $db = db_connect();
         $service = new GoldStockService($db);
 
@@ -533,6 +545,13 @@ class TransactionsController extends MobileBaseController
                 'vendor_id' => $vendorId > 0 ? $vendorId : null,
                 'supplier_name' => $supplierName !== '' ? $supplierName : null,
                 'invoice_no' => trim((string) ($payload['invoice_no'] ?? '')) ?: null,
+                'gst_master_id' => $tax['gst_master_id'], 'tax_breakup_json' => $tax['tax_breakup_json'],
+                'taxable_amount' => $tax['taxable_amount'],
+                'cgst_rate' => $tax['cgst_rate'], 'cgst_amount' => $tax['cgst_amount'],
+                'sgst_rate' => $tax['sgst_rate'], 'sgst_amount' => $tax['sgst_amount'],
+                'igst_rate' => $tax['igst_rate'], 'igst_amount' => $tax['igst_amount'],
+                'gst_amount' => $tax['gst_amount'], 'round_off_amount' => $tax['round_off_amount'],
+                'invoice_total' => $tax['invoice_total'],
                 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
             ], true);
 
@@ -941,6 +960,13 @@ class TransactionsController extends MobileBaseController
             $supplierName = $vendor ? (string) ($vendor['name'] ?? '') : '';
         }
 
+        $sumValue = array_sum(array_map(static fn(array $line): float => (float) ($line['line_value'] ?? 0), $parsed['lines']));
+        try {
+            $tax = (new TaxMasterService())->calculate((int) ($payload['gst_master_id'] ?? 0), $sumValue, (float) ($payload['round_off_amount'] ?? 0));
+        } catch (Throwable $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
+
         $db = db_connect();
         $service = new StoneStockService($db);
 
@@ -952,6 +978,14 @@ class TransactionsController extends MobileBaseController
                 'vendor_id' => $vendorId > 0 ? $vendorId : null,
                 'supplier_name' => $supplierName !== '' ? $supplierName : null,
                 'invoice_no' => trim((string) ($payload['invoice_no'] ?? '')) ?: null,
+                'gst_master_id' => $tax['gst_master_id'], 'tax_breakup_json' => $tax['tax_breakup_json'],
+                'taxable_amount' => $tax['taxable_amount'],
+                'tax_percentage' => $tax['cgst_rate'] + $tax['sgst_rate'] + $tax['igst_rate'],
+                'cgst_rate' => $tax['cgst_rate'], 'cgst_amount' => $tax['cgst_amount'],
+                'sgst_rate' => $tax['sgst_rate'], 'sgst_amount' => $tax['sgst_amount'],
+                'igst_rate' => $tax['igst_rate'], 'igst_amount' => $tax['igst_amount'],
+                'gst_amount' => $tax['gst_amount'], 'round_off_amount' => $tax['round_off_amount'],
+                'invoice_total' => $tax['invoice_total'],
                 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
             ], true);
 
