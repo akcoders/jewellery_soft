@@ -22,8 +22,8 @@ class PackingController extends ApiBaseController
         }
 
         $db = db_connect();
-        $db->transStart();
-        $packingId = (int) $db->table('packing_lists')->insert([
+        $db->transException(true)->transStart();
+        $db->table('packing_lists')->insert([
             'packing_no' => $packingNo,
             'packing_date' => (string) ($p['packing_date'] ?? date('Y-m-d')),
             'order_id' => $orderId > 0 ? $orderId : null,
@@ -33,7 +33,11 @@ class PackingController extends ApiBaseController
             'seal_no' => (string) ($p['seal_no'] ?? ''),
             'notes' => (string) ($p['notes'] ?? ''),
             'created_by' => (int) (session('admin_id') ?: 0),
-        ], true);
+        ]);
+        $packingId = (int) $db->insertID();
+        if ($packingId <= 0) {
+            throw new \RuntimeException('Could not create packing list header.');
+        }
 
         $items = [];
         foreach ($fgItemIds as $fgItemId) {

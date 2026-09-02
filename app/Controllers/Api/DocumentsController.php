@@ -657,6 +657,7 @@ class DocumentsController extends ApiBaseController
             ->get()
             ->getRowArray();
         if (is_array($existing) && $existing !== []) {
+            $this->ensurePackingListItemsForOrder($db, (int) ($existing['id'] ?? 0), $orderId);
             return $existing;
         }
 
@@ -681,7 +682,7 @@ class DocumentsController extends ApiBaseController
         $packingNo = $this->nextPackingNo();
         $db->transException(true)->transStart();
 
-        $packingId = (int) $db->table('packing_lists')->insert([
+        $db->table('packing_lists')->insert([
             'packing_no' => $packingNo,
             'packing_date' => date('Y-m-d'),
             'order_id' => $orderId,
@@ -690,9 +691,67 @@ class DocumentsController extends ApiBaseController
             'status' => 'Packed',
             'notes' => 'Auto-generated from mobile document request.',
             'created_by' => null,
-        ], true);
+        ]);
+        $packingId = (int) $db->insertID();
+        if ($packingId <= 0) {
+            throw new Exception('Could not create packing list header.');
+        }
+
+        $this->insertMissingPackingListItems($db, $packingId, $order, $rows);
+
+        $db->transComplete();
+
+        $created = $db->table('packing_lists')->where('id', $packingId)->get()->getRowArray();
+        return is_array($created) ? $created : [];
+    }
+
+    private function ensurePackingListItemsForOrder($db, int $packingId, int $orderId): void
+    {
+        if ($packingId <= 0 || $orderId <= 0) {
+            return;
+        }
+
+        $order = $db->table('orders')->where('id', $orderId)->get()->getRowArray();
+        if (! is_array($order) || $order === []) {
+            return;
+        }
+
+        $rows = $db->table('order_items')
+            ->select('id, qty, gold_required_gm, diamond_required_cts')
+            ->where('order_id', $orderId)
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultArray();
+        if ($rows === []) {
+            return;
+        }
+
+        $db->transException(true)->transStart();
+        $this->insertMissingPackingListItems($db, $packingId, $order, $rows);
+        $db->transComplete();
+    }
+
+    /**
+     * @param array<string,mixed> $order
+     * @param list<array<string,mixed>> $rows
+     */
+    private function insertMissingPackingListItems($db, int $packingId, array $order, array $rows): void
+    {
+        $existingTags = [];
+        foreach ($db->table('packing_list_items')
+            ->select('tag_no')
+            ->where('packing_list_id', $packingId)
+            ->get()
+            ->getResultArray() as $item) {
+            $existingTags[(string) ($item['tag_no'] ?? '')] = true;
+        }
 
         foreach ($rows as $index => $line) {
+            $tagNo = (string) ($order['order_no'] ?? 'ORD') . '-' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
+            if (isset($existingTags[$tagNo])) {
+                continue;
+            }
+
             $qty = (int) max(1, (int) ($line['qty'] ?? 1));
             $netGold = round((float) ($line['gold_required_gm'] ?? 0), 3);
             $diamondCts = round((float) ($line['diamond_required_cts'] ?? 0), 3);
@@ -701,7 +760,7 @@ class DocumentsController extends ApiBaseController
             $db->table('packing_list_items')->insert([
                 'packing_list_id' => $packingId,
                 'fg_item_id' => 0,
-                'tag_no' => (string) ($order['order_no'] ?? 'ORD') . '-' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
+                'tag_no' => $tagNo,
                 'qty' => $qty,
                 'gross_wt' => $gross,
                 'net_gold_wt' => $netGold,
@@ -709,11 +768,6 @@ class DocumentsController extends ApiBaseController
                 'stone_wt' => 0,
             ]);
         }
-
-        $db->transComplete();
-
-        $created = $db->table('packing_lists')->where('id', $packingId)->get()->getRowArray();
-        return is_array($created) ? $created : [];
     }
 
     private function nextPackingNo(): string
