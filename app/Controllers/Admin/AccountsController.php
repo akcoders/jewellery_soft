@@ -197,6 +197,12 @@ class AccountsController extends BaseController
             'date_to' => trim((string) ($this->request->getGet('date_to') ?? '')),
         ];
 
+        // Set default to current month if no dates provided
+        if ($filters['date_from'] === '' && $filters['date_to'] === '') {
+            $filters['date_from'] = date('Y-m-01');
+            $filters['date_to'] = date('Y-m-d');
+        }
+
         $data = $this->labourLedgerDataset($filters);
 
         return view('admin/accounts/labour_ledger', [
@@ -371,6 +377,12 @@ class AccountsController extends BaseController
             'reference_no' => '',
             'search' => '',
         ];
+
+        // Set default to current month if no dates provided
+        if ($filters['date_from'] === '' && $filters['date_to'] === '') {
+            $filters['date_from'] = date('Y-m-01');
+            $filters['date_to'] = date('Y-m-d');
+        }
         $data = $this->generalLedgerDataset($filters);
         $partyName = $this->partyName($type, $id);
 
@@ -399,6 +411,12 @@ class AccountsController extends BaseController
             'reference_no' => trim((string) ($this->request->getGet('reference_no') ?? '')),
             'search' => trim((string) ($this->request->getGet('search') ?? '')),
         ];
+
+        // Set default to current month if no dates provided
+        if ($filters['date_from'] === '' && $filters['date_to'] === '') {
+            $filters['date_from'] = date('Y-m-01');
+            $filters['date_to'] = date('Y-m-d');
+        }
         $data = $this->generalLedgerDataset($filters);
 
         return view('admin/accounts/general_ledger', [
@@ -428,6 +446,12 @@ class AccountsController extends BaseController
             'reference_no' => trim((string) ($this->request->getGet('reference_no') ?? '')),
             'search' => trim((string) ($this->request->getGet('search') ?? '')),
         ];
+
+        // Set default to current month if no dates provided
+        if ($filters['date_from'] === '' && $filters['date_to'] === '') {
+            $filters['date_from'] = date('Y-m-01');
+            $filters['date_to'] = date('Y-m-d');
+        }
         $data = $this->vendorTransactionLedgerDataset($filters);
 
         return view('admin/accounts/vendor_transaction_ledger', [

@@ -22,6 +22,8 @@ class PurchaseHeaderModel extends Model
         'due_date',
         'place_of_supply',
         'purchase_description',
+        'gst_master_id',
+        'tax_breakup_json',
         'taxable_amount',
         'cgst_rate',
         'cgst_amount',

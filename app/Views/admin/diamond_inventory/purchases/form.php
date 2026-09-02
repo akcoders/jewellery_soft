@@ -80,7 +80,7 @@ $purchaseDate = old('purchase_date', (string) ($purchase['purchase_date'] ?? dat
 $vendorId = old('vendor_id', (string) ($purchase['vendor_id'] ?? ''));
 $invoiceNo = old('invoice_no', (string) ($purchase['invoice_no'] ?? ''));
 $dueDate = old('due_date', (string) ($purchase['due_date'] ?? ''));
-$taxPercentage = old('tax_percentage', (string) ($purchase['tax_percentage'] ?? '0'));
+$gstMasterId = old('gst_master_id', (string) ($purchase['gst_master_id'] ?? ''));
 $invoiceTotal = old('invoice_total', (string) ($purchase['invoice_total'] ?? '0.00'));
 $notes = old('notes', (string) ($purchase['notes'] ?? ''));
 $supplierName = old('supplier_name', (string) ($purchase['supplier_name'] ?? ''));
@@ -225,9 +225,10 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
     <div class="card-header"><h6 class="mb-0">Tax Information</h6></div>
     <div class="card-body">
         <div class="row g-3 align-items-end">
-            <div class="col-md-3"><label class="form-label">Taxable Amount</label><input type="text" id="subtotal_display" class="form-control" readonly value="0.00"></div>
-            <div class="col-md-3"><label class="form-label">GST %</label><input type="number" step="0.001" min="0" max="100" name="tax_percentage" id="tax_percentage" class="form-control" value="<?= esc((string) $taxPercentage) ?>"></div>
-            <div class="col-md-3"><label class="form-label">GST Amount</label><input type="text" id="tax_value_display" class="form-control" readonly value="0.00"></div>
+            <div class="col-md-4"><label class="form-label">GST Master <span class="text-danger">*</span></label><select name="gst_master_id" id="gst_master_id" class="form-select" required><option value="">Select GST master</option><?php foreach (($gstMasters ?? []) as $master): ?><option value="<?= (int) $master['id'] ?>" data-components="<?= esc(json_encode($master['components'] ?? []), 'attr') ?>" <?= (string) $gstMasterId === (string) $master['id'] ? 'selected' : '' ?>><?= esc((string) $master['name']) ?> (<?= number_format((float) $master['total_percentage'], 3) ?>%)</option><?php endforeach; ?></select></div>
+            <div class="col-md-2"><label class="form-label">Taxable Amount</label><input type="text" id="subtotal_display" class="form-control" readonly value="0.00"></div>
+            <div class="col-md-4"><label class="form-label">Tax breakup</label><div id="gst_breakup_display" class="form-control bg-light h-auto" style="min-height:38px">Select a GST master</div></div>
+            <div class="col-md-2"><label class="form-label">GST Amount</label><input type="text" id="tax_value_display" class="form-control" readonly value="0.00"></div>
             <div class="col-md-3"><label class="form-label">Invoice Total</label><input type="number" step="0.01" min="0" name="invoice_total" id="invoice_total" class="form-control fw-semibold" readonly value="<?= esc((string) $invoiceTotal) ?>"></div>
         </div>
     </div>
@@ -348,9 +349,11 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                 subtotal += (carat * rate);
             });
 
-            const taxInput = document.getElementById('tax_percentage');
-            const taxPercent = Math.max(0, Math.min(100, parseFloat((taxInput || {}).value || '0') || 0));
-            const taxValue = subtotal * (taxPercent / 100);
+            const gstSelect = document.getElementById('gst_master_id');
+            const selected = gstSelect ? gstSelect.options[gstSelect.selectedIndex] : null;
+            let components = [];
+            try { components = JSON.parse((selected || {}).getAttribute?.('data-components') || '[]'); } catch (error) { components = []; }
+            const taxValue = components.reduce(function(total, component) { return total + subtotal * Number(component.percentage || 0) / 100; }, 0);
             const invoiceTotal = subtotal + taxValue;
 
             const subtotalEl = document.getElementById('subtotal_display');
@@ -359,6 +362,8 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
             if (subtotalEl) subtotalEl.value = subtotal.toFixed(2);
             if (taxValueEl) taxValueEl.value = taxValue.toFixed(2);
             if (invoiceTotalEl) invoiceTotalEl.value = invoiceTotal.toFixed(2);
+            const breakup = document.getElementById('gst_breakup_display');
+            if (breakup) breakup.textContent = components.length ? components.map(function(component) { return String(component.name || '').toUpperCase() + ' ' + Number(component.percentage || 0).toFixed(3) + '% = ₹' + (subtotal * Number(component.percentage || 0) / 100).toFixed(2); }).join(' | ') : 'No tax components';
         }
 
         function bindRow(row) {
@@ -436,9 +441,9 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
             bindRow(row);
         });
 
-        const taxInput = document.getElementById('tax_percentage');
+        const taxInput = document.getElementById('gst_master_id');
         if (taxInput) {
-            taxInput.addEventListener('input', recalcTotals);
+            taxInput.addEventListener('change', recalcTotals);
         }
 
         if (typeof jQuery !== 'undefined' && typeof jQuery.fn.select2 !== 'undefined') {

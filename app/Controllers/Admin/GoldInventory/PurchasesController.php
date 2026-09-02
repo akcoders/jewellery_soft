@@ -10,6 +10,7 @@ use App\Models\GoldPurityModel;
 use App\Models\InventoryLocationModel;
 use App\Models\VendorModel;
 use App\Services\GoldInventory\StockService;
+use App\Services\TaxMasterService;
 use Throwable;
 
 class PurchasesController extends BaseController
@@ -20,6 +21,7 @@ class PurchasesController extends BaseController
     private GoldPurityModel $purityModel;
     private InventoryLocationModel $locationModel;
     private VendorModel $vendorModel;
+    private TaxMasterService $taxMasterService;
 
     public function __construct()
     {
@@ -30,6 +32,7 @@ class PurchasesController extends BaseController
         $this->purityModel = new GoldPurityModel();
         $this->locationModel = new InventoryLocationModel();
         $this->vendorModel = new VendorModel();
+        $this->taxMasterService = new TaxMasterService();
     }
 
     public function index(): string
@@ -68,6 +71,7 @@ class PurchasesController extends BaseController
             'purities' => $this->purityOptions(),
             'locations' => $this->locationOptions(),
             'vendors' => $this->vendorOptions(),
+            'gstMasters' => $this->taxMasterService->options(),
             'purchase' => null,
             'lines' => [],
             'action' => site_url('admin/gold-inventory/purchases'),
@@ -176,6 +180,7 @@ class PurchasesController extends BaseController
             'purities' => $this->purityOptions(),
             'locations' => $this->locationOptions(),
             'vendors' => $this->vendorOptions(),
+            'gstMasters' => $this->taxMasterService->options(),
             'purchase' => $purchase,
             'lines' => $this->lineRows($id),
             'action' => site_url('admin/gold-inventory/purchases/' . $id . '/update'),
@@ -387,13 +392,8 @@ class PurchasesController extends BaseController
             'invoice_no' => 'permit_empty|max_length[80]',
             'due_date' => 'permit_empty|valid_date',
             'place_of_supply' => 'permit_empty|max_length[100]',
+            'gst_master_id' => 'required|integer|greater_than[0]',
             'taxable_amount' => 'permit_empty|decimal',
-            'cgst_rate' => 'permit_empty|decimal|greater_than_equal_to[0]|less_than_equal_to[100]',
-            'cgst_amount' => 'permit_empty|decimal',
-            'sgst_rate' => 'permit_empty|decimal|greater_than_equal_to[0]|less_than_equal_to[100]',
-            'sgst_amount' => 'permit_empty|decimal',
-            'igst_rate' => 'permit_empty|decimal|greater_than_equal_to[0]|less_than_equal_to[100]',
-            'igst_amount' => 'permit_empty|decimal',
             'round_off_amount' => 'permit_empty|decimal',
             'invoice_total' => 'permit_empty|decimal',
             'payment_status' => 'permit_empty|in_list[Pending,Partial,Paid]',
@@ -413,6 +413,11 @@ class PurchasesController extends BaseController
         $vendorId = (int) $this->request->getPost('vendor_id');
         if ($vendorId > 0 && ! $this->vendorModel->where('is_active', 1)->find($vendorId)) {
             return 'Selected vendor was not found.';
+        }
+        try {
+            $this->taxMasterService->calculate((int) $this->request->getPost('gst_master_id'), 0);
+        } catch (\RuntimeException $e) {
+            return $e->getMessage();
         }
 
         return null;
@@ -462,14 +467,9 @@ class PurchasesController extends BaseController
         $vendorId = (int) $this->request->getPost('vendor_id');
         $vendor = $vendorId > 0 ? $this->vendorModel->find($vendorId) : null;
         $taxable = round(array_sum(array_column($lines, 'line_value')), 2);
-        $cgstRate = $this->nullableDecimalPost('cgst_rate');
-        $sgstRate = $this->nullableDecimalPost('sgst_rate');
-        $igstRate = $this->nullableDecimalPost('igst_rate');
-        $cgst = round($taxable * max(0, min(100, (float) $cgstRate)) / 100, 2);
-        $sgst = round($taxable * max(0, min(100, (float) $sgstRate)) / 100, 2);
-        $igst = round($taxable * max(0, min(100, (float) $igstRate)) / 100, 2);
         $roundOff = $this->decimalPost('round_off_amount');
-        $invoiceTotal = max(0, round($taxable + $cgst + $sgst + $igst + $roundOff, 2));
+        $tax = $this->taxMasterService->calculate((int) $this->request->getPost('gst_master_id'), $taxable, $roundOff);
+        $invoiceTotal = (float) $tax['invoice_total'];
         $status = trim((string) $this->request->getPost('payment_status')) ?: 'Pending';
         $paid = max(0, $this->decimalPost('paid_amount'));
         if ($status === 'Paid' && $paid <= 0) {
@@ -498,14 +498,16 @@ class PurchasesController extends BaseController
             'due_date' => trim((string) $this->request->getPost('due_date')) ?: null,
             'place_of_supply' => trim((string) $this->request->getPost('place_of_supply')) ?: null,
             'purchase_description' => trim((string) $this->request->getPost('purchase_description')) ?: null,
+            'gst_master_id' => (int) $tax['gst_master_id'],
+            'tax_breakup_json' => $tax['tax_breakup_json'],
             'taxable_amount' => $taxable,
-            'cgst_rate' => $cgstRate,
-            'cgst_amount' => $cgst,
-            'sgst_rate' => $sgstRate,
-            'sgst_amount' => $sgst,
-            'igst_rate' => $igstRate,
-            'igst_amount' => $igst,
-            'gst_amount' => round($cgst + $sgst + $igst, 2),
+            'cgst_rate' => $tax['cgst_rate'],
+            'cgst_amount' => $tax['cgst_amount'],
+            'sgst_rate' => $tax['sgst_rate'],
+            'sgst_amount' => $tax['sgst_amount'],
+            'igst_rate' => $tax['igst_rate'],
+            'igst_amount' => $tax['igst_amount'],
+            'gst_amount' => $tax['gst_amount'],
             'round_off_amount' => $roundOff,
             'invoice_total' => $invoiceTotal,
             'payment_status' => $status,

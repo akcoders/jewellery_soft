@@ -63,6 +63,7 @@ $isAccountsSaleBills = $isAccounts && $segment3 === 'sale-bills';
 $isAccountsDebitNotes = $isAccounts && $segment3 === 'debit-notes';
 $isAccountsCreditNotes = $isAccounts && $segment3 === 'credit-notes';
 $isAccountsGstReport = $isAccounts && $segment3 === 'gst-report';
+$isAccountsTaxMasters = $isAccounts && $segment3 === 'tax-masters';
 $isAccountsOutstanding = $isAccounts && $segment3 === 'outstanding-summary';
 $isVendors  = $segment2 === 'vendors';
 $isCompanySettings = $segment2 === 'company-settings';
@@ -1717,6 +1718,7 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
                                 <li><a class="<?= $isAccountsDebitNotes ? 'active' : '' ?>" href="<?= site_url('admin/accounts/debit-notes') ?>"><i class="fe fe-corner-down-right"></i> Debit Notes</a></li>
                                 <li><a class="<?= $isAccountsCreditNotes ? 'active' : '' ?>" href="<?= site_url('admin/accounts/credit-notes') ?>"><i class="fe fe-corner-up-left"></i> Credit Notes</a></li>
                                 <li><a class="<?= $isAccountsGstReport ? 'active' : '' ?>" href="<?= site_url('admin/accounts/gst-report') ?>"><i class="fe fe-percent"></i> GST Report</a></li>
+                                <li><a class="<?= $isAccountsTaxMasters ? 'active' : '' ?>" href="<?= site_url('admin/accounts/tax-masters') ?>"><i class="fe fe-sliders"></i> Tax &amp; GST Masters</a></li>
                             </ul>
                         </li>
                         <?php endif; ?>

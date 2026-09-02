@@ -15,13 +15,26 @@ class LabourBillModel extends Model
         'order_id',
         'receive_movement_id',
         'karigar_id',
+        'gst_master_id',
         'gold_weight_gm',
         'rate_per_gm',
         'labour_amount',
         'other_amount',
+        'taxable_amount',
+        'cgst_rate',
+        'cgst_amount',
+        'sgst_rate',
+        'sgst_amount',
+        'igst_rate',
+        'igst_amount',
+        'gst_amount',
+        'round_off_amount',
         'total_amount',
         'due_date',
         'payment_status',
+        'attachment_path',
+        'attachment_name',
+        'source_type',
         'notes',
         'created_by',
     ];
@@ -29,4 +42,3 @@ class LabourBillModel extends Model
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
 }
-

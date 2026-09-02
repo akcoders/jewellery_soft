@@ -9,6 +9,7 @@ use App\Models\StoneInventoryPurchaseLineModel;
 use App\Models\StonePurchaseAttachmentModel;
 use App\Models\VendorModel;
 use App\Services\StoneInventory\StockService;
+use App\Services\TaxMasterService;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use Throwable;
 
@@ -19,6 +20,7 @@ class PurchasesController extends BaseController
     private StoneInventoryItemModel $itemModel;
     private VendorModel $vendorModel;
     private StonePurchaseAttachmentModel $attachmentModel;
+    private TaxMasterService $taxMasterService;
 
     public function __construct()
     {
@@ -28,6 +30,7 @@ class PurchasesController extends BaseController
         $this->itemModel = new StoneInventoryItemModel();
         $this->vendorModel = new VendorModel();
         $this->attachmentModel = new StonePurchaseAttachmentModel();
+        $this->taxMasterService = new TaxMasterService();
     }
 
     public function index(): string
@@ -63,6 +66,7 @@ class PurchasesController extends BaseController
             'title' => 'Create Stone Purchase',
             'items' => $this->itemOptions(),
             'vendors' => $this->vendorOptions(),
+            'gstMasters' => $this->taxMasterService->options(),
             'purchase' => null,
             'lines' => [],
             'attachments' => [],
@@ -95,8 +99,8 @@ class PurchasesController extends BaseController
             if (! $vendor) {
                 throw new \RuntimeException('Please select a valid active vendor.');
             }
-            $taxPercentage = round((float) ($this->request->getPost('tax_percentage') ?? 0), 3);
-            $totals = $this->calculateInvoiceTotals($parsed['lines'], $taxPercentage);
+            $taxable = round(array_sum(array_column($parsed['lines'], 'line_value')), 2);
+            $tax = $this->taxMasterService->calculate((int) $this->request->getPost('gst_master_id'), $taxable);
 
             $purchaseId = (int) $this->headerModel->insert([
                 'purchase_date' => (string) $this->request->getPost('purchase_date'),
@@ -108,10 +112,19 @@ class PurchasesController extends BaseController
                 'supplier_email' => $vendor['email'] ?? null,
                 'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
                 'due_date' => trim((string) $this->request->getPost('due_date')) ?: null,
-                'tax_percentage' => $taxPercentage,
-                'taxable_amount' => $totals['subtotal'],
-                'gst_amount' => $totals['tax_value'],
-                'invoice_total' => $totals['invoice_total'],
+                'gst_master_id' => $tax['gst_master_id'],
+                'tax_breakup_json' => $tax['tax_breakup_json'],
+                'tax_percentage' => round((float) $tax['cgst_rate'] + (float) $tax['sgst_rate'] + (float) $tax['igst_rate'], 3),
+                'taxable_amount' => $tax['taxable_amount'],
+                'cgst_rate' => $tax['cgst_rate'],
+                'cgst_amount' => $tax['cgst_amount'],
+                'sgst_rate' => $tax['sgst_rate'],
+                'sgst_amount' => $tax['sgst_amount'],
+                'igst_rate' => $tax['igst_rate'],
+                'igst_amount' => $tax['igst_amount'],
+                'gst_amount' => $tax['gst_amount'],
+                'round_off_amount' => $tax['round_off_amount'],
+                'invoice_total' => $tax['invoice_total'],
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
             ], true);
 
@@ -177,6 +190,7 @@ class PurchasesController extends BaseController
             'title' => 'Edit Stone Purchase',
             'items' => $this->itemOptions(),
             'vendors' => $this->vendorOptions(),
+            'gstMasters' => $this->taxMasterService->options(),
             'purchase' => $purchase,
             'lines' => $this->lineRows($id),
             'attachments' => $this->attachmentRows($id),
@@ -215,8 +229,8 @@ class PurchasesController extends BaseController
             if (! $vendor) {
                 throw new \RuntimeException('Please select a valid active vendor.');
             }
-            $taxPercentage = round((float) ($this->request->getPost('tax_percentage') ?? 0), 3);
-            $totals = $this->calculateInvoiceTotals($parsed['lines'], $taxPercentage);
+            $taxable = round(array_sum(array_column($parsed['lines'], 'line_value')), 2);
+            $tax = $this->taxMasterService->calculate((int) $this->request->getPost('gst_master_id'), $taxable);
 
             $this->headerModel->update($id, [
                 'purchase_date' => (string) $this->request->getPost('purchase_date'),
@@ -228,10 +242,19 @@ class PurchasesController extends BaseController
                 'supplier_email' => $vendor['email'] ?? null,
                 'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
                 'due_date' => trim((string) $this->request->getPost('due_date')) ?: null,
-                'tax_percentage' => $taxPercentage,
-                'taxable_amount' => $totals['subtotal'],
-                'gst_amount' => $totals['tax_value'],
-                'invoice_total' => $totals['invoice_total'],
+                'gst_master_id' => $tax['gst_master_id'],
+                'tax_breakup_json' => $tax['tax_breakup_json'],
+                'tax_percentage' => round((float) $tax['cgst_rate'] + (float) $tax['sgst_rate'] + (float) $tax['igst_rate'], 3),
+                'taxable_amount' => $tax['taxable_amount'],
+                'cgst_rate' => $tax['cgst_rate'],
+                'cgst_amount' => $tax['cgst_amount'],
+                'sgst_rate' => $tax['sgst_rate'],
+                'sgst_amount' => $tax['sgst_amount'],
+                'igst_rate' => $tax['igst_rate'],
+                'igst_amount' => $tax['igst_amount'],
+                'gst_amount' => $tax['gst_amount'],
+                'round_off_amount' => $tax['round_off_amount'],
+                'invoice_total' => $tax['invoice_total'],
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
             ]);
 
@@ -365,12 +388,17 @@ class PurchasesController extends BaseController
             'vendor_id' => 'required|integer|greater_than[0]',
             'invoice_no' => 'permit_empty|max_length[80]',
             'due_date' => 'permit_empty|valid_date',
-            'tax_percentage' => 'permit_empty|decimal|greater_than_equal_to[0]|less_than_equal_to[100]',
+            'gst_master_id' => 'required|integer|greater_than[0]',
             'invoice_total' => 'permit_empty|decimal|greater_than_equal_to[0]',
             'notes' => 'permit_empty',
         ])) {
             $errors = $this->validator ? $this->validator->getErrors() : [];
             return $errors === [] ? 'Validation failed.' : (string) array_values($errors)[0];
+        }
+        try {
+            $this->taxMasterService->calculate((int) $this->request->getPost('gst_master_id'), 0);
+        } catch (\RuntimeException $e) {
+            return $e->getMessage();
         }
         return null;
     }

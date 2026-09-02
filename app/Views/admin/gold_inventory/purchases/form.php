@@ -67,6 +67,7 @@ $invoiceNo = old('invoice_no', (string) ($purchase['invoice_no'] ?? ''));
 $dueDate = old('due_date', (string) ($purchase['due_date'] ?? ''));
 $placeOfSupply = old('place_of_supply', (string) ($purchase['place_of_supply'] ?? ''));
 $purchaseDescription = old('purchase_description', (string) ($purchase['purchase_description'] ?? ''));
+$gstMasterId = old('gst_master_id', (string) ($purchase['gst_master_id'] ?? ''));
 $taxableAmount = old('taxable_amount', (string) ($purchase['taxable_amount'] ?? ''));
 $cgstRate = old('cgst_rate', (string) ($purchase['cgst_rate'] ?? ''));
 $cgstAmount = old('cgst_amount', (string) ($purchase['cgst_amount'] ?? ''));
@@ -229,8 +230,10 @@ $locationId = old('location_id', (string) ($purchase['location_id'] ?? ''));
     <div class="card-header"><h6 class="mb-0">Tax & Payment Information</h6></div>
     <div class="card-body">
         <div class="row g-3">
+            <div class="col-md-4"><label class="form-label">GST Master <span class="text-danger">*</span></label><select name="gst_master_id" id="gst_master_id" class="form-select" required><option value="">Select GST master</option><?php foreach (($gstMasters ?? []) as $master): ?><option value="<?= (int) $master['id'] ?>" data-components="<?= esc(json_encode($master['components'] ?? []), 'attr') ?>" <?= (string) $gstMasterId === (string) $master['id'] ? 'selected' : '' ?>><?= esc((string) $master['name']) ?> (<?= number_format((float) $master['total_percentage'], 3) ?>%)</option><?php endforeach; ?></select></div>
             <div class="col-md-3"><label class="form-label">Taxable Amount</label><input type="number" step="0.01" min="0" name="taxable_amount" id="taxable_amount" class="form-control" readonly value="<?= esc((string) $taxableAmount) ?>"></div>
-            <div class="col-md-2"><label class="form-label">CGST %</label><input type="number" step="0.001" min="0" name="cgst_rate" id="cgst_rate" class="form-control" value="<?= esc((string) $cgstRate) ?>"></div>
+            <div class="col-md-5"><label class="form-label">Tax breakup</label><div id="gst_breakup_display" class="form-control bg-light h-auto" style="min-height:38px">Select a GST master</div></div>
+            <div class="col-md-2"><label class="form-label">CGST %</label><input type="number" step="0.001" min="0" name="cgst_rate" id="cgst_rate" class="form-control" readonly value="<?= esc((string) $cgstRate) ?>"></div>
             <div class="col-md-2"><label class="form-label">CGST Amount</label><input type="number" step="0.01" min="0" name="cgst_amount" id="cgst_amount" class="form-control" readonly value="<?= esc((string) $cgstAmount) ?>"></div>
             <div class="col-md-2"><label class="form-label">SGST %</label><input type="number" step="0.001" min="0" name="sgst_rate" id="sgst_rate" class="form-control" value="<?= esc((string) $sgstRate) ?>"></div>
             <div class="col-md-3"><label class="form-label">SGST Amount</label><input type="number" step="0.01" min="0" name="sgst_amount" id="sgst_amount" class="form-control" readonly value="<?= esc((string) $sgstAmount) ?>"></div>
@@ -336,18 +339,30 @@ $locationId = old('location_id', (string) ($purchase['location_id'] ?? ''));
                 taxable += weight * rate;
             });
 
-            const cgst = taxable * numberValue('cgst_rate') / 100;
-            const sgst = taxable * numberValue('sgst_rate') / 100;
-            const igst = taxable * numberValue('igst_rate') / 100;
+            const gstSelect = document.getElementById('gst_master_id');
+            const selected = gstSelect ? gstSelect.options[gstSelect.selectedIndex] : null;
+            let components = [];
+            try { components = JSON.parse((selected || {}).getAttribute?.('data-components') || '[]'); } catch (error) { components = []; }
+            const rates = {CGST: 0, SGST: 0, IGST: 0};
+            const amounts = {CGST: 0, SGST: 0, IGST: 0};
+            components.forEach(function(component) { const name = String(component.name || '').toUpperCase(); const rate = Number(component.percentage || 0); if (Object.prototype.hasOwnProperty.call(rates, name)) { rates[name] += rate; amounts[name] += taxable * rate / 100; } });
+            const cgst = amounts.CGST;
+            const sgst = amounts.SGST;
+            const igst = amounts.IGST;
             const roundOffElement = document.getElementById('round_off_amount');
             const roundOff = parseFloat((roundOffElement || {}).value || '0') || 0;
             const invoiceTotal = taxable + cgst + sgst + igst + roundOff;
 
             document.getElementById('taxable_amount').value = taxable.toFixed(2);
+            document.getElementById('cgst_rate').value = rates.CGST.toFixed(3);
             document.getElementById('cgst_amount').value = cgst.toFixed(2);
+            document.getElementById('sgst_rate').value = rates.SGST.toFixed(3);
             document.getElementById('sgst_amount').value = sgst.toFixed(2);
+            document.getElementById('igst_rate').value = rates.IGST.toFixed(3);
             document.getElementById('igst_amount').value = igst.toFixed(2);
             document.getElementById('invoice_total').value = Math.max(0, invoiceTotal).toFixed(2);
+            const breakup = document.getElementById('gst_breakup_display');
+            if (breakup) breakup.textContent = components.length ? components.map(function(component) { const name = String(component.name || '').toUpperCase(); return name + ' ' + Number(component.percentage || 0).toFixed(3) + '% = ₹' + (taxable * Number(component.percentage || 0) / 100).toFixed(2); }).join(' | ') : 'No tax components';
         }
 
         function bindRow(row) {
@@ -412,9 +427,9 @@ $locationId = old('location_id', (string) ($purchase['location_id'] ?? ''));
 
         body.querySelectorAll('tr').forEach(function(row) { bindRow(row); });
 
-        ['cgst_rate', 'sgst_rate', 'igst_rate', 'round_off_amount'].forEach(function(id) {
+        ['gst_master_id', 'round_off_amount'].forEach(function(id) {
             const element = document.getElementById(id);
-            if (element) element.addEventListener('input', recalcTotals);
+            if (element) { element.addEventListener('input', recalcTotals); element.addEventListener('change', recalcTotals); }
         });
 
         const vendorSelect = document.getElementById('vendor_id');

@@ -25,6 +25,12 @@ class ReportController extends BaseController
             'txn_type' => trim((string) $this->request->getGet('txn_type')),
         ];
 
+        // Set default to current month if no dates provided
+        if ($filters['from'] === '' && $filters['to'] === '') {
+            $filters['from'] = date('Y-m-01');
+            $filters['to'] = date('Y-m-d');
+        }
+
         $builder = db_connect()->table('gold_inventory_ledger_entries gle')
             ->select("gle.*, gi.purity_code, gi.color_name, gi.form_type, gp.purity_code as master_purity_code, o.order_no, k.name as karigar_name, iloc.name as location_name, COALESCE(gih.voucher_no, gph.invoice_no, grh.voucher_no, CONCAT('ADJ#', gah.id)) as reference_voucher_no", false)
             ->join('gold_inventory_items gi', 'gi.id = gle.item_id', 'left')
@@ -102,6 +108,12 @@ class ReportController extends BaseController
             'txn_type' => trim((string) $this->request->getGet('txn_type')),
             'show_all_products' => (string) $this->request->getGet('show_all_products') === '1',
         ];
+
+        // Set default to current month if no dates provided
+        if ($filters['from'] === '' && $filters['to'] === '') {
+            $filters['from'] = date('Y-m-01');
+            $filters['to'] = date('Y-m-d');
+        }
         $data = (new DiamondLedgerService())->build($filters);
         $inventoryContext = str_contains($this->request->getUri()->getPath(), '/diamond-inventory/');
 
