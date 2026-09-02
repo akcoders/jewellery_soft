@@ -14,21 +14,21 @@ class DiamondLedgerService
     }
 
     /**
-     * @param array{from:string,to:string,karigar_id:int,order_no:string,product:string,txn_type:string} $filters
+     * @param array{from:string,to:string,karigar_id:int,order_no:string,product:string,txn_type:string,show_all_products?:bool} $filters
      * @return array<string,mixed>
      */
     public function build(array $filters): array
     {
         $productOptions = $this->products();
-        $products = trim((string) ($filters['product'] ?? '')) === ''
+        $candidateProducts = trim((string) ($filters['product'] ?? '')) === ''
             ? $productOptions
             : array_values(array_filter($productOptions, static fn(array $row): bool => (string) $row['label'] === (string) $filters['product']));
-        $productLabels = array_column($products, 'label');
+        $candidateLabels = array_column($candidateProducts, 'label');
         $rows = $this->movementRows($filters);
         $from = trim((string) ($filters['from'] ?? ''));
         $to = trim((string) ($filters['to'] ?? ''));
         $opening = [];
-        foreach ($productLabels as $label) {
+        foreach ($candidateLabels as $label) {
             $opening[$label] = ['cts' => 0.0, 'pcs' => 0.0];
         }
 
@@ -54,6 +54,23 @@ class DiamondLedgerService
             $txnType = trim((string) ($filters['txn_type'] ?? ''));
             return $txnType === '' || strcasecmp((string) ($row['txn_type'] ?? ''), $txnType) === 0;
         }));
+
+        $showAllProducts = (bool) ($filters['show_all_products'] ?? false);
+        $activeLabels = [];
+        foreach ($periodRows as $row) {
+            $label = trim((string) ($row['product'] ?? ''));
+            if ($label !== '') {
+                $activeLabels[$label] = true;
+            }
+        }
+        $products = $showAllProducts
+            ? $candidateProducts
+            : array_values(array_filter(
+                $candidateProducts,
+                static fn(array $row): bool => isset($activeLabels[(string) $row['label']])
+            ));
+        $productLabels = array_column($products, 'label');
+        $opening = array_intersect_key($opening, array_fill_keys($productLabels, true));
 
         $matrix = [];
         $totals = [];
@@ -136,6 +153,7 @@ class DiamondLedgerService
         }
         $summary['transactions'] = count($matrixRows);
         $summary['products'] = count($products);
+        $summary['available_products'] = count($candidateProducts);
 
         return [
             'products' => $products,

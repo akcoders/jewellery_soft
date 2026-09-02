@@ -16,6 +16,8 @@ class DiamondProductLedgerTest extends CIUnitTestCase
         $this->assertStringContainsString("'Return' AS txn_type", $service);
         $this->assertStringContainsString("'received' AS direction", $service);
         $this->assertStringContainsString("'issued' AS direction", $service);
+        $this->assertStringContainsString('$showAllProducts', $service);
+        $this->assertStringContainsString('$activeLabels', $service);
     }
 
     public function testLedgerViewBuildsReceivedAndIssuedColumnsPerProduct(): void
@@ -26,6 +28,8 @@ class DiamondProductLedgerTest extends CIUnitTestCase
         $this->assertStringContainsString('foreach ($productRows as $product)', $view);
         $this->assertStringContainsString('<th>Received</th><th>Issued</th>', $view);
         $this->assertStringContainsString('Closing balance', $view);
+        $this->assertStringContainsString('id="show-all-diamond-products"', $view);
+        $this->assertStringContainsString('Show all master products', $view);
     }
 
     public function testDiamondInventoryExposesTheSameLedgerPage(): void

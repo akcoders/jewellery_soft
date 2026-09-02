@@ -20,6 +20,9 @@
     .diamond-matrix .txn-description { min-width:190px; white-space:normal; }
     .diamond-matrix tfoot tr:last-child th { background:#dbeafe !important; color:#153862; font-weight:800; }
     .diamond-type-badge { border-radius:999px; display:inline-flex; font-size:.68rem; font-weight:800; padding:.25rem .52rem; text-transform:uppercase; }
+    .diamond-product-toggle { align-items:center; background:#f7f9fc; border:1px solid #dde4ed; border-radius:10px; display:flex; min-height:38px; padding:.45rem .75rem; }
+    .diamond-product-toggle .form-check { margin:0; min-height:0; }
+    .diamond-product-toggle .form-check-label { color:#263449; cursor:pointer; font-size:.82rem; font-weight:700; }
     @media (max-width:1199.98px) { .diamond-ledger-kpis { grid-template-columns:repeat(3,1fr); } }
     @media (max-width:575.98px) { .diamond-ledger-kpis { grid-template-columns:repeat(2,1fr); } .diamond-ledger-hero { padding:14px; } }
 </style>
@@ -62,12 +65,24 @@ $typeClass = static fn(string $type): string => match ($type) {
         <div class="col-sm-6 col-xl-2"><label class="form-label">Transaction</label><select name="txn_type" class="form-select"><option value="">All transactions</option><?php foreach (($transactionTypes ?? []) as $type): ?><option value="<?= esc((string) $type, 'attr') ?>" <?= (string) ($filters['txn_type'] ?? '') === (string) $type ? 'selected' : '' ?>><?= esc((string) $type) ?></option><?php endforeach; ?></select></div>
         <div class="col-sm-6 col-xl-2"><label class="form-label">Karigar</label><select name="karigar_id" class="form-select js-searchable-select"><option value="0">All karigars</option><?php foreach (($karigars ?? []) as $karigar): ?><option value="<?= (int) $karigar['id'] ?>" <?= (int) ($filters['karigar_id'] ?? 0) === (int) $karigar['id'] ? 'selected' : '' ?>><?= esc((string) $karigar['name']) ?></option><?php endforeach; ?></select></div>
         <div class="col-sm-6 col-xl-2"><label class="form-label">Order</label><input type="text" name="order_no" class="form-control" value="<?= esc((string) ($filters['order_no'] ?? '')) ?>" placeholder="Order number"></div>
-        <div class="col-12"><button class="btn btn-primary"><i class="fe fe-filter me-1"></i>Apply</button> <a href="<?= esc((string) ($ledgerBaseUrl ?? ''), 'attr') ?>" class="btn btn-light">Reset</a></div>
+        <div class="col-sm-6 col-xl-3">
+            <label class="form-label">Product visibility</label>
+            <div class="diamond-product-toggle">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="show-all-diamond-products" name="show_all_products" value="1" <?= ! empty($filters['show_all_products']) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="show-all-diamond-products">Show all master products</label>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-9"><button class="btn btn-primary"><i class="fe fe-filter me-1"></i>Apply</button> <a href="<?= esc((string) ($ledgerBaseUrl ?? ''), 'attr') ?>" class="btn btn-light">Reset</a></div>
     </div></div>
 </form>
 
 <div class="diamond-ledger-shell">
-    <div class="p-3 border-bottom"><strong>Movement Matrix</strong><div class="text-muted small">Hover values for PCS. Scroll horizontally to see all product columns.</div></div>
+    <div class="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div><strong>Movement Matrix</strong><div class="text-muted small">Hover values for PCS. Scroll horizontally to see all product columns.</div></div>
+        <span class="badge bg-light text-dark border"><?= count($productRows) ?> of <?= (int) ($summary['available_products'] ?? count($productRows)) ?> products shown</span>
+    </div>
     <div class="diamond-ledger-scroll">
         <table id="diamond-product-ledger" class="table datatable diamond-matrix mb-0" data-ledger-table="true" data-ledger-matrix="true" data-dt-page-length="25" data-dt-ordering="false">
             <thead>
@@ -94,4 +109,9 @@ $typeClass = static fn(string $type): string => match ($type) {
         </table>
     </div>
 </div>
+<script>
+document.getElementById('show-all-diamond-products')?.addEventListener('change', function () {
+    this.form?.submit();
+});
+</script>
 <?= $this->endSection() ?>

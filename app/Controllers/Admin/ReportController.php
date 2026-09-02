@@ -100,6 +100,7 @@ class ReportController extends BaseController
             'order_no' => trim((string) $this->request->getGet('order_no')),
             'product' => trim((string) $this->request->getGet('product')),
             'txn_type' => trim((string) $this->request->getGet('txn_type')),
+            'show_all_products' => (string) $this->request->getGet('show_all_products') === '1',
         ];
         $data = (new DiamondLedgerService())->build($filters);
         $inventoryContext = str_contains($this->request->getUri()->getPath(), '/diamond-inventory/');
