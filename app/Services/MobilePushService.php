@@ -204,6 +204,7 @@ class MobilePushService
             return ['queued' => false, 'status' => 'failed', 'stop_dispatch' => true, 'message' => $message];
         }
 
+        $notificationData = $this->decodedPayload($row['payload_json'] ?? null);
         $payload = [
             'app_id' => (string) $config['onesignal_app_id'],
             'include_aliases' => [
@@ -212,12 +213,22 @@ class MobilePushService
             'target_channel' => 'push',
             'headings' => ['en' => (string) ($row['title'] ?? 'Notification')],
             'contents' => ['en' => (string) ($row['message'] ?? '')],
-            'data' => $this->decodedPayload($row['payload_json'] ?? null),
+            'data' => $notificationData,
             'small_icon' => 'ic_stat_onesignal_default',
             'android_sound' => 'aabhushan_alert',
             'priority' => 10,
             'idempotency_key' => (string) (($row['onesignal_idempotency_key'] ?? '') ?: $this->uuidV4()),
         ];
+        $webUrl = $this->webLaunchUrl($notificationData);
+        if ($webUrl !== null) {
+            $payload['web_url'] = $webUrl;
+        }
+        $imageUrl = $this->notificationImageUrl($notificationData);
+        if ($imageUrl !== null) {
+            $payload['big_picture'] = $imageUrl;
+            $payload['chrome_web_image'] = $imageUrl;
+            $payload['ios_attachments'] = ['order' => $imageUrl];
+        }
 
         try {
             $response = $this->http->post('/notifications?c=push', [
@@ -781,6 +792,62 @@ class MobilePushService
     private function terminalOrderStatuses(): array
     {
         return ['ready', 'complete', 'completed', 'packed', 'delivered', 'dispatched', 'cancelled'];
+    }
+
+    private function webLaunchUrl(array $data): ?string
+    {
+        $baseUrl = trim((string) env('pwa.baseURL', ''));
+        if ($baseUrl === '' || filter_var($baseUrl, FILTER_VALIDATE_URL) === false) {
+            return null;
+        }
+
+        $query = [];
+        $orderId = (int) ($data['order_id'] ?? 0);
+        $taskId = (int) ($data['task_id'] ?? 0);
+        if ($orderId > 0) {
+            $query['order_id'] = $orderId;
+        } elseif ($taskId > 0) {
+            $query['task_id'] = $taskId;
+        }
+        foreach (['type', 'screen'] as $key) {
+            $value = trim((string) ($data[$key] ?? ''));
+            if ($value !== '') {
+                $query[$key] = $value;
+            }
+        }
+
+        if ($query === []) {
+            return rtrim($baseUrl, '/') . '/';
+        }
+
+        return rtrim($baseUrl, '/') . '/?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+    }
+
+    private function notificationImageUrl(array $data): ?string
+    {
+        $orderId = (int) ($data['order_id'] ?? 0);
+        $db = db_connect();
+        if ($orderId <= 0 || ! $db->tableExists('order_attachments')) {
+            return null;
+        }
+
+        $attachment = $db->table('order_attachments')
+            ->select('file_path')
+            ->where('order_id', $orderId)
+            ->whereIn('LOWER(file_type)', ['finish_photo', 'photo'], false)
+            ->orderBy("FIELD(LOWER(file_type), 'finish_photo', 'photo')", '', false)
+            ->orderBy('id', 'DESC')
+            ->get()
+            ->getRowArray();
+        $path = trim((string) ($attachment['file_path'] ?? ''));
+        if ($path === '') {
+            return null;
+        }
+        if (filter_var($path, FILTER_VALIDATE_URL) !== false) {
+            return $path;
+        }
+
+        return base_url(ltrim($path, '/'));
     }
 
     private function uuidV4(): string

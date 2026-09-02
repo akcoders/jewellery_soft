@@ -26,6 +26,9 @@
 # app.forceGlobalSecureRequests = false
 # app.CSPEnabled = false
 
+# Installable Flutter PWA URL. Used by OneSignal notification clicks.
+# pwa.baseURL = 'https://example.com/pwa/'
+
 #--------------------------------------------------------------------
 # DATABASE
 #--------------------------------------------------------------------

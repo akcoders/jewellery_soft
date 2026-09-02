@@ -2,12 +2,15 @@ import 'package:flutkit/jewellery_mobile/screens/dashboard_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/followups_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/inventory_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/notification_center_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/orders_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/performance_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/task_scheduler_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transactions_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transaction_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutkit/jewellery_mobile/services/onesignal_service.dart';
+import 'package:flutkit/jewellery_mobile/services/pwa_install_service.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
 import 'package:flutkit/jewellery_mobile/session/mobile_session_store.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
@@ -37,19 +40,69 @@ class _AppShellState extends State<AppShell> {
       token: widget.session.token,
     );
     TaskRefreshBus.tick.addListener(_loadNotificationCount);
+    OneSignalService.openedNotification.addListener(_handleOpenedNotification);
     _loadNotificationCount();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleOpenedNotification();
+    });
   }
 
   @override
   void dispose() {
     TaskRefreshBus.tick.removeListener(_loadNotificationCount);
+    OneSignalService.openedNotification.removeListener(
+      _handleOpenedNotification,
+    );
     super.dispose();
   }
 
   void _select(String key) {
     Navigator.of(context).pop();
+    _switchSection(key);
+  }
+
+  void _switchSection(String key) {
+    if (!mounted) return;
     setState(() => _section = key);
     _loadNotificationCount();
+  }
+
+  void _handleOpenedNotification() {
+    final payload = OneSignalService.consumeOpenedNotification();
+    if (!mounted || payload == null) return;
+
+    final orderId = _asInt(payload['order_id']);
+    if (orderId > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OrderDetailScreen(api: _api, orderId: orderId),
+          ),
+        );
+      });
+      return;
+    }
+
+    final taskId = _asInt(payload['task_id']);
+    final screen = (payload['screen'] ?? '').toString().toLowerCase();
+    if ((taskId > 0 || screen == 'tasks') && widget.session.canUsePerformance) {
+      _switchSection('tasks');
+      return;
+    }
+
+    final type = (payload['type'] ?? '').toString().toLowerCase();
+    if (type.contains('followup')) {
+      _switchSection('followups');
+    } else {
+      _switchSection('dashboard');
+    }
+  }
+
+  int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   void _openOrdersByStatus(String status) {
@@ -198,6 +251,29 @@ class _AppShellState extends State<AppShell> {
       appBar: AppBar(
         title: Text(_title()),
         actions: [
+          ValueListenableBuilder<bool>(
+            valueListenable: PwaInstallService.available,
+            builder: (context, available, _) {
+              if (!available) return const SizedBox.shrink();
+              return IconButton(
+                tooltip: 'Install Aabhushan ERP',
+                onPressed: () async {
+                  final installed = await PwaInstallService.promptInstall();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        installed
+                            ? 'Aabhushan ERP installed successfully.'
+                            : 'Installation was not completed.',
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.install_mobile_outlined),
+              );
+            },
+          ),
           IconButton(
             onPressed: () async {
               await Navigator.of(context).push(

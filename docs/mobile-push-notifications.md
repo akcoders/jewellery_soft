@@ -67,3 +67,15 @@ A newer followup or a terminal order status makes older reminders ineligible.
 Android does not allow an app to bypass a user's notification denial, a manual
 channel disable, or force-stop. The app exposes its permission/subscription and
 server-provider state so those device settings can be corrected.
+
+domains/webignitors.in/public_html/aabhushan && /usr/bin/php spark mobile:run-notification-cycle 200 >> /home/u897223014/domains/webignitors.in/public_html/aabhushan/writable/logs/mobile-push-cron.log 2>&1
+
+
+
+["Access denied.  Please include an 'Authorization: ...' header with a valid API key (https://documentation.onesignal.com/docs/en/keys-and-ids#api-keys)."]
+
+
+
+{"errors": ["Access denied.  Please include an 'Authorization: ...' header with a valid API key (https://documentation.onesignal.com/docs/en/keys-and-ids#api-keys)."]}
+
+25 Nov

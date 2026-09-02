@@ -1,8 +1,7 @@
-import 'dart:async';
-
+import 'package:flutkit/jewellery_mobile/services/push_platform.dart';
+import 'package:flutkit/jewellery_mobile/services/push_platform_snapshot.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 @immutable
 class PushNotificationStatus {
@@ -69,8 +68,8 @@ class OneSignalService {
   OneSignalService._();
 
   static const String appId = '47e56c4c-5cec-4de4-a247-d1c62c1154ae';
+  static final PlatformPushClient _client = PlatformPushClient();
   static bool _initialized = false;
-  static bool _observersRegistered = false;
   static Future<PushNotificationStatus>? _initializing;
 
   static final ValueNotifier<PushNotificationStatus> status =
@@ -102,27 +101,22 @@ class OneSignalService {
 
     final externalId = externalIdForUser(userEmail, userName);
     if (externalId == null) {
-      status.value = status.value.copyWith(
-        error: 'A valid user identity is required for push notifications.',
-        clearExternalUserId: true,
+      return _setError(
+        'A valid user identity is required for push notifications.',
       );
-      return status.value;
     }
 
     try {
-      await OneSignal.login(externalId);
-      await OneSignal.User.addTags({
-        'email': userEmail.trim(),
-        'name': userName.trim(),
-      });
-      status.value = status.value.copyWith(
+      return _apply(
+        await _client.login(
+          externalId: externalId,
+          email: userEmail.trim(),
+          name: userName.trim(),
+        ),
         externalUserId: externalId,
-        clearError: true,
       );
-      return await _ensurePermissionAndOptIn();
     } catch (error) {
-      status.value = status.value.copyWith(error: error.toString());
-      return status.value;
+      return _setError(error.toString());
     }
   }
 
@@ -131,18 +125,12 @@ class OneSignalService {
   }) async {
     final initializedStatus = await init();
     if (!initializedStatus.initialized) return initializedStatus;
-
     try {
-      final granted = await OneSignal.Notifications.requestPermission(
-        fallbackToSettings,
+      return _apply(
+        await _client.requestPermission(fallbackToSettings: fallbackToSettings),
       );
-      if (granted) {
-        await OneSignal.User.pushSubscription.optIn();
-      }
-      return await refreshStatus(clearError: true);
     } catch (error) {
-      status.value = status.value.copyWith(error: error.toString());
-      return status.value;
+      return _setError(error.toString());
     }
   }
 
@@ -150,39 +138,24 @@ class OneSignalService {
     bool clearError = false,
   }) async {
     if (!_initialized) return status.value;
-
     try {
-      final canRequest = await OneSignal.Notifications.canRequest();
-      final subscription = OneSignal.User.pushSubscription;
-      status.value = status.value.copyWith(
-        initialized: true,
-        permissionGranted: OneSignal.Notifications.permission,
-        canRequestPermission: canRequest,
-        optedIn: subscription.optedIn ?? false,
-        subscriptionId: subscription.id,
-        pushToken: subscription.token,
-        clearSubscriptionId: subscription.id == null,
-        clearPushToken: subscription.token == null,
-        clearError: clearError,
-      );
+      return _apply(await _client.snapshot(), clearError: clearError);
     } catch (error) {
-      status.value = status.value.copyWith(error: error.toString());
+      return _setError(error.toString());
     }
-    return status.value;
   }
 
   static Future<void> clearUser() async {
     if (!_initialized) return;
     try {
-      await OneSignal.logout();
       openedNotification.value = null;
-      status.value = status.value.copyWith(
+      _apply(
+        await _client.logout(),
         clearExternalUserId: true,
         clearError: true,
       );
-      await refreshStatus(clearError: true);
     } catch (error) {
-      status.value = status.value.copyWith(error: error.toString());
+      _setError(error.toString());
     }
   }
 
@@ -195,16 +168,11 @@ class OneSignalService {
   @visibleForTesting
   static String? externalIdForUser(String userEmail, String userName) {
     final email = userEmail.trim().toLowerCase();
-    if (email.isNotEmpty) {
-      return email;
-    }
+    if (email.isNotEmpty) return email;
 
     final name = userName.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
-    if (name.isEmpty) {
-      return null;
-    }
-
-    final restricted = <String>{
+    if (name.isEmpty) return null;
+    const restricted = <String>{
       'na',
       'null',
       '0',
@@ -223,75 +191,64 @@ class OneSignalService {
       'unqualified',
       '00000000-0000-0000-0000-000000000000',
     };
-    if (restricted.contains(name)) {
-      return null;
-    }
-
-    return name;
+    return restricted.contains(name) ? null : name;
   }
 
   static Future<PushNotificationStatus> _initialize() async {
     try {
-      await OneSignal.initialize(appId);
-      _initialized = true;
-      _registerObservers();
-      return await refreshStatus(clearError: true);
+      final snapshot = await _client.init(
+        appId: appId,
+        onStatus: _apply,
+        onNotificationOpened: (payload) {
+          openedNotification.value = Map<String, dynamic>.unmodifiable(payload);
+          TaskRefreshBus.notify();
+        },
+        onNotificationForeground: TaskRefreshBus.notify,
+      );
+      _initialized = snapshot.initialized;
+      return _apply(snapshot, clearError: true);
     } catch (error) {
       _initialized = false;
-      status.value = status.value.copyWith(
-        initialized: false,
-        error: error.toString(),
-      );
-      return status.value;
+      return _setError(error.toString(), initialized: false);
     }
   }
 
-  static Future<PushNotificationStatus> _ensurePermissionAndOptIn() async {
-    try {
-      var granted = OneSignal.Notifications.permission;
-      if (!granted && await OneSignal.Notifications.canRequest()) {
-        granted = await OneSignal.Notifications.requestPermission(false);
-      }
-      if (granted) {
-        await OneSignal.User.pushSubscription.optIn();
-      }
-      return await refreshStatus(clearError: true);
-    } catch (error) {
-      status.value = status.value.copyWith(error: error.toString());
-      return status.value;
-    }
+  static PushNotificationStatus _apply(
+    PushPlatformSnapshot snapshot, {
+    String? externalUserId,
+    bool clearExternalUserId = false,
+    bool clearError = false,
+  }) {
+    final current = status.value;
+    final next = PushNotificationStatus(
+      initialized: snapshot.initialized,
+      permissionGranted: snapshot.permissionGranted,
+      canRequestPermission: snapshot.canRequestPermission,
+      optedIn: snapshot.optedIn,
+      subscriptionId: snapshot.subscriptionId,
+      pushToken: snapshot.pushToken,
+      externalUserId: clearExternalUserId
+          ? null
+          : externalUserId ?? snapshot.externalUserId ?? current.externalUserId,
+      error: clearError ? null : snapshot.error,
+    );
+    status.value = next;
+    return next;
   }
 
-  static void _registerObservers() {
-    if (_observersRegistered) return;
-    _observersRegistered = true;
-
-    OneSignal.Notifications.addPermissionObserver((granted) {
-      status.value = status.value.copyWith(
-        permissionGranted: granted,
-        clearError: true,
-      );
-      unawaited(refreshStatus(clearError: true));
-    });
-    OneSignal.User.pushSubscription.addObserver((changes) {
-      status.value = status.value.copyWith(
-        optedIn: changes.current.optedIn,
-        subscriptionId: changes.current.id,
-        pushToken: changes.current.token,
-        clearSubscriptionId: changes.current.id == null,
-        clearPushToken: changes.current.token == null,
-        clearError: true,
-      );
-    });
-    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-      TaskRefreshBus.notify();
-    });
-    OneSignal.Notifications.addClickListener((event) {
-      final data = event.notification.additionalData;
-      openedNotification.value = data == null
-          ? <String, dynamic>{}
-          : Map<String, dynamic>.unmodifiable(data);
-      TaskRefreshBus.notify();
-    });
+  static PushNotificationStatus _setError(String error, {bool? initialized}) {
+    final current = status.value;
+    final next = PushNotificationStatus(
+      initialized: initialized ?? current.initialized,
+      permissionGranted: current.permissionGranted,
+      canRequestPermission: current.canRequestPermission,
+      optedIn: current.optedIn,
+      subscriptionId: current.subscriptionId,
+      pushToken: current.pushToken,
+      externalUserId: current.externalUserId,
+      error: error.replaceFirst('Exception: ', ''),
+    );
+    status.value = next;
+    return next;
   }
 }

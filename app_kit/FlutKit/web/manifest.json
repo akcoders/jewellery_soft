@@ -1,11 +1,12 @@
 {
-    "name": "flutkit",
-    "short_name": "flutkit",
+    "id": "./",
+    "name": "Aabhushan ERP",
+    "short_name": "Aabhushan",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F7F7F9",
+    "theme_color": "#B81D24",
+    "description": "Orders, follow-ups, staff tasks and jewellery inventory.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

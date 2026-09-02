@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
 import 'package:flutkit/jewellery_mobile/services/task_repository.dart';
@@ -104,6 +103,8 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
       maxWidth: 1800,
     );
     if (image == null || !mounted) return;
+    final imageBytes = await image.readAsBytes();
+    if (!mounted) return;
 
     final noteController = TextEditingController();
     final confirmed = await showDialog<bool>(
@@ -116,8 +117,8 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                File(image.path),
+              child: Image.memory(
+                imageBytes,
                 height: 150,
                 width: double.infinity,
                 fit: BoxFit.cover,
@@ -154,7 +155,7 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
 
     setState(() => _submitting = true);
     try {
-      final encoded = base64Encode(await File(image.path).readAsBytes());
+      final encoded = base64Encode(imageBytes);
       await _repo.complete(
         id: task.id,
         proofBase64: encoded,

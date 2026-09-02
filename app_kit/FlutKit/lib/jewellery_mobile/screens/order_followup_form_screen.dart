@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -23,7 +22,8 @@ class OrderFollowupFormScreen extends StatefulWidget {
   final List<String> stages;
 
   @override
-  State<OrderFollowupFormScreen> createState() => _OrderFollowupFormScreenState();
+  State<OrderFollowupFormScreen> createState() =>
+      _OrderFollowupFormScreenState();
 }
 
 class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
@@ -65,14 +65,16 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
     try {
       var base64Image = '';
       if (_picked != null) {
-        final bytes = await File(_picked!.path).readAsBytes();
+        final bytes = await _picked!.readAsBytes();
         base64Image = base64Encode(bytes);
       }
 
       final nextFollowupDateTime = _followupDateTimeString();
       final scheduleAt = _nextDate == null
           ? null
-          : FollowupNotificationService.normalizedFollowupTime(nextFollowupDateTime);
+          : FollowupNotificationService.normalizedFollowupTime(
+              nextFollowupDateTime,
+            );
       if (scheduleAt != null && scheduleAt.isBefore(DateTime.now())) {
         throw Exception('Next followup time must be in the future.');
       }
@@ -84,14 +86,17 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
         nextFollowupDate: nextFollowupDateTime,
         imageBase64: base64Image,
       );
-      final notification = (response['notification'] as Map?)?.cast<String, dynamic>() ?? {};
+      final notification =
+          (response['notification'] as Map?)?.cast<String, dynamic>() ?? {};
       final queued = notification['queued'] == true;
       if (!mounted) return;
       if (scheduleAt != null && !queued) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              (notification['message'] ?? 'Followup saved but push notification could not be queued.').toString(),
+              (notification['message'] ??
+                      'Followup saved but push notification could not be queued.')
+                  .toString(),
             ),
           ),
         );
@@ -128,10 +133,8 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
                 decoration: const InputDecoration(labelText: 'Stage'),
                 items: widget.stages
                     .map(
-                      (stage) => DropdownMenuItem(
-                        value: stage,
-                        child: Text(stage),
-                      ),
+                      (stage) =>
+                          DropdownMenuItem(value: stage, child: Text(stage)),
                     )
                     .toList(),
                 onChanged: (v) => setState(() => _stage = v),
@@ -199,7 +202,9 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
                 onPressed: _pickImage,
                 icon: const Icon(Icons.image),
                 label: Text(
-                  _picked == null ? 'Attach image (optional)' : 'Image selected',
+                  _picked == null
+                      ? 'Attach image (optional)'
+                      : 'Image selected',
                 ),
               ),
               const Spacer(),

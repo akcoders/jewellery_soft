@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -132,7 +131,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
 
   Future<String> _attachmentBase64() async {
     if (_attachment == null) return '';
-    final bytes = await File(_attachment!.path).readAsBytes();
+    final bytes = await _attachment!.readAsBytes();
     return base64Encode(bytes);
   }
 

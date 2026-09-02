@@ -1,4 +1,5 @@
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -42,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final loginData = await api.login(
         email: _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
-        deviceName: 'Android App',
+        deviceName: kIsWeb ? 'Aabhushan PWA' : 'Android App',
       );
       final me = await api.me();
       if (!mounted) return;

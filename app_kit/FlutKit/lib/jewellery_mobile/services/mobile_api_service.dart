@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:flutkit/jewellery_mobile/services/downloaded_file.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 
 class MobileApiService {
   MobileApiService({required String baseUrl, String token = ''})
@@ -429,17 +428,8 @@ class MobileApiService {
       throw Exception('Downloaded file is empty.');
     }
 
-    final directory = await getApplicationDocumentsDirectory();
-    final downloadDir = Directory(
-      '${directory.path}${Platform.pathSeparator}downloads',
-    );
-    if (!await downloadDir.exists()) {
-      await downloadDir.create(recursive: true);
-    }
     final safeName = _resolvedFileName(response, fileName);
-    final file = File('${downloadDir.path}${Platform.pathSeparator}$safeName');
-    await file.writeAsBytes(bytes, flush: true);
-    return file.path;
+    return saveDownloadedFile(bytes, safeName);
   }
 
   Future<Map<String, dynamic>> _get(
@@ -476,14 +466,16 @@ class MobileApiService {
   ) async {
     try {
       return await request().timeout(const Duration(seconds: 20));
-    } on SocketException {
-      throw Exception('Sorry app will not work without internet');
     } on http.ClientException {
-      throw Exception('Sorry app will not work without internet');
-    } on HandshakeException {
       throw Exception('Sorry app will not work without internet');
     } on TimeoutException {
       throw Exception('Request timed out. Please try again.');
+    } catch (error) {
+      final errorType = error.runtimeType.toString();
+      if (errorType == 'SocketException' || errorType == 'HandshakeException') {
+        throw Exception('Sorry app will not work without internet');
+      }
+      rethrow;
     }
   }
 
