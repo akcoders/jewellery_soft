@@ -5,6 +5,7 @@
 $isRepairMode = (bool) ($repairMode ?? false);
 $selectedOrderType = (string) old('order_type', $isRepairMode ? 'Repair' : 'Sales');
 $selectedDesignType = (string) old('order_design_type', 'Fresh');
+$selectedCategoryId = (string) old('order_category_id');
 $showRepairFields = $selectedOrderType === 'Repair';
 ?>
 <style>
@@ -31,6 +32,21 @@ $showRepairFields = $selectedOrderType === 'Repair';
         <form action="<?= site_url('admin/orders') ?>" method="post" enctype="multipart/form-data">
             <?= csrf_field() ?>
             <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Order Name <span class="text-danger">*</span></label>
+                    <input type="text" name="order_name" class="form-control" maxlength="180" value="<?= esc((string) old('order_name')) ?>" placeholder="Example: Bridal Jhumki Set" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Jewellery Category <span class="text-danger">*</span></label>
+                    <select name="order_category_id" id="order-category-select" class="form-control js-searchable-select" data-placeholder="Search jewellery category" required>
+                        <option value=""></option>
+                        <?php foreach (($orderCategories ?? []) as $category): ?>
+                            <option value="<?= (int) $category['id'] ?>" <?= $selectedCategoryId === (string) $category['id'] ? 'selected' : '' ?>><?= esc((string) $category['name']) ?> (<?= esc((string) $category['code']) ?>)</option>
+                        <?php endforeach; ?>
+                        <option value="0" <?= $selectedCategoryId === '0' ? 'selected' : '' ?>>+ Add New Category</option>
+                    </select>
+                    <input type="text" name="new_order_category" id="new-order-category" class="form-control mt-2" maxlength="100" value="<?= esc((string) old('new_order_category')) ?>" placeholder="Enter new jewellery category" style="display:none;">
+                </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Order Type</label>
                     <select name="order_type" id="order-type-select" class="form-control js-searchable-select" required>
@@ -88,20 +104,6 @@ $showRepairFields = $selectedOrderType === 'Repair';
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Due Date</label>
                     <input type="date" name="due_date" class="form-control" value="<?= esc((string) old('due_date')) ?>">
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Order Follower <span class="text-danger">*</span></label>
-                    <select name="followup_assigned_to" class="form-control js-searchable-select" data-placeholder="Search staff follower" required>
-                        <option value=""></option>
-                        <?php foreach (($staffFollowers ?? []) as $person): ?>
-                            <option value="<?= (int) $person['id'] ?>" <?= (string) old('followup_assigned_to') === (string) $person['id'] ? 'selected' : '' ?>><?= esc((string) $person['name']) ?> · <?= esc((string) ($person['role_label'] ?? 'Staff')) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <div class="form-text">This staff member owns each scheduled order follow-up.</div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">First Follow-up Due <span class="text-danger">*</span></label>
-                    <input type="datetime-local" name="followup_due_at" class="form-control" required value="<?= esc((string) old('followup_due_at', date('Y-m-d\\T11:00', strtotime('+1 day')))) ?>">
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Priority Level</label>
@@ -243,6 +245,8 @@ $showRepairFields = $selectedOrderType === 'Repair';
         const salesSummary = document.getElementById('sales-person-summary');
         const salesName = document.getElementById('sales-person-name');
         const salesMobile = document.getElementById('sales-person-mobile');
+        const categorySelect = document.getElementById('order-category-select');
+        const newCategoryInput = document.getElementById('new-order-category');
         const salesPersonOptions = salesPersonSelect
             ? Array.from(salesPersonSelect.options).filter(function (option) { return option.value; }).map(function (option) { return option.cloneNode(true); })
             : [];
@@ -261,6 +265,19 @@ $showRepairFields = $selectedOrderType === 'Repair';
         if (orderTypeSelect) {
             orderTypeSelect.addEventListener('change', toggleRepairFields);
             toggleRepairFields();
+        }
+
+        function toggleNewCategory() {
+            if (!categorySelect || !newCategoryInput) return;
+            const adding = categorySelect.value === '0';
+            newCategoryInput.style.display = adding ? '' : 'none';
+            newCategoryInput.required = adding;
+            if (!adding) newCategoryInput.value = '';
+        }
+        if (categorySelect) {
+            if (typeof jQuery !== 'undefined') jQuery(categorySelect).on('change', toggleNewCategory);
+            else categorySelect.addEventListener('change', toggleNewCategory);
+            toggleNewCategory();
         }
 
         const addBtn = document.getElementById('add-item-row');

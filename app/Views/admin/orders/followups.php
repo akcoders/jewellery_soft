@@ -4,6 +4,7 @@
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Order Followups</h4>
 </div>
+<style>.followup-order-thumb{align-items:center;background:#f3f4f6;border:1px solid #e2e5ea;border-radius:8px;color:#9aa3af;display:inline-flex;height:40px;justify-content:center;overflow:hidden;position:relative;width:40px}.followup-order-thumb img{height:100%;inset:0;object-fit:cover;position:absolute;width:100%}</style>
 
 <div class="card">
     <div class="card-body">
@@ -11,7 +12,9 @@
             <table class="table datatable table-hover table-bordered mb-0">
                 <thead>
                     <tr>
+                        <th>Photo</th>
                         <th>Order No</th>
+                        <th>Order Name</th>
                         <th>Customer</th>
                         <th>Karigar</th>
                         <th>Assigned Follower</th>
@@ -27,16 +30,18 @@
                 <tbody>
                     <?php if (($orders ?? []) === []): ?>
                         <tr>
-                            <td colspan="11" class="text-center text-muted">No orders found.</td>
+                            <td colspan="13" class="text-center text-muted">No orders found.</td>
                         </tr>
                     <?php endif; ?>
                     <?php foreach (($orders ?? []) as $order): ?>
                         <tr>
+                            <td><span class="followup-order-thumb"><i class="fe fe-image"></i><?php if (! empty($order['thumbnail_url'])): ?><img src="<?= esc((string) $order['thumbnail_url'], 'attr') ?>" alt="" loading="lazy" onerror="this.style.display='none'"><?php endif; ?></span></td>
                             <td>
                                 <a href="<?= site_url('admin/orders/' . (int) $order['id']) ?>">
                                     <?= esc((string) $order['order_no']) ?>
                                 </a>
                             </td>
+                            <td><strong><?= esc((string) (($order['order_name'] ?? '') ?: '-')) ?></strong></td>
                             <td><?= esc((string) ($order['customer_name'] ?? '-')) ?></td>
                             <td><?= esc((string) (($order['karigar_name'] ?? '') !== '' ? $order['karigar_name'] : 'Not Assigned')) ?></td>
                             <td><strong><?= esc((string) (($order['follower_name'] ?? '') ?: 'Not Assigned')) ?></strong></td>

@@ -21,6 +21,9 @@ final class BillBasedLabourWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('labour_bill_jobworks', $migration);
         $this->assertStringContainsString("getPost('jobworks')", $controller);
         $this->assertStringContainsString("getFile('attachment')", $controller);
+        $this->assertStringContainsString('order_name', $controller);
+        $this->assertStringContainsString('image_url', $controller);
+        $this->assertStringContainsString('jobwork-card', (string) file_get_contents(APPPATH . 'Views/admin/accounts/labour_bill_create.php'));
         $this->assertStringNotContainsString('Imported Diamond Issuement Details', $profile);
         $this->assertStringContainsString('ready-thumb', $profile);
     }

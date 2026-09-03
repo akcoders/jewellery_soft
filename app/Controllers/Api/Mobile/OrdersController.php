@@ -35,10 +35,11 @@ class OrdersController extends MobileBaseController
         $offset = ($page - 1) * $limit;
 
         $builder = $db->table('orders o')
-            ->select('o.id, o.order_no, o.status, o.priority, o.due_date, o.order_type, o.created_at, o.followup_assigned_to, o.followup_due_at, c.name as customer_name, k.name as karigar_name, follower.name as follower_name')
+            ->select('o.id, o.order_no, o.order_name, o.status, o.priority, o.due_date, o.order_type, o.created_at, o.followup_assigned_to, o.followup_due_at, c.name as customer_name, k.name as karigar_name, follower.name as follower_name, oc.name as order_category_name, oc.code as order_category_code')
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
             ->join('admin_users follower', 'follower.id = o.followup_assigned_to', 'left');
+        $builder->join('order_categories oc', 'oc.id = o.order_category_id', 'left');
 
         if ($status !== '') {
             $builder->where('o.status', $status);
@@ -46,6 +47,7 @@ class OrdersController extends MobileBaseController
         if ($search !== '') {
             $builder->groupStart()
                 ->like('o.order_no', $search)
+                ->orLike('o.order_name', $search)
                 ->orLike('c.name', $search)
                 ->orLike('k.name', $search)
                 ->orLike('follower.name', $search)
@@ -78,10 +80,11 @@ class OrdersController extends MobileBaseController
 
         $db = db_connect();
         $order = $db->table('orders o')
-            ->select('o.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, k.name as karigar_name, k.phone as karigar_phone, follower.name as follower_name')
+            ->select('o.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, k.name as karigar_name, k.phone as karigar_phone, follower.name as follower_name, oc.name as order_category_name, oc.code as order_category_code')
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
             ->join('admin_users follower', 'follower.id = o.followup_assigned_to', 'left')
+            ->join('order_categories oc', 'oc.id = o.order_category_id', 'left')
             ->where('o.id', $id)
             ->get()
             ->getRowArray();

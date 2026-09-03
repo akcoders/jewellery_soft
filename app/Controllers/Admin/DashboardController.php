@@ -5,6 +5,7 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\CustomerModel;
 use App\Models\OrderModel;
+use App\Services\OrderThumbnailService;
 
 class DashboardController extends BaseController
 {
@@ -168,7 +169,7 @@ class DashboardController extends BaseController
         }
 
         $ordersNeedingAssignment = $orderModel
-            ->select('orders.id, orders.order_no, orders.order_from, orders.order_type, orders.priority, orders.due_date, orders.status, customers.name as customer_name')
+            ->select('orders.id, orders.order_no, orders.order_name, orders.order_from, orders.order_type, orders.priority, orders.due_date, orders.status, customers.name as customer_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->whereIn('orders.status', $activeWorkStatuses)
             ->where('orders.assigned_karigar_id', null)
@@ -177,10 +178,24 @@ class DashboardController extends BaseController
             ->findAll(8);
 
         $recentOrders = $orderModel
-            ->select('orders.id, orders.order_no, orders.order_from, orders.status, orders.created_at, customers.name as customer_name')
+            ->select('orders.id, orders.order_no, orders.order_name, orders.order_from, orders.status, orders.created_at, customers.name as customer_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->orderBy('orders.id', 'DESC')
             ->findAll(8);
+
+        $dashboardOrderIds = array_merge(
+            array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $ordersNeedingAssignment),
+            array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $recentOrders)
+        );
+        $thumbnailMap = (new OrderThumbnailService($db))->map($dashboardOrderIds);
+        foreach ($ordersNeedingAssignment as &$row) {
+            $row['thumbnail_url'] = (string) ($thumbnailMap[(int) ($row['id'] ?? 0)] ?? '');
+        }
+        unset($row);
+        foreach ($recentOrders as &$row) {
+            $row['thumbnail_url'] = (string) ($thumbnailMap[(int) ($row['id'] ?? 0)] ?? '');
+        }
+        unset($row);
 
         return view('admin/dashboard/index', [
             'title'          => 'Admin Dashboard',

@@ -342,6 +342,7 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
                 <thead>
                     <tr>
                         <th>Order</th>
+                        <th>Order Name</th>
                         <th>Customer / Source</th>
                         <th>Design</th>
                         <th>Workflow</th>
@@ -351,7 +352,7 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
                 </thead>
                 <tbody>
                     <?php if ($orders === []): ?>
-                        <tr><td colspan="6" class="text-center text-muted py-5">No orders match this dashboard filter.</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-5">No orders match this dashboard filter.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($orders as $order): ?>
                         <?php $source = trim((string) (($order['customer_name'] ?? '') ?: ($order['order_from'] ?? '') ?: '-')); ?>
@@ -370,6 +371,7 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
                                     </div>
                                 </div>
                             </td>
+                            <td><strong><?= esc((string) (($order['order_name'] ?? '') ?: '-')) ?></strong><div class="small text-muted mt-1"><?= esc((string) (($order['order_category_name'] ?? '') ?: 'Uncategorised')) ?></div></td>
                             <td>
                                 <div class="order-source-name"><?= esc($source) ?></div>
                                 <?php if (! empty($order['order_from']) && ! empty($order['customer_name'])): ?>

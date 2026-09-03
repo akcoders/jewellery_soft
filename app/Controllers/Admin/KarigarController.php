@@ -7,6 +7,7 @@ use App\Models\KarigarDocumentModel;
 use App\Models\KarigarModel;
 use App\Models\OrderModel;
 use App\Services\PostingService;
+use App\Services\OrderThumbnailService;
 
 class KarigarController extends BaseController
 {
@@ -198,12 +199,18 @@ class KarigarController extends BaseController
         $pendingStatuses = ['Confirmed', 'In Production', 'QC', 'Ready', 'Packed'];
 
         $assignedOrders = $db->table('orders')
-            ->select('orders.id, orders.order_no, orders.status, orders.priority, orders.due_date, orders.created_at, customers.name as customer_name')
+            ->select('orders.id, orders.order_no, orders.order_name, orders.status, orders.priority, orders.due_date, orders.created_at, customers.name as customer_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->where('orders.assigned_karigar_id', $id)
             ->orderBy('orders.id', 'DESC')
             ->get()
             ->getResultArray();
+
+        $assignedThumbnailMap = (new OrderThumbnailService($db))->map(array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $assignedOrders));
+        foreach ($assignedOrders as &$assignedOrder) {
+            $assignedOrder['thumbnail_url'] = (string) ($assignedThumbnailMap[(int) ($assignedOrder['id'] ?? 0)] ?? '');
+        }
+        unset($assignedOrder);
 
         $orderStats = $this->buildOrderStats($assignedOrders, $pendingStatuses, $today);
 

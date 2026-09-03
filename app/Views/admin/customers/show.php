@@ -81,11 +81,11 @@ $canManage = admin_can('customers.create');
 <div class="d-flex align-items-center justify-content-between mb-2"><h5 class="mb-0">Recent Orders</h5><span class="text-muted small">Latest 10</span></div>
 <div class="table-responsive">
     <table class="table table-hover align-middle border mb-0 erp-responsive-wide">
-        <thead><tr><th>Order</th><th>Status</th><th>Due Date</th><th>Created</th><th class="text-end">Action</th></tr></thead>
+        <thead><tr><th>Photo</th><th>Order</th><th>Order Name</th><th>Status</th><th>Due Date</th><th>Created</th><th class="text-end">Action</th></tr></thead>
         <tbody>
-            <?php if ($recentOrders === []): ?><tr><td colspan="5" class="text-center text-muted py-4">No orders found.</td></tr><?php endif; ?>
+            <?php if ($recentOrders === []): ?><tr><td colspan="7" class="text-center text-muted py-4">No orders found.</td></tr><?php endif; ?>
             <?php foreach ($recentOrders as $order): ?>
-                <tr><td class="fw-semibold"><?= esc((string) ($order['order_no'] ?? ('#' . ($order['id'] ?? '')))) ?></td><td><span class="badge bg-light text-dark border"><?= esc((string) ($order['status'] ?? '-')) ?></span></td><td><?= ! empty($order['due_date']) ? esc(date('d M Y', strtotime((string) $order['due_date']))) : '-' ?></td><td><?= ! empty($order['created_at']) ? esc(date('d M Y', strtotime((string) $order['created_at']))) : '-' ?></td><td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<?= site_url('admin/orders/' . (int) $order['id']) ?>"><i class="fe fe-eye"></i></a></td></tr>
+                <tr><td><span style="align-items:center;background:#f3f4f6;border-radius:8px;display:inline-flex;height:42px;justify-content:center;overflow:hidden;width:42px"><?php if (! empty($order['thumbnail_url'])): ?><img src="<?= esc((string) $order['thumbnail_url'], 'attr') ?>" alt="" loading="lazy" style="height:100%;object-fit:cover;width:100%" onerror="this.style.display='none'"><?php else: ?><i class="fe fe-image text-muted"></i><?php endif; ?></span></td><td class="fw-semibold"><?= esc((string) ($order['order_no'] ?? ('#' . ($order['id'] ?? '')))) ?></td><td><strong><?= esc((string) (($order['order_name'] ?? '') ?: '-')) ?></strong></td><td><span class="badge bg-light text-dark border"><?= esc((string) ($order['status'] ?? '-')) ?></span></td><td><?= ! empty($order['due_date']) ? esc(date('d M Y', strtotime((string) $order['due_date']))) : '-' ?></td><td><?= ! empty($order['created_at']) ? esc(date('d M Y', strtotime((string) $order['created_at']))) : '-' ?></td><td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<?= site_url('admin/orders/' . (int) $order['id']) ?>"><i class="fe fe-eye"></i></a></td></tr>
             <?php endforeach; ?>
         </tbody>
     </table>

@@ -4,6 +4,11 @@
 <?php $orderMode = (string) ($orderMode ?? 'all'); ?>
 <?php $isReadyMode = $orderMode === 'ready'; ?>
 <?php $isAllMode = $orderMode === 'all'; ?>
+<style>
+    .order-list-thumb { align-items: center; background: #f4f5f7; border: 1px solid #e1e5eb; border-radius: 9px; color: #9aa3af; display: inline-flex; height: 44px; justify-content: center; overflow: hidden; position: relative; width: 44px; }
+    .order-list-thumb img { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
+    .order-list-name { min-width: 150px; white-space: normal; }
+</style>
 <div class="erp-page-toolbar flex-wrap mb-3">
     <div>
         <span class="erp-eyebrow">Production workflow</span>
@@ -26,7 +31,10 @@
             <table class="table datatable table-hover mb-0 erp-responsive-wide">
                 <thead>
                     <tr>
+                        <th>Photo</th>
                         <th>Order No</th>
+                        <th>Order Name</th>
+                        <th>Category</th>
                         <th>Order From</th>
                         <th>Customer</th>
                         <th>Sales Person</th>
@@ -40,7 +48,7 @@
                 </thead>
                 <tbody>
                     <?php if ($orders === []): ?>
-                        <tr><td colspan="10" class="text-center text-muted py-5">No orders found.</td></tr>
+                        <tr><td colspan="13" class="text-center text-muted py-5">No orders found.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($orders as $order): ?>
                         <?php
@@ -49,7 +57,10 @@
                             $isLocked = $isCancelled || $isCompleted;
                         ?>
                         <tr>
-                            <td><?= esc($order['order_no']) ?></td>
+                            <td><a class="order-list-thumb" href="<?= site_url('admin/orders/' . (int) $order['id']) ?>" aria-label="View order"><i class="fe fe-image"></i><?php if (! empty($order['thumbnail_url'])): ?><img src="<?= esc((string) $order['thumbnail_url'], 'attr') ?>" alt="" loading="lazy" onerror="this.style.display='none'"><?php endif; ?></a></td>
+                            <td><a class="erp-data-link" href="<?= site_url('admin/orders/' . (int) $order['id']) ?>"><?= esc($order['order_no']) ?></a></td>
+                            <td class="order-list-name"><strong><?= esc((string) (($order['order_name'] ?? '') ?: '-')) ?></strong></td>
+                            <td><?= esc((string) (($order['order_category_name'] ?? '') ?: '-')) ?></td>
                             <td><?= esc((string) (($order['order_from'] ?? '') ?: '-')) ?></td>
                             <td><?= esc($order['customer_name'] ?: '-') ?></td>
                             <td>
@@ -75,10 +86,6 @@
                                         </a>
                                         <a href="<?= site_url('admin/orders/' . $order['id'] . '/ornament-details') ?>" class="btn btn-sm btn-outline-dark" title="Ornament Details">
                                             <i class="fe fe-image me-1"></i>Ornament Details
-                                        </a>
-                                    <?php elseif ($isAllMode): ?>
-                                        <a href="<?= site_url('admin/orders/' . $order['id']) ?>" class="btn btn-sm btn-outline-primary" title="View">
-                                            <i class="fe fe-eye"></i>
                                         </a>
                                     <?php else: ?>
                                         <a href="<?= site_url('admin/orders/' . $order['id']) ?>" class="btn btn-sm btn-outline-primary" title="View">
@@ -112,6 +119,8 @@
                                                         data-order-no="<?= esc($order['order_no']) ?>"
                                                         data-order-from="<?= esc((string) ($order['order_from'] ?? ''), 'attr') ?>"
                                                         data-customer-id="<?= esc((string) ($order['customer_id'] ?? '')) ?>"
+                                                        data-followup-assigned-to="<?= esc((string) ($order['followup_assigned_to'] ?? '')) ?>"
+                                                        data-followup-due-at="<?= ! empty($order['followup_due_at']) ? esc(date('Y-m-d\\TH:i', strtotime((string) $order['followup_due_at'])), 'attr') : '' ?>"
                                                         data-bs-toggle="modal"
                                                         data-bs-target="#assignKarigarModal"
                                                         title="Assign Karigar">
@@ -198,6 +207,21 @@
                             <?php endforeach; ?>
                         </select>
                     </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Order Follower <span class="text-danger">*</span></label>
+                            <select class="form-control js-searchable-select" id="assign-follower-select" name="followup_assigned_to" data-placeholder="Search staff follower" required>
+                                <option value=""></option>
+                                <?php foreach (($staffFollowers ?? []) as $person): ?>
+                                    <option value="<?= (int) $person['id'] ?>"><?= esc((string) $person['name']) ?> · <?= esc((string) ($person['role_label'] ?? 'Staff')) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">First Follow-up Date <span class="text-danger">*</span></label>
+                            <input type="datetime-local" class="form-control" id="assign-followup-due" name="followup_due_at" value="<?= esc(date('Y-m-d\\T11:00', strtotime('+1 day')), 'attr') ?>" required>
+                        </div>
+                    </div>
                     <div class="border rounded p-3 bg-light">
                         <h6 class="mb-2">Current Load</h6>
                         <div id="kg-summary-loader" class="d-none mb-2 text-primary small">
@@ -214,14 +238,16 @@
                             <table class="table table-sm table-bordered mb-0" data-dt-skip="1">
                                 <thead>
                                     <tr>
+                                        <th>Photo</th>
                                         <th>Order</th>
+                                        <th>Order Name</th>
                                         <th>Status</th>
                                         <th>Due</th>
                                         <th>Req (gm)</th>
                                     </tr>
                                 </thead>
                                 <tbody id="kg-order-details">
-                                    <tr><td colspan="4" class="text-center text-muted">Select karigar to view details.</td></tr>
+                                    <tr><td colspan="6" class="text-center text-muted">Select karigar to view details.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -440,6 +466,8 @@
         const orderFromInput = document.getElementById('assign-order-from');
         const customerSelect = document.getElementById('assign-customer-select');
         const karigarSelect = document.getElementById('assign-karigar-select');
+        const followerSelect = document.getElementById('assign-follower-select');
+        const followupDueInput = document.getElementById('assign-followup-due');
         const totalGoldEl = document.getElementById('kg-total-gold');
         const pendingOrdersEl = document.getElementById('kg-pending-orders');
         const pendingGoldEl = document.getElementById('kg-pending-gold');
@@ -614,7 +642,7 @@
             if (pendingOrdersEl) pendingOrdersEl.textContent = '...';
             if (pendingGoldEl) pendingGoldEl.textContent = '...';
             if (orderDetailsEl) {
-                orderDetailsEl.innerHTML = '<tr><td colspan="4" class="text-center text-primary"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Loading order details...</td></tr>';
+                orderDetailsEl.innerHTML = '<tr><td colspan="6" class="text-center text-primary"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Loading order details...</td></tr>';
             }
         }
 
@@ -625,7 +653,7 @@
             if (pendingGoldEl) pendingGoldEl.textContent = '0.000';
             updateAssignSubmitState(false);
             if (orderDetailsEl) {
-                orderDetailsEl.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Select karigar to view details.</td></tr>';
+                orderDetailsEl.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Select karigar to view details.</td></tr>';
             }
         }
 
@@ -633,25 +661,31 @@
             if (!assignSubmitBtn) return;
             const hasKarigar = !!(karigarSelect && karigarSelect.value);
             const hasCustomer = !!(customerSelect && customerSelect.value);
-            assignSubmitBtn.disabled = !!loading || !hasKarigar || !hasCustomer;
+            const hasFollower = !!(followerSelect && followerSelect.value);
+            const hasFollowupDue = !!(followupDueInput && followupDueInput.value);
+            assignSubmitBtn.disabled = !!loading || !hasKarigar || !hasCustomer || !hasFollower || !hasFollowupDue;
         }
 
         function renderOrderDetails(orders) {
             if (!orderDetailsEl) return;
             if (!Array.isArray(orders) || orders.length === 0) {
-                orderDetailsEl.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No pending orders for this karigar.</td></tr>';
+                orderDetailsEl.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No pending orders for this karigar.</td></tr>';
                 return;
             }
 
             const rows = orders.map(function (row) {
                 const orderNo = String(row.order_no || '-');
+                const orderName = String(row.order_name || '-');
+                const thumbnail = String(row.thumbnail_url || '');
                 const status = String(row.status || '-');
                 const dueDate = String(row.due_date || '-');
                 const req = Number(row.required_gold_gm || 0).toFixed(3);
                 return '<tr>'
-                    + '<td>' + orderNo + '</td>'
-                    + '<td>' + status + '</td>'
-                    + '<td>' + dueDate + '</td>'
+                    + '<td>' + (thumbnail ? '<img src="' + attr(thumbnail) + '" alt="" style="height:34px;width:34px;object-fit:cover;border-radius:7px">' : '<i class="fe fe-image text-muted"></i>') + '</td>'
+                    + '<td>' + attr(orderNo) + '</td>'
+                    + '<td>' + attr(orderName) + '</td>'
+                    + '<td>' + attr(status) + '</td>'
+                    + '<td>' + attr(dueDate) + '</td>'
                     + '<td>' + req + '</td>'
                     + '</tr>';
             }).join('');
@@ -673,6 +707,11 @@
                 if (orderLabel) orderLabel.textContent = orderNo;
                 if (orderFromInput) orderFromInput.value = btn.getAttribute('data-order-from') || '';
                 if (customerSelect) customerSelect.value = btn.getAttribute('data-customer-id') || '';
+                if (followerSelect) {
+                    followerSelect.value = btn.getAttribute('data-followup-assigned-to') || '';
+                    if (window.jQuery) jQuery(followerSelect).trigger('change.select2');
+                }
+                if (followupDueInput) followupDueInput.value = btn.getAttribute('data-followup-due-at') || '<?= date('Y-m-d\\T11:00', strtotime('+1 day')) ?>';
                 if (karigarSelect) karigarSelect.value = '';
                 resetKarigarSummary();
             }
@@ -742,6 +781,9 @@
                 updateAssignSubmitState(false);
             });
         }
+        [followerSelect, followupDueInput].forEach(function (field) {
+            if (field) field.addEventListener('change', function () { updateAssignSubmitState(false); });
+        });
 
         if (receiveModal) {
             receiveModal.addEventListener('click', function (event) {

@@ -31,22 +31,26 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("'events_by_user'", $service);
     }
 
-    public function testOrdersRequireFollowerAndTrackEveryDueFollowup(): void
+    public function testFollowerIsAssignedWithKarigarAndEveryDueFollowupIsTracked(): void
     {
         $controller = $this->source('Controllers/Admin/OrderController.php');
         $mobileController = $this->source('Controllers/Api/Mobile/OrdersController.php');
         $create = $this->source('Views/admin/orders/create.php');
         $edit = $this->source('Views/admin/orders/edit.php');
+        $orderList = $this->source('Views/admin/orders/index.php');
 
-        $this->assertStringContainsString("'followup_assigned_to' => 'required|integer|greater_than[0]'", $controller);
-        $this->assertStringContainsString("'followup_due_at' => 'required|valid_date'", $controller);
+        $this->assertStringContainsString("getPost('followup_assigned_to')", $controller);
+        $this->assertStringContainsString("getPost('followup_due_at')", $controller);
         $this->assertStringContainsString('syncOrderAssignment(', $controller);
         $this->assertStringContainsString('completeOrderFollowup(', $controller);
         $this->assertStringContainsString('Only the assigned order follower can submit this follow-up.', $mobileController);
         $this->assertStringContainsString('next_followup_date is required while the order remains open.', $mobileController);
-        $this->assertStringContainsString('name="followup_assigned_to"', $create);
-        $this->assertStringContainsString('name="followup_due_at"', $create);
-        $this->assertStringContainsString('name="followup_assigned_to"', $edit);
+        $this->assertStringNotContainsString('name="followup_assigned_to"', $create);
+        $this->assertStringNotContainsString('name="followup_due_at"', $create);
+        $this->assertStringNotContainsString('name="followup_assigned_to"', $edit);
+        $this->assertStringContainsString('id="assignKarigarModal"', $orderList);
+        $this->assertStringContainsString('name="followup_assigned_to"', $orderList);
+        $this->assertStringContainsString('name="followup_due_at"', $orderList);
     }
 
     public function testAdminTasksAndMobileProofReplaceLegacyKpiScreens(): void

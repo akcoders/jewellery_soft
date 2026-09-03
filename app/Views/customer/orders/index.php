@@ -29,6 +29,9 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     .portal-password-field { position: relative; }
     .portal-password-field .form-control { padding-right: 43px; }
     .portal-password-toggle { background: transparent; border: 0; color: #7b8494; height: 42px; position: absolute; right: 1px; top: 1px; width: 42px; }
+    .portal-order-identity { align-items: center; display: flex; gap: 10px; min-width: 220px; }
+    .portal-order-thumb { align-items: center; background: #f3f4f6; border: 1px solid #e3e6eb; border-radius: 10px; color: #a2a9b4; display: inline-flex; flex: 0 0 46px; height: 46px; justify-content: center; overflow: hidden; }
+    .portal-order-thumb img { height: 100%; object-fit: cover; width: 100%; }
 </style>
 
 <div class="portal-hero mb-4">
@@ -55,12 +58,14 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     <div class="card-body p-0">
         <div class="table-responsive portal-scroll-shell">
             <table class="table portal-scroll-table mb-0">
-                <thead><tr><th>Order</th><th>Order Type</th><th>Design</th><th>Sales Person</th><th>Required By</th><th>Current Status</th></tr></thead>
+                <thead><tr><th>Order</th><th>Order Name</th><th>Category</th><th>Order Type</th><th>Design</th><th>Sales Person</th><th>Required By</th><th>Current Status</th></tr></thead>
                 <tbody>
-                    <?php if ($orders === []): ?><tr><td colspan="6" class="text-center text-muted py-5">No orders available for this login.</td></tr><?php endif; ?>
+                    <?php if ($orders === []): ?><tr><td colspan="8" class="text-center text-muted py-5">No orders available for this login.</td></tr><?php endif; ?>
                     <?php foreach ($orders as $order): ?>
                         <tr>
-                            <td data-label="Order"><strong><?= esc((string) $order['order_no']) ?></strong><small class="d-block text-muted mt-1">Created <?= esc($formatDate((string) $order['created_at'])) ?></small></td>
+                            <td data-label="Order"><div class="portal-order-identity"><span class="portal-order-thumb"><?php if (! empty($order['thumbnail_url'])): ?><img src="<?= esc((string) $order['thumbnail_url'], 'attr') ?>" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('◇'))"><?php else: ?><i class="fe fe-image"></i><?php endif; ?></span><span><strong><?= esc((string) $order['order_no']) ?></strong><small class="d-block text-muted mt-1">Created <?= esc($formatDate((string) $order['created_at'])) ?></small></span></div></td>
+                            <td data-label="Order Name"><strong><?= esc((string) (($order['order_name'] ?? '') ?: '-')) ?></strong></td>
+                            <td data-label="Category"><?= esc((string) (($order['order_category_name'] ?? '') ?: '-')) ?></td>
                             <td data-label="Order Type"><?= esc((string) $order['order_type']) ?></td>
                             <td data-label="Design"><?= esc((string) (($order['order_design_type'] ?? '') ?: 'Fresh')) ?></td>
                             <td data-label="Sales Person"><?= esc((string) (($order['sales_person_name'] ?? '') ?: '-')) ?></td>

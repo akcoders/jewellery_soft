@@ -5,8 +5,7 @@
 $orderTypeValue = (string) old('order_type', (string) ($order['order_type'] ?? 'Sales'));
 $selectedCustomerId = (string) old('customer_id', (string) ($order['customer_id'] ?? ''));
 $selectedSalesPersonId = (string) old('sales_person_user_id', (string) ($order['sales_person_user_id'] ?? ''));
-$selectedFollowerId = (string) old('followup_assigned_to', (string) ($order['followup_assigned_to'] ?? ''));
-$followupDueValue = (string) old('followup_due_at', ! empty($order['followup_due_at']) ? date('Y-m-d\\TH:i', strtotime((string) $order['followup_due_at'])) : '');
+$selectedCategoryId = (string) old('order_category_id', (string) ($order['order_category_id'] ?? ''));
 $showRepairFields = $orderTypeValue === 'Repair';
 ?>
 <div class="erp-page-toolbar mb-3">
@@ -23,6 +22,21 @@ $showRepairFields = $orderTypeValue === 'Repair';
         <form action="<?= site_url('admin/orders/' . $order['id'] . '/update') ?>" method="post">
             <?= csrf_field() ?>
             <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Order Name <span class="text-danger">*</span></label>
+                    <input type="text" name="order_name" class="form-control" maxlength="180" value="<?= esc((string) old('order_name', (string) ($order['order_name'] ?? ''))) ?>" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Jewellery Category <span class="text-danger">*</span></label>
+                    <select name="order_category_id" id="order-category-select" class="form-control js-searchable-select" data-placeholder="Search jewellery category" required>
+                        <option value=""></option>
+                        <?php foreach (($orderCategories ?? []) as $category): ?>
+                            <option value="<?= (int) $category['id'] ?>" <?= $selectedCategoryId === (string) $category['id'] ? 'selected' : '' ?>><?= esc((string) $category['name']) ?> (<?= esc((string) $category['code']) ?>)</option>
+                        <?php endforeach; ?>
+                        <option value="0" <?= $selectedCategoryId === '0' ? 'selected' : '' ?>>+ Add New Category</option>
+                    </select>
+                    <input type="text" name="new_order_category" id="new-order-category" class="form-control mt-2" maxlength="100" value="<?= esc((string) old('new_order_category')) ?>" placeholder="Enter new jewellery category" style="display:none;">
+                </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Order Type</label>
                     <select name="order_type" id="order-type-select" class="form-control js-searchable-select" required>
@@ -67,19 +81,6 @@ $showRepairFields = $orderTypeValue === 'Repair';
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Due Date</label>
                     <input type="date" name="due_date" class="form-control" value="<?= esc((string) old('due_date', (string) ($order['due_date'] ?? ''))) ?>">
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Order Follower <span class="text-danger">*</span></label>
-                    <select name="followup_assigned_to" class="form-control js-searchable-select" data-placeholder="Search staff follower" required>
-                        <option value=""></option>
-                        <?php foreach (($staffFollowers ?? []) as $person): ?>
-                            <option value="<?= (int) $person['id'] ?>" <?= $selectedFollowerId === (string) $person['id'] ? 'selected' : '' ?>><?= esc((string) $person['name']) ?> · <?= esc((string) ($person['role_label'] ?? 'Staff')) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Next Follow-up Due <span class="text-danger">*</span></label>
-                    <input type="datetime-local" name="followup_due_at" class="form-control" required value="<?= esc($followupDueValue) ?>">
                 </div>
                 <div class="col-12 mb-3">
                     <label class="form-label">Order Notes</label>
@@ -128,6 +129,8 @@ $showRepairFields = $orderTypeValue === 'Repair';
         const customerSelect = document.getElementById('order-customer-select');
         const salesPersonSelect = document.getElementById('order-sales-person');
         const salesPersonDetail = document.getElementById('sales-person-detail');
+        const categorySelect = document.getElementById('order-category-select');
+        const newCategoryInput = document.getElementById('new-order-category');
         const salesPersonOptions = salesPersonSelect
             ? Array.from(salesPersonSelect.options).filter(function (option) { return option.value; }).map(function (option) { return option.cloneNode(true); })
             : [];
@@ -145,6 +148,19 @@ $showRepairFields = $orderTypeValue === 'Repair';
         if (orderTypeSelect) {
             orderTypeSelect.addEventListener('change', toggleRepairFields);
             toggleRepairFields();
+        }
+
+        function toggleNewCategory() {
+            if (!categorySelect || !newCategoryInput) return;
+            const adding = categorySelect.value === '0';
+            newCategoryInput.style.display = adding ? '' : 'none';
+            newCategoryInput.required = adding;
+            if (!adding) newCategoryInput.value = '';
+        }
+        if (categorySelect) {
+            if (window.jQuery) jQuery(categorySelect).on('change', toggleNewCategory);
+            else categorySelect.addEventListener('change', toggleNewCategory);
+            toggleNewCategory();
         }
 
         function updateSalesPersonDetail() {

@@ -141,7 +141,9 @@ $orderSource = static function (array $row): string {
                         <table class="table table-hover align-middle mb-0" data-dt-skip="1">
                             <thead>
                                 <tr>
+                                    <th>Photo</th>
                                     <th>Order</th>
+                                    <th>Order Name</th>
                                     <th>Customer / Source</th>
                                     <th>Type</th>
                                     <th>Due Date</th>
@@ -151,11 +153,13 @@ $orderSource = static function (array $row): string {
                             <tbody>
                                 <?php foreach ($ordersNeedingAssignment as $row): ?>
                                     <tr>
+                                        <td><span class="erp-order-mark"><?php if (! empty($row['thumbnail_url'])): ?><img src="<?= esc((string) $row['thumbnail_url'], 'attr') ?>" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:inherit" onerror="this.style.display='none'"><?php else: ?><i class="fe fe-image"></i><?php endif; ?></span></td>
                                         <td>
                                             <a class="erp-data-link" href="<?= site_url('admin/orders/' . (int) $row['id']) ?>">
                                                 <?= esc((string) $row['order_no']) ?>
                                             </a>
                                         </td>
+                                        <td><strong><?= esc((string) (($row['order_name'] ?? '') ?: '-')) ?></strong></td>
                                         <td><?= esc($orderSource($row)) ?></td>
                                         <td><?= esc((string) ($row['order_type'] ?? '-')) ?></td>
                                         <td><?= ! empty($row['due_date']) ? esc(date('d M Y', strtotime((string) $row['due_date']))) : '<span class="text-muted">Not set</span>' ?></td>
@@ -190,10 +194,10 @@ $orderSource = static function (array $row): string {
                     <div class="erp-activity-list">
                         <?php foreach ($recentOrders as $row): ?>
                             <a href="<?= site_url('admin/orders/' . (int) $row['id']) ?>" class="erp-activity-item">
-                                <span class="erp-order-mark"><i class="fe fe-shopping-bag"></i></span>
+                                <span class="erp-order-mark"><?php if (! empty($row['thumbnail_url'])): ?><img src="<?= esc((string) $row['thumbnail_url'], 'attr') ?>" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:inherit" onerror="this.style.display='none'"><?php else: ?><i class="fe fe-shopping-bag"></i><?php endif; ?></span>
                                 <span class="flex-grow-1">
                                     <strong><?= esc((string) $row['order_no']) ?></strong>
-                                    <small><?= esc($orderSource($row)) ?> · <?= esc(date('d M, h:i A', strtotime((string) $row['created_at']))) ?></small>
+                                    <small><?= esc((string) (($row['order_name'] ?? '') ?: 'Unnamed order')) ?> · <?= esc($orderSource($row)) ?> · <?= esc(date('d M, h:i A', strtotime((string) $row['created_at']))) ?></small>
                                 </span>
                                 <span class="badge <?= esc($statusBadge((string) ($row['status'] ?? ''))) ?>">
                                     <?= esc((string) ($row['status'] ?? '-')) ?>

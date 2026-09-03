@@ -33,6 +33,9 @@ use App\Services\GoldInventory\StockService as GoldInventoryStockService;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\MobileNotificationEventService;
 use App\Services\OrderWhatsAppService;
+use App\Services\OrderCategoryService;
+use App\Services\OrderNumberService;
+use App\Services\OrderThumbnailService;
 use App\Services\PdfService;
 use App\Services\StaffPerformanceService;
 use App\Services\StoneInventory\StockService as StoneInventoryStockService;
@@ -68,6 +71,9 @@ class OrderController extends BaseController
     private AdminPostingService $adminPostingService;
     private FinishedJewelleryService $finishedJewelleryService;
     private OrderWhatsAppService $orderWhatsAppService;
+    private OrderCategoryService $orderCategoryService;
+    private OrderNumberService $orderNumberService;
+    private OrderThumbnailService $orderThumbnailService;
     private MobileNotificationEventService $mobileNotificationEvents;
     private StaffPerformanceService $staffPerformanceService;
     private PdfService $pdfService;
@@ -102,6 +108,9 @@ class OrderController extends BaseController
         $this->adminPostingService = new AdminPostingService();
         $this->finishedJewelleryService = new FinishedJewelleryService();
         $this->orderWhatsAppService = new OrderWhatsAppService();
+        $this->orderCategoryService = new OrderCategoryService();
+        $this->orderNumberService = new OrderNumberService();
+        $this->orderThumbnailService = new OrderThumbnailService();
         $this->mobileNotificationEvents = new MobileNotificationEventService();
         $this->staffPerformanceService = new StaffPerformanceService();
         $this->pdfService = new PdfService();
@@ -118,10 +127,11 @@ class OrderController extends BaseController
         $this->syncCompletedOrdersFromReceive();
 
         $orders = $this->orderModel
-            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, follower.name as follower_name')
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, follower.name as follower_name, order_categories.name as order_category_name, order_categories.code as order_category_code')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
             ->join('admin_users follower', 'follower.id = orders.followup_assigned_to', 'left')
+            ->join('order_categories', 'order_categories.id = orders.order_category_id', 'left')
             ->orderBy('orders.id', 'DESC')
             ->findAll();
 
@@ -287,7 +297,7 @@ class OrderController extends BaseController
     public function timeline(int $id)
     {
         $order = $this->orderModel
-            ->select('orders.id, orders.order_no, orders.order_from, orders.status, orders.due_date, orders.created_at, customers.name AS customer_name, karigars.name AS karigar_name')
+            ->select('orders.id, orders.order_no, orders.order_name, orders.order_from, orders.status, orders.due_date, orders.created_at, customers.name AS customer_name, karigars.name AS karigar_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
             ->find($id);
@@ -397,9 +407,11 @@ class OrderController extends BaseController
         $this->syncCompletedOrdersFromReceive();
 
         $orders = $this->orderModel
-            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name')
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, follower.name as follower_name, order_categories.name as order_category_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
+            ->join('admin_users follower', 'follower.id = orders.followup_assigned_to', 'left')
+            ->join('order_categories', 'order_categories.id = orders.order_category_id', 'left')
             ->whereNotIn('orders.status', ['Completed', 'Cancelled', 'Ready'])
             ->orderBy('orders.id', 'DESC')
             ->findAll();
@@ -430,8 +442,10 @@ class OrderController extends BaseController
         }
 
         $today = strtotime(date('Y-m-d'));
+        $followupThumbnails = $this->orderThumbnailService->map(array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $orders));
         foreach ($orders as &$order) {
             $orderId = (int) ($order['id'] ?? 0);
+            $order['thumbnail_url'] = (string) ($followupThumbnails[$orderId] ?? '');
             $latest = $latestByOrder[$orderId] ?? null;
 
             $order['last_followup_stage'] = (string) ($latest['stage'] ?? '-');
@@ -481,10 +495,11 @@ class OrderController extends BaseController
         $this->syncCompletedOrdersFromReceive();
 
         $orders = $this->orderModel
-            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm, sales_person.name as sales_person_name, sales_person.mobile as sales_person_mobile')
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm, sales_person.name as sales_person_name, sales_person.mobile as sales_person_mobile, order_categories.name as order_category_name, order_categories.code as order_category_code')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
-            ->join('customer_users sales_person', 'sales_person.id = orders.sales_person_user_id', 'left');
+            ->join('customer_users sales_person', 'sales_person.id = orders.sales_person_user_id', 'left')
+            ->join('order_categories', 'order_categories.id = orders.order_category_id', 'left');
 
         if ($mode === 'repair') {
             $orders->where('orders.order_type', 'Repair');
@@ -495,10 +510,12 @@ class OrderController extends BaseController
         }
 
         $rows = $orders->orderBy('orders.id', 'DESC')->findAll();
+        $thumbnailMap = $this->orderThumbnailService->map(array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $rows));
         $purityMap = $this->buildOrderPurityPercentMap($rows);
         foreach ($rows as &$row) {
             $oid = (int) ($row['id'] ?? 0);
             $row['avg_purity_percent'] = (float) ($purityMap[$oid] ?? 100);
+            $row['thumbnail_url'] = (string) ($thumbnailMap[$oid] ?? '');
         }
         unset($row);
         $karigarDiamondOptions = [];
@@ -527,6 +544,7 @@ class OrderController extends BaseController
             'locations'=> $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'stoneInventoryItems' => $this->stoneInventoryOptions(),
             'karigarDiamondOptions' => $karigarDiamondOptions,
+            'staffFollowers' => $this->staffPerformanceService->staffOptions(),
             'statuses' => $this->jewelleryConfig->orderStatuses,
         ]);
     }
@@ -549,7 +567,7 @@ class OrderController extends BaseController
             'designs'     => $this->designModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'goldPurities'=> $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
             'salesPeople' => (new CustomerUserModel())->select('id, customer_id, name, mobile')->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
-            'staffFollowers' => $this->staffPerformanceService->staffOptions(),
+            'orderCategories' => $this->orderCategoryService->options(),
             'priorities'  => $this->jewelleryConfig->orderPriorities,
             'statuses'    => $this->jewelleryConfig->orderStatuses,
             'repairMode'  => $repairMode,
@@ -562,6 +580,9 @@ class OrderController extends BaseController
         $isRepairOrder = $this->isRepairType($orderType);
 
         $rules = [
+            'order_name' => 'required|max_length[180]',
+            'order_category_id' => 'required|integer',
+            'new_order_category' => 'permit_empty|max_length[100]',
             'order_type'  => 'required|max_length[30]',
             'order_from'  => 'permit_empty|max_length[150]',
             'customer_id' => 'permit_empty|integer',
@@ -576,8 +597,6 @@ class OrderController extends BaseController
             'expected_diamond_spec' => 'permit_empty',
             'expected_stone_spec' => 'permit_empty',
             'priority_level' => 'permit_empty|integer',
-            'followup_assigned_to' => 'required|integer|greater_than[0]',
-            'followup_due_at' => 'required|valid_date',
         ];
         if ($isRepairOrder) {
             $rules = $rules + [
@@ -594,10 +613,6 @@ class OrderController extends BaseController
 
         $customerId = $this->nullableInt($this->request->getPost('customer_id'));
         $salesPersonUserId = $this->nullableInt($this->request->getPost('sales_person_user_id'));
-        $followupAssignedTo = $this->nullableInt($this->request->getPost('followup_assigned_to'));
-        if ($followupAssignedTo === null || ! $this->staffPerformanceService->isStaffUser($followupAssignedTo)) {
-            return redirect()->back()->withInput()->with('error', 'Please select an active non-admin staff follower.');
-        }
         if ($salesPersonUserId !== null) {
             if ($customerId === null || (new CustomerUserModel())->where('id', $salesPersonUserId)
                 ->where('customer_id', $customerId)->where('role', 'sales_person')->where('is_active', 1)->countAllResults() === 0) {
@@ -652,9 +667,20 @@ class OrderController extends BaseController
         $db->transStart();
 
         try {
-            $orderNo = 'OR' . date('ymdHis') . random_int(10, 99);
+            $category = $this->orderCategoryService->resolve(
+                (int) $this->request->getPost('order_category_id'),
+                (string) $this->request->getPost('new_order_category')
+            );
+            $orderNo = $this->orderNumberService->generate(
+                (int) ($customerId ?? 0),
+                (string) $category['code'],
+                (int) ($salesPersonUserId ?? 0),
+                trim((string) $this->request->getPost('order_from'))
+            );
             $orderId = $this->orderModel->insert([
                 'order_no'    => $orderNo,
+                'order_name' => trim((string) $this->request->getPost('order_name')),
+                'order_category_id' => (int) $category['id'],
                 'order_type'  => $isRepairOrder ? 'Repair' : $orderType,
                 'order_design_type' => $designType,
                 'order_from'  => trim((string) $this->request->getPost('order_from')) ?: null,
@@ -663,8 +689,8 @@ class OrderController extends BaseController
                 'lead_id'     => null,
                 'assigned_karigar_id' => null,
                 'assigned_at' => null,
-                'followup_assigned_to' => $followupAssignedTo,
-                'followup_due_at' => $this->nullableDateTime((string) $this->request->getPost('followup_due_at')),
+                'followup_assigned_to' => null,
+                'followup_due_at' => null,
                 'status'      => $status,
                 'priority'    => $priority,
                 'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
@@ -715,12 +741,6 @@ class OrderController extends BaseController
             ]);
 
             $this->storeAttachments((int) $orderId);
-            $this->staffPerformanceService->syncOrderAssignment(
-                (int) $orderId,
-                $followupAssignedTo,
-                (string) $this->request->getPost('followup_due_at'),
-                (int) session('admin_id')
-            );
         } catch (Exception $e) {
             $db->transRollback();
 
@@ -747,11 +767,12 @@ class OrderController extends BaseController
         $this->syncCompletedOrdersFromReceive([$id]);
 
         $order = $this->orderModel
-            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm, sales_person.name as sales_person_name, sales_person.mobile as sales_person_mobile, follower.name as follower_name')
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm, sales_person.name as sales_person_name, sales_person.mobile as sales_person_mobile, follower.name as follower_name, order_categories.name as order_category_name, order_categories.code as order_category_code')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
             ->join('customer_users sales_person', 'sales_person.id = orders.sales_person_user_id', 'left')
             ->join('admin_users follower', 'follower.id = orders.followup_assigned_to', 'left')
+            ->join('order_categories', 'order_categories.id = orders.order_category_id', 'left')
             ->find($id);
 
         if (! $order) {
@@ -813,7 +834,7 @@ class OrderController extends BaseController
             'order'      => $order,
             'customers'  => $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'salesPeople'=> (new CustomerUserModel())->select('id, customer_id, name, mobile')->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
-            'staffFollowers' => $this->staffPerformanceService->staffOptions(),
+            'orderCategories' => $this->orderCategoryService->options(true, (int) ($order['order_category_id'] ?? 0)),
             'priorities' => $this->jewelleryConfig->orderPriorities,
         ]);
     }
@@ -838,6 +859,9 @@ class OrderController extends BaseController
         $isRepairOrder = $this->isRepairType($orderType);
 
         $rules = [
+            'order_name' => 'required|max_length[180]',
+            'order_category_id' => 'required|integer',
+            'new_order_category' => 'permit_empty|max_length[100]',
             'order_type'  => 'required|max_length[30]',
             'order_from'  => 'permit_empty|max_length[150]',
             'customer_id' => 'permit_empty|integer',
@@ -845,8 +869,6 @@ class OrderController extends BaseController
             'priority'    => 'required',
             'due_date'    => 'permit_empty|valid_date',
             'order_notes' => 'permit_empty',
-            'followup_assigned_to' => 'required|integer|greater_than[0]',
-            'followup_due_at' => 'required|valid_date',
         ];
         if ($isRepairOrder) {
             $rules = $rules + [
@@ -863,10 +885,6 @@ class OrderController extends BaseController
 
         $customerId = $this->nullableInt($this->request->getPost('customer_id'));
         $salesPersonUserId = $this->nullableInt($this->request->getPost('sales_person_user_id'));
-        $followupAssignedTo = $this->nullableInt($this->request->getPost('followup_assigned_to'));
-        if ($followupAssignedTo === null || ! $this->staffPerformanceService->isStaffUser($followupAssignedTo)) {
-            return redirect()->back()->withInput()->with('error', 'Please select an active non-admin staff follower.');
-        }
         if ($salesPersonUserId !== null && ($customerId === null || (new CustomerUserModel())
             ->where('id', $salesPersonUserId)
             ->where('customer_id', $customerId)
@@ -881,13 +899,22 @@ class OrderController extends BaseController
             return redirect()->back()->withInput()->with('error', 'Invalid order priority.');
         }
 
+        try {
+            $category = $this->orderCategoryService->resolve(
+                (int) $this->request->getPost('order_category_id'),
+                (string) $this->request->getPost('new_order_category')
+            );
+        } catch (Throwable $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+
         $this->orderModel->update($id, [
+            'order_name' => trim((string) $this->request->getPost('order_name')),
+            'order_category_id' => (int) $category['id'],
             'order_type'  => $isRepairOrder ? 'Repair' : $orderType,
             'order_from'  => trim((string) $this->request->getPost('order_from')) ?: null,
             'customer_id' => $customerId,
             'sales_person_user_id' => $salesPersonUserId,
-            'followup_assigned_to' => $followupAssignedTo,
-            'followup_due_at' => $this->nullableDateTime((string) $this->request->getPost('followup_due_at')),
             'priority'    => $priority,
             'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
             'order_notes' => trim((string) $this->request->getPost('order_notes')),
@@ -896,13 +923,6 @@ class OrderController extends BaseController
             'repair_receive_weight_gm' => $isRepairOrder ? (float) $this->request->getPost('repair_receive_weight_gm') : null,
             'repair_received_at' => $isRepairOrder ? $this->nullableDate((string) $this->request->getPost('repair_received_at')) : null,
         ]);
-
-        $this->staffPerformanceService->syncOrderAssignment(
-            $id,
-            $followupAssignedTo,
-            (string) $this->request->getPost('followup_due_at'),
-            (int) session('admin_id')
-        );
 
         $redirectList = $isRepairOrder ? 'admin/orders/repair' : 'admin/orders';
         return redirect()->to(site_url($redirectList))->with('success', 'Order updated successfully.');
@@ -919,11 +939,19 @@ class OrderController extends BaseController
 
         $karigarId = (int) ($this->request->getPost('karigar_id') ?? 0);
         $customerId = (int) ($this->request->getPost('customer_id') ?? 0);
+        $followerId = (int) ($this->request->getPost('followup_assigned_to') ?? 0);
+        $followupDueAt = $this->nullableDateTime((string) $this->request->getPost('followup_due_at'));
         if ($customerId <= 0) {
             return redirect()->back()->with('error', 'Please select a customer before assigning the order.');
         }
         if ($karigarId <= 0) {
             return redirect()->back()->with('error', 'Please select a karigar.');
+        }
+        if ($followerId <= 0 || ! $this->staffPerformanceService->isStaffUser($followerId)) {
+            return redirect()->back()->with('error', 'Please select an active non-admin order follower.');
+        }
+        if ($followupDueAt === null) {
+            return redirect()->back()->with('error', 'Please select the first follow-up date and time.');
         }
 
         $customer = $this->customerModel->where('is_active', 1)->find($customerId);
@@ -947,9 +975,13 @@ class OrderController extends BaseController
             'customer_id' => $customerId,
             'assigned_karigar_id' => $karigarId,
             'assigned_at'         => date('Y-m-d H:i:s'),
+            'followup_assigned_to' => $followerId,
+            'followup_due_at' => $followupDueAt,
         ]);
 
-        return redirect()->back()->with('success', 'Customer selected and karigar assigned successfully.');
+        $this->staffPerformanceService->syncOrderAssignment($id, $followerId, $followupDueAt, (int) session('admin_id'));
+
+        return redirect()->back()->with('success', 'Customer, karigar and first follow-up assigned successfully.');
     }
 
     public function karigarSummary(int $id)
@@ -965,13 +997,14 @@ class OrderController extends BaseController
         $pendingStatuses = ['Confirmed', 'In Production', 'QC', 'Ready', 'Packed'];
 
         $pendingOrders = $this->orderModel
-            ->select('id, order_no, status, due_date')
+            ->select('id, order_no, order_name, status, due_date')
             ->where('assigned_karigar_id', $id)
             ->whereIn('status', $pendingStatuses)
             ->findAll();
 
         $orderIds = array_map(static fn(array $row): int => (int) $row['id'], $pendingOrders);
         $pendingOrderCount = count($orderIds);
+        $pendingThumbnailMap = $this->orderThumbnailService->map($orderIds);
 
         $db = db_connect();
         $pendingOrderGoldWeight = 0.0;
@@ -996,6 +1029,8 @@ class OrderController extends BaseController
                 $pendingOrderDetails[] = [
                     'order_id' => $orderId,
                     'order_no' => (string) ($order['order_no'] ?? ''),
+                    'order_name' => (string) ($order['order_name'] ?? ''),
+                    'thumbnail_url' => (string) ($pendingThumbnailMap[$orderId] ?? ''),
                     'status' => (string) ($order['status'] ?? ''),
                     'due_date' => (string) ($order['due_date'] ?? ''),
                     'required_gold_gm' => round($requiredGold, 3),

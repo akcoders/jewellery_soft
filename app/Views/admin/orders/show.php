@@ -139,6 +139,7 @@ $statusClass = match ($status) {
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div class="order-detail-hero-copy">
                 <div class="order-detail-kicker">Order workspace</div>
+                <div class="text-white-50 mb-1"><?= esc((string) (($order['order_name'] ?? '') ?: 'Unnamed order')) ?></div>
                 <h1><?= esc((string) $order['order_no']) ?></h1>
                 <div class="order-hero-badges">
                     <span class="order-hero-badge"><i class="fe fe-shopping-bag"></i><?= esc((string) $order['order_type']) ?></span>
@@ -163,6 +164,8 @@ $statusClass = match ($status) {
                 <div class="card-header"><h5 class="order-section-title"><i class="fe fe-info"></i>Order Overview</h5><span class="badge bg-<?= esc($statusClass) ?>"><?= esc($status ?: '-') ?></span></div>
                 <div class="card-body p-0">
                     <?php $details = [
+                        ['Order Name', ($order['order_name'] ?? '') ?: '-', 'fe fe-tag'],
+                        ['Jewellery Category', ($order['order_category_name'] ?? '') ?: '-', 'fe fe-grid'],
                         ['Order From', ($order['order_from'] ?? '') ?: '-', 'fe fe-log-in'],
                         ['Customer', ($order['customer_name'] ?? '') ?: '-', 'fe fe-user'],
                         ['Assigned Karigar', ($order['karigar_name'] ?? '') ?: 'Not assigned', 'fe fe-tool'],

@@ -9,6 +9,9 @@ use App\Models\OrderItemModel;
 use App\Models\OrderModel;
 use App\Models\OrderStatusHistoryModel;
 use App\Services\MobileNotificationEventService;
+use App\Services\OrderCategoryService;
+use App\Services\OrderNumberService;
+use App\Services\OrderThumbnailService;
 use Throwable;
 
 class OrdersController extends BaseController
@@ -17,13 +20,19 @@ class OrdersController extends BaseController
     {
         $customerId = (int) session('customer_id');
         $ordersQuery = (new OrderModel())
-            ->select('orders.id, orders.order_no, orders.order_type, orders.order_design_type, orders.status, orders.due_date, orders.created_at, cu.name AS sales_person_name')
+            ->select('orders.id, orders.order_no, orders.order_name, orders.order_type, orders.order_design_type, orders.status, orders.due_date, orders.created_at, cu.name AS sales_person_name, oc.name AS order_category_name')
             ->join('customer_users cu', 'cu.id = orders.sales_person_user_id', 'left')
+            ->join('order_categories oc', 'oc.id = orders.order_category_id', 'left')
             ->where('orders.customer_id', $customerId);
         if (session('customer_user_role') === 'sales_person') {
             $ordersQuery->where('orders.sales_person_user_id', (int) session('customer_user_id'));
         }
         $orders = $ordersQuery->orderBy('orders.id', 'DESC')->findAll();
+        $thumbnailMap = (new OrderThumbnailService())->map(array_map(static fn(array $order): int => (int) ($order['id'] ?? 0), $orders), false);
+        foreach ($orders as &$order) {
+            $order['thumbnail_url'] = (string) ($thumbnailMap[(int) ($order['id'] ?? 0)] ?? '');
+        }
+        unset($order);
         $salesPeople = (new CustomerUserModel())->select('id, customer_id, name, mobile, email, role')
             ->where('customer_id', $customerId)
             ->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll();
@@ -52,6 +61,7 @@ class OrdersController extends BaseController
             'title' => 'Create Order',
             'salesPeople' => $salesPeople,
             'designs' => $designs,
+            'orderCategories' => (new OrderCategoryService())->options(),
             'isSalesPerson' => session('customer_user_role') === 'sales_person',
             'currentUser' => $currentUser,
         ]);
@@ -60,6 +70,9 @@ class OrdersController extends BaseController
     public function store()
     {
         $rules = [
+            'order_name' => 'required|max_length[180]',
+            'order_category_id' => 'required|integer',
+            'new_order_category' => 'permit_empty|max_length[100]',
             'order_type' => 'required|in_list[Sales,Manufacturing,Repair]',
             'order_design_type' => 'required|in_list[Fresh,Repeat]',
             'sales_person_user_id' => 'permit_empty|integer',
@@ -104,9 +117,20 @@ class OrdersController extends BaseController
         $db->transException(true)->transStart();
         $moved = [];
         try {
-            $orderNo = 'CP-OR' . date('ymdHis') . random_int(10, 99);
+            $category = (new OrderCategoryService($db))->resolve(
+                (int) $this->request->getPost('order_category_id'),
+                (string) $this->request->getPost('new_order_category')
+            );
+            $orderNo = (new OrderNumberService($db))->generate(
+                $customerId,
+                (string) $category['code'],
+                $salesPersonId,
+                (string) ($customer['name'] ?? '')
+            );
             $orderId = (int) (new OrderModel())->insert([
                 'order_no' => $orderNo,
+                'order_name' => trim((string) $this->request->getPost('order_name')),
+                'order_category_id' => (int) $category['id'],
                 'order_type' => (string) $this->request->getPost('order_type'),
                 'order_design_type' => $designType,
                 'order_from' => (string) $customer['name'],

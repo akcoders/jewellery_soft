@@ -1,6 +1,23 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
+<style>
+    .jobwork-toolbar { align-items: center; display: flex; gap: 12px; justify-content: space-between; margin-bottom: 12px; }
+    .jobwork-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); }
+    .jobwork-card { background: #fff; border: 1px solid #dfe4eb; border-radius: 13px; cursor: pointer; display: flex; gap: 12px; min-height: 112px; padding: 12px; position: relative; transition: border-color .18s, box-shadow .18s, transform .18s; }
+    .jobwork-card:hover { border-color: #c4ccd8; transform: translateY(-1px); }
+    .jobwork-card.is-selected { border-color: var(--erp-red, #bd1422); box-shadow: 0 0 0 2px rgba(189,20,34,.1); }
+    .jobwork-check { height: 18px; margin: 0; position: absolute; right: 12px; top: 12px; width: 18px; }
+    .jobwork-photo { align-items: center; background: #f3f4f6; border-radius: 10px; color: #9ba4b1; display: inline-flex; flex: 0 0 88px; height: 88px; justify-content: center; overflow: hidden; }
+    .jobwork-photo img { height: 100%; object-fit: cover; width: 100%; }
+    .jobwork-copy { min-width: 0; padding-right: 20px; }
+    .jobwork-copy strong, .jobwork-copy small { display: block; }
+    .jobwork-order-name { color: #222b3a; font-size: 13px; font-weight: 780; line-height: 1.3; margin: 4px 0; }
+    .jobwork-code { color: var(--erp-red, #bd1422); font-size: 10px; font-weight: 750; overflow-wrap: anywhere; }
+    .jobwork-meta { color: #707b8c; font-size: 10px; line-height: 1.55; }
+    .jobwork-empty { background: #fafbfc; border: 1px dashed #d9dee7; border-radius: 12px; color: #7a8493; padding: 30px; text-align: center; }
+    @media (max-width: 575px) { .jobwork-grid { grid-template-columns: 1fr; } .jobwork-toolbar { align-items: stretch; flex-direction: column; } }
+</style>
 <div class="erp-page-toolbar flex-wrap mb-3">
     <div>
         <span class="erp-eyebrow">Karigar accounts</span>
@@ -29,19 +46,27 @@
                 <div class="col-lg-2 col-md-6 mb-3"><label class="form-label">Bill Date <span class="text-danger">*</span></label><input type="date" name="bill_date" class="form-control" value="<?= esc(old('bill_date') ?: date('Y-m-d')) ?>" required></div>
                 <div class="col-lg-2 col-md-6 mb-3"><label class="form-label">Due Date</label><input type="date" name="due_date" class="form-control" value="<?= esc(old('due_date')) ?>"></div>
                 <div class="col-12 mb-3">
-                    <label class="form-label">Completed Job Works <span class="text-danger">*</span></label>
-                    <select name="jobworks[]" id="jobworks" class="form-select select2" multiple required>
+                    <div class="jobwork-toolbar">
+                        <div><label class="form-label mb-0">Completed Job Works <span class="text-danger">*</span></label><small class="text-muted d-block">Select one or multiple unbilled job works from the chosen karigar.</small></div>
+                        <input type="search" id="jobwork-search" class="form-control" style="max-width:280px" placeholder="Search order ID or name">
+                    </div>
+                    <?php $oldJobworks = array_map('strval', (array) old('jobworks')); ?>
+                    <div id="jobworks" class="jobwork-grid">
                         <?php foreach ($jobworks as $job): ?>
-                            <option value="<?= esc((string) $job['selector']) ?>"
-                                data-karigar="<?= (int) $job['karigar_id'] ?>"
-                                data-labour="<?= esc((string) $job['labour_amount']) ?>"
-                                data-net="<?= esc((string) $job['net_weight_gm']) ?>"
-                                <?= in_array((string) $job['selector'], (array) old('jobworks'), true) ? 'selected' : '' ?>>
-                                <?= esc((string) $job['jobwork_date']) ?> · <?= esc((string) $job['description']) ?> · ₹<?= number_format((float) $job['labour_amount'], 2) ?>
-                            </option>
+                            <?php $searchText = strtolower(trim((string) (($job['order_id'] ?? '') . ' ' . ($job['order_no'] ?? '') . ' ' . ($job['order_name'] ?? '') . ' ' . ($job['description'] ?? '')))); ?>
+                            <label class="jobwork-card<?= in_array((string) $job['selector'], $oldJobworks, true) ? ' is-selected' : '' ?>" data-karigar="<?= (int) $job['karigar_id'] ?>" data-search="<?= esc($searchText, 'attr') ?>">
+                                <input type="checkbox" class="form-check-input jobwork-check" name="jobworks[]" value="<?= esc((string) $job['selector'], 'attr') ?>" data-labour="<?= esc((string) $job['labour_amount'], 'attr') ?>" data-net="<?= esc((string) $job['net_weight_gm'], 'attr') ?>" <?= in_array((string) $job['selector'], $oldJobworks, true) ? 'checked' : '' ?>>
+                                <span class="jobwork-photo"><?php if (! empty($job['image_url'])): ?><img src="<?= esc((string) $job['image_url'], 'attr') ?>" alt="" loading="lazy" onerror="this.style.display='none'"><?php else: ?><i class="fe fe-image"></i><?php endif; ?></span>
+                                <span class="jobwork-copy">
+                                    <small class="jobwork-code">Order DB #<?= (int) ($job['order_id'] ?? 0) ?> · <?= esc((string) (($job['order_no'] ?? '') ?: 'No order number')) ?></small>
+                                    <span class="jobwork-order-name"><?= esc((string) (($job['order_name'] ?? '') ?: ($job['description'] ?? 'Completed job work'))) ?></span>
+                                    <small class="jobwork-meta"><?= esc((string) ($job['jobwork_date'] ?? '-')) ?> · Gross <?= number_format((float) ($job['gross_weight_gm'] ?? 0), 3) ?> gm · Net <?= number_format((float) ($job['net_weight_gm'] ?? 0), 3) ?> gm</small>
+                                    <small class="jobwork-meta">Labour ₹<?= number_format((float) ($job['labour_amount'] ?? 0), 2) ?></small>
+                                </span>
+                            </label>
                         <?php endforeach; ?>
-                    </select>
-                    <small class="text-muted">Only unbilled job works of the selected karigar are shown.</small>
+                    </div>
+                    <div id="jobwork-empty" class="jobwork-empty">Select a karigar to view completed job works.</div>
                 </div>
             </div>
         </div>
@@ -94,31 +119,41 @@
 (function () {
     const karigar = document.getElementById('karigar_id');
     const jobworks = document.getElementById('jobworks');
+    const search = document.getElementById('jobwork-search');
+    const empty = document.getElementById('jobwork-empty');
     const gst = document.getElementById('gst_master_id');
     const other = document.getElementById('other_amount');
     const roundOff = document.getElementById('round_off_amount');
     if (!karigar || !jobworks || !gst) return;
-    const allOptions = Array.from(jobworks.options).map(function (option) { return option.cloneNode(true); });
+    const cards = Array.from(jobworks.querySelectorAll('.jobwork-card'));
 
     function filterJobworks() {
-        const selected = new Set(Array.from(jobworks.selectedOptions).map(function (option) { return option.value; }));
         const id = karigar.value;
-        jobworks.innerHTML = '';
-        allOptions.forEach(function (source) {
-            if (id && source.dataset.karigar === id) {
-                const option = source.cloneNode(true);
-                option.selected = selected.has(option.value) || source.selected;
-                jobworks.appendChild(option);
+        const query = String(search ? search.value : '').trim().toLowerCase();
+        let visible = 0;
+        cards.forEach(function (card) {
+            const correctKarigar = !!id && card.dataset.karigar === id;
+            const matchesSearch = !query || String(card.dataset.search || '').includes(query);
+            const show = correctKarigar && matchesSearch;
+            card.style.display = show ? '' : 'none';
+            if (show) visible += 1;
+            if (!correctKarigar) {
+                const checkbox = card.querySelector('.jobwork-check');
+                if (checkbox) checkbox.checked = false;
+                card.classList.remove('is-selected');
             }
         });
-        if (window.jQuery && jQuery.fn.select2) jQuery(jobworks).trigger('change.select2');
+        if (empty) {
+            empty.style.display = visible === 0 ? '' : 'none';
+            empty.textContent = id ? (query ? 'No job work matches this search.' : 'No unbilled job work is available for this karigar.') : 'Select a karigar to view completed job works.';
+        }
         calculate();
     }
 
     function calculate() {
-        const selected = Array.from(jobworks.selectedOptions);
-        const labour = selected.reduce(function (sum, option) { return sum + Number(option.dataset.labour || 0); }, 0);
-        const weight = selected.reduce(function (sum, option) { return sum + Number(option.dataset.net || 0); }, 0);
+        const selected = Array.from(jobworks.querySelectorAll('.jobwork-check:checked'));
+        const labour = selected.reduce(function (sum, checkbox) { return sum + Number(checkbox.dataset.labour || 0); }, 0);
+        const weight = selected.reduce(function (sum, checkbox) { return sum + Number(checkbox.dataset.net || 0); }, 0);
         const taxable = Math.max(0, labour + Number(other.value || 0));
         const option = gst.options[gst.selectedIndex];
         let components = [];
@@ -139,7 +174,12 @@
         document.getElementById('tax-breakup').textContent = labels.length ? labels.join(' · ') : 'No GST component in this master.';
     }
     karigar.addEventListener('change', filterJobworks);
-    jobworks.addEventListener('change', calculate);
+    if (search) search.addEventListener('input', filterJobworks);
+    jobworks.addEventListener('change', function (event) {
+        const checkbox = event.target instanceof Element ? event.target.closest('.jobwork-check') : null;
+        if (checkbox) checkbox.closest('.jobwork-card')?.classList.toggle('is-selected', checkbox.checked);
+        calculate();
+    });
     [gst, other, roundOff].forEach(function (el) { el.addEventListener('input', calculate); el.addEventListener('change', calculate); });
     filterJobworks();
 })();

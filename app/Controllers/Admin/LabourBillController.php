@@ -5,6 +5,7 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\LabourBillModel;
 use App\Services\TaxMasterService;
+use App\Services\OrderThumbnailService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use Throwable;
 
@@ -190,7 +191,7 @@ class LabourBillController extends BaseController
         $readyOrderIds = [];
         if ($db->tableExists('production_ready_items')) {
             $builder = $db->table('production_ready_items p')
-                ->select('p.*, o.order_no')
+                ->select('p.*, o.order_no, o.order_name')
                 ->join('orders o', 'o.id = p.order_id', 'left')
                 ->where('p.karigar_id IS NOT NULL', null, false);
             if ($karigarId > 0) {
@@ -207,6 +208,8 @@ class LabourBillController extends BaseController
                 $rows[] = [
                     'selector' => $selector, 'jobwork_type' => 'ready_item', 'jobwork_id' => (int) $row['id'],
                     'karigar_id' => (int) $row['karigar_id'], 'order_id' => (int) ($row['order_id'] ?? 0), 'receive_movement_id' => 0,
+                    'order_no' => (string) ($row['order_no'] ?? ''), 'order_name' => (string) ($row['order_name'] ?? ''),
+                    'image_url' => trim((string) ($row['image_path'] ?? '')) !== '' ? site_url('admin/orders/ready-image/' . (int) $row['id']) : '',
                     'jobwork_date' => (string) ($row['ready_date'] ?? ''),
                     'description' => trim((string) (($row['order_no'] ?? '') . ' · ' . (($row['reference_no'] ?? '') ?: ($row['design_name'] ?? 'Ready jewellery'))), ' ·'),
                     'gross_weight_gm' => (float) ($row['gross_weight_gm'] ?? 0), 'net_weight_gm' => (float) ($row['net_weight_gm'] ?? 0),
@@ -216,7 +219,7 @@ class LabourBillController extends BaseController
         }
         if ($db->tableExists('order_receive_summaries')) {
             $builder = $db->table('order_receive_summaries s')
-                ->select('s.*, o.order_no, o.assigned_karigar_id')
+                ->select('s.*, o.order_no, o.order_name, o.assigned_karigar_id')
                 ->join('orders o', 'o.id = s.order_id')
                 ->where('o.assigned_karigar_id IS NOT NULL', null, false);
             if ($karigarId > 0) {
@@ -236,6 +239,7 @@ class LabourBillController extends BaseController
                 $rows[] = [
                     'selector' => $selector, 'jobwork_type' => 'order_receive', 'jobwork_id' => (int) $row['id'],
                     'karigar_id' => (int) $row['assigned_karigar_id'], 'order_id' => (int) $row['order_id'], 'receive_movement_id' => (int) $row['movement_id'],
+                    'order_no' => (string) ($row['order_no'] ?? ''), 'order_name' => (string) ($row['order_name'] ?? ''), 'image_url' => '',
                     'jobwork_date' => substr((string) ($row['created_at'] ?? ''), 0, 10),
                     'description' => (string) (($row['order_no'] ?? '') . ' · Order receiving'),
                     'gross_weight_gm' => (float) ($row['gross_weight_gm'] ?? 0), 'net_weight_gm' => (float) ($row['net_gold_weight_gm'] ?? 0),
@@ -243,6 +247,13 @@ class LabourBillController extends BaseController
                 ];
             }
         }
+        $thumbnailMap = (new OrderThumbnailService($db))->map(array_map(static fn(array $row): int => (int) ($row['order_id'] ?? 0), $rows));
+        foreach ($rows as &$row) {
+            if (($row['image_url'] ?? '') === '') {
+                $row['image_url'] = (string) ($thumbnailMap[(int) ($row['order_id'] ?? 0)] ?? '');
+            }
+        }
+        unset($row);
         usort($rows, static fn(array $a, array $b): int => strcmp((string) $b['jobwork_date'], (string) $a['jobwork_date']));
         return $rows;
     }
@@ -266,7 +277,7 @@ class LabourBillController extends BaseController
     private function jobworksForBill(int $id): array
     {
         return db_connect()->table('labour_bill_jobworks j')
-            ->select('j.*, o.order_no')->join('orders o', 'o.id = j.order_id', 'left')
+            ->select('j.*, o.order_no, o.order_name')->join('orders o', 'o.id = j.order_id', 'left')
             ->where('j.labour_bill_id', $id)->orderBy('j.jobwork_date')->get()->getResultArray();
     }
 

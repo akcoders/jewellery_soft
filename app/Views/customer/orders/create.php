@@ -6,6 +6,7 @@ $selectedOrderType = (string) old('order_type', 'Manufacturing');
 $selectedDesignType = (string) old('order_design_type', 'Fresh');
 $selectedSalesPerson = (string) old('sales_person_user_id');
 $selectedDesign = (string) old('design_id');
+$selectedCategoryId = (string) old('order_category_id');
 ?>
 <style>
     .portal-form-section { background: #fff; border: 1px solid var(--portal-border); border-radius: 14px; margin-bottom: 16px; padding: 20px; }
@@ -49,6 +50,21 @@ $selectedDesign = (string) old('design_id');
                     <div><h5>Order Setup</h5><p>Select order type, fresh/repeat design and salesperson.</p></div>
                 </div>
                 <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="order-name">Order Name <span class="text-danger">*</span></label>
+                        <input type="text" name="order_name" id="order-name" class="form-control" maxlength="180" value="<?= esc((string) old('order_name')) ?>" placeholder="Example: Bridal Jhumki Set" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="order-category-select">Jewellery Category <span class="text-danger">*</span></label>
+                        <select name="order_category_id" id="order-category-select" class="form-select js-searchable-select" data-placeholder="Search jewellery category" required>
+                            <option value=""></option>
+                            <?php foreach (($orderCategories ?? []) as $category): ?>
+                                <option value="<?= (int) $category['id'] ?>" <?= $selectedCategoryId === (string) $category['id'] ? 'selected' : '' ?>><?= esc((string) $category['name']) ?> (<?= esc((string) $category['code']) ?>)</option>
+                            <?php endforeach; ?>
+                            <option value="0" <?= $selectedCategoryId === '0' ? 'selected' : '' ?>>+ Add New Category</option>
+                        </select>
+                        <input type="text" name="new_order_category" id="new-order-category" class="form-control mt-2" maxlength="100" value="<?= esc((string) old('new_order_category')) ?>" placeholder="Enter new jewellery category" style="display:none;">
+                    </div>
                     <div class="col-md-4">
                         <label class="form-label" for="customer-order-type">Order Type <span class="text-danger">*</span></label>
                         <select name="order_type" id="customer-order-type" class="form-select js-searchable-select" required>
@@ -154,6 +170,16 @@ $selectedDesign = (string) old('design_id');
         const designPreview = document.getElementById('design-preview');
         const sales = document.getElementById('sales-person');
         const salesSummary = document.getElementById('sales-person-summary');
+        const categorySelect = document.getElementById('order-category-select');
+        const newCategoryInput = document.getElementById('new-order-category');
+
+        function toggleNewCategory() {
+            if (!categorySelect || !newCategoryInput) return;
+            const adding = categorySelect.value === '0';
+            newCategoryInput.style.display = adding ? '' : 'none';
+            newCategoryInput.required = adding;
+            if (!adding) newCategoryInput.value = '';
+        }
 
         function updateDesignPreview() {
             if (!design || !designPreview) return;
@@ -210,6 +236,8 @@ $selectedDesign = (string) old('design_id');
         if (type) jQuery(type).on('change', toggleDesign);
         if (design) jQuery(design).on('change', updateDesignPreview);
         if (sales) jQuery(sales).on('change', updateSalesPerson);
+        if (categorySelect) jQuery(categorySelect).on('change', toggleNewCategory);
+        toggleNewCategory();
         toggleDesign();
         updateSalesPerson();
     })();

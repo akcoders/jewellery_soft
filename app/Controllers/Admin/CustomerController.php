@@ -7,6 +7,7 @@ use App\Models\CustomerAddressModel;
 use App\Models\CustomerModel;
 use App\Models\CustomerUserModel;
 use App\Services\CustomerRememberMeService;
+use App\Services\OrderThumbnailService;
 use RuntimeException;
 use Throwable;
 
@@ -58,13 +59,20 @@ class CustomerController extends BaseController
             ->get()
             ->getRowArray() ?? [];
 
+        $recentOrders = $db->table('orders')->select('id, order_no, order_name, status, due_date, created_at')->where('customer_id', $id)->orderBy('id', 'DESC')->limit(10)->get()->getResultArray();
+        $thumbnailMap = (new OrderThumbnailService($db))->map(array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $recentOrders));
+        foreach ($recentOrders as &$recentOrder) {
+            $recentOrder['thumbnail_url'] = (string) ($thumbnailMap[(int) ($recentOrder['id'] ?? 0)] ?? '');
+        }
+        unset($recentOrder);
+
         return view('admin/customers/show', [
             'title' => 'Customer Details',
             'customer' => $customer,
             'addresses' => $this->addressModel->where('customer_id', $id)->orderBy('is_default', 'DESC')->orderBy('id', 'ASC')->findAll(),
             'portalUsers' => $this->customerUserModel->where('customer_id', $id)->orderBy('role', 'ASC')->orderBy('name', 'ASC')->findAll(),
             'orderSummary' => $orderSummary,
-            'recentOrders' => $db->table('orders')->select('id, order_no, status, due_date, created_at')->where('customer_id', $id)->orderBy('id', 'DESC')->limit(10)->get()->getResultArray(),
+            'recentOrders' => $recentOrders,
         ]);
     }
 

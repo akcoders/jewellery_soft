@@ -2,6 +2,9 @@
 
 namespace App\Controllers\Api;
 
+use App\Services\OrderNumberService;
+use App\Services\OrderCategoryService;
+
 class OrdersController extends ApiBaseController
 {
     public function index()
@@ -31,31 +34,48 @@ class OrdersController extends ApiBaseController
             return $this->fail('customer_id is required.', 422);
         }
 
-        $orderNo = trim((string) ($payload['order_no'] ?? ''));
-        if ($orderNo === '') {
-            $orderNo = 'SO-' . date('YmdHis');
-        }
-
         $status = trim((string) ($payload['status'] ?? 'Draft'));
         $dueDate = trim((string) ($payload['due_date'] ?? date('Y-m-d')));
         $priority = (string) ($payload['priority'] ?? 'Normal');
+        $orderType = (string) ($payload['order_type'] ?? 'Sales');
+        $salesPersonUserId = (int) ($payload['sales_person_user_id'] ?? 0);
+        $category = (new OrderCategoryService($db))->resolve(
+            (int) ($payload['order_category_id'] ?? 0),
+            (string) ($payload['new_order_category'] ?? $payload['order_category'] ?? 'Other')
+        );
+        $items = (array) ($payload['items'] ?? []);
+        $orderName = trim((string) ($payload['order_name'] ?? ''));
+        if ($orderName === '') {
+            $orderName = trim((string) ($items[0]['notes'] ?? '')) ?: 'New Jewellery Order';
+        }
+        $orderNo = (new OrderNumberService($db))->generate(
+            $customerId,
+            (string) $category['code'],
+            $salesPersonUserId
+        );
 
-        $db->transStart();
-        $orderId = (int) $db->table('orders')->insert([
+        $db->transException(true)->transStart();
+        $db->table('orders')->insert([
             'order_no' => $orderNo,
+            'order_name' => $orderName,
+            'order_category_id' => (int) $category['id'],
             'customer_id' => $customerId,
+            'sales_person_user_id' => $salesPersonUserId > 0 ? $salesPersonUserId : null,
             'due_date' => $dueDate,
             'priority' => $priority,
             'status' => $status,
-            'order_type' => (string) ($payload['order_type'] ?? 'Sales'),
+            'order_type' => $orderType,
             'expected_diamond_spec' => isset($payload['expected_diamond_spec']) ? json_encode($payload['expected_diamond_spec']) : null,
             'expected_stone_spec' => isset($payload['expected_stone_spec']) ? json_encode($payload['expected_stone_spec']) : null,
             'priority_level' => (int) ($payload['priority_level'] ?? 0),
             'order_notes' => (string) ($payload['notes'] ?? ''),
             'created_by' => (int) (session('admin_id') ?: 0),
-        ], true);
+        ]);
+        $orderId = (int) $db->insertID();
+        if ($orderId <= 0) {
+            throw new \RuntimeException('Could not create order.');
+        }
 
-        $items = (array) ($payload['items'] ?? []);
         $i = 0;
         foreach ($items as $item) {
             $i++;

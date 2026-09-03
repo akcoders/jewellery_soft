@@ -11,6 +11,8 @@ class OrderModel extends Model
     protected $returnType    = 'array';
     protected $allowedFields = [
         'order_no',
+        'order_name',
+        'order_category_id',
         'order_type',
         'order_design_type',
         'order_from',
