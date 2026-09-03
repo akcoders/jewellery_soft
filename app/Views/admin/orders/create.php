@@ -76,7 +76,7 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     </select>
                 </div>
                 <div class="col-md-3 mb-3">
-                    <label class="form-label">Sales Person</label>
+                    <label class="form-label">Sales Person <span class="text-muted">(Optional)</span></label>
                     <select name="sales_person_user_id" id="order-sales-person" class="form-control js-searchable-select" data-placeholder="Search sales person">
                         <option value=""></option>
                         <?php foreach (($salesPeople ?? []) as $person): ?>

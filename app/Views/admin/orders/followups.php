@@ -15,7 +15,6 @@
                         <th>Photo</th>
                         <th>Order No</th>
                         <th>Order Name</th>
-                        <th>Customer</th>
                         <th>Karigar</th>
                         <th>Assigned Follower</th>
                         <th>Status</th>
@@ -30,7 +29,7 @@
                 <tbody>
                     <?php if (($orders ?? []) === []): ?>
                         <tr>
-                            <td colspan="13" class="text-center text-muted">No orders found.</td>
+                            <td colspan="12" class="text-center text-muted">No orders found.</td>
                         </tr>
                     <?php endif; ?>
                     <?php foreach (($orders ?? []) as $order): ?>
@@ -42,7 +41,6 @@
                                 </a>
                             </td>
                             <td><strong><?= esc((string) (($order['order_name'] ?? '') ?: '-')) ?></strong></td>
-                            <td><?= esc((string) ($order['customer_name'] ?? '-')) ?></td>
                             <td><?= esc((string) (($order['karigar_name'] ?? '') !== '' ? $order['karigar_name'] : 'Not Assigned')) ?></td>
                             <td><strong><?= esc((string) (($order['follower_name'] ?? '') ?: 'Not Assigned')) ?></strong></td>
                             <td><?= esc((string) ($order['status'] ?? '-')) ?></td>

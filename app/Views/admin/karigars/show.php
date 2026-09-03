@@ -302,9 +302,7 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
                         <th>Photo</th>
                         <th>Order No</th>
                         <th>Order Name</th>
-                        <th>Customer</th>
                         <th>Status</th>
-                        <th>Priority</th>
                         <th>Due Date</th>
                         <th>Created</th>
                     </tr>
@@ -315,9 +313,7 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
                             <td><span style="align-items:center;background:#f3f4f6;border:1px solid #e2e5ea;border-radius:8px;display:inline-flex;height:42px;justify-content:center;overflow:hidden;width:42px"><?php if (! empty($o['thumbnail_url'])): ?><img src="<?= esc((string) $o['thumbnail_url'], 'attr') ?>" alt="" loading="lazy" style="height:100%;object-fit:cover;width:100%" onerror="this.style.display='none'"><?php else: ?><i class="fe fe-image text-muted"></i><?php endif; ?></span></td>
                             <td><a href="<?= site_url('admin/orders/' . $o['id']) ?>"><?= esc($o['order_no']) ?></a></td>
                             <td><strong><?= esc((string) (($o['order_name'] ?? '') ?: '-')) ?></strong></td>
-                            <td><?= esc($o['customer_name'] ?: '-') ?></td>
                             <td><?= esc($o['status']) ?></td>
-                            <td><?= esc($o['priority']) ?></td>
                             <td><?= esc($o['due_date'] ?: '-') ?></td>
                             <td><?= esc((string) $o['created_at']) ?></td>
                         </tr>

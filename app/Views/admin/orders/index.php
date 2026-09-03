@@ -36,19 +36,16 @@
                         <th>Order Name</th>
                         <th>Category</th>
                         <th>Order From</th>
-                        <th>Customer</th>
-                        <th>Sales Person</th>
                         <th>Karigar</th>
                         <th>Type</th>
                         <th>Status</th>
-                        <th>Priority</th>
                         <th>Due Date</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ($orders === []): ?>
-                        <tr><td colspan="13" class="text-center text-muted py-5">No orders found.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted py-5">No orders found.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($orders as $order): ?>
                         <?php
@@ -62,11 +59,6 @@
                             <td class="order-list-name"><strong><?= esc((string) (($order['order_name'] ?? '') ?: '-')) ?></strong></td>
                             <td><?= esc((string) (($order['order_category_name'] ?? '') ?: '-')) ?></td>
                             <td><?= esc((string) (($order['order_from'] ?? '') ?: '-')) ?></td>
-                            <td><?= esc($order['customer_name'] ?: '-') ?></td>
-                            <td>
-                                <div><?= esc((string) (($order['sales_person_name'] ?? '') ?: '-')) ?></div>
-                                <?php if (! empty($order['sales_person_mobile'])): ?><small class="text-muted"><?= esc((string) $order['sales_person_mobile']) ?></small><?php endif; ?>
-                            </td>
                             <td>
                                 <?php if (! empty($order['karigar_name'])): ?>
                                     <span class="badge bg-success-light text-success"><?= esc($order['karigar_name']) ?></span>
@@ -76,7 +68,6 @@
                             </td>
                             <td><?= esc($order['order_type']) ?></td>
                             <td><?= esc($order['status']) ?></td>
-                            <td><?= esc($order['priority']) ?></td>
                             <td><?= esc($order['due_date'] ?: '-') ?></td>
                             <td>
                                 <div class="d-flex gap-1">

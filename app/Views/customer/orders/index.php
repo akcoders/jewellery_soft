@@ -58,9 +58,9 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
     <div class="card-body p-0">
         <div class="table-responsive portal-scroll-shell">
             <table class="table portal-scroll-table mb-0">
-                <thead><tr><th>Order</th><th>Order Name</th><th>Category</th><th>Order Type</th><th>Design</th><th>Sales Person</th><th>Required By</th><th>Current Status</th></tr></thead>
+                <thead><tr><th>Order</th><th>Order Name</th><th>Category</th><th>Order Type</th><th>Design</th><th>Required By</th><th>Current Status</th></tr></thead>
                 <tbody>
-                    <?php if ($orders === []): ?><tr><td colspan="8" class="text-center text-muted py-5">No orders available for this login.</td></tr><?php endif; ?>
+                    <?php if ($orders === []): ?><tr><td colspan="7" class="text-center text-muted py-5">No orders available for this login.</td></tr><?php endif; ?>
                     <?php foreach ($orders as $order): ?>
                         <tr>
                             <td data-label="Order"><div class="portal-order-identity"><span class="portal-order-thumb"><?php if (! empty($order['thumbnail_url'])): ?><img src="<?= esc((string) $order['thumbnail_url'], 'attr') ?>" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('◇'))"><?php else: ?><i class="fe fe-image"></i><?php endif; ?></span><span><strong><?= esc((string) $order['order_no']) ?></strong><small class="d-block text-muted mt-1">Created <?= esc($formatDate((string) $order['created_at'])) ?></small></span></div></td>
@@ -68,7 +68,6 @@ $formatDate = static function (?string $date, string $fallback = '-'): string {
                             <td data-label="Category"><?= esc((string) (($order['order_category_name'] ?? '') ?: '-')) ?></td>
                             <td data-label="Order Type"><?= esc((string) $order['order_type']) ?></td>
                             <td data-label="Design"><?= esc((string) (($order['order_design_type'] ?? '') ?: 'Fresh')) ?></td>
-                            <td data-label="Sales Person"><?= esc((string) (($order['sales_person_name'] ?? '') ?: '-')) ?></td>
                             <td data-label="Required By"><?= esc($formatDate((string) ($order['due_date'] ?? ''))) ?></td>
                             <td data-label="Current Status"><span class="status-pill <?= esc($statusClass((string) $order['status'])) ?>"><?= esc((string) $order['status']) ?></span></td>
                         </tr>

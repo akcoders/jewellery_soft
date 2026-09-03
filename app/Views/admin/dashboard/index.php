@@ -144,10 +144,8 @@ $orderSource = static function (array $row): string {
                                     <th>Photo</th>
                                     <th>Order</th>
                                     <th>Order Name</th>
-                                    <th>Customer / Source</th>
                                     <th>Type</th>
                                     <th>Due Date</th>
-                                    <th>Priority</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -160,10 +158,8 @@ $orderSource = static function (array $row): string {
                                             </a>
                                         </td>
                                         <td><strong><?= esc((string) (($row['order_name'] ?? '') ?: '-')) ?></strong></td>
-                                        <td><?= esc($orderSource($row)) ?></td>
                                         <td><?= esc((string) ($row['order_type'] ?? '-')) ?></td>
                                         <td><?= ! empty($row['due_date']) ? esc(date('d M Y', strtotime((string) $row['due_date']))) : '<span class="text-muted">Not set</span>' ?></td>
-                                        <td><span class="badge bg-light text-dark border"><?= esc((string) ($row['priority'] ?? 'Medium')) ?></span></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>

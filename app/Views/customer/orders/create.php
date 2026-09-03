@@ -82,7 +82,7 @@ $selectedCategoryId = (string) old('order_category_id');
                     </div>
                     <div class="col-md-4">
                         <?php if (! $isSalesPerson): ?>
-                            <label class="form-label" for="sales-person">Sales Person</label>
+                            <label class="form-label" for="sales-person">Sales Person <span class="text-muted">(Optional)</span></label>
                             <select name="sales_person_user_id" id="sales-person" class="form-select js-searchable-select" data-placeholder="Search by name or mobile">
                                 <option value=""></option>
                                 <?php foreach (($salesPeople ?? []) as $person): ?>

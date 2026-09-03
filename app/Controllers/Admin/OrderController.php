@@ -495,10 +495,9 @@ class OrderController extends BaseController
         $this->syncCompletedOrdersFromReceive();
 
         $orders = $this->orderModel
-            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm, sales_person.name as sales_person_name, sales_person.mobile as sales_person_mobile, order_categories.name as order_category_name, order_categories.code as order_category_code')
+            ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, karigars.rate_per_gm as karigar_rate_per_gm, order_categories.name as order_category_name, order_categories.code as order_category_code')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
-            ->join('customer_users sales_person', 'sales_person.id = orders.sales_person_user_id', 'left')
             ->join('order_categories', 'order_categories.id = orders.order_category_id', 'left');
 
         if ($mode === 'repair') {

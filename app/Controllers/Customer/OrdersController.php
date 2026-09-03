@@ -20,8 +20,7 @@ class OrdersController extends BaseController
     {
         $customerId = (int) session('customer_id');
         $ordersQuery = (new OrderModel())
-            ->select('orders.id, orders.order_no, orders.order_name, orders.order_type, orders.order_design_type, orders.status, orders.due_date, orders.created_at, cu.name AS sales_person_name, oc.name AS order_category_name')
-            ->join('customer_users cu', 'cu.id = orders.sales_person_user_id', 'left')
+            ->select('orders.id, orders.order_no, orders.order_name, orders.order_type, orders.order_design_type, orders.status, orders.due_date, orders.created_at, oc.name AS order_category_name')
             ->join('order_categories oc', 'oc.id = orders.order_category_id', 'left')
             ->where('orders.customer_id', $customerId);
         if (session('customer_user_role') === 'sales_person') {
