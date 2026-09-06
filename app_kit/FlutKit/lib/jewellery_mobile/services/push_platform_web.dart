@@ -17,6 +17,7 @@ class PlatformPushClient {
 
   Future<PushPlatformSnapshot> init({
     required String appId,
+    String? safariWebId,
     required void Function(PushPlatformSnapshot snapshot) onStatus,
     required void Function(Map<String, dynamic> payload) onNotificationOpened,
     required void Function() onNotificationForeground,
@@ -25,7 +26,12 @@ class PlatformPushClient {
     _onNotificationOpened = onNotificationOpened;
     _onNotificationForeground = onNotificationForeground;
     _messages ??= html.window.onMessage.listen(_handleMessage);
-    return _snapshotFrom(await _command('init', {'appId': appId}));
+    return _snapshotFrom(
+      await _command('init', {
+        'appId': appId,
+        'safariWebId': safariWebId ?? '',
+      }),
+    );
   }
 
   Future<PushPlatformSnapshot> login({
@@ -130,6 +136,7 @@ class PlatformPushClient {
     return PushPlatformSnapshot(
       initialized: value['initialized'] == true,
       permissionGranted: value['permissionGranted'] == true,
+      permissionState: _permissionState(value['permissionState']),
       canRequestPermission: value['canRequestPermission'] == true,
       optedIn: value['optedIn'] == true,
       subscriptionId: _nullableString(value['subscriptionId']),
@@ -155,5 +162,12 @@ class PlatformPushClient {
   String? _nullableString(dynamic value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? null : text;
+  }
+
+  String _permissionState(dynamic value) {
+    final state = value?.toString().trim().toLowerCase() ?? '';
+    return const {'granted', 'default', 'denied', 'unsupported'}.contains(state)
+        ? state
+        : 'unknown';
   }
 }

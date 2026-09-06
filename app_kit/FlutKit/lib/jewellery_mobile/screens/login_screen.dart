@@ -1,4 +1,6 @@
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutkit/jewellery_mobile/services/pwa_install_service.dart';
+import 'package:flutkit/jewellery_mobile/widgets/pwa_install_prompt.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -156,6 +158,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                 )
                               : const Icon(Icons.login),
                           label: Text(_loading ? 'Signing in...' : 'Sign In'),
+                        ),
+                        ValueListenableBuilder<bool>(
+                          valueListenable: PwaInstallService.available,
+                          builder: (context, available, _) {
+                            if (!available) return const SizedBox.shrink();
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: OutlinedButton.icon(
+                                onPressed: () => showPwaInstallPrompt(context),
+                                icon: const Icon(Icons.install_mobile_outlined),
+                                label: const Text('Install Aabhushan ERP'),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),

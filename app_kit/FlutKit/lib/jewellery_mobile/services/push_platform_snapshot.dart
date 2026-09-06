@@ -5,6 +5,7 @@ class PushPlatformSnapshot {
   const PushPlatformSnapshot({
     this.initialized = false,
     this.permissionGranted = false,
+    this.permissionState = 'unknown',
     this.canRequestPermission = false,
     this.optedIn = false,
     this.subscriptionId,
@@ -15,6 +16,7 @@ class PushPlatformSnapshot {
 
   final bool initialized;
   final bool permissionGranted;
+  final String permissionState;
   final bool canRequestPermission;
   final bool optedIn;
   final String? subscriptionId;

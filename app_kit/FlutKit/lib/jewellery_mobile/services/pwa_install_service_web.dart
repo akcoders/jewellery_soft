@@ -6,6 +6,23 @@ import 'dart:html' as html;
 
 import 'package:flutter/foundation.dart';
 
+@immutable
+class PwaInstallResult {
+  const PwaInstallResult({
+    this.installed = false,
+    this.prompted = false,
+    this.manual = false,
+    this.platform = 'other',
+    this.message = '',
+  });
+
+  final bool installed;
+  final bool prompted;
+  final bool manual;
+  final String platform;
+  final String message;
+}
+
 class PwaInstallService {
   PwaInstallService._();
 
@@ -25,13 +42,22 @@ class PwaInstallService {
     }
   }
 
-  static Future<bool> promptInstall() async {
+  static Future<PwaInstallResult> promptInstall() async {
     try {
       final result = await _command('install');
       available.value = result['available'] == true;
-      return result['installed'] == true;
+      return PwaInstallResult(
+        installed: result['installed'] == true,
+        prompted: result['prompted'] == true,
+        manual: result['manual'] == true,
+        platform: result['platform']?.toString() ?? 'other',
+        message: result['message']?.toString() ?? '',
+      );
     } catch (_) {
-      return false;
+      return const PwaInstallResult(
+        manual: true,
+        message: 'Browser menu se Install app ya Add to Home screen chunein.',
+      );
     }
   }
 

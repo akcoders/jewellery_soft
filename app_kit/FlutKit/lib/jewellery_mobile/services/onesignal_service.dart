@@ -8,6 +8,7 @@ class PushNotificationStatus {
   const PushNotificationStatus({
     this.initialized = false,
     this.permissionGranted = false,
+    this.permissionState = 'unknown',
     this.canRequestPermission = false,
     this.optedIn = false,
     this.subscriptionId,
@@ -18,6 +19,7 @@ class PushNotificationStatus {
 
   final bool initialized;
   final bool permissionGranted;
+  final String permissionState;
   final bool canRequestPermission;
   final bool optedIn;
   final String? subscriptionId;
@@ -36,6 +38,7 @@ class PushNotificationStatus {
   PushNotificationStatus copyWith({
     bool? initialized,
     bool? permissionGranted,
+    String? permissionState,
     bool? canRequestPermission,
     bool? optedIn,
     String? subscriptionId,
@@ -50,6 +53,7 @@ class PushNotificationStatus {
     return PushNotificationStatus(
       initialized: initialized ?? this.initialized,
       permissionGranted: permissionGranted ?? this.permissionGranted,
+      permissionState: permissionState ?? this.permissionState,
       canRequestPermission: canRequestPermission ?? this.canRequestPermission,
       optedIn: optedIn ?? this.optedIn,
       subscriptionId: clearSubscriptionId
@@ -68,6 +72,8 @@ class OneSignalService {
   OneSignalService._();
 
   static const String appId = '47e56c4c-5cec-4de4-a247-d1c62c1154ae';
+  static const String safariWebId =
+      'web.onesignal.auto.0a17e090-f65a-43cf-871a-056959ed633a';
   static final PlatformPushClient _client = PlatformPushClient();
   static bool _initialized = false;
   static Future<PushNotificationStatus>? _initializing;
@@ -198,6 +204,7 @@ class OneSignalService {
     try {
       final snapshot = await _client.init(
         appId: appId,
+        safariWebId: safariWebId,
         onStatus: _apply,
         onNotificationOpened: (payload) {
           openedNotification.value = Map<String, dynamic>.unmodifiable(payload);
@@ -223,6 +230,7 @@ class OneSignalService {
     final next = PushNotificationStatus(
       initialized: snapshot.initialized,
       permissionGranted: snapshot.permissionGranted,
+      permissionState: snapshot.permissionState,
       canRequestPermission: snapshot.canRequestPermission,
       optedIn: snapshot.optedIn,
       subscriptionId: snapshot.subscriptionId,
@@ -241,6 +249,7 @@ class OneSignalService {
     final next = PushNotificationStatus(
       initialized: initialized ?? current.initialized,
       permissionGranted: current.permissionGranted,
+      permissionState: current.permissionState,
       canRequestPermission: current.canRequestPermission,
       optedIn: current.optedIn,
       subscriptionId: current.subscriptionId,

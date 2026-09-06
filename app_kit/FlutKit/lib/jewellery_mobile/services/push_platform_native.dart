@@ -13,6 +13,7 @@ class PlatformPushClient {
 
   Future<PushPlatformSnapshot> init({
     required String appId,
+    String? safariWebId,
     required void Function(PushPlatformSnapshot snapshot) onStatus,
     required void Function(Map<String, dynamic> payload) onNotificationOpened,
     required void Function() onNotificationForeground,
@@ -62,10 +63,17 @@ class PlatformPushClient {
   Future<PushPlatformSnapshot> snapshot() async {
     if (!_initialized) return const PushPlatformSnapshot();
     final subscription = OneSignal.User.pushSubscription;
+    final permissionGranted = OneSignal.Notifications.permission;
+    final canRequestPermission = await OneSignal.Notifications.canRequest();
     return PushPlatformSnapshot(
       initialized: true,
-      permissionGranted: OneSignal.Notifications.permission,
-      canRequestPermission: await OneSignal.Notifications.canRequest(),
+      permissionGranted: permissionGranted,
+      permissionState: permissionGranted
+          ? 'granted'
+          : canRequestPermission
+          ? 'default'
+          : 'denied',
+      canRequestPermission: canRequestPermission,
       optedIn: subscription.optedIn ?? false,
       subscriptionId: subscription.id,
       pushToken: subscription.token,

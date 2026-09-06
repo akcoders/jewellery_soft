@@ -192,6 +192,17 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     final queueFailures = _safeInt(queue['failed']);
     final healthy = _deviceStatus.isReady && providerReady && schedulerReady;
     final accent = healthy ? AppColors.success : AppColors.warning;
+    final deviceError = (_deviceStatus.error ?? '').trim();
+    final missingWebSetup = deviceError.toLowerCase().contains(
+      'not configured for web push',
+    );
+    final permissionLabel = switch (_deviceStatus.permissionState) {
+      'granted' => 'Allowed',
+      'default' => 'Not requested',
+      'denied' => 'Blocked',
+      'unsupported' => 'Unsupported',
+      _ => missingWebSetup ? 'Waiting for setup' : 'Unavailable',
+    };
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -250,7 +261,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
             children: [
               _healthMetric(
                 'Permission',
-                _deviceStatus.permissionGranted ? 'Allowed' : 'Blocked',
+                permissionLabel,
                 _deviceStatus.permissionGranted,
               ),
               _healthMetric(
@@ -291,10 +302,12 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
               style: const TextStyle(color: AppColors.warning, fontSize: 12),
             ),
           ],
-          if ((_deviceStatus.error ?? '').isNotEmpty) ...[
+          if (deviceError.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Device setup: ${_deviceStatus.error}',
+              missingWebSetup
+                  ? 'OneSignal Web Push platform is not configured for this website. Add the Web platform for aabhushan.webignitors.in in OneSignal, then tap retry.'
+                  : 'Device setup: $deviceError',
               style: const TextStyle(color: AppColors.warning, fontSize: 12),
             ),
           ],
@@ -314,6 +327,10 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 label: Text(
                   _requestingPermission
                       ? 'Checking permission...'
+                      : missingWebSetup
+                      ? 'Retry Web Push Setup'
+                      : _deviceStatus.permissionState == 'denied'
+                      ? 'Retry Notification Permission'
                       : 'Enable Notifications',
                 ),
               ),

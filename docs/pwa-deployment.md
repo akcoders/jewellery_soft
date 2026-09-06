@@ -22,7 +22,7 @@ Keep the directory structure intact, including these files:
 - `.htaccess`
 - `index.html`
 - `manifest.json`
-- `flutter_service_worker.js`
+- `aabhushan_app_sw.js`
 - `aabhushan_pwa_bridge.js`
 - `push/onesignal/OneSignalSDKWorker.js`
 
@@ -50,12 +50,32 @@ In OneSignal, open **Settings > Push & In-App > Web** and choose **Custom Code**
 - Service worker scope: `/pwa/push/onesignal/`
 - Default icon: `https://aabhushan.webignitors.in/pwa/icons/Icon-512.png`
 - Auto resubscribe: enabled
+- Safari Web ID: `web.onesignal.auto.0a17e090-f65a-43cf-871a-056959ed633a`
 
 The worker must be publicly reachable with HTTP 200 and JavaScript content type:
 
 `https://aabhushan.webignitors.in/pwa/push/onesignal/OneSignalSDKWorker.js`
 
 Web push requires HTTPS, a supported non-private browser window and user permission. On iPhone/iPad, web push requires iOS/iPadOS 16.4 or newer and the PWA must first be added to the Home Screen.
+
+If the notification screen says `App not configured for web push`, the PHP
+environment is configured but the OneSignal app still has no matching **Web**
+platform. Add or update the Web platform using the values above; an Android
+platform alone cannot create browser subscriptions.
+
+If permission is already `Blocked`, re-enable notifications from the browser's
+site settings. Browsers do not allow the application to silently reverse a
+denied permission.
+
+## Install behaviour
+
+- Android Chrome shows the native install prompt when its installability check
+  passes. The login page and app header also expose an Install button.
+- iOS Safari does not expose Android's `beforeinstallprompt` API. The Install
+  button therefore shows the required **Share > Add to Home Screen > Add**
+  instructions.
+- After uploading a new build, purge the Hostinger/CDN cache so `index.html`,
+  `manifest.json` and `aabhushan_app_sw.js` are refreshed immediately.
 
 ## Existing notification cron
 

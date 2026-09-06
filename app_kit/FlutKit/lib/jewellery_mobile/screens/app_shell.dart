@@ -14,6 +14,7 @@ import 'package:flutkit/jewellery_mobile/services/pwa_install_service.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
 import 'package:flutkit/jewellery_mobile/session/mobile_session_store.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
+import 'package:flutkit/jewellery_mobile/widgets/pwa_install_prompt.dart';
 import 'package:flutter/material.dart';
 
 class AppShell extends StatefulWidget {
@@ -27,8 +28,11 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late final MobileApiService _api;
   String _section = 'dashboard';
+  final List<String> _sectionHistory = <String>[];
+  bool _drawerOpen = false;
   int _refreshTick = 0;
   int _notificationCount = 0;
 
@@ -57,13 +61,39 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _select(String key) {
-    Navigator.of(context).pop();
+    _scaffoldKey.currentState?.closeDrawer();
     _switchSection(key);
   }
 
   void _switchSection(String key) {
     if (!mounted) return;
-    setState(() => _section = key);
+    if (key == _section) {
+      _loadNotificationCount();
+      return;
+    }
+    setState(() {
+      _sectionHistory.add(_section);
+      _section = key;
+    });
+    _loadNotificationCount();
+  }
+
+  void _handleBackNavigation(bool didPop, Object? result) {
+    if (didPop || !mounted) return;
+    if (_drawerOpen) {
+      _scaffoldKey.currentState?.closeDrawer();
+      return;
+    }
+    if (_sectionHistory.isEmpty) {
+      if (_section != 'dashboard') {
+        setState(() => _section = 'dashboard');
+        _loadNotificationCount();
+      }
+      return;
+    }
+
+    final previousSection = _sectionHistory.removeLast();
+    setState(() => _section = previousSection);
     _loadNotificationCount();
   }
 
@@ -107,6 +137,9 @@ class _AppShellState extends State<AppShell> {
 
   void _openOrdersByStatus(String status) {
     setState(() {
+      if (_section != 'orders') {
+        _sectionHistory.add(_section);
+      }
       _section = 'orders';
       _refreshTick++;
       _ordersInitialStatus = status;
@@ -247,176 +280,182 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_title()),
-        actions: [
-          ValueListenableBuilder<bool>(
-            valueListenable: PwaInstallService.available,
-            builder: (context, available, _) {
-              if (!available) return const SizedBox.shrink();
-              return IconButton(
-                tooltip: 'Install Aabhushan ERP',
-                onPressed: () async {
-                  final installed = await PwaInstallService.promptInstall();
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        installed
-                            ? 'Aabhushan ERP installed successfully.'
-                            : 'Installation was not completed.',
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: _handleBackNavigation,
+      child: Scaffold(
+        key: _scaffoldKey,
+        onDrawerChanged: (isOpened) => _drawerOpen = isOpened,
+        appBar: AppBar(
+          title: Text(_title()),
+          actions: [
+            ValueListenableBuilder<bool>(
+              valueListenable: PwaInstallService.available,
+              builder: (context, available, _) {
+                if (!available) return const SizedBox.shrink();
+                return IconButton(
+                  tooltip: 'Install Aabhushan ERP',
+                  onPressed: () => showPwaInstallPrompt(context),
+                  icon: const Icon(Icons.install_mobile_outlined),
+                );
+              },
+            ),
+            IconButton(
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => NotificationCenterScreen(api: _api),
+                  ),
+                );
+                if (mounted) {
+                  _loadNotificationCount();
+                }
+              },
+              icon: _NotificationBell(count: _notificationCount),
+            ),
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'logout') {
+                  await widget.onLogout();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  enabled: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.session.userName,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.install_mobile_outlined),
-              );
-            },
-          ),
-          IconButton(
-            onPressed: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => NotificationCenterScreen(api: _api),
-                ),
-              );
-              if (mounted) {
-                _loadNotificationCount();
-              }
-            },
-            icon: _NotificationBell(count: _notificationCount),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              if (value == 'logout') {
-                await widget.onLogout();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                enabled: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.session.userName,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    Text(
-                      widget.session.userEmail,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout, size: 18),
-                    SizedBox(width: 8),
-                    Text('Logout'),
-                  ],
-                ),
-              ),
-            ],
-            icon: const Icon(Icons.account_circle_outlined),
-          ),
-        ],
-      ),
-      drawer: Drawer(
-        child: SafeArea(
-          child: Column(
-            children: [
-              _DrawerHeader(session: widget.session),
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    _drawerSection('Main'),
-                    _drawerItem('dashboard', 'Dashboard', Icons.home_outlined),
-                    _drawerItem('orders', 'Orders', Icons.assignment_outlined),
-                    _drawerItem(
-                      'followups',
-                      'Followups',
-                      Icons.event_note_outlined,
-                    ),
-                    _drawerSection('Diamond'),
-                    _drawerItem(
-                      'diamond_issues',
-                      'Diamond Issue',
-                      Icons.diamond_outlined,
-                    ),
-                    _drawerItem(
-                      'diamond_returns',
-                      'Diamond Return',
-                      Icons.diamond_outlined,
-                    ),
-                    _drawerItem(
-                      'diamond_purchases',
-                      'Diamond Purchase',
-                      Icons.shopping_bag_outlined,
-                    ),
-                    _drawerSection('Gold'),
-                    _drawerItem(
-                      'gold_issues',
-                      'Gold Issue',
-                      Icons.workspace_premium_outlined,
-                    ),
-                    _drawerItem(
-                      'gold_returns',
-                      'Gold Return',
-                      Icons.workspace_premium_outlined,
-                    ),
-                    _drawerItem(
-                      'gold_purchases',
-                      'Gold Purchase',
-                      Icons.shopping_bag_outlined,
-                    ),
-                    _drawerSection('Stone'),
-                    _drawerItem(
-                      'stone_issues',
-                      'Stone Issue',
-                      Icons.scatter_plot_outlined,
-                    ),
-                    _drawerItem(
-                      'stone_returns',
-                      'Stone Return',
-                      Icons.scatter_plot_outlined,
-                    ),
-                    _drawerItem(
-                      'stone_purchases',
-                      'Stone Purchase',
-                      Icons.shopping_bag_outlined,
-                    ),
-                    _drawerSection('Utility'),
-                    _drawerItem(
-                      'inventory',
-                      'Inventory',
-                      Icons.inventory_2_outlined,
-                    ),
-                    if (widget.session.canUsePerformance) ...[
-                      _drawerItem('tasks', 'My Tasks', Icons.task_alt_outlined),
-                      _drawerItem(
-                        'performance',
-                        'My Performance',
-                        Icons.insights_outlined,
+                      Text(
+                        widget.session.userEmail,
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, size: 18),
+                      SizedBox(width: 8),
+                      Text('Logout'),
+                    ],
+                  ),
+                ),
+              ],
+              icon: const Icon(Icons.account_circle_outlined),
+            ),
+          ],
+        ),
+        drawer: Drawer(
+          child: SafeArea(
+            child: Column(
+              children: [
+                _DrawerHeader(session: widget.session),
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      _drawerSection('Main'),
+                      _drawerItem(
+                        'dashboard',
+                        'Dashboard',
+                        Icons.home_outlined,
+                      ),
+                      _drawerItem(
+                        'orders',
+                        'Orders',
+                        Icons.assignment_outlined,
+                      ),
+                      _drawerItem(
+                        'followups',
+                        'Followups',
+                        Icons.event_note_outlined,
+                      ),
+                      _drawerSection('Diamond'),
+                      _drawerItem(
+                        'diamond_issues',
+                        'Diamond Issue',
+                        Icons.diamond_outlined,
+                      ),
+                      _drawerItem(
+                        'diamond_returns',
+                        'Diamond Return',
+                        Icons.diamond_outlined,
+                      ),
+                      _drawerItem(
+                        'diamond_purchases',
+                        'Diamond Purchase',
+                        Icons.shopping_bag_outlined,
+                      ),
+                      _drawerSection('Gold'),
+                      _drawerItem(
+                        'gold_issues',
+                        'Gold Issue',
+                        Icons.workspace_premium_outlined,
+                      ),
+                      _drawerItem(
+                        'gold_returns',
+                        'Gold Return',
+                        Icons.workspace_premium_outlined,
+                      ),
+                      _drawerItem(
+                        'gold_purchases',
+                        'Gold Purchase',
+                        Icons.shopping_bag_outlined,
+                      ),
+                      _drawerSection('Stone'),
+                      _drawerItem(
+                        'stone_issues',
+                        'Stone Issue',
+                        Icons.scatter_plot_outlined,
+                      ),
+                      _drawerItem(
+                        'stone_returns',
+                        'Stone Return',
+                        Icons.scatter_plot_outlined,
+                      ),
+                      _drawerItem(
+                        'stone_purchases',
+                        'Stone Purchase',
+                        Icons.shopping_bag_outlined,
+                      ),
+                      _drawerSection('Utility'),
+                      _drawerItem(
+                        'inventory',
+                        'Inventory',
+                        Icons.inventory_2_outlined,
+                      ),
+                      if (widget.session.canUsePerformance) ...[
+                        _drawerItem(
+                          'tasks',
+                          'My Tasks',
+                          Icons.task_alt_outlined,
+                        ),
+                        _drawerItem(
+                          'performance',
+                          'My Performance',
+                          Icons.insights_outlined,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
+        body: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          child: KeyedSubtree(key: ValueKey(_section), child: _body()),
+        ),
+        floatingActionButton: _fab(context),
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 220),
-        child: KeyedSubtree(key: ValueKey(_section), child: _body()),
-      ),
-      floatingActionButton: _fab(context),
     );
   }
 

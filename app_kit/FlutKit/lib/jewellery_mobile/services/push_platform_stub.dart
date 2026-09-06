@@ -3,10 +3,12 @@ import 'package:flutkit/jewellery_mobile/services/push_platform_snapshot.dart';
 class PlatformPushClient {
   Future<PushPlatformSnapshot> init({
     required String appId,
+    String? safariWebId,
     required void Function(PushPlatformSnapshot snapshot) onStatus,
     required void Function(Map<String, dynamic> payload) onNotificationOpened,
     required void Function() onNotificationForeground,
   }) async => const PushPlatformSnapshot(
+    permissionState: 'unsupported',
     error: 'Push notifications are not supported on this platform.',
   );
 

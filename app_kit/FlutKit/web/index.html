@@ -37,6 +37,17 @@
 </head>
 <body>
   <noscript>Aabhushan ERP requires JavaScript to run.</noscript>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker
+          .register("aabhushan_app_sw.js", { scope: "./" })
+          .catch(function (error) {
+            console.warn("Aabhushan app service worker failed:", error);
+          });
+      });
+    }
+  </script>
   <script src="aabhushan_pwa_bridge.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
