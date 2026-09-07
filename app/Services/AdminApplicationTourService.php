@@ -7,7 +7,7 @@ use App\Models\AdminUserTourPreferenceModel;
 class AdminApplicationTourService
 {
     public const TOUR_KEY = 'admin-application-overview';
-    public const TOUR_VERSION = '2026.08';
+    public const TOUR_VERSION = '2026.09';
 
     /**
      * @return array{available:bool,shouldAutoStart:bool,dontShowAgain:bool,state:string,currentStepKey:?string,version:string}

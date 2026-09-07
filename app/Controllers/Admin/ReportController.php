@@ -1534,7 +1534,7 @@ class ReportController extends BaseController
         $db = db_connect();
         if ($db->tableExists('showroom_sales')) {
             $builder = $db->table('showroom_sales s')
-                ->select("s.sale_date as transaction_date, 'Showroom Sale' as transaction_type, 'FG' as material_type, o.order_no, COALESCE(NULLIF(s.sale_no,''), CONCAT('SALE#', s.id)) as reference_no, COALESCE(c.name, '-') as party_name, s.payment_status as status, s.customer_id, NULL as karigar_id, NULL as vendor_id, 0 as gold_gm, 0 as diamond_cts, COALESCE(s.total_qty,0) as stone_qty, COALESCE(s.total_amount,0) as amount, s.notes as notes", false)
+                ->select("s.sale_date as transaction_date, 'Studded Jewellery Sale' as transaction_type, 'Studded Jewellery' as material_type, GROUP_CONCAT(DISTINCT o.order_no ORDER BY o.order_no SEPARATOR ', ') as order_no, COALESCE(NULLIF(s.sale_no,''), CONCAT('SALE#', s.id)) as reference_no, COALESCE(c.name, '-') as party_name, s.payment_status as status, s.customer_id, NULL as karigar_id, NULL as vendor_id, COALESCE(s.total_gold_weight,0) as gold_gm, COALESCE(s.total_diamond_weight,0) as diamond_cts, COALESCE(s.total_stone_weight,0) as stone_qty, COALESCE(s.total_amount,0) as amount, s.notes as notes", false)
                 ->join('customers c', 'c.id = s.customer_id', 'left')
                 ->join('showroom_sale_items ssi', 'ssi.showroom_sale_id = s.id', 'left')
                 ->join('fg_items fg', 'fg.id = ssi.fg_item_id', 'left')
@@ -1544,10 +1544,11 @@ class ReportController extends BaseController
         }
         if ($db->tableExists('showroom_fg_movements')) {
             $builder = $db->table('showroom_fg_movements m')
-                ->select("DATE(m.created_at) as transaction_date, 'Showroom Movement' as transaction_type, 'FG' as material_type, o.order_no, CONCAT('MOVE#', m.id) as reference_no, COALESCE(sh.name, '-') as party_name, m.movement_type as status, NULL as customer_id, NULL as karigar_id, NULL as vendor_id, 0 as gold_gm, 0 as diamond_cts, 1 as stone_qty, 0 as amount, m.remarks as notes", false)
+                ->select("DATE(m.created_at) as transaction_date, 'Jewellery Inventory Movement' as transaction_type, 'Studded Jewellery' as material_type, o.order_no, CONCAT('MOVE#', m.id) as reference_no, COALESCE(sh.name, '-') as party_name, m.movement_type as status, NULL as customer_id, NULL as karigar_id, NULL as vendor_id, 0 as gold_gm, 0 as diamond_cts, 1 as stone_qty, 0 as amount, m.remarks as notes", false)
                 ->join('fg_items fg', 'fg.id = m.fg_item_id', 'left')
                 ->join('orders o', 'o.id = fg.order_id', 'left')
-                ->join('showrooms sh', 'sh.id = COALESCE(m.to_showroom_id, m.from_showroom_id)', 'left', false);
+                ->join('showrooms sh', 'sh.id = COALESCE(m.to_showroom_id, m.from_showroom_id)', 'left', false)
+                ->where("COALESCE(m.reference_type, '') != 'studded_jewellery_sale'", null, false);
             $rows = array_merge($rows, $this->fetchRowsByDate($builder, 'DATE(m.created_at)', $filters));
         }
         if ($db->tableExists('customer_receipts')) {

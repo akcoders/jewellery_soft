@@ -665,17 +665,6 @@ class AccountsController extends BaseController
         return redirect()->back()->with('success', 'Labour payment updated.');
     }
 
-    public function saleBills(): string
-    {
-        $db = db_connect();
-        $rows = $this->saleBillsDataset();
-        return view('admin/accounts/sale_bills', [
-            'title' => 'Sale Bills',
-            'rows' => $rows,
-            'showroomSalesEnabled' => $db->tableExists('showroom_sales'),
-        ]);
-    }
-
     public function debitNotes(): string
     {
         return view('admin/accounts/debit_notes', [
@@ -1088,57 +1077,40 @@ class AccountsController extends BaseController
     }
 
     /**
+     * Wholesale finished-jewellery sale bills used by outstanding, ledger and
+     * GST reporting. The legacy table name is retained for data compatibility.
+     *
      * @return list<array<string,mixed>>
      */
     private function saleBillsDataset(): array
     {
         $db = db_connect();
-        $rows = [];
-
-        if ($db->tableExists('showroom_sales')) {
-            $list = $db->table('showroom_sales s')
-                ->select('s.*, sh.name as showroom_name, c.counter_name, e.full_name as salesperson_name, cust.name as customer_name, i.invoice_no, i.invoice_date, COALESCE(SUM(cr.amount),0) as paid_amount', false)
-                ->join('showrooms sh', 'sh.id = s.showroom_id', 'left')
-                ->join('showroom_counters c', 'c.id = s.showroom_counter_id', 'left')
-                ->join('employees e', 'e.id = s.salesperson_employee_id', 'left')
-                ->join('customers cust', 'cust.id = s.customer_id', 'left')
-                ->join('invoices i', 'i.id = s.invoice_id', 'left')
-                ->join('customer_receipts cr', 'cr.invoice_id = s.invoice_id', 'left')
-                ->groupBy('s.id')
-                ->orderBy('s.id', 'DESC')
-                ->get()
-                ->getResultArray();
-
-            foreach ($list as $row) {
-                $totalAmount = (float) ($row['total_amount'] ?? 0);
-                $paidAmount = (float) ($row['paid_amount'] ?? 0);
-                $statusInfo = $this->paymentStatusInfo($totalAmount, $paidAmount, false);
-
-                $rows[] = [
-                    'id' => (int) ($row['id'] ?? 0),
-                    'customer_id' => (int) ($row['customer_id'] ?? 0),
-                    'sale_no' => (string) ($row['sale_no'] ?? ''),
-                    'sale_date' => (string) ($row['sale_date'] ?? ''),
-                    'showroom_name' => (string) ($row['showroom_name'] ?? '-'),
-                    'counter_name' => (string) ($row['counter_name'] ?? '-'),
-                    'salesperson_name' => (string) ($row['salesperson_name'] ?? '-'),
-                    'customer_name' => (string) ($row['customer_name'] ?? '-'),
-                    'invoice_no' => (string) ($row['invoice_no'] ?? '-'),
-                    'total_qty' => (float) ($row['total_qty'] ?? 0),
-                    'total_amount' => $totalAmount,
-                    'paid_amount' => $statusInfo['paid_amount'],
-                    'pending_amount' => $statusInfo['pending_amount'],
-                    'payment_status' => $statusInfo['status'],
-                ];
-            }
+        if (! $db->tableExists('showroom_sales')) {
+            return [];
         }
+
+        $rows = $db->table('showroom_sales s')
+            ->select('s.*, cust.name as customer_name, i.invoice_no, i.invoice_date, COALESCE(SUM(cr.amount),0) as paid_amount', false)
+            ->join('customers cust', 'cust.id = s.customer_id', 'left')
+            ->join('invoices i', 'i.id = s.invoice_id', 'left')
+            ->join('customer_receipts cr', 'cr.invoice_id = s.invoice_id', 'left')
+            ->groupBy('s.id')
+            ->orderBy('s.id', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        foreach ($rows as &$row) {
+            $status = $this->paymentStatusInfo((float) ($row['total_amount'] ?? 0), (float) ($row['paid_amount'] ?? 0), false);
+            $row['paid_amount'] = $status['paid_amount'];
+            $row['pending_amount'] = $status['pending_amount'];
+            $row['payment_status'] = $status['status'];
+        }
+        unset($row);
 
         return $rows;
     }
 
-    /**
-     * @return list<array<string,mixed>>
-     */
+    /** @return list<array<string,mixed>> */
     private function debitNotesDataset(): array
     {
         return $this->noteDataset('debit');

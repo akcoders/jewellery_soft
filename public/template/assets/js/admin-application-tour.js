@@ -98,10 +98,10 @@
             description: 'Configure physical warehouses and bins used to locate gold, diamonds, stones and finished jewellery.'
         },
         {
-            key: 'showroom',
-            module: 'showroom',
-            title: 'Retail showroom',
-            description: 'Control finished jewellery, showroom and counter stock, reservations and transfers, staff assignments, sales and downloadable invoices.'
+            key: 'studded-jewellery',
+            module: 'studded-jewellery',
+            title: 'Studded jewellery',
+            description: 'Review finished jewellery inventory, create wholesale customer sale bills, and download tax invoices plus combined packing lists.'
         },
         {
             key: 'accounts',

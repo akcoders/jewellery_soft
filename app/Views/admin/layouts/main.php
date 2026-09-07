@@ -23,13 +23,11 @@ $isDesignations = $segment2 === 'designations';
 $isEmployees = $segment2 === 'employees';
 $isEmployeeHierarchy = $segment2 === 'employee-hierarchy';
 $isStaffHierarchy = $isDepartments || $isDesignations || $isEmployees || $isEmployeeHierarchy;
-$isShowrooms = $segment2 === 'showrooms';
-$isShowroomCounters = $segment2 === 'showroom-counters';
-$isShowroomStaff = $segment2 === 'showroom-staff';
-$isShowroomStock = $segment2 === 'showroom-stock';
 $isJewelleryInventory = $segment2 === 'jewellery-inventory';
-$isShowroomSales = $segment2 === 'showroom-sales';
-$isShowroomModule = $isShowrooms || $isShowroomCounters || $isShowroomStaff || $isShowroomStock || $isJewelleryInventory || $isShowroomSales;
+$isStuddedJewellery = $segment2 === 'studded-jewellery';
+$isStuddedDashboard = $isStuddedJewellery && $segment3 === 'dashboard';
+$isStuddedSaleBills = $isStuddedJewellery && $segment3 === 'sale-bills';
+$isStuddedJewelleryModule = $isJewelleryInventory || $isStuddedJewellery;
 $isPerformance = $segment2 === 'performance';
 $isPerformanceDashboard = $isPerformance && ($segment3 === 'dashboard' || $segment3 === '');
 $isPerformanceTasks = $isPerformance && $segment3 === 'tasks';
@@ -59,7 +57,6 @@ $isAccountsPurchaseBills = $isAccounts && $segment3 === 'purchase-bills';
 $isAccountsLabourBills = $isAccounts && $segment3 === 'labour-bills';
 $isAccountsLabourLedger = $isAccounts && $segment3 === 'labour-ledger';
 $isAccountsPayments = $isAccounts && $segment3 === 'payments';
-$isAccountsSaleBills = $isAccounts && $segment3 === 'sale-bills';
 $isAccountsDebitNotes = $isAccounts && $segment3 === 'debit-notes';
 $isAccountsCreditNotes = $isAccounts && $segment3 === 'credit-notes';
 $isAccountsGstReport = $isAccounts && $segment3 === 'gst-report';
@@ -110,7 +107,6 @@ $canAccounts = admin_can('accounts.read');
 $canDesigns = admin_can('masters.designs.read');
 $canKarigars = admin_can('masters.karigars.read');
 $canStaffHierarchy = admin_can_any(['organization.departments.read', 'organization.designations.read', 'organization.employees.read', 'organization.hierarchy.read']);
-$canShowroomMasters = admin_can('showroom.masters.read');
 $canShowroomStock = admin_can('showroom.stock.read');
 $canShowroomSales = admin_can('showroom.sales.read');
 $canPerformance = admin_can_any(['performance.dashboard.read', 'performance.tasks.read']);
@@ -124,7 +120,7 @@ $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read
 $canCrmOrdersMenu = $canCustomers || $canOrders;
 $canProductionMenu = $canKarigars || $canIssuements || $canDesigns;
 $canInventoryMenu = $canGoldInventory || $canDiamondInventory || $canStoneInventory || $canInventorySettings;
-$canShowroomMenu = $canShowroomMasters || $canShowroomStock || $canShowroomSales;
+$canStuddedJewelleryMenu = $canShowroomStock || $canShowroomSales;
 $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canCompanySettings || $canAccessControl;
 $adminAlertCenter = [
     'total_count' => 0,
@@ -1799,17 +1795,14 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
                         </li>
                         <?php endif; ?>
 
-                        <?php if ($canShowroomMenu): ?>
-                        <li class="menu-title"><span>Showroom</span></li>
-                        <li class="submenu <?= $isShowroomModule ? 'active' : '' ?>">
-                            <a href="javascript:void(0);" data-app-tour-module="showroom"><i class="fe fe-shopping-bag"></i> <span>Retail Showroom</span> <span class="menu-arrow"></span></a>
-                            <ul style="<?= $isShowroomModule ? 'display:block;' : 'display:none;' ?>">
-                                <?php if ($canShowroomSales): ?><li><a class="<?= $isShowroomSales ? 'active' : '' ?>" href="<?= site_url('admin/showroom-sales') ?>"><i class="fe fe-credit-card"></i> Showroom Sales</a></li><?php endif; ?>
-                                <?php if ($canShowroomStock): ?><li><a class="<?= $isShowroomStock ? 'active' : '' ?>" href="<?= site_url('admin/showroom-stock') ?>"><i class="fe fe-layers"></i> Showroom Stock</a></li><?php endif; ?>
-                                <?php if ($canShowroomStock): ?><li><a class="<?= $isJewelleryInventory ? 'active' : '' ?>" href="<?= site_url('admin/jewellery-inventory') ?>"><i class="fas fa-gem"></i> Jewellery Inventory</a></li><?php endif; ?>
-                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowrooms ? 'active' : '' ?>" href="<?= site_url('admin/showrooms') ?>"><i class="fe fe-home"></i> Showrooms</a></li><?php endif; ?>
-                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomCounters ? 'active' : '' ?>" href="<?= site_url('admin/showroom-counters') ?>"><i class="fe fe-grid"></i> Counters</a></li><?php endif; ?>
-                                <?php if ($canShowroomMasters): ?><li><a class="<?= $isShowroomStaff ? 'active' : '' ?>" href="<?= site_url('admin/showroom-staff') ?>"><i class="fe fe-users"></i> Staff Assignment</a></li><?php endif; ?>
+                        <?php if ($canStuddedJewelleryMenu): ?>
+                        <li class="menu-title"><span>Finished Jewellery</span></li>
+                        <li class="submenu <?= $isStuddedJewelleryModule ? 'active' : '' ?>">
+                            <a href="javascript:void(0);" data-app-tour-module="studded-jewellery"><i class="fas fa-gem"></i> <span>Studded Jewellery</span> <span class="menu-arrow"></span></a>
+                            <ul style="<?= $isStuddedJewelleryModule ? 'display:block;' : 'display:none;' ?>">
+                                <?php if ($canShowroomSales): ?><li><a class="<?= $isStuddedDashboard ? 'active' : '' ?>" href="<?= site_url('admin/studded-jewellery/dashboard') ?>"><i class="fe fe-bar-chart-2"></i> Sales Intelligence</a></li><?php endif; ?>
+                                <?php if ($canShowroomStock): ?><li><a class="<?= $isJewelleryInventory ? 'active' : '' ?>" href="<?= site_url('admin/jewellery-inventory') ?>"><i class="fe fe-layers"></i> Jewellery Inventory</a></li><?php endif; ?>
+                                <?php if ($canShowroomSales): ?><li><a class="<?= $isStuddedSaleBills ? 'active' : '' ?>" href="<?= site_url('admin/studded-jewellery/sale-bills') ?>"><i class="fe fe-file-text"></i> Sale Bills</a></li><?php endif; ?>
                             </ul>
                         </li>
                         <?php endif; ?>
@@ -1829,7 +1822,6 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
                                 <li><a class="<?= $isAccountsPurchaseBills ? 'active' : '' ?>" href="<?= site_url('admin/accounts/purchase-bills') ?>"><i class="fe fe-shopping-bag"></i> Purchase Bills</a></li>
                                 <li><a class="<?= $isAccountsLabourLedger ? 'active' : '' ?>" href="<?= site_url('admin/accounts/labour-ledger') ?>"><i class="fe fe-book-open"></i> Labour Ledger</a></li>
                                 <li><a class="<?= $isAccountsLabourBills ? 'active' : '' ?>" href="<?= site_url('admin/accounts/labour-bills') ?>"><i class="fe fe-tool"></i> Labour Bills</a></li>
-                                <li><a class="<?= $isAccountsSaleBills ? 'active' : '' ?>" href="<?= site_url('admin/accounts/sale-bills') ?>"><i class="fe fe-credit-card"></i> Sale Bills</a></li>
                                 <li><a class="<?= $isAccountsDebitNotes ? 'active' : '' ?>" href="<?= site_url('admin/accounts/debit-notes') ?>"><i class="fe fe-corner-down-right"></i> Debit Notes</a></li>
                                 <li><a class="<?= $isAccountsCreditNotes ? 'active' : '' ?>" href="<?= site_url('admin/accounts/credit-notes') ?>"><i class="fe fe-corner-up-left"></i> Credit Notes</a></li>
                                 <li><a class="<?= $isAccountsGstReport ? 'active' : '' ?>" href="<?= site_url('admin/accounts/gst-report') ?>"><i class="fe fe-percent"></i> GST Report</a></li>
