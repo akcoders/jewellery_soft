@@ -35,6 +35,7 @@ class FinishedJewelleryService
             if ($movement !== []) {
                 $summary = [
                     'movement_id' => (int) ($movement['id'] ?? 0),
+                    'gold_purity_id' => (int) ($movement['gold_purity_id'] ?? 0),
                     'gross_weight_gm' => (float) (($movement['gross_weight_gm'] ?? 0) ?: ($movement['gold_gm'] ?? 0)),
                     'net_gold_weight_gm' => (float) (($movement['net_gold_weight_gm'] ?? 0) ?: ($movement['gold_gm'] ?? 0)),
                     'pure_gold_weight_gm' => (float) ($movement['pure_gold_weight_gm'] ?? 0),
@@ -63,6 +64,9 @@ class FinishedJewelleryService
             ];
         }
         $orderItem = $this->db->table('order_items')->where('order_id', $orderId)->orderBy('id', 'ASC')->get()->getRowArray() ?? [];
+        $purityLabel = $this->purityLabel(
+            (int) (($summary['gold_purity_id'] ?? 0) ?: ($orderItem['gold_purity_id'] ?? 0))
+        );
         $jobCard = $this->db->table('job_cards')->select('id')->where('order_id', $orderId)->orderBy('id', 'ASC')->get()->getRowArray();
         $warehouse = $this->db->table('warehouses')->whereIn('warehouse_code', ['FG_STORE', 'MAIN'])->orderBy('id', 'ASC')->get()->getRowArray()
             ?? $this->db->table('warehouses')->orderBy('id', 'ASC')->get()->getRowArray();
@@ -80,7 +84,7 @@ class FinishedJewelleryService
             'job_card_id' => $jobCard ? (int) $jobCard['id'] : null,
             'production_ready_item_id' => null,
             'design_name' => (string) (($orderItem['item_description'] ?? '') ?: $order['order_no']),
-            'purity_label' => null,
+            'purity_label' => $purityLabel !== '' ? $purityLabel : null,
             'qty' => max(1, (int) ($orderItem['qty'] ?? 1)),
             'gross_wt' => (float) ($summary['gross_weight_gm'] ?? 0),
             'net_gold_wt' => (float) (($summary['net_gold_weight_gm'] ?? 0) ?: ($orderItem['gold_required_gm'] ?? 0)),
@@ -178,12 +182,9 @@ class FinishedJewelleryService
                 continue;
             }
 
-            $purity = null;
-            if ((int) ($item['gold_purity_id'] ?? 0) > 0) {
-                $purityRow = $this->db->table('gold_purities')->select('purity_code')
-                    ->where('id', (int) $item['gold_purity_id'])->get()->getRowArray();
-                $purity = (string) ($purityRow['purity_code'] ?? '');
-            }
+            $purity = $this->purityLabel(
+                (int) (($summary['gold_purity_id'] ?? 0) ?: ($item['gold_purity_id'] ?? 0))
+            );
             $diamondCts = (float) (($summary['diamond_weight_cts'] ?? 0) ?: ($item['diamond_required_cts'] ?? 0));
             $category = stripos((string) $purity, 'silver') !== false ? 'Silver' : ($diamondCts > 0 ? 'Diamond' : 'Gold');
             $name = trim((string) ($item['item_description'] ?? '')) ?: (string) $order['order_no'];
@@ -237,6 +238,30 @@ class FinishedJewelleryService
             'source_image_path' => (string) $photo['file_path'],
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    private function purityLabel(int $goldPurityId): string
+    {
+        if ($goldPurityId <= 0 || ! $this->db->tableExists('gold_purities')) {
+            return '';
+        }
+
+        $row = $this->db->table('gold_purities')
+            ->select('purity_code, purity_percent, color_name')
+            ->where('id', $goldPurityId)
+            ->get()
+            ->getRowArray();
+        if (! is_array($row)) {
+            return '';
+        }
+
+        $label = trim((string) ($row['purity_code'] ?? ''));
+        $color = trim((string) ($row['color_name'] ?? ''));
+        if ($label === '' && (float) ($row['purity_percent'] ?? 0) > 0) {
+            $label = number_format((float) $row['purity_percent'], 3, '.', '') . '%';
+        }
+
+        return trim($label . ($color !== '' ? ' · ' . $color : ''));
     }
 
     /** @return array<string,mixed>|null */

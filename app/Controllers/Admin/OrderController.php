@@ -541,6 +541,7 @@ class OrderController extends BaseController
             'karigars' => $this->karigarModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'customers'=> $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'locations'=> $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'goldPurities' => $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
             'stoneInventoryItems' => $this->stoneInventoryOptions(),
             'karigarDiamondOptions' => $karigarDiamondOptions,
             'staffFollowers' => $this->staffPerformanceService->staffOptions(),
@@ -797,6 +798,12 @@ class OrderController extends BaseController
             ->where('order_id', $id)
             ->orderBy('id', 'DESC')
             ->first();
+        if (is_array($receiveSummary) && (int) ($receiveSummary['gold_purity_id'] ?? 0) > 0) {
+            $receivePurity = $this->goldPurityModel->find((int) $receiveSummary['gold_purity_id']);
+            $receiveSummary['purity_code'] = is_array($receivePurity)
+                ? trim((string) ($receivePurity['purity_code'] ?? ''))
+                : '';
+        }
         $studdedDetails = [];
         if ($receiveSummary) {
             $studdedDetails = $this->receiveDetailModel
@@ -812,6 +819,7 @@ class OrderController extends BaseController
             'items'      => $items,
             'attachments'=> $this->attachmentModel->where('order_id', $id)->orderBy('id', 'DESC')->findAll(),
             'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'goldPurities' => $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
             'stoneInventoryItems' => $this->stoneInventoryOptions(),
             'karigarDiamondOptions' => $this->karigarDiamondOptions((int) ($order['assigned_karigar_id'] ?? 0)),
             'followups' => $followups,
@@ -1613,9 +1621,10 @@ class OrderController extends BaseController
         if (! $this->validate([
             'location_id' => 'required|integer|greater_than[0]',
             'gross_weight_gm' => 'required|decimal|greater_than[0]',
-            'purity_percent' => 'required|decimal|greater_than[0]|less_than_equal_to[100]',
+            'gold_purity_id' => 'required|integer|greater_than[0]',
             'gold_rate_per_gm' => 'required|decimal|greater_than[0]',
             'labour_rate_per_gm' => 'permit_empty|decimal|greater_than_equal_to[0]',
+            'wastage_percent' => 'permit_empty|decimal|greater_than_equal_to[0]|less_than_equal_to[100]',
             'notes' => 'permit_empty',
         ])) {
             return redirect()->back()->withInput()->with('error', $this->firstValidationError());
@@ -1626,10 +1635,20 @@ class OrderController extends BaseController
             return redirect()->back()->withInput()->with('error', 'Select a valid inventory location.');
         }
 
+        $goldPurityId = (int) $this->request->getPost('gold_purity_id');
+        $goldPurity = $this->goldPurityModel->where('is_active', 1)->find($goldPurityId);
+        if (! is_array($goldPurity)) {
+            return redirect()->back()->withInput()->with('error', 'Select a valid active ornament purity.');
+        }
+
         $grossWeightGm = round((float) $this->request->getPost('gross_weight_gm'), 3);
-        $purityPercent = round((float) $this->request->getPost('purity_percent'), 3);
+        $purityPercent = round((float) ($goldPurity['purity_percent'] ?? 0), 3);
+        if ($purityPercent <= 0 || $purityPercent > 100) {
+            return redirect()->back()->withInput()->with('error', 'Selected ornament purity has an invalid percentage in Purity Master.');
+        }
         $goldRate = round((float) $this->request->getPost('gold_rate_per_gm'), 2);
         $labourRate = round(max(0, (float) $this->request->getPost('labour_rate_per_gm')), 2);
+        $wastagePercent = round(max(0, (float) $this->request->getPost('wastage_percent')), 3);
 
         $diamond = $this->collectReceiveComponentRows(
             (array) $this->request->getPost('studded_diamond_type'),
@@ -1667,6 +1686,9 @@ class OrderController extends BaseController
             return redirect()->back()->withInput()->with('error', 'Net gold weight must be greater than zero. Check all entered weights.');
         }
         $pureGoldWeightGm = round($netGoldWeightGm * ($purityPercent / 100), 3);
+        $wastage = KarigarMaterialAccountingService::calculateLabourWastage($netGoldWeightGm, $purityPercent, $wastagePercent);
+        $wastageWeightGm = $wastage['ornament_weight_gm'];
+        $pureWastageWeightGm = $wastage['pure_weight_gm'];
         $goldAmount = round($netGoldWeightGm * $goldRate, 2);
         $labourAmount = round($netGoldWeightGm * $labourRate, 2);
         $totalValuation = round(
@@ -1675,11 +1697,15 @@ class OrderController extends BaseController
         );
         $postedNotes = trim((string) $this->request->getPost('notes'));
         $calculationNote = sprintf(
-            'Finished receive: Gross %.3f gm, Net gold %.3f gm, Pure gold %.3f gm @ %.3f%%, Diamond %.3f cts, Stone %.3f cts',
+            'Finished receive: Gross %.3f gm, Net gold %.3f gm, Pure gold %.3f gm at %s (%.3f%%), Labour wastage %.3f%% = %.3f gm / %.3f gm pure, Diamond %.3f cts, Stone %.3f cts',
             $grossWeightGm,
             $netGoldWeightGm,
             $pureGoldWeightGm,
+            trim((string) ($goldPurity['purity_code'] ?? 'Purity Master')),
             $purityPercent,
+            $wastagePercent,
+            $wastageWeightGm,
+            $pureWastageWeightGm,
             $diamondCts,
             $stoneCts
         );
@@ -1695,7 +1721,7 @@ class OrderController extends BaseController
                 'movement_type' => 'receive',
                 'gold_gm' => $netGoldWeightGm,
                 'diamond_cts' => $diamondCts,
-                'gold_purity_id' => null,
+                'gold_purity_id' => $goldPurityId,
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
                 'gross_weight_gm' => $grossWeightGm,
@@ -1734,6 +1760,19 @@ class OrderController extends BaseController
                 null,
                 $stoneCts
             );
+            $wastageVoucherId = $materialAccounting->postLabourWastageCharge(
+                $orderId,
+                $karigarId,
+                $pureWastageWeightGm,
+                $wastagePercent,
+                sprintf(
+                    'Labour Wastage Charge | Order %s | %.3f%% | %.3f gm pure gold',
+                    (string) ($order['order_no'] ?? ('#' . $orderId)),
+                    $wastagePercent,
+                    $pureWastageWeightGm
+                ),
+                $adminId
+            );
 
             $this->persistReceiveSnapshot(
                 $movementId,
@@ -1741,6 +1780,9 @@ class OrderController extends BaseController
                 [
                     'account_voucher_id' => $accountVoucherId,
                     'stone_account_voucher_id' => $stoneCts > 0 ? $accountVoucherId : null,
+                    'wastage_account_voucher_id' => $wastageVoucherId,
+                    'gold_purity_id' => $goldPurityId,
+                    'purity_percent' => $purityPercent,
                     'gross_weight_gm' => $grossWeightGm,
                     'net_gold_weight_gm' => $netGoldWeightGm,
                     'pure_gold_weight_gm' => $pureGoldWeightGm,
@@ -1755,6 +1797,9 @@ class OrderController extends BaseController
                     'gold_amount' => $goldAmount,
                     'labour_rate_per_gm' => $labourRate,
                     'labour_amount' => $labourAmount,
+                    'wastage_percent' => $wastagePercent,
+                    'wastage_weight_gm' => $wastageWeightGm,
+                    'pure_wastage_weight_gm' => $pureWastageWeightGm,
                     'total_valuation' => $totalValuation,
                     'created_by' => $adminId,
                 ],
@@ -2572,6 +2617,13 @@ class OrderController extends BaseController
                 'stone_account_voucher_id' => (int) ($summary['stone_account_voucher_id'] ?? 0) > 0
                     ? (int) $summary['stone_account_voucher_id']
                     : null,
+                'wastage_account_voucher_id' => (int) ($summary['wastage_account_voucher_id'] ?? 0) > 0
+                    ? (int) $summary['wastage_account_voucher_id']
+                    : null,
+                'gold_purity_id' => (int) ($summary['gold_purity_id'] ?? 0) > 0
+                    ? (int) $summary['gold_purity_id']
+                    : null,
+                'purity_percent' => round((float) ($summary['purity_percent'] ?? 0), 3),
                 'gross_weight_gm' => round((float) ($summary['gross_weight_gm'] ?? 0), 3),
                 'net_gold_weight_gm' => round((float) ($summary['net_gold_weight_gm'] ?? 0), 3),
                 'pure_gold_weight_gm' => round((float) ($summary['pure_gold_weight_gm'] ?? 0), 3),
@@ -2586,6 +2638,9 @@ class OrderController extends BaseController
                 'gold_amount' => round((float) ($summary['gold_amount'] ?? 0), 2),
                 'labour_rate_per_gm' => round((float) ($summary['labour_rate_per_gm'] ?? 0), 2),
                 'labour_amount' => round((float) ($summary['labour_amount'] ?? 0), 2),
+                'wastage_percent' => round((float) ($summary['wastage_percent'] ?? 0), 3),
+                'wastage_weight_gm' => round((float) ($summary['wastage_weight_gm'] ?? 0), 3),
+                'pure_wastage_weight_gm' => round((float) ($summary['pure_wastage_weight_gm'] ?? 0), 3),
                 'total_valuation' => round((float) ($summary['total_valuation'] ?? 0), 2),
                 'created_by' => (int) ($summary['created_by'] ?? 0),
             ];

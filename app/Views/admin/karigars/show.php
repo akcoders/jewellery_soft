@@ -379,7 +379,7 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
                 <div class="karigar-ledger-summary">
                     <div class="karigar-ledger-metric"><small>Opening balance</small><strong><?= esc(number_format($goldRange['opening'], 3)) ?> gm</strong></div>
                     <div class="karigar-ledger-metric is-in"><small>Material given</small><strong>+<?= esc(number_format((float) $goldSummary['issue_pure'], 3)) ?> gm</strong></div>
-                    <div class="karigar-ledger-metric is-out"><small>Material returned</small><strong>-<?= esc(number_format((float) $goldSummary['receive_pure'], 3)) ?> gm</strong></div>
+                    <div class="karigar-ledger-metric is-out"><small>Material returned / wastage charged</small><strong>-<?= esc(number_format((float) $goldSummary['receive_pure'], 3)) ?> gm</strong></div>
                     <div class="karigar-ledger-metric is-closing"><small>Closing with karigar</small><strong><?= esc(number_format($goldRange['closing'], 3)) ?> gm</strong></div>
                 </div>
                 <div class="table-responsive">
@@ -402,7 +402,8 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
                                 <tr>
                                     <td><?= esc((string) $gl['created_at']) ?></td>
                                     <td><?= esc($gl['order_no'] ?: '-') ?></td>
-                                    <td><span class="karigar-entry-badge <?= (string) $gl['entry_type'] === 'issue' ? 'is-issue' : 'is-receive' ?>"><?= (string) $gl['entry_type'] === 'issue' ? 'Given' : 'Returned' ?></span></td>
+                                    <?php $isWastageCharge = strtoupper((string) ($gl['reference_type'] ?? '')) === 'LABOUR_WASTAGE_CHARGE'; ?>
+                                    <td><span class="karigar-entry-badge <?= (string) $gl['entry_type'] === 'issue' ? 'is-issue' : 'is-receive' ?>"><?= (string) $gl['entry_type'] === 'issue' ? 'Given' : ($isWastageCharge ? 'Labour Wastage Charge' : 'Returned') ?></span></td>
                                     <td><?= esc($gl['location_name'] ?: '-') ?></td>
                                     <td class="ledger-number"><?= esc(number_format((float) $gl['opening_gm'], 3)) ?></td>
                                     <td class="ledger-number ledger-in"><?= (float) $gl['debit_gm'] > 0 ? '+' . esc(number_format((float) $gl['debit_gm'], 3)) : '-' ?></td>

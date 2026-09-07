@@ -519,6 +519,8 @@ class DocumentsController extends ApiBaseController
         $movementId = (int) ($bill['receive_movement_id'] ?? 0);
 
         $receive = [
+            'gold_purity_id' => 0,
+            'purity_percent' => 0.0,
             'gross_weight_gm' => 0.0,
             'net_gold_weight_gm' => round((float) ($bill['gold_weight_gm'] ?? 0), 3),
             'pure_gold_weight_gm' => 0.0,
@@ -533,6 +535,9 @@ class DocumentsController extends ApiBaseController
             'gold_amount' => 0.0,
             'labour_rate_per_gm' => round((float) ($bill['rate_per_gm'] ?? 0), 2),
             'labour_amount' => round((float) ($bill['labour_amount'] ?? 0), 2),
+            'wastage_percent' => 0.0,
+            'wastage_weight_gm' => 0.0,
+            'pure_wastage_weight_gm' => 0.0,
             'total_valuation' => round((float) ($bill['total_amount'] ?? 0), 2),
         ];
 
@@ -555,6 +560,8 @@ class DocumentsController extends ApiBaseController
 
             if (is_array($receiveRow)) {
                 $receive = [
+                    'gold_purity_id' => (int) ($receiveRow['gold_purity_id'] ?? 0),
+                    'purity_percent' => round((float) ($receiveRow['purity_percent'] ?? 0), 3),
                     'gross_weight_gm' => round((float) ($receiveRow['gross_weight_gm'] ?? 0), 3),
                     'net_gold_weight_gm' => round((float) ($receiveRow['net_gold_weight_gm'] ?? ($bill['gold_weight_gm'] ?? 0)), 3),
                     'pure_gold_weight_gm' => round((float) ($receiveRow['pure_gold_weight_gm'] ?? 0), 3),
@@ -569,28 +576,48 @@ class DocumentsController extends ApiBaseController
                     'gold_amount' => round((float) ($receiveRow['gold_amount'] ?? 0), 2),
                     'labour_rate_per_gm' => round((float) ($receiveRow['labour_rate_per_gm'] ?? ($bill['rate_per_gm'] ?? 0)), 2),
                     'labour_amount' => round((float) ($receiveRow['labour_amount'] ?? ($bill['labour_amount'] ?? 0)), 2),
+                    'wastage_percent' => round((float) ($receiveRow['wastage_percent'] ?? 0), 3),
+                    'wastage_weight_gm' => round((float) ($receiveRow['wastage_weight_gm'] ?? 0), 3),
+                    'pure_wastage_weight_gm' => round((float) ($receiveRow['pure_wastage_weight_gm'] ?? 0), 3),
                     'total_valuation' => round((float) ($receiveRow['total_valuation'] ?? ($bill['total_amount'] ?? 0)), 2),
                 ];
             }
         }
 
         $purityCode = '-';
-        if ($orderId > 0 && $db->tableExists('order_items') && $db->tableExists('gold_purities')) {
-            $purityRow = $db->table('order_items oi')
-                ->select('gp.purity_code')
-                ->join('gold_purities gp', 'gp.id = oi.gold_purity_id', 'left')
-                ->where('oi.order_id', $orderId)
-                ->orderBy('oi.id', 'ASC')
-                ->get(1)
-                ->getRowArray();
+        if ($db->tableExists('gold_purities') && ((int) ($receive['gold_purity_id'] ?? 0) > 0 || ($orderId > 0 && $db->tableExists('order_items')))) {
+            $purityQuery = $db->table('gold_purities gp')->select('gp.purity_code');
+            if ((int) ($receive['gold_purity_id'] ?? 0) > 0) {
+                $purityQuery->where('gp.id', (int) $receive['gold_purity_id']);
+            } elseif ($orderId > 0 && $db->tableExists('order_items')) {
+                $purityQuery->join('order_items oi', 'oi.gold_purity_id = gp.id', 'inner')
+                    ->where('oi.order_id', $orderId)
+                    ->orderBy('oi.id', 'ASC');
+            }
+            $purityRow = $purityQuery->get(1)->getRowArray();
             $purityCode = trim((string) ($purityRow['purity_code'] ?? '-'));
             if ($purityCode === '') {
                 $purityCode = '-';
             }
         }
 
-        $wastagePercent = round((float) ($bill['karigar_wastage_percentage'] ?? 0), 3);
-        $wastageWeight = round((float) ($receive['net_gold_weight_gm'] ?? 0) * ($wastagePercent / 100), 3);
+        $wastagePercent = round((float) ($receive['wastage_percent'] ?? 0), 3);
+        if ($wastagePercent <= 0) {
+            $wastagePercent = round((float) ($bill['karigar_wastage_percentage'] ?? 0), 3);
+        }
+        $wastageWeight = round((float) ($receive['wastage_weight_gm'] ?? 0), 3);
+        if ($wastageWeight <= 0 && $wastagePercent > 0) {
+            $wastageWeight = round((float) ($receive['net_gold_weight_gm'] ?? 0) * ($wastagePercent / 100), 3);
+        }
+        $pureWastageWeight = round((float) ($receive['pure_wastage_weight_gm'] ?? 0), 3);
+        if ($pureWastageWeight <= 0 && $wastageWeight > 0) {
+            $pureWastageWeight = round(
+                (float) ($receive['net_gold_weight_gm'] ?? 0)
+                * ($wastagePercent / 100)
+                * ((float) ($receive['purity_percent'] ?? 0) / 100),
+                3
+            );
+        }
         $taxableAmount = round((float) ($bill['taxable_amount'] ?? ((float) ($bill['labour_amount'] ?? 0) + (float) ($bill['other_amount'] ?? 0))), 2);
         $igstPercent = round((float) ($bill['igst_rate'] ?? 0), 3);
         $igstAmount = round((float) ($bill['igst_amount'] ?? 0), 2);
@@ -610,6 +637,7 @@ class DocumentsController extends ApiBaseController
             'stateCode' => $this->stateCode((string) ($bill['karigar_state'] ?? ($company['state'] ?? ''))),
             'wastagePercent' => $wastagePercent,
             'wastageWeight' => $wastageWeight,
+            'pureWastageWeight' => $pureWastageWeight,
             'taxableAmount' => $taxableAmount,
             'sgstPercent' => round((float) ($bill['sgst_rate'] ?? 0), 3),
             'sgstAmount' => round((float) ($bill['sgst_amount'] ?? 0), 2),

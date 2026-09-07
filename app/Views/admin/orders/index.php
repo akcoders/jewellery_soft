@@ -286,23 +286,30 @@
                                         <label class="form-label">Gross Weight (gm)</label>
                                         <input type="number" step="0.001" min="0" name="gross_weight_gm" class="form-control js-gross-weight" value="0" required>
                                     </div>
-                                    <div class="col-md-2">
-                                        <label class="form-label">Purity %</label>
-                                        <input type="number" step="0.001" min="0.001" max="100" name="purity_percent" id="receive-purity-percent" class="form-control js-purity-percent" required>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Ornament Purity</label>
+                                        <select name="gold_purity_id" id="receive-gold-purity" class="form-select js-purity-select" required>
+                                            <option value="">Select from Purity Master</option>
+                                            <?php foreach (($goldPurities ?? []) as $purity): ?>
+                                                <option value="<?= (int) $purity['id'] ?>" data-percent="<?= esc((string) number_format((float) $purity['purity_percent'], 3, '.', '')) ?>">
+                                                    <?= esc((string) $purity['purity_code']) ?> (<?= esc(number_format((float) $purity['purity_percent'], 3)) ?>%)<?= ! empty($purity['color_name']) ? ' · ' . esc((string) $purity['color_name']) : '' ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
                                     </div>
-                                    <div class="col-md-2">
+                                    <div class="col-md-3">
                                         <label class="form-label">Net Weight (gm)</label>
                                         <input type="text" class="form-control js-net-weight" readonly>
                                     </div>
-                                    <div class="col-md-2">
+                                    <div class="col-md-3">
                                         <label class="form-label">Pure Weight (gm)</label>
                                         <input type="text" class="form-control js-pure-weight" readonly>
                                     </div>
-                                    <div class="col-md-2">
+                                    <div class="col-md-3">
                                         <label class="form-label">Gold Rate / gm</label>
                                         <input type="number" step="0.01" min="0.01" name="gold_rate_per_gm" class="form-control js-gold-rate" required>
                                     </div>
-                                    <div class="col-md-2">
+                                    <div class="col-md-3">
                                         <label class="form-label">Gold Total</label>
                                         <input type="text" class="form-control js-gold-total" value="0.00" readonly>
                                     </div>
@@ -370,13 +377,23 @@
                             <div class="card-header py-2"><strong>4. Labour Details</strong></div>
                             <div class="card-body">
                                 <div class="row g-2">
-                                    <div class="col-md-6">
+                                    <div class="col-md-3">
                                         <label class="form-label">Labour Rate</label>
                                         <input type="number" step="0.01" min="0" name="labour_rate_per_gm" id="receive-labour-rate" class="form-control js-labour-rate" value="0">
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-3">
                                         <label class="form-label">Total Labour</label>
                                         <input type="text" name="labour_total" class="form-control js-labour-total" value="0.00" readonly>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Wastage %</label>
+                                        <input type="number" step="0.001" min="0" max="100" name="wastage_percent" class="form-control js-wastage-percent" value="0" required>
+                                        <small class="text-muted"><span class="js-wastage-weight-text">0.000</span> gm at ornament purity</small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Pure Gold Wastage Deduction</label>
+                                        <input type="text" class="form-control js-pure-wastage-weight" value="0.000" readonly>
+                                        <small class="text-muted">Deducted from karigar pure-gold ledger</small>
                                     </div>
                                 </div>
                             </div>
@@ -515,12 +532,14 @@
 
         function initStoneInventorySelects() {
             if (!receiveModal || !window.jQuery || !window.jQuery.fn || !window.jQuery.fn.select2) return;
-            window.jQuery(receiveModal).find('.js-stone-inventory-select, .js-diamond-balance-select').each(function () {
+            window.jQuery(receiveModal).find('.js-stone-inventory-select, .js-diamond-balance-select, .js-purity-select').each(function () {
                 if (window.jQuery(this).hasClass('select2-hidden-accessible')) return;
                 window.jQuery(this).select2({
                     width: '100%',
                     allowClear: true,
-                    placeholder: window.jQuery(this).hasClass('js-diamond-balance-select') ? 'Search available diamond' : 'Search inventory item',
+                    placeholder: window.jQuery(this).hasClass('js-diamond-balance-select')
+                        ? 'Search available diamond'
+                        : (window.jQuery(this).hasClass('js-purity-select') ? 'Search ornament purity' : 'Search inventory item'),
                     dropdownParent: window.jQuery(receiveModal)
                 });
             });
@@ -604,25 +623,34 @@
             });
 
             const gross = num((receiveModal.querySelector('.js-gross-weight') || {}).value);
-            const purityPercent = num((receiveModal.querySelector('.js-purity-percent') || {}).value);
+            const puritySelect = receiveModal.querySelector('.js-purity-select');
+            const selectedPurity = puritySelect && puritySelect.selectedOptions ? puritySelect.selectedOptions[0] : null;
+            const purityPercent = num(selectedPurity ? selectedPurity.getAttribute('data-percent') : 0);
             const diaGm = diaCts * 0.2;
             const stoneGm = stoneCts * 0.2;
             const net = gross - (diaGm + stoneGm + otherGm);
             const pure = net * (purityPercent / 100);
             const labourRate = num((receiveModal.querySelector('.js-labour-rate') || {}).value);
+            const wastagePercent = num((receiveModal.querySelector('.js-wastage-percent') || {}).value);
             const goldRate = num((receiveModal.querySelector('.js-gold-rate') || {}).value);
             const labourTotal = Math.max(net, 0) * labourRate;
             const goldTotal = Math.max(net, 0) * goldRate;
+            const wastageWeight = Math.max(net, 0) * wastagePercent / 100;
+            const pureWastageWeight = Math.max(pure, 0) * wastagePercent / 100;
 
             const netEl = receiveModal.querySelector('.js-net-weight');
             const pureEl = receiveModal.querySelector('.js-pure-weight');
             const labourTotalEl = receiveModal.querySelector('.js-labour-total');
             const goldTotalEl = receiveModal.querySelector('.js-gold-total');
+            const wastageWeightTextEl = receiveModal.querySelector('.js-wastage-weight-text');
+            const pureWastageWeightEl = receiveModal.querySelector('.js-pure-wastage-weight');
 
             if (netEl) netEl.value = net.toFixed(3);
             if (pureEl) pureEl.value = pure.toFixed(3);
             if (labourTotalEl) labourTotalEl.value = labourTotal.toFixed(2);
             if (goldTotalEl) goldTotalEl.value = goldTotal.toFixed(2);
+            if (wastageWeightTextEl) wastageWeightTextEl.textContent = wastageWeight.toFixed(3);
+            if (pureWastageWeightEl) pureWastageWeightEl.value = pureWastageWeight.toFixed(3);
         }
 
         function setSummaryLoading(loading) {
@@ -713,6 +741,15 @@
                 if (receiveOrderLabel) receiveOrderLabel.textContent = orderNo;
                 if (receiveModal) {
                     if (receiveForm) receiveForm.reset();
+                    const suggestedPurity = num(btn.getAttribute('data-order-purity'));
+                    const puritySelect = receiveModal.querySelector('.js-purity-select');
+                    if (puritySelect && suggestedPurity > 0) {
+                        const matchingOption = Array.from(puritySelect.options).find(function (option) {
+                            return Math.abs(num(option.getAttribute('data-percent')) - suggestedPurity) < 0.0005;
+                        });
+                        puritySelect.value = matchingOption ? matchingOption.value : '';
+                        if (window.jQuery) window.jQuery(puritySelect).trigger('change.select2');
+                    }
                     ensureSingleRow('.js-dia-body', 'dia');
                     ensureSingleRow('.js-stone-body', 'stone');
                     ensureSingleRow('.js-other-body', 'other');
@@ -816,6 +853,9 @@
 
             receiveModal.addEventListener('shown.bs.modal', initStoneInventorySelects);
             receiveModal.addEventListener('input', function () {
+                recalcReceiveModal();
+            });
+            receiveModal.addEventListener('change', function () {
                 recalcReceiveModal();
             });
         }

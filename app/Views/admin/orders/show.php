@@ -232,7 +232,7 @@ $statusClass = match ($status) {
         <div class="card-body">
             <?php if ($receiveSummary !== []): ?>
                 <div class="order-weight-grid mb-4">
-                    <?php foreach ([['Gross Weight', number_format((float) ($receiveSummary['gross_weight_gm'] ?? 0), 3) . ' gm', 'fe fe-package'], ['Net Gold', number_format((float) ($receiveSummary['net_gold_weight_gm'] ?? 0), 3) . ' gm', 'fe fe-circle'], ['Pure Gold', number_format((float) ($receiveSummary['pure_gold_weight_gm'] ?? 0), 3) . ' gm', 'fe fe-award'], ['Valuation', '₹' . number_format((float) ($receiveSummary['total_valuation'] ?? 0), 2), 'fe fe-credit-card']] as [$label, $value, $icon]): ?>
+                    <?php foreach ([['Gross Weight', number_format((float) ($receiveSummary['gross_weight_gm'] ?? 0), 3) . ' gm', 'fe fe-package'], ['Net Gold', number_format((float) ($receiveSummary['net_gold_weight_gm'] ?? 0), 3) . ' gm', 'fe fe-circle'], ['Pure Gold', number_format((float) ($receiveSummary['pure_gold_weight_gm'] ?? 0), 3) . ' gm', 'fe fe-award'], ['Purity', trim((string) ($receiveSummary['purity_code'] ?? '') . ' ' . number_format((float) ($receiveSummary['purity_percent'] ?? 0), 3) . '%'), 'fe fe-percent'], ['Wastage', number_format((float) ($receiveSummary['wastage_percent'] ?? 0), 3) . '%', 'fe fe-scissors'], ['Pure Wastage Charge', number_format((float) ($receiveSummary['pure_wastage_weight_gm'] ?? 0), 3) . ' gm', 'fe fe-minus-circle'], ['Valuation', '₹' . number_format((float) ($receiveSummary['total_valuation'] ?? 0), 2), 'fe fe-credit-card']] as [$label, $value, $icon]): ?>
                         <div class="order-weight-card"><i class="<?= esc($icon, 'attr') ?>"></i><span><small><?= esc($label) ?></small><strong><?= esc($value) ?></strong></span></div>
                     <?php endforeach; ?>
                 </div>
@@ -258,7 +258,28 @@ $statusClass = match ($status) {
 <?php if ($canReceive): ?>
 <div class="modal fade" id="receiveModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="<?= site_url('admin/orders/'.$order['id'].'/receive') ?>"><?= csrf_field() ?>
 <div class="modal-header"><h5 class="modal-title">Manual Finished Jewellery Receiving</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body js-receive-modal"><div class="alert alert-info">Enter every value manually. Nothing is fetched from issuements. Stone shortage is automatically deducted from Stone Inventory; its balance may go negative.</div>
-<div class="row g-3 mb-4"><div class="col-md-3"><label class="form-label">Receive Location *</label><select name="location_id" class="form-select" required><option value="">Select</option><?php foreach (($locations??[]) as $location): ?><option value="<?= (int)$location['id'] ?>"><?= esc((string)$location['name']) ?></option><?php endforeach; ?></select></div><div class="col-md-3"><label class="form-label">Gross Weight (gm) *</label><input type="number" step="0.001" min="0.001" name="gross_weight_gm" class="form-control js-gross-weight" required></div><div class="col-md-3"><label class="form-label">Purity % *</label><input type="number" step="0.001" min="0.001" max="100" name="purity_percent" class="form-control js-purity-percent" required></div><div class="col-md-3"><label class="form-label">Net Gold (gm)</label><input type="text" class="form-control js-net-weight" readonly></div><div class="col-md-3"><label class="form-label">Pure Gold (gm)</label><input type="text" class="form-control js-pure-weight" readonly></div><div class="col-md-3"><label class="form-label">Gold Rate / gm *</label><input type="number" step="0.01" min="0.01" name="gold_rate_per_gm" class="form-control js-gold-rate" required></div><div class="col-md-3"><label class="form-label">Gold Amount</label><input type="text" class="form-control js-gold-total" readonly></div><div class="col-md-3"><label class="form-label">Labour Rate / gm</label><input type="number" step="0.01" min="0" name="labour_rate_per_gm" class="form-control js-labour-rate"></div><div class="col-md-3"><label class="form-label">Labour Amount</label><input type="text" class="form-control js-labour-total" readonly></div><div class="col-md-9"><label class="form-label">Remarks</label><input type="text" name="notes" class="form-control"></div></div>
+<div class="card border mb-3">
+    <div class="card-header py-2"><strong>1. Weight &amp; Purity</strong></div>
+    <div class="card-body"><div class="row g-3">
+        <div class="col-md-3"><label class="form-label">Receive Location *</label><select name="location_id" class="form-select" required><option value="">Select</option><?php foreach (($locations??[]) as $location): ?><option value="<?= (int)$location['id'] ?>"><?= esc((string)$location['name']) ?></option><?php endforeach; ?></select></div>
+        <div class="col-md-3"><label class="form-label">Gross Weight (gm) *</label><input type="number" step="0.001" min="0.001" name="gross_weight_gm" class="form-control js-gross-weight" required></div>
+        <div class="col-md-3"><label class="form-label">Ornament Purity *</label><select name="gold_purity_id" class="form-select js-purity-select" required><option value="">Select from Purity Master</option><?php foreach (($goldPurities ?? []) as $purity): ?><option value="<?= (int) $purity['id'] ?>" data-percent="<?= esc((string) number_format((float) $purity['purity_percent'], 3, '.', '')) ?>" <?= (int) ($items[0]['gold_purity_id'] ?? 0) === (int) $purity['id'] ? 'selected' : '' ?>><?= esc((string) $purity['purity_code']) ?> (<?= esc(number_format((float) $purity['purity_percent'], 3)) ?>%)<?= ! empty($purity['color_name']) ? ' · ' . esc((string) $purity['color_name']) : '' ?></option><?php endforeach; ?></select></div>
+        <div class="col-md-3"><label class="form-label">Net Gold (gm)</label><input type="text" class="form-control js-net-weight" readonly></div>
+        <div class="col-md-3"><label class="form-label">Pure Gold (gm)</label><input type="text" class="form-control js-pure-weight" readonly></div>
+        <div class="col-md-3"><label class="form-label">Gold Rate / gm *</label><input type="number" step="0.01" min="0.01" name="gold_rate_per_gm" class="form-control js-gold-rate" required></div>
+        <div class="col-md-3"><label class="form-label">Gold Amount</label><input type="text" class="form-control js-gold-total" readonly></div>
+    </div></div>
+</div>
+<div class="card border mb-3">
+    <div class="card-header py-2"><strong>2. Labour Details</strong></div>
+    <div class="card-body"><div class="row g-3">
+        <div class="col-md-3"><label class="form-label">Labour Rate / gm</label><input type="number" step="0.01" min="0" name="labour_rate_per_gm" class="form-control js-labour-rate" value="0"></div>
+        <div class="col-md-3"><label class="form-label">Labour Amount</label><input type="text" class="form-control js-labour-total" value="0.00" readonly></div>
+        <div class="col-md-3"><label class="form-label">Wastage %</label><input type="number" step="0.001" min="0" max="100" name="wastage_percent" class="form-control js-wastage-percent" value="0" required><small class="text-muted"><span class="js-wastage-weight-text">0.000</span> gm at ornament purity</small></div>
+        <div class="col-md-3"><label class="form-label">Pure Gold Wastage Deduction</label><input type="text" class="form-control js-pure-wastage-weight" value="0.000" readonly><small class="text-muted">Deducted from karigar pure-gold ledger</small></div>
+        <div class="col-12"><label class="form-label">Remarks</label><input type="text" name="notes" class="form-control"></div>
+    </div></div>
+</div>
 <?php foreach ([['dia', 'Studded Diamond', ['studded_diamond_type', 'studded_diamond_pcs', 'studded_diamond_weight', 'studded_diamond_rate']], ['stone', 'Stone', ['stone_type', 'stone_pcs', 'stone_weight', 'stone_rate']], ['other', 'Other Material', ['other_desc', 'other_pcs', 'other_weight_line_gm', 'other_price']]] as $section): ?>
     <?php [$key, $title, $names] = $section; ?>
     <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
@@ -340,10 +361,10 @@ $statusClass = match ($status) {
 
     function initStoneSelects() {
         if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.select2) return;
-        window.jQuery(modal).find('.js-stone-inventory-select, .js-diamond-balance-select').each(function () {
+        window.jQuery(modal).find('.js-stone-inventory-select, .js-diamond-balance-select, .js-purity-select').each(function () {
             if (window.jQuery(this).hasClass('select2-hidden-accessible')) return;
             window.jQuery(this).select2({
-                width: '100%', allowClear: true, placeholder: window.jQuery(this).hasClass('js-diamond-balance-select') ? 'Search available diamond' : 'Search inventory item', dropdownParent: window.jQuery(modal)
+                width: '100%', allowClear: true, placeholder: window.jQuery(this).hasClass('js-diamond-balance-select') ? 'Search available diamond' : (window.jQuery(this).hasClass('js-purity-select') ? 'Search ornament purity' : 'Search inventory item'), dropdownParent: window.jQuery(modal)
             });
         });
     }
@@ -377,7 +398,9 @@ $statusClass = match ($status) {
         modal.querySelectorAll('.js-stone-weight').forEach(el => stone += n(el.value));
         modal.querySelectorAll('.js-other-weight').forEach(el => other += n(el.value));
         const gross = n((modal.querySelector('.js-gross-weight') || {}).value);
-        const purity = n((modal.querySelector('.js-purity-percent') || {}).value);
+        const puritySelect = modal.querySelector('.js-purity-select');
+        const selectedPurity = puritySelect && puritySelect.selectedOptions ? puritySelect.selectedOptions[0] : null;
+        const purity = n(selectedPurity ? selectedPurity.getAttribute('data-percent') : 0);
         const net = gross - diamond * .2 - stone * .2 - other;
         const safeNet = Math.max(net, 0);
         const set = (selector, value) => {
@@ -388,6 +411,12 @@ $statusClass = match ($status) {
         set('.js-pure-weight', (safeNet * purity / 100).toFixed(3));
         set('.js-gold-total', (safeNet * n((modal.querySelector('.js-gold-rate') || {}).value)).toFixed(2));
         set('.js-labour-total', (safeNet * n((modal.querySelector('.js-labour-rate') || {}).value)).toFixed(2));
+        const wastagePercent = n((modal.querySelector('.js-wastage-percent') || {}).value);
+        const wastageWeight = safeNet * wastagePercent / 100;
+        const pureWastageWeight = safeNet * purity / 100 * wastagePercent / 100;
+        const wastageWeightText = modal.querySelector('.js-wastage-weight-text');
+        if (wastageWeightText) wastageWeightText.textContent = wastageWeight.toFixed(3);
+        set('.js-pure-wastage-weight', pureWastageWeight.toFixed(3));
     }
 
     modal.addEventListener('shown.bs.modal', initStoneSelects);
@@ -410,6 +439,7 @@ $statusClass = match ($status) {
         recalc();
     });
     modal.addEventListener('input', recalc);
+    modal.addEventListener('change', recalc);
     recalc();
 })();
 </script>

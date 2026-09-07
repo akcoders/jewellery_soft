@@ -17,6 +17,20 @@ class KarigarMaterialAccountingService
         $this->adminPostingService = new AdminPostingService($this->postingService);
     }
 
+    /** @return array{ornament_weight_gm:float,pure_weight_gm:float} */
+    public static function calculateLabourWastage(float $netGoldGm, float $purityPercent, float $wastagePercent): array
+    {
+        $netGoldGm = max(0, $netGoldGm);
+        $purityPercent = max(0, min(100, $purityPercent));
+        $wastagePercent = max(0, min(100, $wastagePercent));
+        $ornamentWeightGm = round($netGoldGm * ($wastagePercent / 100), 3);
+
+        return [
+            'ornament_weight_gm' => $ornamentWeightGm,
+            'pure_weight_gm' => round($netGoldGm * ($wastagePercent / 100) * ($purityPercent / 100), 3),
+        ];
+    }
+
     public function postInventoryHeader(string $material, string $direction, int $headerId): int
     {
         $config = $this->movementConfig($material, $direction);
@@ -188,6 +202,57 @@ class KarigarMaterialAccountingService
             'remarks' => $remarks,
             'created_by' => $createdBy,
         ], $lines);
+
+        return (int) $result['voucher_id'];
+    }
+
+    /**
+     * Deduct the pure-gold equivalent of an order's agreed labour wastage from
+     * the karigar without creating an inventory movement.
+     */
+    public function postLabourWastageCharge(
+        int $orderId,
+        int $karigarId,
+        float $pureWastageGm,
+        float $wastagePercent,
+        string $remarks,
+        int $createdBy = 0,
+        ?string $voucherDate = null
+    ): ?int {
+        $pureWastageGm = round(max(0, $pureWastageGm), 3);
+        $wastagePercent = round(max(0, $wastagePercent), 3);
+        if ($pureWastageGm <= 0 || $wastagePercent <= 0) {
+            return null;
+        }
+        if ($karigarId <= 0) {
+            throw new RuntimeException('An assigned karigar is required for labour wastage accounting.');
+        }
+
+        $karigarAccountId = $this->karigarAccountId($karigarId);
+        $line = $this->goldLine($pureWastageGm);
+        $line['material_name'] = 'Labour Wastage Gold';
+        $line['remarks'] = sprintf('Labour Wastage Charge @ %.3f%%', $wastagePercent);
+        $this->assertAvailableBalance($karigarAccountId, $line);
+
+        $wastageAccountId = $this->postingService->ensureAccount(
+            'LABOUR_WASTAGE',
+            'LABOUR-WASTAGE-GOLD',
+            'Labour Wastage Gold',
+            'system',
+            1
+        );
+
+        $result = $this->postingService->postVoucher([
+            'voucher_type' => 'LABOUR_WASTAGE_CHARGE',
+            'voucher_date' => $voucherDate ?: date('Y-m-d'),
+            'order_id' => $orderId,
+            'party_id' => $karigarId,
+            'debit_account_id' => $wastageAccountId,
+            'credit_account_id' => $karigarAccountId,
+            'skip_inventory_movement' => true,
+            'remarks' => $remarks,
+            'created_by' => $createdBy,
+        ], [$line]);
 
         return (int) $result['voucher_id'];
     }

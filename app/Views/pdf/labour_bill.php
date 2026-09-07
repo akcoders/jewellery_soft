@@ -185,7 +185,7 @@
                 <?php endif; ?>
                 <tr>
                     <td></td><td></td>
-                    <td class="center desc">Wastage</td>
+                    <td class="center desc">Wastage<?= (float) ($wastagePercent ?? 0) > 0 ? ' (' . esc(number_format((float) $wastagePercent, 3)) . '%)' : '' ?></td>
                     <td class="center">GRM</td>
                     <td class="right"><?= esc(number_format((float) ($wastageWeight ?? 0), 3)) ?></td>
                     <td></td><td></td>
