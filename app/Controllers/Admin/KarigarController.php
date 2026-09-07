@@ -28,8 +28,24 @@ class KarigarController extends BaseController
     public function index(): string
     {
         $rows = $this->karigarModel
-            ->select('karigars.*, COUNT(karigar_documents.id) as document_count')
+            ->select('karigars.*, COUNT(DISTINCT karigar_documents.id) as document_count')
+            ->select(
+                "COUNT(DISTINCT CASE
+                    WHEN assigned_orders.status IN ('Completed', 'Dispatched') THEN assigned_orders.id
+                    ELSE NULL
+                END) AS completed_work_count,
+                COUNT(DISTINCT CASE
+                    WHEN assigned_orders.status NOT IN ('Completed', 'Dispatched', 'Cancelled') THEN assigned_orders.id
+                    ELSE NULL
+                END) AS pending_work_count",
+                false
+            )
             ->join('karigar_documents', 'karigar_documents.karigar_id = karigars.id', 'left')
+            ->join(
+                'orders assigned_orders',
+                'assigned_orders.assigned_karigar_id = karigars.id AND assigned_orders.deleted_at IS NULL',
+                'left'
+            )
             ->groupBy('karigars.id')
             ->orderBy('karigars.id', 'DESC')
             ->findAll();

@@ -53,6 +53,7 @@ class AuthController extends BaseController
             'admin_name'      => $admin['name'],
             'admin_email'     => $admin['email'],
         ]);
+        session()->setFlashdata('show_admin_alert_center', true);
 
         $response = redirect()->to(site_url('admin/dashboard'));
         $remember = new AdminRememberMeService();

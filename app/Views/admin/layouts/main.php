@@ -126,6 +126,19 @@ $canProductionMenu = $canKarigars || $canIssuements || $canDesigns;
 $canInventoryMenu = $canGoldInventory || $canDiamondInventory || $canStoneInventory || $canInventorySettings;
 $canShowroomMenu = $canShowroomMasters || $canShowroomStock || $canShowroomSales;
 $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canCompanySettings || $canAccessControl;
+$adminAlertCenter = [
+    'total_count' => 0,
+    'payments' => ['count' => 0, 'amount' => 0.0, 'items' => []],
+    'orders' => ['count' => 0, 'overdue_count' => 0, 'items' => []],
+    'followups' => ['count' => 0, 'overdue_count' => 0, 'items' => []],
+    'generated_at' => date('d M Y, h:i A'),
+];
+try {
+    $adminAlertCenter = (new \App\Services\AdminAlertCenterService())->build($canOrders, $canAccounts);
+} catch (\Throwable $exception) {
+    log_message('error', 'Unable to render admin alert centre: {message}', ['message' => $exception->getMessage()]);
+}
+$showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_alert_center');
 ?>
 <!DOCTYPE html>
 <html lang="en" data-layout="vertical" data-topbar="light" data-sidebar="light" data-sidebar-size="lg" data-sidebar-image="none">
@@ -1491,9 +1504,103 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             margin-bottom: .65rem;
         }
         .erp-ledger-tools .btn { padding: .38rem .7rem; }
+        .admin-alert-trigger {
+            align-items: center;
+            background: #fff;
+            border: 1px solid var(--erp-border);
+            border-radius: 50%;
+            color: var(--erp-ink);
+            display: inline-flex;
+            height: 42px;
+            justify-content: center;
+            margin-right: .65rem;
+            position: relative;
+            transition: .2s ease;
+            width: 42px;
+        }
+        .admin-alert-trigger:hover { background: var(--erp-red-soft); border-color: #f1bcc2; color: var(--erp-red); }
+        .admin-alert-trigger i { font-size: 1.15rem; }
+        .admin-alert-trigger__count {
+            align-items: center;
+            background: var(--erp-red);
+            border: 2px solid #fff;
+            border-radius: 999px;
+            color: #fff;
+            display: flex;
+            font-size: .62rem;
+            font-weight: 800;
+            height: 20px;
+            justify-content: center;
+            min-width: 20px;
+            padding: 0 4px;
+            position: absolute;
+            right: -5px;
+            top: -5px;
+        }
+        .admin-alert-modal .modal-content { border: 0; border-radius: 22px; box-shadow: 0 26px 80px rgba(15, 23, 42, .2); overflow: hidden; }
+        .admin-alert-modal__header { align-items: flex-start; background: linear-gradient(135deg, #fff 0%, #fff9eb 100%); border-bottom: 1px solid var(--erp-border); padding: 1.5rem 1.65rem; }
+        .admin-alert-modal__header h4 { color: var(--erp-ink); font-size: 1.5rem; font-weight: 800; margin: .18rem 0 .2rem; }
+        .admin-alert-modal__header p { color: var(--erp-muted); font-size: .9rem; }
+        .admin-alert-modal__eyebrow { color: var(--erp-gold-dark); font-size: .68rem; font-weight: 800; letter-spacing: .13em; }
+        .admin-alert-modal .modal-body { background: #f7f8fa; padding: 1.25rem 1.5rem; }
+        .admin-alert-summary { display: grid; gap: .8rem; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 1rem; }
+        .admin-alert-stat { align-items: center; background: #fff; border: 1px solid var(--erp-border); border-radius: 16px; display: flex; gap: .85rem; padding: .9rem 1rem; text-align: left; transition: .2s ease; }
+        .admin-alert-stat:hover { border-color: #d1d7e0; box-shadow: 0 8px 22px rgba(15, 23, 42, .07); transform: translateY(-1px); }
+        .admin-alert-stat__icon { align-items: center; border-radius: 13px; display: flex; flex: 0 0 44px; height: 44px; justify-content: center; }
+        .admin-alert-stat--payment .admin-alert-stat__icon { background: #fff3cd; color: #9b7000; }
+        .admin-alert-stat--order .admin-alert-stat__icon { background: #e9f1ff; color: #3268b2; }
+        .admin-alert-stat--followup .admin-alert-stat__icon { background: var(--erp-red-soft); color: var(--erp-red); }
+        .admin-alert-stat small, .admin-alert-stat strong, .admin-alert-stat em { display: block; }
+        .admin-alert-stat small { color: var(--erp-muted); font-size: .72rem; font-weight: 700; }
+        .admin-alert-stat strong { color: var(--erp-ink); font-size: 1.35rem; line-height: 1.25; }
+        .admin-alert-stat em { color: var(--erp-muted); font-size: .72rem; font-style: normal; }
+        .admin-alert-section { background: #fff; border: 1px solid var(--erp-border); border-radius: 16px; margin-top: .85rem; overflow: hidden; scroll-margin-top: 1rem; }
+        .admin-alert-section__head { align-items: center; border-bottom: 1px solid var(--erp-border); display: flex; justify-content: space-between; padding: .9rem 1rem; }
+        .admin-alert-section__head > div { align-items: center; display: flex; gap: .7rem; }
+        .admin-alert-section__head h5 { color: var(--erp-ink); font-size: .95rem; font-weight: 800; margin: 0; }
+        .admin-alert-section__head p { color: var(--erp-muted); font-size: .72rem; margin: .12rem 0 0; }
+        .admin-alert-section__head > a { color: var(--erp-red); font-size: .76rem; font-weight: 700; white-space: nowrap; }
+        .admin-alert-section__icon, .admin-alert-row__marker { align-items: center; border-radius: 10px; display: flex; flex: 0 0 36px; height: 36px; justify-content: center; width: 36px; }
+        .admin-alert-section__icon.payment, .admin-alert-row__marker.payment { background: #fff3cd; color: #9b7000; }
+        .admin-alert-section__icon.order, .admin-alert-row__marker.order { background: #e9f1ff; color: #3268b2; }
+        .admin-alert-section__icon.followup, .admin-alert-row__marker.followup { background: var(--erp-red-soft); color: var(--erp-red); }
+        .admin-alert-row { align-items: center; border-bottom: 1px solid #eef0f3; color: inherit; display: grid; gap: .75rem; grid-template-columns: 40px minmax(0, 1fr) auto 18px; padding: .72rem 1rem; }
+        .admin-alert-row:last-child { border-bottom: 0; }
+        .admin-alert-row:hover { background: #fbfbfc; color: inherit; }
+        .admin-alert-row__thumb { background: #f2f4f7; border-radius: 10px; height: 40px; object-fit: cover; width: 40px; }
+        .admin-alert-row__main, .admin-alert-row__meta { min-width: 0; }
+        .admin-alert-row__main strong, .admin-alert-row__main small, .admin-alert-row__meta strong, .admin-alert-row__meta small { display: block; }
+        .admin-alert-row__main strong { color: var(--erp-ink); font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .admin-alert-row__main small, .admin-alert-row__meta small { color: var(--erp-muted); font-size: .69rem; margin-top: .15rem; }
+        .admin-alert-row__meta { text-align: right; white-space: nowrap; }
+        .admin-alert-row__meta strong { color: var(--erp-ink); font-size: .8rem; }
+        .admin-alert-row__arrow { color: #a7afbd; }
+        .admin-alert-type-badge, .admin-alert-status { background: #f1f3f5; border-radius: 999px; color: #475467; display: inline-block; font-size: .61rem; font-weight: 700; padding: .12rem .4rem; }
+        .admin-alert-section__empty { color: var(--erp-muted); margin: 0; padding: 1.25rem; text-align: center; }
+        .admin-alert-empty { padding: 3rem 1rem; text-align: center; }
+        .admin-alert-empty > span { align-items: center; background: #eaf8ef; border-radius: 50%; color: #218a4b; display: inline-flex; font-size: 1.5rem; height: 58px; justify-content: center; width: 58px; }
+        .admin-alert-empty h5 { font-weight: 800; margin: .8rem 0 .2rem; }
+        .admin-alert-empty p { color: var(--erp-muted); margin: 0; }
+        .admin-alert-modal__footer { background: #fff; border-top: 1px solid var(--erp-border); justify-content: space-between; padding: .8rem 1.5rem; }
+        .admin-alert-modal__footer small { color: var(--erp-muted); }
         @media (max-width: 767.98px) {
             .erp-ledger-tools { justify-content: flex-start; }
             .erp-ledger-table thead .erp-column-filters th { min-width: 118px; }
+            .admin-alert-trigger { height: 38px; margin-right: .35rem; width: 38px; }
+            .admin-alert-modal .modal-dialog { margin: .5rem; }
+            .admin-alert-modal .modal-content { border-radius: 16px; max-height: calc(100vh - 1rem); }
+            .admin-alert-modal__header { padding: 1.05rem; }
+            .admin-alert-modal__header h4 { font-size: 1.2rem; }
+            .admin-alert-modal .modal-body { padding: .8rem; }
+            .admin-alert-summary { grid-template-columns: 1fr; }
+            .admin-alert-stat { padding: .7rem .8rem; }
+            .admin-alert-section__head { align-items: flex-start; gap: .6rem; }
+            .admin-alert-section__head p { display: none; }
+            .admin-alert-row { gap: .55rem; grid-template-columns: 36px minmax(0, 1fr) auto; padding: .68rem .72rem; }
+            .admin-alert-row__thumb, .admin-alert-row__marker { height: 36px; width: 36px; }
+            .admin-alert-row__arrow { display: none; }
+            .admin-alert-row__meta small { max-width: 92px; overflow: hidden; text-overflow: ellipsis; }
+            .admin-alert-modal__footer { padding: .7rem 1rem; }
         }
     </style>
     <?= $this->renderSection('styles') ?>
@@ -1550,6 +1657,14 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             </a>
 
             <ul class="nav nav-tabs user-menu" data-app-tour="profile">
+                <li class="nav-item d-flex align-items-center">
+                    <button type="button" class="admin-alert-trigger" data-bs-toggle="modal" data-bs-target="#adminAlertCenterModal" aria-label="Open pending alerts" title="Pending alerts">
+                        <i class="fe fe-bell"></i>
+                        <?php if ((int) ($adminAlertCenter['total_count'] ?? 0) > 0): ?>
+                            <span class="admin-alert-trigger__count"><?= (int) $adminAlertCenter['total_count'] > 99 ? '99+' : (int) $adminAlertCenter['total_count'] ?></span>
+                        <?php endif; ?>
+                    </button>
+                </li>
                 <li class="nav-item dropdown">
                     <a href="javascript:void(0)" class="user-link nav-link" data-bs-toggle="dropdown">
                         <span class="user-img">
@@ -1803,6 +1918,13 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
             </div>
         </div>
     </div>
+
+    <?= view('admin/partials/alert_center', [
+        'adminAlertCenter' => $adminAlertCenter,
+        'showAdminAlertCenter' => $showAdminAlertCenter,
+        'canOrders' => $canOrders,
+        'canAccounts' => $canAccounts,
+    ]) ?>
 
     <script src="<?= esc($assetBase) ?>/js/jquery-3.7.1.min.js"></script>
     <script src="<?= esc($assetBase) ?>/js/bootstrap.bundle.min.js"></script>
@@ -2218,6 +2340,25 @@ $canAdminMenu = $canVendors || $canStaffHierarchy || $canPerformance || $canComp
         ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     </script>
     <script src="<?= esc($assetBase) ?>/js/admin-application-tour.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const alertModalElement = document.getElementById('adminAlertCenterModal');
+            if (!alertModalElement || typeof bootstrap === 'undefined') return;
+
+            document.querySelectorAll('[data-alert-target]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    const section = document.getElementById(button.getAttribute('data-alert-target'));
+                    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+            });
+
+            if (alertModalElement.getAttribute('data-auto-open') === '1') {
+                window.setTimeout(function () {
+                    bootstrap.Modal.getOrCreateInstance(alertModalElement).show();
+                }, 350);
+            }
+        });
+    </script>
     <?= $this->renderSection('scripts') ?>
 </body>
 </html>

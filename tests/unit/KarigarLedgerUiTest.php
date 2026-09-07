@@ -29,4 +29,19 @@ class KarigarLedgerUiTest extends CIUnitTestCase
         }
         $this->assertGreaterThanOrEqual(6, substr_count($view, 'karigar-ledger-table'));
     }
+
+    public function testKarigarRegisterShowsWorkProgressInsteadOfCommercialRates(): void
+    {
+        $controller = (string) file_get_contents(APPPATH . 'Controllers/Admin/KarigarController.php');
+        $view = (string) file_get_contents(APPPATH . 'Views/admin/karigars/index.php');
+
+        $this->assertStringContainsString('completed_work_count', $controller);
+        $this->assertStringContainsString('pending_work_count', $controller);
+        $this->assertStringContainsString("IN ('Completed', 'Dispatched')", $controller);
+        $this->assertStringContainsString("NOT IN ('Completed', 'Dispatched', 'Cancelled')", $controller);
+        $this->assertStringContainsString('Work Completed', $view);
+        $this->assertStringContainsString('Work Pending', $view);
+        $this->assertStringNotContainsString('Rate / gm', $view);
+        $this->assertStringNotContainsString('Wastage %', $view);
+    }
 }

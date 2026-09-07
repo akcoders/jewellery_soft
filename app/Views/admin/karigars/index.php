@@ -1,5 +1,24 @@
 <?= $this->extend('admin/layouts/main') ?>
 
+<?= $this->section('styles') ?>
+<style>
+    .karigar-work-count {
+        align-items: center;
+        border-radius: 10px;
+        display: inline-flex;
+        font-size: .82rem;
+        font-weight: 800;
+        gap: 6px;
+        min-width: 66px;
+        padding: 7px 10px;
+    }
+    .karigar-work-count small { font-size: .65rem; font-weight: 600; opacity: .78; }
+    .karigar-work-count.is-completed { background: #eaf8f1; color: #137647; }
+    .karigar-work-count.is-pending { background: #fff4dc; color: #926600; }
+    .karigar-work-count.is-zero { background: #f3f5f7; color: #778397; }
+</style>
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Karigar Master</h4>
@@ -18,8 +37,8 @@
                         <th>Department</th>
                         <th>Phone</th>
                         <th>City</th>
-                        <th>Rate / gm</th>
-                        <th>Wastage %</th>
+                        <th>Work Completed</th>
+                        <th>Work Pending</th>
                         <th>Docs</th>
                         <th>Status</th>
                         <th></th>
@@ -35,8 +54,18 @@
                             <td><?= esc($k['department'] ?: '-') ?></td>
                             <td><?= esc($k['phone'] ?: '-') ?></td>
                             <td><?= esc($k['city'] ?: '-') ?></td>
-                            <td><?= esc(number_format((float) $k['rate_per_gm'], 2)) ?></td>
-                            <td><?= esc(number_format((float) ($k['wastage_percentage'] ?? 0), 2)) ?>%</td>
+                            <?php $completedWork = (int) ($k['completed_work_count'] ?? 0); ?>
+                            <?php $pendingWork = (int) ($k['pending_work_count'] ?? 0); ?>
+                            <td data-order="<?= $completedWork ?>">
+                                <span class="karigar-work-count <?= $completedWork > 0 ? 'is-completed' : 'is-zero' ?>">
+                                    <i class="fe fe-check-circle"></i><?= $completedWork ?> <small>orders</small>
+                                </span>
+                            </td>
+                            <td data-order="<?= $pendingWork ?>">
+                                <span class="karigar-work-count <?= $pendingWork > 0 ? 'is-pending' : 'is-zero' ?>">
+                                    <i class="fe fe-clock"></i><?= $pendingWork ?> <small>orders</small>
+                                </span>
+                            </td>
                             <td><?= esc((string) ($k['document_count'] ?? 0)) ?></td>
                             <td>
                                 <?php if ((int) $k['is_active'] === 1): ?>
