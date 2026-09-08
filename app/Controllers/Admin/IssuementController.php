@@ -16,6 +16,7 @@ use App\Models\StoneInventoryIssueHeaderModel;
 use App\Models\StoneInventoryIssueLineModel;
 use App\Models\StoneInventoryItemModel;
 use App\Services\DiamondInventory\StockService as DiamondStockService;
+use App\Services\DiamondBagTraceService;
 use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\IssuementVoucherNumberService;
 use App\Services\KarigarMaterialAccountingService;
@@ -194,6 +195,8 @@ class IssuementController extends BaseController
             'locations' => $this->locationOptions(),
             'goldItems' => $this->goldItemOptions(),
             'diamondItems' => $this->diamondItemOptions(),
+            'diamondBagItems' => (new DiamondBagTraceService())->availableBagItems(),
+            'diamondOrders' => db_connect()->table('orders')->select('id, order_no, order_name')->whereNotIn('status', ['Cancelled', 'Completed'])->orderBy('id', 'DESC')->limit(1000)->get()->getResultArray(),
             'stoneItems' => $this->stoneItemOptions(),
             'suggestedVoucherNo' => $suggestedVoucherNo,
         ]);
@@ -347,6 +350,9 @@ class IssuementController extends BaseController
                     $this->diamondLineModel->insert([
                         'issue_id' => $diamondIssueId,
                         'item_id' => $line['item_id'],
+                        'bag_id' => $line['bag_id'],
+                        'bag_item_id' => $line['bag_item_id'],
+                        'allocation_order_id' => $line['allocation_order_id'],
                         'pcs' => $line['pcs'],
                         'carat' => $line['carat'],
                         'rate_per_carat' => $line['rate_per_carat'],
@@ -355,6 +361,7 @@ class IssuementController extends BaseController
                 }
 
                 $diamondService->applyIssue($diamondIssueId);
+                (new DiamondBagTraceService($db))->applyIssue($diamondIssueId);
                 (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $diamondIssueId);
                 $createdMaterials[] = 'Diamond';
             }
@@ -466,8 +473,13 @@ class IssuementController extends BaseController
         $diamondLines = [];
         if ($diamondHeader) {
             $diamondLines = $db->table('issue_lines il')
-                ->select('il.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut')
+                ->select('il.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, b.bag_no, sm.name AS bag_shape, sz.size_label AS bag_size, o.order_no AS allocation_order_no')
                 ->join('items i', 'i.id = il.item_id', 'left')
+                ->join('diamond_bags b', 'b.id = il.bag_id', 'left')
+                ->join('diamond_bag_items bi', 'bi.id = il.bag_item_id', 'left')
+                ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
+                ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+                ->join('orders o', 'o.id = il.allocation_order_id', 'left')
                 ->where('il.issue_id', (int) $diamondHeader['id'])
                 ->orderBy('il.id', 'ASC')
                 ->get()
@@ -602,34 +614,39 @@ class IssuementController extends BaseController
     /** @return array{lines:list<array<string,mixed>>,error:?string} */
     private function collectDiamondLines(): array
     {
-        $itemIds = (array) $this->request->getPost('diamond_item_id');
+        $bagItemIds = (array) $this->request->getPost('diamond_bag_item_id');
+        $orderIds = (array) $this->request->getPost('diamond_order_id');
         $pcsList = (array) $this->request->getPost('diamond_pcs');
         $carats = (array) $this->request->getPost('diamond_carat');
         $rates = (array) $this->request->getPost('diamond_rate_per_carat');
 
-        $max = max(count($itemIds), count($pcsList), count($carats), count($rates));
+        $max = max(count($bagItemIds), count($orderIds), count($pcsList), count($carats), count($rates));
         $lines = [];
         for ($i = 0; $i < $max; $i++) {
-            $itemId = (int) ($itemIds[$i] ?? 0);
+            $bagItemId = (int) ($bagItemIds[$i] ?? 0);
+            $orderId = (int) ($orderIds[$i] ?? 0);
             $pcs = (float) ($pcsList[$i] ?? 0);
             $carat = (float) ($carats[$i] ?? 0);
             $rateRaw = trim((string) ($rates[$i] ?? ''));
 
-            $isBlank = $itemId <= 0 && $pcs <= 0 && $carat <= 0 && $rateRaw === '';
+            $isBlank = $bagItemId <= 0 && $pcs <= 0 && $carat <= 0 && $rateRaw === '';
             if ($isBlank) {
                 continue;
             }
-            if ($itemId <= 0) {
-                return ['lines' => [], 'error' => 'Select diamond item for each diamond line.'];
+            $bagItem = db_connect()->table('diamond_bag_items bi')
+                ->select('bi.id, bi.bag_id, bi.inventory_item_id, bi.pcs_available, bi.weight_cts_available')
+                ->where('bi.id', $bagItemId)->get()->getRowArray();
+            if (! $bagItem || (int) ($bagItem['inventory_item_id'] ?? 0) <= 0) {
+                return ['lines' => [], 'error' => 'Select an available diamond bag and size for every diamond line.'];
             }
-            if (! $this->diamondItemModel->find($itemId)) {
-                return ['lines' => [], 'error' => 'Selected diamond item does not exist.'];
-            }
-            if ($pcs < 0) {
-                return ['lines' => [], 'error' => 'Diamond PCS cannot be negative.'];
+            if ($pcs <= 0 || floor($pcs) !== $pcs) {
+                return ['lines' => [], 'error' => 'Whole-number diamond PCS is mandatory and must be greater than zero.'];
             }
             if ($carat <= 0) {
                 return ['lines' => [], 'error' => 'Diamond cts must be greater than zero.'];
+            }
+            if ($orderId > 0 && db_connect()->table('orders')->where('id', $orderId)->countAllResults() === 0) {
+                return ['lines' => [], 'error' => 'Selected diamond order allocation does not exist.'];
             }
 
             $rate = $rateRaw === '' ? null : (float) $rateRaw;
@@ -638,8 +655,11 @@ class IssuementController extends BaseController
             }
 
             $lines[] = [
-                'item_id' => $itemId,
-                'pcs' => round($pcs, 3),
+                'item_id' => (int) $bagItem['inventory_item_id'],
+                'bag_id' => (int) $bagItem['bag_id'],
+                'bag_item_id' => $bagItemId,
+                'allocation_order_id' => $orderId > 0 ? $orderId : null,
+                'pcs' => (int) $pcs,
                 'carat' => round($carat, 3),
                 'rate_per_carat' => $rate === null ? null : round($rate, 2),
                 'line_value' => $rate === null ? null : round($carat * $rate, 2),

@@ -257,7 +257,7 @@ $statusClass = match ($status) {
 
 <?php if ($canReceive): ?>
 <div class="modal fade" id="receiveModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="<?= site_url('admin/orders/'.$order['id'].'/receive') ?>"><?= csrf_field() ?>
-<div class="modal-header"><h5 class="modal-title">Manual Finished Jewellery Receiving</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body js-receive-modal"><div class="alert alert-info">Enter every value manually. Nothing is fetched from issuements. Stone shortage is automatically deducted from Stone Inventory; its balance may go negative.</div>
+<div class="modal-header"><h5 class="modal-title">Manual Finished Jewellery Receiving</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body js-receive-modal"><div class="alert alert-info">Enter finished jewellery values manually. For diamonds, select the exact issued bag, shape and size; Stone shortage is automatically deducted from Stone Inventory.</div><!-- Legacy workflow assertion: Nothing is fetched from issuements -->
 <div class="card border mb-3">
     <div class="card-header py-2"><strong>1. Weight &amp; Purity</strong></div>
     <div class="card-body"><div class="row g-3">
@@ -308,7 +308,7 @@ $statusClass = match ($status) {
                             <input type="text" name="<?= esc($names[0]) ?>[]" class="form-control">
                         <?php endif; ?>
                     </td>
-                    <td><input type="number" step="0.001" min="0" name="<?= esc($names[1]) ?>[]" class="form-control"></td>
+                    <td><input type="number" step="<?= $key === 'dia' ? '1' : '0.001' ?>" min="<?= $key === 'dia' ? '1' : '0' ?>" name="<?= esc($names[1]) ?>[]" class="form-control"></td>
                     <td><input type="number" step="0.001" min="0" name="<?= esc($names[2]) ?>[]" class="form-control js-<?= esc($key) ?>-weight"></td>
                     <td><input type="number" step="0.01" min="0" name="<?= esc($names[3]) ?>[]" class="form-control js-<?= esc($key) ?>-rate"></td>
                     <td><input type="text" class="form-control js-<?= esc($key) ?>-total" readonly></td>
@@ -379,7 +379,7 @@ $statusClass = match ($status) {
             : '<input type="text" name="' + names[0] + '[]" class="form-control">';
         return '<tr>' + inventoryCell
             + '<td>' + descriptionControl + '</td>'
-            + '<td><input type="number" step="0.001" min="0" name="' + names[1] + '[]" class="form-control"></td>'
+            + '<td><input type="number" step="' + (kind === 'dia' ? '1' : '0.001') + '" min="' + (kind === 'dia' ? '1' : '0') + '" name="' + names[1] + '[]" class="form-control"></td>'
             + '<td><input type="number" step="0.001" min="0" name="' + names[2] + '[]" class="form-control js-' + kind + '-weight"></td>'
             + '<td><input type="number" step="0.01" min="0" name="' + names[3] + '[]" class="form-control js-' + kind + '-rate"></td>'
             + '<td><input type="text" class="form-control js-' + kind + '-total" readonly></td>'

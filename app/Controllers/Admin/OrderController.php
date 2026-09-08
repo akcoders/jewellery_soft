@@ -28,6 +28,7 @@ use App\Models\OrderStatusHistoryModel;
 use App\Models\StoneLedgerEntryModel;
 use App\Models\DeliveryChallanModel;
 use App\Services\AdminPostingService;
+use App\Services\DiamondBagTraceService;
 use App\Services\FinishedJewelleryService;
 use App\Services\GoldInventory\StockService as GoldInventoryStockService;
 use App\Services\KarigarMaterialAccountingService;
@@ -1656,10 +1657,12 @@ class OrderController extends BaseController
             (array) $this->request->getPost('studded_diamond_weight'),
             (array) $this->request->getPost('studded_diamond_rate')
         );
-        $diamondError = $this->validateReceivedDiamondSelection($karigarId, $diamond['rows']);
+        $diamondRows = $diamond['rows'];
+        $diamondError = $this->validateReceivedDiamondSelection($karigarId, $orderId, $diamondRows);
         if ($diamondError !== null) {
             return redirect()->back()->withInput()->with('error', $diamondError);
         }
+        $diamond['rows'] = $diamondRows;
         $stone = $this->collectReceiveComponentRows(
             (array) $this->request->getPost('stone_type'),
             (array) $this->request->getPost('stone_pcs'),
@@ -2186,23 +2189,30 @@ class OrderController extends BaseController
             return [];
         }
 
-        $items = [];
+        $items = (new DiamondBagTraceService($db))->receiptOptions($karigarId);
         if ($db->tableExists('issue_headers') && $db->tableExists('issue_lines') && $db->tableExists('items')) {
-            $issued = $db->table('issue_lines il')
+            $issuedBuilder = $db->table('issue_lines il')
                 ->select('il.item_id, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, SUM(il.pcs) AS pcs, SUM(il.carat) AS cts', false)
                 ->join('issue_headers ih', 'ih.id = il.issue_id', 'inner')
                 ->join('items i', 'i.id = il.item_id', 'left')
-                ->where('ih.karigar_id', $karigarId)
+                ->where('ih.karigar_id', $karigarId);
+            if ($db->fieldExists('bag_item_id', 'issue_lines')) {
+                $issuedBuilder->where('il.bag_item_id IS NULL', null, false);
+            }
+            $issued = $issuedBuilder
                 ->groupBy('il.item_id, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity')
                 ->get()->getResultArray();
 
             $returned = [];
             if ($db->tableExists('return_headers') && $db->tableExists('return_lines')) {
-                foreach ($db->table('return_lines rl')
+                $returnedBuilder = $db->table('return_lines rl')
                     ->select('rl.item_id, SUM(rl.pcs) AS pcs, SUM(rl.carat) AS cts', false)
                     ->join('return_headers rh', 'rh.id = rl.return_id', 'inner')
-                    ->where('rh.karigar_id', $karigarId)
-                    ->groupBy('rl.item_id')->get()->getResultArray() as $row) {
+                    ->where('rh.karigar_id', $karigarId);
+                if ($db->fieldExists('issue_line_id', 'return_lines')) {
+                    $returnedBuilder->where('rl.issue_line_id IS NULL', null, false);
+                }
+                foreach ($returnedBuilder->groupBy('rl.item_id')->get()->getResultArray() as $row) {
                     $returned[(int) $row['item_id']] = $row;
                 }
             }
@@ -2259,7 +2269,7 @@ class OrderController extends BaseController
     }
 
     /** @param list<array<string,mixed>> $rows */
-    private function validateReceivedDiamondSelection(int $karigarId, array $rows): ?string
+    private function validateReceivedDiamondSelection(int $karigarId, int $orderId, array &$rows): ?string
     {
         if ($rows === []) {
             return null;
@@ -2267,16 +2277,43 @@ class OrderController extends BaseController
         $options = $this->karigarDiamondOptions($karigarId);
         $allowed = [];
         foreach ($options as $option) {
-            $allowed[(string) $option['value']] = true;
+            $allowed[(string) $option['value']] = $option;
         }
         if ($allowed === []) {
             return 'This karigar has no diamond balance available for receiving.';
         }
-        foreach ($rows as $row) {
-            if (! isset($allowed[(string) ($row['name'] ?? '')])) {
+        $requested = [];
+        foreach ($rows as &$row) {
+            $value = (string) ($row['name'] ?? '');
+            if (! isset($allowed[$value])) {
                 return 'Select the diamond type from this karigar\'s available diamond balance.';
             }
+            $option = $allowed[$value];
+            $pcs = (float) ($row['pcs'] ?? 0);
+            $cts = (float) ($row['weight_cts'] ?? 0);
+            $requested[$value]['pcs'] = (float) ($requested[$value]['pcs'] ?? 0) + $pcs;
+            $requested[$value]['cts'] = (float) ($requested[$value]['cts'] ?? 0) + $cts;
+            if ($requested[$value]['pcs'] > ((float) ($option['available_pcs'] ?? 0) + 0.0005)
+                || $requested[$value]['cts'] > ((float) ($option['available_cts'] ?? 0) + 0.0005)) {
+                return 'Studded PCS/CTS exceeds the available balance of ' . (string) ($option['label'] ?? 'the selected diamond line') . '.';
+            }
+
+            $issueLineId = (int) ($option['issue_line_id'] ?? 0);
+            if ($issueLineId > 0) {
+                if ($pcs <= 0 || floor($pcs) !== $pcs || $cts <= 0) {
+                    return 'Whole-number PCS and positive CTS are mandatory for every bag-wise studded diamond line.';
+                }
+                $allocatedOrderId = (int) ($option['allocation_order_id'] ?? 0);
+                if ($allocatedOrderId > 0 && $allocatedOrderId !== $orderId) {
+                    return 'The selected diamond bag line is allocated to another order.';
+                }
+                $row['diamond_issue_line_id'] = $issueLineId;
+                $row['diamond_bag_id'] = (int) ($option['bag_id'] ?? 0) ?: null;
+                $row['diamond_bag_item_id'] = (int) ($option['bag_item_id'] ?? 0) ?: null;
+                $row['name'] = (string) ($option['label'] ?? $value);
+            }
         }
+        unset($row);
         return null;
     }
 
@@ -2655,6 +2692,11 @@ class OrderController extends BaseController
             return;
         }
 
+        $existingDetails = $this->receiveDetailModel->select('id')->where('movement_id', $movementId)->findAll();
+        if ($existingDetails !== [] && $db->tableExists('diamond_bag_movements')) {
+            $existingDetailIds = array_map(static fn(array $row): int => (int) $row['id'], $existingDetails);
+            $db->table('diamond_bag_movements')->whereIn('receive_detail_id', $existingDetailIds)->delete();
+        }
         $this->receiveDetailModel->where('movement_id', $movementId)->delete();
         $adminId = (int) session('admin_id');
         foreach (['diamond', 'stone', 'other'] as $componentType) {
@@ -2669,7 +2711,7 @@ class OrderController extends BaseController
                     continue;
                 }
 
-                $this->receiveDetailModel->insert([
+                $detailId = (int) $this->receiveDetailModel->insert([
                     'movement_id' => $movementId,
                     'order_id' => $orderId,
                     'component_type' => $componentType,
@@ -2677,13 +2719,25 @@ class OrderController extends BaseController
                     'stone_inventory_item_id' => $componentType === 'stone' && (int) ($row['item_id'] ?? 0) > 0
                         ? (int) $row['item_id']
                         : null,
+                    'diamond_issue_line_id' => $componentType === 'diamond' && (int) ($row['diamond_issue_line_id'] ?? 0) > 0
+                        ? (int) $row['diamond_issue_line_id']
+                        : null,
+                    'diamond_bag_id' => $componentType === 'diamond' && (int) ($row['diamond_bag_id'] ?? 0) > 0
+                        ? (int) $row['diamond_bag_id']
+                        : null,
+                    'diamond_bag_item_id' => $componentType === 'diamond' && (int) ($row['diamond_bag_item_id'] ?? 0) > 0
+                        ? (int) $row['diamond_bag_item_id']
+                        : null,
                     'pcs' => round($pcs, 3),
                     'weight_cts' => round($weightCts, 3),
                     'weight_gm' => round($weightGm, 3),
                     'rate' => round($rate, 2),
                     'line_total' => round($lineTotal, 2),
                     'created_by' => $adminId > 0 ? $adminId : null,
-                ]);
+                ], true);
+                if ($componentType === 'diamond' && $detailId > 0) {
+                    (new DiamondBagTraceService($db))->recordStudding($detailId);
+                }
             }
         }
     }

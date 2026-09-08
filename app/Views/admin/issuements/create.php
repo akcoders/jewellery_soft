@@ -91,7 +91,7 @@
 
     <div class="card erp-form-shell mb-3">
         <div class="card-header d-flex align-items-center justify-content-between">
-            <h6 class="mb-0"><i class="fas fa-gem me-1"></i>Diamond Lines</h6>
+            <div><h6 class="mb-0"><i class="fas fa-gem me-1"></i>Diamond Bag Allocations</h6><small class="text-muted">One bag may be split into multiple order rows. PCS and CTS are mandatory.</small></div>
             <button type="button" class="btn btn-sm btn-primary" id="add-diamond-line"><i class="fe fe-plus"></i> Add Diamond</button>
         </div>
         <div class="card-body">
@@ -99,9 +99,10 @@
                 <table class="table table-bordered align-middle mb-0">
                     <thead>
                         <tr>
-                            <th style="min-width:280px;">Diamond Item</th>
-                            <th style="min-width:120px;">PCS</th>
-                            <th style="min-width:120px;">CTS</th>
+                            <th style="min-width:360px;">Bag / Shape / Size</th>
+                            <th style="min-width:260px;">Order Allocation (optional)</th>
+                            <th style="min-width:120px;">PCS *</th>
+                            <th style="min-width:120px;">CTS *</th>
                             <th style="min-width:140px;">Rate / cts</th>
                             <th style="min-width:150px;">Line Value</th>
                             <th style="width:60px;"></th>
@@ -172,28 +173,26 @@
 <template id="diamond-line-template">
     <tr>
         <td>
-            <select name="diamond_item_id[]" class="form-select diamond-item">
-                <option value="">Select diamond item</option>
-                <?php foreach (($diamondItems ?? []) as $item): ?>
+            <select name="diamond_bag_item_id[]" class="form-select diamond-bag-item" required>
+                <option value="">Select available bag size</option>
+                <?php foreach (($diamondBagItems ?? []) as $item): ?>
                     <?php
-                    $label = (string) ($item['diamond_type'] ?? '-');
-                    $shape = (string) ($item['shape'] ?? '');
-                    $chalni = ((string) ($item['chalni_from'] ?? '') !== '' || (string) ($item['chalni_to'] ?? '') !== '')
-                        ? ('CH ' . (string) ($item['chalni_from'] ?? '') . '-' . (string) ($item['chalni_to'] ?? ''))
-                        : 'NA';
-                    $grade = trim(($shape !== '' ? ($shape . ' / ') : '') . $chalni . ' / ' . (string) ($item['color'] ?? '-') . ' / ' . (string) ($item['clarity'] ?? '-'));
+                    $shape = (string) (($item['shape_name'] ?? '') ?: ($item['item_shape'] ?? '-'));
+                    $size = (string) (($item['size_label'] ?? '') ?: ($item['size_code'] ?? '-'));
+                    $label = (string) $item['bag_no'] . ' / ' . (string) $item['diamond_type'] . ' / ' . $shape . ' / ' . $size;
                     ?>
                     <option
                         value="<?= (int) $item['id'] ?>"
                         data-default-rate="<?= esc(number_format((float) ($item['avg_cost_per_carat'] ?? 0), 2, '.', '')) ?>"
                     >
-                        <?= esc($label . ' (' . $grade . ')') ?>
+                        <?= esc($label) ?> · <?= number_format((float) $item['pcs_available'], 0) ?> pcs / <?= number_format((float) $item['weight_cts_available'], 3) ?> cts
                     </option>
                 <?php endforeach; ?>
             </select>
         </td>
-        <td><input type="number" step="0.001" min="0" name="diamond_pcs[]" class="form-control diamond-pcs"></td>
-        <td><input type="number" step="0.001" min="0" name="diamond_carat[]" class="form-control diamond-carat"></td>
+        <td><select name="diamond_order_id[]" class="form-select"><option value="">Unallocated / general jobwork</option><?php foreach (($diamondOrders ?? []) as $order): ?><option value="<?= (int) $order['id'] ?>"><?= esc((string) $order['order_no'] . (((string) ($order['order_name'] ?? '')) !== '' ? (' · ' . (string) $order['order_name']) : '')) ?></option><?php endforeach; ?></select></td>
+        <td><input type="number" step="1" min="1" name="diamond_pcs[]" class="form-control diamond-pcs" required></td>
+        <td><input type="number" step="0.001" min="0.001" name="diamond_carat[]" class="form-control diamond-carat" required></td>
         <td><input type="number" step="0.01" min="0" name="diamond_rate_per_carat[]" class="form-control diamond-rate"></td>
         <td><input type="text" class="form-control diamond-value" readonly></td>
         <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-line"><i class="fe fe-trash-2"></i></button></td>
@@ -289,7 +288,7 @@
     document.getElementById('add-diamond-line')?.addEventListener('click', function () {
         addRow('diamond-lines-body', 'diamond-line-template', function (row) {
             bindCommonRow(row, '.diamond-carat', '.diamond-rate', '.diamond-value');
-            const item = row.querySelector('.diamond-item');
+            const item = row.querySelector('.diamond-bag-item');
             const rate = row.querySelector('.diamond-rate');
             if (item && rate) {
                 item.addEventListener('change', function () {

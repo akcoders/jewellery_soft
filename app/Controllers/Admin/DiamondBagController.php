@@ -5,23 +5,16 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\DiamondBagItemModel;
 use App\Models\DiamondBagModel;
-use App\Models\InventoryItemModel;
 use App\Models\InventoryLocationModel;
-use App\Models\OrderAttachmentModel;
-use App\Models\OrderModel;
 use App\Services\AdminPostingService;
-use App\Services\PostingService;
-use Exception;
+use RuntimeException;
 use Throwable;
 
 class DiamondBagController extends BaseController
 {
     private DiamondBagModel $bagModel;
     private DiamondBagItemModel $bagItemModel;
-    private OrderModel $orderModel;
-    private InventoryItemModel $inventoryModel;
     private InventoryLocationModel $locationModel;
-    private OrderAttachmentModel $attachmentModel;
     private AdminPostingService $adminPostingService;
 
     public function __construct()
@@ -29,202 +22,84 @@ class DiamondBagController extends BaseController
         helper(['form', 'url']);
         $this->bagModel = new DiamondBagModel();
         $this->bagItemModel = new DiamondBagItemModel();
-        $this->orderModel = new OrderModel();
-        $this->inventoryModel = new InventoryItemModel();
         $this->locationModel = new InventoryLocationModel();
-        $this->attachmentModel = new OrderAttachmentModel();
         $this->adminPostingService = new AdminPostingService();
     }
 
     public function index(): string
     {
-        $bags = $this->bagModel
-            ->select('diamond_bags.*, orders.order_no')
-            ->join('orders', 'orders.id = diamond_bags.order_id', 'left')
-            ->orderBy('diamond_bags.id', 'DESC')
-            ->findAll();
+        $bags = db_connect()->table('diamond_bags b')
+            ->select('b.*, COUNT(DISTINCT bi.id) AS item_count, COUNT(DISTINCT il.allocation_order_id) AS order_count, COUNT(DISTINCT il.id) AS issue_line_count', false)
+            ->join('diamond_bag_items bi', 'bi.bag_id = b.id', 'left')
+            ->join('issue_lines il', 'il.bag_id = b.id', 'left')
+            ->groupBy('b.id')->orderBy('b.id', 'DESC')->get()->getResultArray();
 
-        $bagIds = array_map(static fn(array $r): int => (int) ($r['id'] ?? 0), $bags);
-        $issuedIds = $this->issuedBagIds($bagIds);
-        foreach ($bags as &$bag) {
-            $bag['has_issue'] = isset($issuedIds[(int) ($bag['id'] ?? 0)]);
-        }
-        unset($bag);
-
-        return view('admin/diamond_bags/index', [
-            'title' => 'Diamond Bagging',
-            'bags'  => $bags,
-        ]);
+        return view('admin/diamond_bags/index', ['title' => 'Diamond Bags', 'bags' => $bags]);
     }
 
     public function create(): string
     {
-        return view('admin/diamond_bags/create', [
-            'title'  => 'Create Diamond Bag',
-            'orders' => $this->orderModel->orderBy('id', 'DESC')->findAll(),
-            'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
-            'diamondTypeOptions' => $this->distinctInventoryValues('material_name'),
-            'sizeOptions' => $this->distinctInventoryValues('diamond_sieve'),
-            'itemTypeOptions' => $this->distinctInventoryValues('diamond_shape'),
-            'colorOptions' => $this->distinctInventoryValues('diamond_color'),
-            'qualityOptions' => $this->distinctInventoryValues('diamond_clarity'),
-        ]);
+        return view('admin/diamond_bags/create', $this->formData(null));
     }
 
     public function store()
     {
-        $adminId = $this->currentAuditUserId();
-        if ($adminId <= 0) {
-            return redirect()->back()->withInput()->with('error', 'Audit user is required. Please login again.');
-        }
-
-        $rules = [
-            'order_id' => 'required|integer',
-            'location_id' => 'required|integer',
-            'audit_image' => 'uploaded[audit_image]|is_image[audit_image]|max_size[audit_image,4096]',
-        ];
-
-        if (! $this->validate($rules)) {
+        if (! $this->validate([
+            'prepared_date' => 'required|valid_date',
+            'location_id' => 'required|integer|greater_than[0]',
+            'audit_image' => 'permit_empty|is_image[audit_image]|max_size[audit_image,4096]',
+        ])) {
             return redirect()->back()->withInput()->with('error', $this->firstValidationError());
         }
-
-        $orderId = (int) $this->request->getPost('order_id');
         $locationId = (int) $this->request->getPost('location_id');
-        $order = $this->orderModel->find($orderId);
-        if (! $order) {
-            return redirect()->back()->withInput()->with('error', 'Order not found.');
-        }
         if (! $this->locationModel->where('is_active', 1)->find($locationId)) {
-            return redirect()->back()->withInput()->with('error', 'Location not found.');
+            return redirect()->back()->withInput()->with('error', 'Select a valid inventory location.');
+        }
+        $parsed = $this->collectBagItemsFromRequest();
+        if ($parsed['error'] !== null) {
+            return redirect()->back()->withInput()->with('error', $parsed['error']);
         }
 
-        $items = $this->collectBagItemsFromRequest();
-        if ($items === []) {
-            return redirect()->back()->withInput()->with('error', 'At least one diamond row is required.');
-        }
-
-        $db = \Config\Database::connect();
+        $db = db_connect();
         try {
             $db->transException(true)->transStart();
-
-            $bagNo = 'BAG' . date('ymdHis') . random_int(10, 99);
-            $notes = trim((string) $this->request->getPost('notes'));
-            $warehouseInfo = $this->adminPostingService->resolveWarehouseBinByLocation($locationId);
-
-            $totalPcs = 0.0;
-            $totalCts = 0.0;
-            $first = $items[0];
-
-            $bagId = $this->bagModel->insert([
-                'bag_no'     => $bagNo,
-                'order_id'   => $orderId,
-                'warehouse_id' => (int) $warehouseInfo['warehouse_id'],
-                'bin_id' => (int) $warehouseInfo['bin_id'],
-                'shape' => $first['diamond_type'],
-                'chalni_size' => $first['size'],
-                'color' => $first['color'],
-                'clarity' => $first['quality'],
+            $this->assertPackable($parsed['rows']);
+            $image = $this->storeAuditImage();
+            $warehouse = $this->adminPostingService->resolveWarehouseBinByLocation($locationId);
+            $bagId = (int) $this->bagModel->insert([
+                'bag_no' => $this->nextBagNumber(),
+                'prepared_date' => (string) $this->request->getPost('prepared_date'),
+                'order_id' => null,
+                'warehouse_id' => (int) $warehouse['warehouse_id'],
+                'bin_id' => (int) $warehouse['bin_id'],
                 'pcs_balance' => 0,
                 'cts_balance' => 0,
-                'notes'      => $notes,
-                'created_by' => $adminId,
+                'notes' => trim((string) $this->request->getPost('notes')) ?: null,
+                'audit_image_name' => $image['name'],
+                'audit_image_path' => $image['path'],
+                'created_by' => (int) session('admin_id') ?: null,
             ], true);
-
-            foreach ($items as $row) {
-                $this->bagItemModel->insert([
-                    'bag_id'                => (int) $bagId,
-                    'diamond_type'          => $row['diamond_type'],
-                    'size'                  => $row['size'],
-                    'color'                 => $row['color'],
-                    'quality'               => $row['quality'],
-                    'pcs_total'             => $row['pcs'],
-                    'weight_cts_total'      => $row['weight_cts'],
-                    'pcs_available'         => $row['pcs'],
-                    'weight_cts_available'  => $row['weight_cts'],
-                ]);
-                $totalPcs += (float) $row['pcs'];
-                $totalCts += (float) $row['weight_cts'];
-            }
-
-            $this->bagModel->update((int) $bagId, [
-                'pcs_balance' => round($totalPcs, 3),
-                'cts_balance' => round($totalCts, 3),
-            ]);
-
-            $posting = new PostingService($db);
-            $warehouseAccId = $posting->ensureAccount(
-                'WAREHOUSE',
-                'WH-' . $warehouseInfo['warehouse_id'],
-                (string) $warehouseInfo['warehouse_name'] . ' Warehouse',
-                'warehouses',
-                (int) $warehouseInfo['warehouse_id']
-            );
-            $sortingAccId = $posting->ensureAccount('PROCESS', 'DIAMOND_SORTING', 'Diamond Sorting Pool');
-
-            $posting->postVoucher([
-                'voucher_type' => 'DIAMOND_BAG_CREATE',
-                'voucher_date' => date('Y-m-d'),
-                'to_warehouse_id' => (int) $warehouseInfo['warehouse_id'],
-                'to_bin_id' => (int) $warehouseInfo['bin_id'],
-                'order_id' => $orderId,
-                'debit_account_id' => $warehouseAccId,
-                'credit_account_id' => $sortingAccId,
-                'remarks' => 'Bag ' . $bagNo . ' created for order ' . $order['order_no'],
-                'created_by' => $adminId,
-            ], [[
-                'item_type' => 'DIAMOND_BAG',
-                'item_key' => 'BAG-' . (int) $bagId,
-                'material_name' => 'Diamond Bag ' . $bagNo,
-                'bag_id' => (int) $bagId,
-                'shape' => $first['diamond_type'],
-                'chalni_size' => $first['size'],
-                'color' => $first['color'],
-                'clarity' => $first['quality'],
-                'qty_pcs' => round($totalPcs, 3),
-                'qty_cts' => round($totalCts, 3),
-                'qty_weight' => 0,
-                'remarks' => $notes,
-            ]]);
-
-            $this->storeAuditImageAttachment($orderId, 'audit_image', 'diamond_bag_create_audit', $adminId);
-
+            $this->replaceBagItems($bagId, $parsed['rows']);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()->to(site_url('admin/diamond-bags/' . $bagId))->with('success', 'Diamond bag created. Status: Not Issued.');
+        return redirect()->to(site_url('admin/diamond-inventory/bags/' . $bagId))
+            ->with('success', 'Diamond bag prepared. It can now be split across multiple order allocations during issuance.');
     }
 
     public function edit(int $id): string
     {
-        $bag = $this->bagModel
-            ->select('diamond_bags.*, orders.order_no')
-            ->join('orders', 'orders.id = diamond_bags.order_id', 'left')
-            ->find($id);
-
+        $bag = $this->bagModel->find($id);
         if (! $bag) {
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Bag not found.');
         }
         if ($this->bagHasIssue($id)) {
-            return redirect()->to(site_url('admin/diamond-bags/' . $id))
-                ->with('error', 'Bag cannot be edited after issue.');
+            return redirect()->to(site_url('admin/diamond-inventory/bags/' . $id))->with('error', 'A bag cannot be edited after any quantity has been issued.');
         }
-
-        return view('admin/diamond_bags/edit', [
-            'title'  => 'Edit Diamond Bag',
-            'bag'    => $bag,
-            'items'  => $this->bagItemModel->where('bag_id', $id)->orderBy('id', 'ASC')->findAll(),
-            'orders' => $this->orderModel->orderBy('id', 'DESC')->findAll(),
-            'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
-            'selectedLocationId' => $this->resolveLocationIdForBag((int) ($bag['warehouse_id'] ?? 0)),
-            'diamondTypeOptions' => $this->distinctInventoryValues('material_name'),
-            'sizeOptions' => $this->distinctInventoryValues('diamond_sieve'),
-            'itemTypeOptions' => $this->distinctInventoryValues('diamond_shape'),
-            'colorOptions' => $this->distinctInventoryValues('diamond_color'),
-            'qualityOptions' => $this->distinctInventoryValues('diamond_clarity'),
-        ]);
+        return view('admin/diamond_bags/edit', $this->formData($bag));
     }
 
     public function update(int $id)
@@ -234,128 +109,47 @@ class DiamondBagController extends BaseController
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Bag not found.');
         }
         if ($this->bagHasIssue($id)) {
-            return redirect()->to(site_url('admin/diamond-bags/' . $id))
-                ->with('error', 'Bag cannot be edited after issue.');
+            return redirect()->to(site_url('admin/diamond-inventory/bags/' . $id))->with('error', 'Issued bag cannot be edited.');
         }
-
-        $rules = [
-            'order_id' => 'required|integer',
-            'location_id' => 'required|integer',
-        ];
-        if (! $this->validate($rules)) {
+        if (! $this->validate([
+            'prepared_date' => 'required|valid_date',
+            'location_id' => 'required|integer|greater_than[0]',
+            'audit_image' => 'permit_empty|is_image[audit_image]|max_size[audit_image,4096]',
+        ])) {
             return redirect()->back()->withInput()->with('error', $this->firstValidationError());
         }
-
-        $orderId = (int) $this->request->getPost('order_id');
         $locationId = (int) $this->request->getPost('location_id');
-        $order = $this->orderModel->find($orderId);
-        if (! $order) {
-            return redirect()->back()->withInput()->with('error', 'Order not found.');
-        }
         if (! $this->locationModel->where('is_active', 1)->find($locationId)) {
-            return redirect()->back()->withInput()->with('error', 'Location not found.');
+            return redirect()->back()->withInput()->with('error', 'Select a valid inventory location.');
+        }
+        $parsed = $this->collectBagItemsFromRequest();
+        if ($parsed['error'] !== null) {
+            return redirect()->back()->withInput()->with('error', $parsed['error']);
         }
 
-        $items = $this->collectBagItemsFromRequest();
-        if ($items === []) {
-            return redirect()->back()->withInput()->with('error', 'At least one diamond row is required.');
-        }
-
-        $db = \Config\Database::connect();
+        $db = db_connect();
         try {
             $db->transException(true)->transStart();
-
-            $notes = trim((string) $this->request->getPost('notes'));
-            $warehouseInfo = $this->adminPostingService->resolveWarehouseBinByLocation($locationId);
-            $first = $items[0];
-            $totalPcs = 0.0;
-            $totalCts = 0.0;
-
-            $this->bagItemModel->where('bag_id', $id)->delete();
-            foreach ($items as $row) {
-                $this->bagItemModel->insert([
-                    'bag_id'               => $id,
-                    'diamond_type'         => $row['diamond_type'],
-                    'size'                 => $row['size'],
-                    'color'                => $row['color'],
-                    'quality'              => $row['quality'],
-                    'pcs_total'            => $row['pcs'],
-                    'weight_cts_total'     => $row['weight_cts'],
-                    'pcs_available'        => $row['pcs'],
-                    'weight_cts_available' => $row['weight_cts'],
-                ]);
-                $totalPcs += (float) $row['pcs'];
-                $totalCts += (float) $row['weight_cts'];
-            }
-
+            $this->assertPackable($parsed['rows'], $id);
+            $image = $this->storeAuditImage((string) ($bag['audit_image_path'] ?? ''), (string) ($bag['audit_image_name'] ?? ''));
+            $warehouse = $this->adminPostingService->resolveWarehouseBinByLocation($locationId);
             $this->bagModel->update($id, [
-                'order_id' => $orderId,
-                'warehouse_id' => (int) $warehouseInfo['warehouse_id'],
-                'bin_id' => (int) $warehouseInfo['bin_id'],
-                'shape' => $first['diamond_type'],
-                'chalni_size' => $first['size'],
-                'color' => $first['color'],
-                'clarity' => $first['quality'],
-                'pcs_balance' => round($totalPcs, 3),
-                'cts_balance' => round($totalCts, 3),
-                'notes' => $notes,
+                'prepared_date' => (string) $this->request->getPost('prepared_date'),
+                'order_id' => null,
+                'warehouse_id' => (int) $warehouse['warehouse_id'],
+                'bin_id' => (int) $warehouse['bin_id'],
+                'notes' => trim((string) $this->request->getPost('notes')) ?: null,
+                'audit_image_name' => $image['name'],
+                'audit_image_path' => $image['path'],
             ]);
-
-            $posting = new PostingService($db);
-            $warehouseAccId = $posting->ensureAccount(
-                'WAREHOUSE',
-                'WH-' . $warehouseInfo['warehouse_id'],
-                (string) $warehouseInfo['warehouse_name'] . ' Warehouse',
-                'warehouses',
-                (int) $warehouseInfo['warehouse_id']
-            );
-            $sortingAccId = $posting->ensureAccount('PROCESS', 'DIAMOND_SORTING', 'Diamond Sorting Pool');
-
-            $header = [
-                'voucher_type' => 'DIAMOND_BAG_CREATE',
-                'voucher_date' => date('Y-m-d'),
-                'to_warehouse_id' => (int) $warehouseInfo['warehouse_id'],
-                'to_bin_id' => (int) $warehouseInfo['bin_id'],
-                'order_id' => $orderId,
-                'debit_account_id' => $warehouseAccId,
-                'credit_account_id' => $sortingAccId,
-                'remarks' => 'Bag ' . $bag['bag_no'] . ' created for order ' . $order['order_no'],
-                'created_by' => (int) session('admin_id'),
-            ];
-            $lines = [[
-                'item_type' => 'DIAMOND_BAG',
-                'item_key' => 'BAG-' . $id,
-                'material_name' => 'Diamond Bag ' . $bag['bag_no'],
-                'bag_id' => $id,
-                'shape' => $first['diamond_type'],
-                'chalni_size' => $first['size'],
-                'color' => $first['color'],
-                'clarity' => $first['quality'],
-                'qty_pcs' => round($totalPcs, 3),
-                'qty_cts' => round($totalCts, 3),
-                'qty_weight' => 0,
-                'remarks' => $notes,
-            ]];
-
-            $existingCreateVoucherId = $this->findActiveBagCreateVoucherId($id);
-            if ($existingCreateVoucherId > 0) {
-                $posting->reverseAndRepost(
-                    $existingCreateVoucherId,
-                    'Diamond bag edited before issue',
-                    $header,
-                    $lines
-                );
-            } else {
-                $posting->postVoucher($header, $lines);
-            }
-
+            $this->replaceBagItems($id, $parsed['rows']);
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()->to(site_url('admin/diamond-bags/' . $id))->with('success', 'Diamond bag updated.');
+        return redirect()->to(site_url('admin/diamond-inventory/bags/' . $id))->with('success', 'Diamond bag updated.');
     }
 
     public function delete(int $id)
@@ -365,154 +159,201 @@ class DiamondBagController extends BaseController
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Bag not found.');
         }
         if ($this->bagHasIssue($id)) {
-            return redirect()->to(site_url('admin/diamond-bags/' . $id))
-                ->with('error', 'Bag cannot be deleted after issue.');
+            return redirect()->to(site_url('admin/diamond-inventory/bags/' . $id))->with('error', 'Issued bag cannot be deleted.');
         }
 
-        $db = \Config\Database::connect();
+        $db = db_connect();
         try {
             $db->transException(true)->transStart();
-
-            $existingCreateVoucherId = $this->findActiveBagCreateVoucherId($id);
-            if ($existingCreateVoucherId > 0) {
-                $posting = new PostingService($db);
-                $posting->reverseVoucher(
-                    $existingCreateVoucherId,
-                    'Diamond bag deleted before issue',
-                    (int) session('admin_id'),
-                    true
-                );
-            }
-
             $this->bagItemModel->where('bag_id', $id)->delete();
             $this->bagModel->delete($id);
-
             $db->transComplete();
+            $this->deleteFile((string) ($bag['audit_image_path'] ?? ''));
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->with('error', $e->getMessage());
         }
 
-        return redirect()->to(site_url('admin/diamond-bags'))->with('success', 'Diamond bag deleted.');
+        return redirect()->to(site_url('admin/diamond-inventory/bags'))->with('success', 'Unissued bag deleted.');
     }
 
     public function show(int $id): string
     {
-        $bag = $this->bagModel
-            ->select('diamond_bags.*, orders.order_no')
-            ->join('orders', 'orders.id = diamond_bags.order_id', 'left')
-            ->find($id);
-
+        $bag = $this->bagModel->find($id);
         if (! $bag) {
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Bag not found.');
         }
+        $db = db_connect();
+        $items = $db->table('diamond_bag_items bi')
+            ->select('bi.*, i.diamond_type, i.color, i.clarity, i.cut, sm.name AS shape_name, sz.size_code, sz.size_label')
+            ->join('items i', 'i.id = bi.inventory_item_id', 'left')
+            ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
+            ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+            ->where('bi.bag_id', $id)->orderBy('bi.id', 'ASC')->get()->getResultArray();
+        $movements = $db->table('diamond_bag_movements bm')
+            ->select('bm.*, ih.voucher_no, o.order_no, k.name AS karigar_name, i.diamond_type, sm.name AS shape_name, sz.size_label')
+            ->join('issue_lines il', 'il.id = bm.issue_line_id', 'left')
+            ->join('issue_headers ih', 'ih.id = il.issue_id', 'left')
+            ->join('diamond_bag_items bi', 'bi.id = bm.bag_item_id', 'left')
+            ->join('items i', 'i.id = bi.inventory_item_id', 'left')
+            ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
+            ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+            ->join('orders o', 'o.id = bm.order_id', 'left')
+            ->join('karigars k', 'k.id = bm.karigar_id', 'left')
+            ->where('bm.bag_id', $id)->orderBy('bm.id', 'DESC')->get()->getResultArray();
 
         $bag['has_issue'] = $this->bagHasIssue($id);
-
-        return view('admin/diamond_bags/show', [
-            'title' => 'Diamond Bag Details',
-            'bag'   => $bag,
-            'items' => $this->bagItemModel->where('bag_id', $id)->findAll(),
-        ]);
+        return view('admin/diamond_bags/show', ['title' => 'Diamond Bag Details', 'bag' => $bag, 'items' => $items, 'movements' => $movements]);
     }
 
-    /**
-     * @param list<int> $bagIds
-     * @return array<int, true>
-     */
-    private function issuedBagIds(array $bagIds): array
+    /** @param array<string,mixed>|null $bag */
+    private function formData(?array $bag): array
     {
-        $ids = [];
-        if ($bagIds === []) {
-            return $ids;
-        }
+        $db = db_connect();
+        return [
+            'title' => $bag ? 'Edit Diamond Bag' : 'Prepare Diamond Bag',
+            'bag' => $bag,
+            'items' => $bag ? $this->bagItemModel->where('bag_id', (int) $bag['id'])->orderBy('id', 'ASC')->findAll() : [],
+            'inventoryItems' => $db->table('items i')
+                ->select('i.*, COALESCE(s.pcs_balance,0) AS pcs_balance, COALESCE(s.carat_balance,0) AS carat_balance, COALESCE(s.avg_cost_per_carat,0) AS avg_cost_per_carat', false)
+                ->join('stock s', 's.item_id = i.id', 'left')->orderBy('i.diamond_type', 'ASC')->get()->getResultArray(),
+            'shapes' => $db->table('diamond_shape_masters')->where('is_active', 1)->orderBy('sort_order', 'ASC')->orderBy('name', 'ASC')->get()->getResultArray(),
+            'sizes' => $db->table('diamond_size_masters')->where('is_active', 1)->orderBy('sort_order', 'ASC')->orderBy('size_label', 'ASC')->get()->getResultArray(),
+            'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'selectedLocationId' => $bag ? $this->resolveLocationIdForBag((int) ($bag['warehouse_id'] ?? 0)) : null,
+        ];
+    }
 
+    /** @return array{rows:list<array<string,mixed>>,error:?string} */
+    private function collectBagItemsFromRequest(): array
+    {
+        $itemIds = (array) $this->request->getPost('inventory_item_id');
+        $shapeIds = (array) $this->request->getPost('shape_master_id');
+        $sizeIds = (array) $this->request->getPost('size_master_id');
+        $pcsList = (array) $this->request->getPost('pcs');
+        $weights = (array) $this->request->getPost('weight_cts');
+        $max = max(count($itemIds), count($shapeIds), count($sizeIds), count($pcsList), count($weights));
+        $rows = [];
         $db = db_connect();
 
-        if ($db->tableExists('voucher_lines') && $db->tableExists('vouchers')) {
-            $rows = $db->table('voucher_lines vl')
-                ->select('DISTINCT vl.bag_id as bag_id', false)
-                ->join('vouchers v', 'v.id = vl.voucher_id', 'inner')
-                ->whereIn('vl.bag_id', $bagIds)
-                ->where('v.voucher_type', 'DIAMOND_BAG_ISSUE')
-                ->get()
-                ->getResultArray();
-            foreach ($rows as $row) {
-                $bid = (int) ($row['bag_id'] ?? 0);
-                if ($bid > 0) {
-                    $ids[$bid] = true;
-                }
+        for ($i = 0; $i < $max; $i++) {
+            $itemId = (int) ($itemIds[$i] ?? 0);
+            $shapeId = (int) ($shapeIds[$i] ?? 0);
+            $sizeId = (int) ($sizeIds[$i] ?? 0);
+            $pcs = (float) ($pcsList[$i] ?? 0);
+            $cts = (float) ($weights[$i] ?? 0);
+            if ($itemId <= 0 && $shapeId <= 0 && $sizeId <= 0 && $pcs <= 0 && $cts <= 0) {
+                continue;
+            }
+            if ($itemId <= 0 || $shapeId <= 0 || $sizeId <= 0 || $pcs <= 0 || floor($pcs) !== $pcs || $cts <= 0) {
+                return ['rows' => [], 'error' => 'Every bag row requires Diamond Item, Shape, whole-number PCS and positive CTS.'];
+            }
+            $item = $db->table('items')->where('id', $itemId)->get()->getRowArray();
+            $shape = $db->table('diamond_shape_masters')->where('id', $shapeId)->where('is_active', 1)->get()->getRowArray();
+            $size = $db->table('diamond_size_masters')->where('id', $sizeId)->where('shape_id', $shapeId)->where('is_active', 1)->get()->getRowArray();
+            if (! $item || ! $shape || ! $size) {
+                return ['rows' => [], 'error' => 'Selected diamond item, shape or shape-wise size is invalid.'];
+            }
+            $rows[] = [
+                'inventory_item_id' => $itemId, 'shape_master_id' => $shapeId, 'size_master_id' => $sizeId,
+                'diamond_type' => (string) ($item['diamond_type'] ?? 'Diamond'),
+                'size' => (string) (($size['size_label'] ?? '') ?: $size['size_code']),
+                'color' => (string) (($item['color'] ?? '') ?: '-'), 'quality' => (string) (($item['clarity'] ?? '') ?: '-'),
+                'pcs' => (int) $pcs, 'weight_cts' => round($cts, 3),
+            ];
+        }
+        if ($rows === []) {
+            return ['rows' => [], 'error' => 'Add at least one complete diamond bag row.'];
+        }
+        return ['rows' => $rows, 'error' => null];
+    }
+
+    /** @param list<array<string,mixed>> $rows */
+    private function assertPackable(array $rows, int $excludeBagId = 0): void
+    {
+        $requested = [];
+        foreach ($rows as $row) {
+            $itemId = (int) $row['inventory_item_id'];
+            $requested[$itemId] = round((float) ($requested[$itemId] ?? 0) + (float) $row['weight_cts'], 3);
+        }
+        foreach ($requested as $itemId => $cts) {
+            $stock = db_connect()->table('stock')->select('carat_balance')->where('item_id', $itemId)->get()->getRowArray();
+            $reservedBuilder = db_connect()->table('diamond_bag_items')->select('COALESCE(SUM(weight_cts_available),0) AS cts', false)->where('inventory_item_id', $itemId);
+            if ($excludeBagId > 0) {
+                $reservedBuilder->where('bag_id !=', $excludeBagId);
+            }
+            $reserved = $reservedBuilder->get()->getRowArray();
+            $available = round((float) ($stock['carat_balance'] ?? 0) - (float) ($reserved['cts'] ?? 0), 3);
+            if ($cts > ($available + 0.0005)) {
+                throw new RuntimeException('Bag quantity exceeds unbagged diamond stock. Available: ' . number_format(max(0, $available), 3) . ' cts.');
             }
         }
+    }
 
-        if ($db->tableExists('diamond_ledger_entries')) {
-            $rows = $db->table('diamond_ledger_entries')
-                ->select('DISTINCT bag_id', false)
-                ->whereIn('bag_id', $bagIds)
-                ->where('entry_type', 'issue')
-                ->get()
-                ->getResultArray();
-            foreach ($rows as $row) {
-                $bid = (int) ($row['bag_id'] ?? 0);
-                if ($bid > 0) {
-                    $ids[$bid] = true;
-                }
-            }
+    /** @param list<array<string,mixed>> $rows */
+    private function replaceBagItems(int $bagId, array $rows): void
+    {
+        $this->bagItemModel->where('bag_id', $bagId)->delete();
+        $pcs = 0.0;
+        $cts = 0.0;
+        foreach ($rows as $row) {
+            $this->bagItemModel->insert([
+                'bag_id' => $bagId, 'inventory_item_id' => $row['inventory_item_id'],
+                'shape_master_id' => $row['shape_master_id'], 'size_master_id' => $row['size_master_id'],
+                'diamond_type' => $row['diamond_type'], 'size' => $row['size'], 'color' => $row['color'], 'quality' => $row['quality'],
+                'pcs_total' => $row['pcs'], 'weight_cts_total' => $row['weight_cts'],
+                'pcs_available' => $row['pcs'], 'weight_cts_available' => $row['weight_cts'],
+            ]);
+            $pcs += (float) $row['pcs'];
+            $cts += (float) $row['weight_cts'];
         }
-
-        if ($db->tableExists('diamond_bag_items')) {
-            $rows = $db->table('diamond_bag_items')
-                ->select('DISTINCT bag_id', false)
-                ->whereIn('bag_id', $bagIds)
-                ->groupStart()
-                    ->where('pcs_available < pcs_total', null, false)
-                    ->orWhere('weight_cts_available < weight_cts_total', null, false)
-                ->groupEnd()
-                ->get()
-                ->getResultArray();
-            foreach ($rows as $row) {
-                $bid = (int) ($row['bag_id'] ?? 0);
-                if ($bid > 0) {
-                    $ids[$bid] = true;
-                }
-            }
-        }
-
-        return $ids;
+        $this->bagModel->update($bagId, ['pcs_balance' => round($pcs, 3), 'cts_balance' => round($cts, 3)]);
     }
 
     private function bagHasIssue(int $bagId): bool
     {
-        if ($bagId <= 0) {
-            return false;
-        }
-
-        $ids = $this->issuedBagIds([$bagId]);
-        return isset($ids[$bagId]);
+        return db_connect()->table('issue_lines')->where('bag_id', $bagId)->countAllResults() > 0;
     }
 
-    private function findActiveBagCreateVoucherId(int $bagId): int
+    private function nextBagNumber(): string
     {
-        if ($bagId <= 0) {
-            return 0;
+        $prefix = 'DBAG-' . date('ymd') . '-';
+        $rows = $this->bagModel->select('bag_no')->like('bag_no', $prefix, 'after')->findAll();
+        $max = 0;
+        foreach ($rows as $row) {
+            if (preg_match('/(\d+)$/', (string) ($row['bag_no'] ?? ''), $match) === 1) {
+                $max = max($max, (int) $match[1]);
+            }
         }
+        return $prefix . str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
+    }
 
-        $db = db_connect();
-        if (! $db->tableExists('voucher_lines') || ! $db->tableExists('vouchers')) {
-            return 0;
+    /** @return array{name:?string,path:?string} */
+    private function storeAuditImage(string $existingPath = '', string $existingName = ''): array
+    {
+        $file = $this->request->getFile('audit_image');
+        if (! $file || $file->getError() === UPLOAD_ERR_NO_FILE) {
+            return ['name' => $existingName ?: null, 'path' => $existingPath ?: null];
         }
+        if (! $file->isValid()) {
+            throw new RuntimeException('Bag audit image is invalid.');
+        }
+        $dir = FCPATH . 'uploads/diamond-bags';
+        if (! is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+        $name = $file->getRandomName();
+        $original = $file->getClientName();
+        $file->move($dir, $name);
+        $this->deleteFile($existingPath);
+        return ['name' => $original, 'path' => 'uploads/diamond-bags/' . $name];
+    }
 
-        $row = $db->table('voucher_lines vl')
-            ->select('v.id')
-            ->join('vouchers v', 'v.id = vl.voucher_id', 'inner')
-            ->where('vl.bag_id', $bagId)
-            ->where('v.voucher_type', 'DIAMOND_BAG_CREATE')
-            ->where('v.status', 'Posted')
-            ->orderBy('v.id', 'DESC')
-            ->get()
-            ->getRowArray();
-
-        return (int) ($row['id'] ?? 0);
+    private function deleteFile(string $path): void
+    {
+        if ($path !== '' && is_file(FCPATH . ltrim($path, '/'))) {
+            @unlink(FCPATH . ltrim($path, '/'));
+        }
     }
 
     private function resolveLocationIdForBag(int $warehouseId): ?int
@@ -520,157 +361,16 @@ class DiamondBagController extends BaseController
         if ($warehouseId <= 0) {
             return null;
         }
-
-        $db = db_connect();
-        if (! $db->tableExists('warehouses') || ! $db->tableExists('inventory_locations')) {
+        $warehouse = db_connect()->table('warehouses')->where('id', $warehouseId)->get()->getRowArray();
+        if (! $warehouse || preg_match('/^LOC-(\d+)$/', strtoupper((string) ($warehouse['warehouse_code'] ?? '')), $match) !== 1) {
             return null;
         }
-
-        $warehouse = $db->table('warehouses')->where('id', $warehouseId)->get()->getRowArray();
-        if (! $warehouse) {
-            return null;
-        }
-
-        $warehouseCode = strtoupper(trim((string) ($warehouse['warehouse_code'] ?? '')));
-        if (preg_match('/^LOC-(\d+)$/', $warehouseCode, $m) === 1) {
-            $locationId = (int) $m[1];
-            if ($locationId > 0 && $this->locationModel->find($locationId)) {
-                return $locationId;
-            }
-        }
-
-        $locationTypeMap = [
-            'VAULT' => 'VAULT',
-            'STORE' => 'STORE',
-            'WIP_STORE' => 'WIP',
-            'FG_STORE' => 'FG',
-            'SHOWROOM' => 'SHOWROOM',
-            'BRANCH_STORE' => 'BRANCH',
-        ];
-        $locationType = $locationTypeMap[$warehouseCode] ?? null;
-        if ($locationType === null) {
-            return null;
-        }
-
-        $matchByName = $this->locationModel
-            ->where('is_active', 1)
-            ->where('location_type', $locationType)
-            ->where('name', (string) ($warehouse['name'] ?? ''))
-            ->first();
-        if ($matchByName) {
-            return (int) ($matchByName['id'] ?? 0);
-        }
-
-        $firstByType = $this->locationModel
-            ->where('is_active', 1)
-            ->where('location_type', $locationType)
-            ->orderBy('id', 'ASC')
-            ->first();
-
-        return $firstByType ? (int) ($firstByType['id'] ?? 0) : null;
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function collectBagItemsFromRequest(): array
-    {
-        $types   = (array) $this->request->getPost('diamond_type');
-        $sizes   = (array) $this->request->getPost('size');
-        $colors  = (array) $this->request->getPost('color');
-        $quality = (array) $this->request->getPost('quality');
-        $pcs     = (array) $this->request->getPost('pcs');
-        $weights = (array) $this->request->getPost('weight_cts');
-
-        $max = max(count($types), count($sizes), count($colors), count($quality), count($pcs), count($weights));
-        $rows = [];
-
-        for ($i = 0; $i < $max; $i++) {
-            $type = trim((string) ($types[$i] ?? ''));
-            $size = trim((string) ($sizes[$i] ?? ''));
-            $clr  = trim((string) ($colors[$i] ?? ''));
-            $qlt  = trim((string) ($quality[$i] ?? ''));
-            $pcsVal = (int) ($pcs[$i] ?? 0);
-            $ctsVal = (float) ($weights[$i] ?? 0);
-
-            if ($type === '' && $size === '' && $clr === '' && $qlt === '' && $pcsVal <= 0 && $ctsVal <= 0) {
-                continue;
-            }
-
-            if ($type === '' || $size === '' || $clr === '' || $qlt === '' || $pcsVal <= 0 || $ctsVal <= 0) {
-                continue;
-            }
-
-            $rows[] = [
-                'diamond_type' => $type,
-                'size'         => $size,
-                'color'        => $clr,
-                'quality'      => $qlt,
-                'pcs'          => $pcsVal,
-                'weight_cts'   => $ctsVal,
-            ];
-        }
-
-        return $rows;
+        return (int) $match[1] ?: null;
     }
 
     private function firstValidationError(): string
     {
         $errors = $this->validator ? $this->validator->getErrors() : [];
         return $errors === [] ? 'Validation failed.' : (string) array_values($errors)[0];
-    }
-
-    private function currentAuditUserId(): int
-    {
-        return (int) (session('admin_id') ?? 0);
-    }
-
-    private function storeAuditImageAttachment(int $orderId, string $fileField, string $fileType, int $adminId): void
-    {
-        $file = $this->request->getFile($fileField);
-        if (! $file || ! $file->isValid() || $file->hasMoved()) {
-            throw new Exception('Valid audit image is required.');
-        }
-
-        $uploadDir = FCPATH . 'uploads/orders';
-        if (! is_dir($uploadDir)) {
-            mkdir($uploadDir, 0775, true);
-        }
-
-        $newName = $file->getRandomName();
-        $file->move($uploadDir, $newName);
-
-        $this->attachmentModel->insert([
-            'order_id' => $orderId,
-            'file_type' => $fileType,
-            'file_name' => $file->getClientName(),
-            'file_path' => 'uploads/orders/' . $newName,
-            'uploaded_by' => $adminId,
-        ]);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function distinctInventoryValues(string $column): array
-    {
-        $rows = $this->inventoryModel
-            ->select($column)
-            ->distinct()
-            ->where('item_type', 'Diamond')
-            ->where($column . ' IS NOT NULL', null, false)
-            ->where($column . ' <>', '')
-            ->orderBy($column, 'ASC')
-            ->findAll();
-
-        $values = [];
-        foreach ($rows as $row) {
-            $value = trim((string) ($row[$column] ?? ''));
-            if ($value !== '') {
-                $values[] = $value;
-            }
-        }
-
-        return $values;
     }
 }

@@ -10,6 +10,7 @@ use App\Models\IssueLineModel;
 use App\Models\ItemModel;
 use App\Models\KarigarModel;
 use App\Services\DiamondInventory\StockService;
+use App\Services\DiamondBagTraceService;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\IssuementVoucherNumberService;
 use CodeIgniter\HTTP\Files\UploadedFile;
@@ -76,6 +77,8 @@ class IssuesController extends BaseController
         return view('admin/diamond_inventory/issues/create', [
             'title' => 'Create Diamond Issue',
             'items' => $this->itemOptions(),
+            'bagItems' => (new DiamondBagTraceService())->availableBagItems(),
+            'orders' => $this->orderOptions(),
             'locations' => $this->locationOptions(),
             'karigars' => $this->karigarOptions(),
             'issue' => null,
@@ -141,6 +144,9 @@ class IssuesController extends BaseController
                 $this->lineModel->insert([
                     'issue_id' => $issueId,
                     'item_id' => $itemId,
+                    'bag_id' => $line['bag_id'],
+                    'bag_item_id' => $line['bag_item_id'],
+                    'allocation_order_id' => $line['allocation_order_id'],
                     'pcs' => $line['pcs'],
                     'carat' => $line['carat'],
                     'rate_per_carat' => $line['rate_per_carat'],
@@ -149,6 +155,7 @@ class IssuesController extends BaseController
             }
 
             $service->applyIssue($issueId);
+            (new DiamondBagTraceService($db))->applyIssue($issueId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $issueId);
             $db->transComplete();
         } catch (Throwable $e) {
@@ -218,6 +225,8 @@ class IssuesController extends BaseController
         return view('admin/diamond_inventory/issues/edit', [
             'title' => 'Edit Diamond Issue',
             'items' => $this->itemOptions(),
+            'bagItems' => (new DiamondBagTraceService())->availableBagItems(true),
+            'orders' => $this->orderOptions(),
             'locations' => $this->locationOptions(),
             'karigars' => $this->karigarOptions(),
             'issue' => $issue,
@@ -260,6 +269,8 @@ class IssuesController extends BaseController
             $db->transException(true)->transStart();
             $accounting = new KarigarMaterialAccountingService($db);
             $service->reverseIssue($id);
+            $bagTrace = new DiamondBagTraceService($db);
+            $bagTrace->reverseIssue($id);
 
             $karigarId = (int) $this->request->getPost('karigar_id');
             $locationId = (int) $this->request->getPost('location_id');
@@ -291,6 +302,9 @@ class IssuesController extends BaseController
                 $this->lineModel->insert([
                     'issue_id' => $id,
                     'item_id' => $itemId,
+                    'bag_id' => $line['bag_id'],
+                    'bag_item_id' => $line['bag_item_id'],
+                    'allocation_order_id' => $line['allocation_order_id'],
                     'pcs' => $line['pcs'],
                     'carat' => $line['carat'],
                     'rate_per_carat' => $line['rate_per_carat'],
@@ -299,6 +313,7 @@ class IssuesController extends BaseController
             }
 
             $service->applyIssue($id);
+            $bagTrace->applyIssue($id);
             $accounting->refreshInventoryHeaderVoucher('diamond', 'issue', $id);
             $db->transComplete();
         } catch (Throwable $e) {
@@ -324,6 +339,7 @@ class IssuesController extends BaseController
             $db->transException(true)->transStart();
             (new KarigarMaterialAccountingService($db))->reverseHeaderVoucher('issue_headers', $id, 'Diamond issue deleted', (int) session('admin_id'));
             $service->reverseIssue($id);
+            (new DiamondBagTraceService($db))->reverseIssue($id);
             $this->lineModel->where('issue_id', $id)->delete();
             $this->deleteFile((string) ($issue['attachment_path'] ?? ''));
             $this->headerModel->delete($id);
@@ -342,27 +358,15 @@ class IssuesController extends BaseController
      */
     private function collectLinesFromRequest(): array
     {
-        $itemIds = (array) $this->request->getPost('item_id');
-        $diamondTypes = (array) $this->request->getPost('diamond_type');
-        $shapes = (array) $this->request->getPost('shape');
-        $chalniFroms = (array) $this->request->getPost('chalni_from');
-        $chalniTos = (array) $this->request->getPost('chalni_to');
-        $colors = (array) $this->request->getPost('color');
-        $clarities = (array) $this->request->getPost('clarity');
-        $cuts = (array) $this->request->getPost('cut');
+        $bagItemIds = (array) $this->request->getPost('bag_item_id');
+        $orderIds = (array) $this->request->getPost('diamond_order_id');
         $pcs = (array) $this->request->getPost('pcs');
         $carats = (array) $this->request->getPost('carat');
         $rates = (array) $this->request->getPost('rate_per_carat');
 
         $max = max(
-            count($itemIds),
-            count($diamondTypes),
-            count($shapes),
-            count($chalniFroms),
-            count($chalniTos),
-            count($colors),
-            count($clarities),
-            count($cuts),
+            count($bagItemIds),
+            count($orderIds),
             count($pcs),
             count($carats),
             count($rates)
@@ -370,26 +374,13 @@ class IssuesController extends BaseController
 
         $lines = [];
         for ($i = 0; $i < $max; $i++) {
-            $itemId = (int) ($itemIds[$i] ?? 0);
-            $diamondType = trim((string) ($diamondTypes[$i] ?? ''));
-            $shape = trim((string) ($shapes[$i] ?? ''));
-            $chalniFromRaw = trim((string) ($chalniFroms[$i] ?? ''));
-            $chalniToRaw = trim((string) ($chalniTos[$i] ?? ''));
-            $color = trim((string) ($colors[$i] ?? ''));
-            $clarity = trim((string) ($clarities[$i] ?? ''));
-            $cut = trim((string) ($cuts[$i] ?? ''));
+            $bagItemId = (int) ($bagItemIds[$i] ?? 0);
+            $orderId = (int) ($orderIds[$i] ?? 0);
             $pcsValue = (float) ($pcs[$i] ?? 0);
             $caratValue = (float) ($carats[$i] ?? 0);
             $rateRaw = trim((string) ($rates[$i] ?? ''));
 
-            $isBlank = $itemId <= 0
-                && $diamondType === ''
-                && $shape === ''
-                && $chalniFromRaw === ''
-                && $chalniToRaw === ''
-                && $color === ''
-                && $clarity === ''
-                && $cut === ''
+            $isBlank = $bagItemId <= 0
                 && $pcsValue <= 0
                 && $caratValue <= 0
                 && $rateRaw === '';
@@ -400,8 +391,8 @@ class IssuesController extends BaseController
             if ($caratValue <= 0) {
                 return ['lines' => [], 'error' => 'Carat must be greater than zero for each line.'];
             }
-            if ($pcsValue < 0) {
-                return ['lines' => [], 'error' => 'PCS cannot be negative.'];
+            if ($pcsValue <= 0 || floor($pcsValue) !== $pcsValue) {
+                return ['lines' => [], 'error' => 'Whole-number PCS is mandatory and must be greater than zero.'];
             }
 
             $rateValue = $rateRaw === '' ? null : (float) $rateRaw;
@@ -409,49 +400,27 @@ class IssuesController extends BaseController
                 return ['lines' => [], 'error' => 'Rate per carat cannot be negative.'];
             }
 
-            if ($itemId <= 0) {
-                if ($diamondType === '') {
-                    return ['lines' => [], 'error' => 'Diamond type is required when item is not selected.'];
-                }
-                $from = $chalniFromRaw === '' ? null : $chalniFromRaw;
-                $to = $chalniToRaw === '' ? null : $chalniToRaw;
-                if (($from === null && $to !== null) || ($from !== null && $to === null)) {
-                    return ['lines' => [], 'error' => 'Both chalni from and chalni to are required when chalni is used.'];
-                }
-                if ($from !== null && ! ctype_digit($from)) {
-                    return ['lines' => [], 'error' => 'Chalni from must contain digits only.'];
-                }
-                if ($to !== null && ! ctype_digit($to)) {
-                    return ['lines' => [], 'error' => 'Chalni to must contain digits only.'];
-                }
-                if ($from !== null && $to !== null && ((int) ltrim($from, '0')) > ((int) ltrim($to, '0'))) {
-                    return ['lines' => [], 'error' => 'Chalni from must be less than or equal to chalni to.'];
-                }
-
-                $signature = [
-                    'diamond_type' => $diamondType,
-                    'shape' => $shape,
-                    'chalni_from' => $from,
-                    'chalni_to' => $to,
-                    'color' => $color,
-                    'clarity' => $clarity,
-                    'cut' => $cut,
-                ];
-            } else {
-                if (! $this->itemModel->find($itemId)) {
-                    return ['lines' => [], 'error' => 'Selected item does not exist.'];
-                }
-                $signature = [];
+            $bagItem = db_connect()->table('diamond_bag_items')
+                ->select('id, bag_id, inventory_item_id')
+                ->where('id', $bagItemId)->get()->getRowArray();
+            if (! $bagItem || (int) ($bagItem['inventory_item_id'] ?? 0) <= 0) {
+                return ['lines' => [], 'error' => 'Select an available bag, shape and size for every issue line.'];
+            }
+            if ($orderId > 0 && db_connect()->table('orders')->where('id', $orderId)->countAllResults() === 0) {
+                return ['lines' => [], 'error' => 'Selected order allocation does not exist.'];
             }
 
             $lineValue = $rateValue === null ? null : round($caratValue * $rateValue, 2);
             $lines[] = [
-                'item_id' => $itemId,
-                'pcs' => round($pcsValue, 3),
+                'item_id' => (int) $bagItem['inventory_item_id'],
+                'bag_id' => (int) $bagItem['bag_id'],
+                'bag_item_id' => $bagItemId,
+                'allocation_order_id' => $orderId > 0 ? $orderId : null,
+                'pcs' => (int) $pcsValue,
                 'carat' => round($caratValue, 3),
                 'rate_per_carat' => $rateValue === null ? null : round($rateValue, 2),
                 'line_value' => $lineValue,
-                'signature' => $signature,
+                'signature' => [],
             ];
         }
 
@@ -529,12 +498,24 @@ class IssuesController extends BaseController
     private function lineRows(int $issueId): array
     {
         return db_connect()->table('issue_lines il')
-            ->select('il.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut')
+            ->select('il.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, b.bag_no, sm.name AS bag_shape, sz.size_label AS bag_size, o.order_no AS allocation_order_no')
             ->join('items i', 'i.id = il.item_id', 'left')
+            ->join('diamond_bags b', 'b.id = il.bag_id', 'left')
+            ->join('diamond_bag_items bi', 'bi.id = il.bag_item_id', 'left')
+            ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
+            ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+            ->join('orders o', 'o.id = il.allocation_order_id', 'left')
             ->where('il.issue_id', $issueId)
             ->orderBy('il.id', 'ASC')
             ->get()
             ->getResultArray();
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function orderOptions(): array
+    {
+        return db_connect()->table('orders')->select('id, order_no, order_name')
+            ->whereNotIn('status', ['Cancelled', 'Completed'])->orderBy('id', 'DESC')->limit(1000)->get()->getResultArray();
     }
 
     /**

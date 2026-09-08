@@ -42,8 +42,10 @@
             <table class="table datatable table-hover mb-0">
                 <thead>
                     <tr>
-                        <th>Item</th>
-                        <th>Chalni</th>
+                        <th>Bag</th>
+                        <th>Diamond</th>
+                        <th>Shape / Size</th>
+                        <th>Allocated Order</th>
                         <th>Color</th>
                         <th>Clarity</th>
                         <th>PCS</th>
@@ -54,15 +56,17 @@
                 </thead>
                 <tbody>
                     <?php if (($lines ?? []) === []): ?>
-                        <tr><td colspan="8" class="text-center text-muted">No lines found.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted">No lines found.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($lines ?? []) as $line): ?>
                         <tr>
-                            <td><?= esc((string) ($line['diamond_type'] . ' ' . ($line['shape'] ? '(' . $line['shape'] . ')' : ''))) ?></td>
-                            <td><?= esc(($line['chalni_from'] !== null && $line['chalni_to'] !== null) ? ($line['chalni_from'] . ' - ' . $line['chalni_to']) : 'NA') ?></td>
+                            <td><span class="badge bg-primary"><?= esc((string) (($line['bag_no'] ?? '') ?: 'Legacy')) ?></span></td>
+                            <td><?= esc((string) (($line['diamond_type'] ?? '') ?: '-')) ?></td>
+                            <td><?= esc(trim((string) (($line['bag_shape'] ?? $line['shape'] ?? '-') . ' / ' . ($line['bag_size'] ?? '-')), ' /')) ?></td>
+                            <td><?= esc((string) (($line['allocation_order_no'] ?? '') ?: 'Unallocated')) ?></td>
                             <td><?= esc((string) ($line['color'] ?? '-')) ?></td>
                             <td><?= esc((string) ($line['clarity'] ?? '-')) ?></td>
-                            <td><?= number_format((float) $line['pcs'], 3) ?></td>
+                            <td><?= number_format((float) $line['pcs'], 0) ?></td>
                             <td><?= number_format((float) $line['carat'], 3) ?></td>
                             <td><?= $line['rate_per_carat'] === null ? '-' : number_format((float) $line['rate_per_carat'], 2) ?></td>
                             <td><?= $line['line_value'] === null ? '-' : number_format((float) $line['line_value'], 2) ?></td>

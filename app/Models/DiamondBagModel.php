@@ -11,6 +11,7 @@ class DiamondBagModel extends Model
     protected $returnType    = 'array';
     protected $allowedFields = [
         'bag_no',
+        'prepared_date',
         'order_id',
         'warehouse_id',
         'bin_id',
@@ -25,6 +26,8 @@ class DiamondBagModel extends Model
         'pcs_balance',
         'cts_balance',
         'notes',
+        'audit_image_name',
+        'audit_image_path',
         'created_by',
     ];
     protected $useTimestamps = true;

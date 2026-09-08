@@ -258,6 +258,16 @@ class MobileApiService {
     return (res['data'] as List?) ?? <dynamic>[];
   }
 
+  Future<List<dynamic>> fetchDiamondBagItems() async {
+    final res = await _get('/api/mobile/lookups/diamond-bag-items');
+    return (res['data'] as List?) ?? <dynamic>[];
+  }
+
+  Future<List<dynamic>> fetchDiamondOrderAllocations() async {
+    final res = await _get('/api/mobile/lookups/diamond-order-allocations');
+    return (res['data'] as List?) ?? <dynamic>[];
+  }
+
   Future<List<dynamic>> fetchGoldItems() async {
     final res = await _get('/api/mobile/lookups/gold-items');
     return (res['data'] as List?) ?? <dynamic>[];
@@ -270,6 +280,11 @@ class MobileApiService {
 
   Future<List<dynamic>> fetchDiamondIssueRefs() async {
     final res = await _get('/api/mobile/lookups/diamond-issues');
+    return (res['data'] as List?) ?? <dynamic>[];
+  }
+
+  Future<List<dynamic>> fetchDiamondIssueLines(int issueId) async {
+    final res = await _get('/api/mobile/lookups/diamond-issues/$issueId/lines');
     return (res['data'] as List?) ?? <dynamic>[];
   }
 

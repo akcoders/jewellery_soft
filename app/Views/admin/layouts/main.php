@@ -75,6 +75,8 @@ $isInventoryProducts = $isInventory && $segment3 === 'products';
 $isDiamondBags = $segment2 === 'diamond-bags';
 $isDiamondInventory = $segment2 === 'diamond-inventory';
 $isDiamondInventoryLedger = $isDiamondInventory && $segment3 === 'ledger';
+$isDiamondInventoryShapeSizes = $isDiamondInventory && $segment3 === 'shape-sizes';
+$isDiamondInventoryBags = $isDiamondInventory && $segment3 === 'bags';
 $isDiamondInventoryItems = $isDiamondInventory && $segment3 === 'items';
 $isDiamondInventoryPurchases = $isDiamondInventory && $segment3 === 'purchases';
 $isDiamondInventoryIssues = $isDiamondInventory && $segment3 === 'issues';
@@ -1766,6 +1768,8 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
                             <a href="javascript:void(0);" data-app-tour-module="diamond-inventory"><i class="fas fa-gem"></i> <span>Diamond Inventory</span> <span class="menu-arrow"></span></a>
                             <ul style="<?= $isDiamondInventory ? 'display:block;' : 'display:none;' ?>">
                                 <li><a class="<?= $isDiamondInventoryItems ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/items') ?>"><i class="fe fe-tag"></i> Item Master</a></li>
+                                <li><a class="<?= $isDiamondInventoryShapeSizes ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/shape-sizes') ?>"><i class="fe fe-grid"></i> Shape &amp; Size Master</a></li>
+                                <li><a class="<?= $isDiamondInventoryBags ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/bags') ?>"><i class="fe fe-package"></i> Diamond Bags</a></li>
                                 <li><a class="<?= $isDiamondInventoryLedger ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/ledger') ?>"><i class="fe fe-book-open"></i> Ledger</a></li>
                                 <li><a class="<?= $isDiamondInventoryPurchases ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/purchases') ?>"><i class="fe fe-shopping-bag"></i> Purchases</a></li>
                                 <li><a class="<?= $isDiamondInventoryReturns ? 'active' : '' ?>" href="<?= site_url('admin/diamond-inventory/returns') ?>"><i class="fe fe-corner-up-left"></i> Returns</a></li>

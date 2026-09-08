@@ -201,9 +201,9 @@ foreach (($diamondLines ?? []) as $line) {
         ? ((string) ($line['chalni_from'] ?? '') . '-' . (string) ($line['chalni_to'] ?? ''))
         : 'NA';
     $rows[] = [
-        'description' => trim((string) (($line['diamond_type'] ?? '-') . ' ' . ($line['shape'] ?? ''))),
-        'grade' => trim($chalni . ' / ' . (string) ($line['color'] ?? '-') . ' / ' . (string) ($line['clarity'] ?? '-')),
-        'pcs' => number_format((float) ($line['pcs'] ?? 0), 3),
+        'description' => trim((string) ((($line['bag_no'] ?? '') !== '' ? ('Bag ' . $line['bag_no'] . ' · ') : '') . ($line['diamond_type'] ?? '-'))),
+        'grade' => trim((string) (($line['bag_shape'] ?? $line['shape'] ?? '-') . ' / ' . ($line['bag_size'] ?? $chalni) . ' / ' . ($line['color'] ?? '-') . ' / ' . ($line['clarity'] ?? '-') . (($line['allocation_order_no'] ?? '') !== '' ? (' / Order ' . $line['allocation_order_no']) : ''))),
+        'pcs' => number_format((float) ($line['pcs'] ?? 0), 0),
         'weight' => number_format((float) ($line['carat'] ?? 0), 3) . ' cts',
         'rate' => ($line['rate_per_carat'] ?? null) === null ? '-' : number_format((float) $line['rate_per_carat'], 2),
         'value' => ($line['line_value'] ?? null) === null ? '-' : number_format((float) $line['line_value'], 2),

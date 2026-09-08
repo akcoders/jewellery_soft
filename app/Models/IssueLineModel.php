@@ -12,6 +12,9 @@ class IssueLineModel extends Model
     protected $allowedFields = [
         'issue_id',
         'item_id',
+        'bag_id',
+        'bag_item_id',
+        'allocation_order_id',
         'pcs',
         'carat',
         'rate_per_carat',

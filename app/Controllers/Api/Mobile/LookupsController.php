@@ -3,6 +3,7 @@
 namespace App\Controllers\Api\Mobile;
 
 use App\Services\TaxMasterService;
+use App\Services\DiamondBagTraceService;
 
 class LookupsController extends MobileBaseController
 {
@@ -85,6 +86,34 @@ class LookupsController extends MobileBaseController
         return $this->ok($rows);
     }
 
+    public function diamondBagItems()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        return $this->ok((new DiamondBagTraceService(db_connect()))->availableBagItems());
+    }
+
+    public function diamondOrderAllocations()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('orders')
+            ->select('id, order_no, order_name, status')
+            ->whereNotIn('status', ['Cancelled', 'Completed'])
+            ->orderBy('id', 'DESC')
+            ->limit(1000)
+            ->get()
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+
     public function goldItems()
     {
         $authFail = $this->requireMobileAuth();
@@ -134,6 +163,23 @@ class LookupsController extends MobileBaseController
             ->orderBy('ih.id', 'DESC');
 
         $rows = $builder->get()->getResultArray();
+        return $this->ok($rows);
+    }
+
+    public function diamondIssueLines(int $issueId)
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = (new DiamondBagTraceService(db_connect()))->returnableIssueLines($issueId);
+        foreach ($rows as &$row) {
+            $row['id'] = (int) ($row['issue_line_id'] ?? 0);
+            $row['pcs_available'] = (float) ($row['available_pcs'] ?? 0);
+            $row['weight_cts_available'] = (float) ($row['available_cts'] ?? 0);
+        }
+        unset($row);
         return $this->ok($rows);
     }
 

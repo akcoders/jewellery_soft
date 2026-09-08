@@ -12,6 +12,10 @@ class ReturnLineModel extends Model
     protected $allowedFields = [
         'return_id',
         'item_id',
+        'issue_line_id',
+        'bag_id',
+        'bag_item_id',
+        'allocation_order_id',
         'pcs',
         'carat',
         'rate_per_carat',

@@ -11,6 +11,9 @@ class DiamondBagItemModel extends Model
     protected $returnType    = 'array';
     protected $allowedFields = [
         'bag_id',
+        'inventory_item_id',
+        'shape_master_id',
+        'size_master_id',
         'diamond_type',
         'size',
         'color',
@@ -23,4 +26,3 @@ class DiamondBagItemModel extends Model
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
 }
-

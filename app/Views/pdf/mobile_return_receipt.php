@@ -51,7 +51,13 @@
     $lineDescription = static function (array $row, string $type): string {
         $type = strtolower($type);
         if ($type === 'diamond') {
-            return trim(implode(' ', array_filter([(string) ($row['diamond_type'] ?? ''), (string) ($row['shape'] ?? '')])));
+            return trim(implode(' / ', array_filter([
+                (string) ($row['bag_no'] ?? ''),
+                (string) ($row['diamond_type'] ?? ''),
+                (string) (($row['bag_shape'] ?? '') ?: ($row['shape'] ?? '')),
+                (string) ($row['bag_size'] ?? ''),
+                (string) ($row['allocation_order_no'] ?? ''),
+            ])));
         }
         if ($type === 'gold') {
             return trim(implode(' ', array_filter([(string) ($row['color_name'] ?? ''), (string) ($row['form_type'] ?? '')])));

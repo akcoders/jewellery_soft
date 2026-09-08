@@ -1,75 +1,12 @@
 <?= $this->extend('admin/layouts/main') ?>
-
 <?= $this->section('content') ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0">Bag: <?= esc($bag['bag_no']) ?></h4>
-    <div class="d-flex gap-2">
-        <?php if (! empty($bag['has_issue'])): ?>
-            <button type="button" class="btn btn-outline-secondary" disabled title="Cannot edit after issue">
-                <i class="fe fe-edit"></i> Edit
-            </button>
-            <button type="button" class="btn btn-outline-secondary" disabled title="Cannot delete after issue">
-                <i class="fe fe-trash"></i> Delete
-            </button>
-        <?php else: ?>
-            <a href="<?= site_url('admin/diamond-bags/' . $bag['id'] . '/edit') ?>" class="btn btn-outline-warning">
-                <i class="fe fe-edit"></i> Edit
-            </a>
-            <form method="post" action="<?= site_url('admin/diamond-bags/' . $bag['id'] . '/delete') ?>" class="d-inline" onsubmit="return confirm('Delete this bag? This cannot be undone.');">
-                <?= csrf_field() ?>
-                <button type="submit" class="btn btn-outline-danger">
-                    <i class="fe fe-trash"></i> Delete
-                </button>
-            </form>
-        <?php endif; ?>
-        <a href="<?= site_url('admin/diamond-bags') ?>" class="btn btn-outline-primary">Back</a>
-    </div>
+<div class="erp-page-toolbar erp-command-toolbar flex-wrap mb-3">
+    <div class="erp-toolbar-copy"><span class="erp-eyebrow">Diamond bag</span><h4><?= esc((string) $bag['bag_no']) ?></h4><p><?= esc((string) (($bag['prepared_date'] ?? '') ?: '-')) ?> · <?= number_format((float) ($bag['pcs_balance'] ?? 0), 0) ?> pcs / <?= number_format((float) ($bag['cts_balance'] ?? 0), 3) ?> cts available</p></div>
+    <div class="d-flex gap-2"><?php if (empty($bag['has_issue'])): ?><a href="<?= site_url('admin/diamond-inventory/bags/' . (int) $bag['id'] . '/edit') ?>" class="btn btn-outline-warning"><i class="fe fe-edit me-1"></i>Edit</a><?php endif; ?><a href="<?= site_url('admin/diamond-inventory/bags') ?>" class="btn btn-outline-primary">Back</a></div>
 </div>
-
-<div class="card mb-3">
-    <div class="card-body">
-        <p class="mb-1"><strong>Order Reference:</strong> <?= esc($bag['order_no'] ?: '-') ?></p>
-        <p class="mb-1"><strong>Status:</strong> <?= ! empty($bag['has_issue']) ? 'Issued' : 'Not Issued' ?></p>
-        <p class="mb-0"><strong>Notes:</strong> <?= esc($bag['notes'] ?: '-') ?></p>
-    </div>
+<div class="row g-3 mb-3">
+    <div class="col-lg-9"><div class="card h-100"><div class="card-header"><h6 class="mb-0">Calibrated Contents</h6></div><div class="table-responsive"><table class="table datatable align-middle mb-0"><thead><tr><th>Diamond</th><th>Shape</th><th>Size</th><th>Total</th><th>Available</th><th>Consumed/Issued</th></tr></thead><tbody><?php foreach (($items ?? []) as $row): ?><tr><td><strong><?= esc((string) (($row['diamond_type'] ?? '') ?: '-')) ?></strong><div class="small text-muted"><?= esc((string) (($row['color'] ?? '') ?: '-')) ?> / <?= esc((string) (($row['clarity'] ?? '') ?: '-')) ?></div></td><td><span class="badge bg-light text-dark"><?= esc((string) (($row['shape_name'] ?? '') ?: '-')) ?></span></td><td><strong><?= esc((string) (($row['size_label'] ?? '') ?: ($row['size'] ?? '-'))) ?></strong></td><td><?= number_format((float) $row['pcs_total'], 0) ?> pcs<div class="small text-muted"><?= number_format((float) $row['weight_cts_total'], 3) ?> cts</div></td><td class="text-success"><?= number_format((float) $row['pcs_available'], 0) ?> pcs<div><?= number_format((float) $row['weight_cts_available'], 3) ?> cts</div></td><td><?= number_format((float) $row['pcs_total'] - (float) $row['pcs_available'], 0) ?> pcs<div class="small text-muted"><?= number_format((float) $row['weight_cts_total'] - (float) $row['weight_cts_available'], 3) ?> cts</div></td></tr><?php endforeach; ?></tbody></table></div></div></div>
+    <div class="col-lg-3"><div class="card h-100"><div class="card-header"><h6 class="mb-0">Bag Photo &amp; Notes</h6></div><div class="card-body"><?php if (! empty($bag['audit_image_path'])): ?><a href="<?= base_url((string) $bag['audit_image_path']) ?>" target="_blank"><img src="<?= base_url((string) $bag['audit_image_path']) ?>" alt="Bag photo" class="img-fluid rounded border mb-3"></a><?php else: ?><div class="text-center text-muted py-4"><i class="fe fe-image fs-2"></i><div>No bag photo</div></div><?php endif; ?><p class="mb-0 text-muted"><?= esc((string) (($bag['notes'] ?? '') ?: 'No notes')) ?></p></div></div></div>
 </div>
-
-<div class="card">
-    <div class="card-header"><h5 class="card-title mb-0">Bag Rows</h5></div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table datatable table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>Type</th>
-                        <th>Size</th>
-                        <th>Color</th>
-                        <th>Quality</th>
-                        <th>Total PCS</th>
-                        <th>Total CTS</th>
-                        <th>Available PCS</th>
-                        <th>Available CTS</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if ($items === []): ?>
-                        <tr><td colspan="8" class="text-center text-muted">No rows found.</td></tr>
-                    <?php endif; ?>
-                    <?php foreach ($items as $row): ?>
-                        <tr>
-                            <td><?= esc($row['diamond_type']) ?></td>
-                            <td><?= esc($row['size']) ?></td>
-                            <td><?= esc($row['color']) ?></td>
-                            <td><?= esc($row['quality']) ?></td>
-                            <td><?= esc((string) $row['pcs_total']) ?></td>
-                            <td><?= esc(number_format((float) $row['weight_cts_total'], 3)) ?></td>
-                            <td><?= esc((string) $row['pcs_available']) ?></td>
-                            <td><?= esc(number_format((float) $row['weight_cts_available'], 3)) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+<div class="card"><div class="card-header"><h6 class="mb-0">Issue → Order → Studding Trail</h6></div><div class="table-responsive"><table class="table datatable align-middle mb-0"><thead><tr><th>Date</th><th>Action</th><th>Diamond / Size</th><th>Voucher</th><th>Order</th><th>Karigar</th><th>PCS</th><th>CTS</th></tr></thead><tbody><?php foreach (($movements ?? []) as $movement): ?><?php $type = strtoupper((string) $movement['movement_type']); ?><tr><td><?= esc((string) $movement['movement_date']) ?></td><td><span class="badge <?= $type === 'STUDDED' ? 'bg-success' : ($type === 'RETURN' ? 'bg-info' : 'bg-warning text-dark') ?>"><?= esc($type) ?></span></td><td><strong><?= esc((string) (($movement['diamond_type'] ?? '') ?: '-')) ?></strong><div class="small text-muted"><?= esc(trim((string) (($movement['shape_name'] ?? '') ?: '-') . ' / ' . (string) (($movement['size_label'] ?? '') ?: '-'))) ?></div></td><td><?= esc((string) (($movement['voucher_no'] ?? '') ?: '-')) ?></td><td><?= esc((string) (($movement['order_no'] ?? '') ?: 'Unallocated')) ?></td><td><?= esc((string) (($movement['karigar_name'] ?? '') ?: '-')) ?></td><td><?= number_format((float) $movement['pcs'], 0) ?></td><td><?= number_format((float) $movement['carat'], 3) ?></td></tr><?php endforeach; ?></tbody></table></div></div>
 <?= $this->endSection() ?>

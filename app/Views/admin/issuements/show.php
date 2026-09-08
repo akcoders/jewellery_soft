@@ -78,8 +78,10 @@
                 <thead>
                     <tr>
                         <th>#</th>
+                        <th>Bag</th>
                         <th>Description</th>
                         <th>Grade</th>
+                        <th>Order</th>
                         <th>PCS</th>
                         <th>CTS</th>
                         <th>Rate/cts</th>
@@ -91,9 +93,11 @@
                         <?php $chalni = ((string) ($line['chalni_from'] ?? '') !== '' || (string) ($line['chalni_to'] ?? '') !== '') ? ((string) ($line['chalni_from'] ?? '') . '-' . (string) ($line['chalni_to'] ?? '')) : 'NA'; ?>
                         <tr>
                             <td><?= $i++ ?></td>
+                            <td><span class="badge bg-primary"><?= esc((string) (($line['bag_no'] ?? '') ?: 'Legacy')) ?></span></td>
                             <td><?= esc(trim((string) (($line['diamond_type'] ?? '-') . ' ' . ($line['shape'] ?? '')))) ?></td>
-                            <td><?= esc(trim($chalni . ' / ' . (string) ($line['color'] ?? '-') . ' / ' . (string) ($line['clarity'] ?? '-'))) ?></td>
-                            <td><?= number_format((float) ($line['pcs'] ?? 0), 3) ?></td>
+                            <td><?= esc(trim((string) (($line['bag_shape'] ?? '') . ' / ' . ($line['bag_size'] ?? $chalni) . ' / ' . ($line['color'] ?? '-') . ' / ' . ($line['clarity'] ?? '-')), ' /')) ?></td>
+                            <td><?= esc((string) (($line['allocation_order_no'] ?? '') ?: 'Unallocated')) ?></td>
+                            <td><?= number_format((float) ($line['pcs'] ?? 0), 0) ?></td>
                             <td><?= number_format((float) ($line['carat'] ?? 0), 3) ?></td>
                             <td><?= ($line['rate_per_carat'] ?? null) === null ? '-' : number_format((float) $line['rate_per_carat'], 2) ?></td>
                             <td><?= ($line['line_value'] ?? null) === null ? '-' : number_format((float) $line['line_value'], 2) ?></td>

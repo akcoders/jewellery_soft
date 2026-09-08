@@ -375,8 +375,13 @@ class DocumentsController extends ApiBaseController
         $material = strtolower($materialType);
         if ($material === 'diamond') {
             $lines = $db->table($lineTable . ' l')
-                ->select('l.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut')
+                ->select('l.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, b.bag_no, sm.name AS bag_shape, sz.size_label AS bag_size, o.order_no AS allocation_order_no')
                 ->join('items i', 'i.id = l.' . $lineItemField, 'left')
+                ->join('diamond_bags b', 'b.id = l.bag_id', 'left')
+                ->join('diamond_bag_items bi', 'bi.id = l.bag_item_id', 'left')
+                ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
+                ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+                ->join('orders o', 'o.id = l.allocation_order_id', 'left')
                 ->where('l.issue_id', $id)
                 ->orderBy('l.id', 'ASC')
                 ->get()
@@ -444,8 +449,13 @@ class DocumentsController extends ApiBaseController
         $material = strtolower($materialType);
         if ($material === 'diamond') {
             $lines = $db->table($returnLineTable . ' l')
-                ->select('l.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut')
+                ->select('l.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, b.bag_no, sm.name AS bag_shape, sz.size_label AS bag_size, o.order_no AS allocation_order_no')
                 ->join('items i', 'i.id = l.' . $lineItemField, 'left')
+                ->join('diamond_bags b', 'b.id = l.bag_id', 'left')
+                ->join('diamond_bag_items bi', 'bi.id = l.bag_item_id', 'left')
+                ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
+                ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+                ->join('orders o', 'o.id = l.allocation_order_id', 'left')
                 ->where('l.return_id', $id)
                 ->orderBy('l.id', 'ASC')
                 ->get()

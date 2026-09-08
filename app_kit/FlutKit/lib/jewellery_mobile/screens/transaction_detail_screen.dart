@@ -84,14 +84,20 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  Future<void> _downloadPdf(BuildContext context, String path, String url) async {
+  Future<void> _downloadPdf(
+    BuildContext context,
+    String path,
+    String url,
+  ) async {
     if (_downloadingPdf) {
       return;
     }
 
     setState(() => _downloadingPdf = true);
     try {
-      final targetUrl = url.trim().isNotEmpty ? url.trim() : '${widget.api.baseUrl}${path.trim()}';
+      final targetUrl = url.trim().isNotEmpty
+          ? url.trim()
+          : '${widget.api.baseUrl}${path.trim()}';
       final result = await launchUrl(
         Uri.parse(targetUrl),
         mode: LaunchMode.externalApplication,
@@ -178,7 +184,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: _downloadingPdf ? null : () => _downloadPdf(context, docPath, docUrl),
+                onPressed: _downloadingPdf
+                    ? null
+                    : () => _downloadPdf(context, docPath, docUrl),
                 icon: _downloadingPdf
                     ? const SizedBox(
                         width: 18,
@@ -189,7 +197,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         ),
                       )
                     : const Icon(Icons.download),
-                label: Text(_downloadingPdf ? 'Downloading...' : 'Download PDF'),
+                label: Text(
+                  _downloadingPdf ? 'Downloading...' : 'Download PDF',
+                ),
               ),
             ),
         ],
@@ -276,29 +286,34 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       cards.add(_statTile('PCS', AppFormatters.quantity(totals['total_pcs'])));
     }
     if (totals.containsKey('total_carat')) {
-      cards.add(_statTile('CTS', AppFormatters.quantity(totals['total_carat'])));
+      cards.add(
+        _statTile('CTS', AppFormatters.quantity(totals['total_carat'])),
+      );
     }
     if (totals.containsKey('total_weight')) {
-      cards.add(_statTile('Weight', AppFormatters.quantity(totals['total_weight'])));
+      cards.add(
+        _statTile('Weight', AppFormatters.quantity(totals['total_weight'])),
+      );
     }
     if (totals.containsKey('total_fine')) {
-      cards.add(_statTile('Fine', AppFormatters.quantity(totals['total_fine'])));
+      cards.add(
+        _statTile('Fine', AppFormatters.quantity(totals['total_fine'])),
+      );
     }
     if (totals.containsKey('total_qty')) {
       cards.add(_statTile('Qty', AppFormatters.quantity(totals['total_qty'])));
     }
     if (totals.containsKey('total_value')) {
-      cards.add(_statTile('Value', AppFormatters.amount(totals['total_value'])));
+      cards.add(
+        _statTile('Value', AppFormatters.amount(totals['total_value'])),
+      );
     }
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            widget.accentColor.withValues(alpha: 0.10),
-            Colors.white,
-          ],
+          colors: [widget.accentColor.withValues(alpha: 0.10), Colors.white],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -381,13 +396,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   String _lineTitle(Map<String, dynamic> row) {
     final diamond = row['diamond_type'] ?? '';
     if (diamond.toString().isNotEmpty) {
-      final shape = row['shape'] ?? '';
+      final bag = row['bag_no'] ?? '';
+      final shape = row['bag_shape'] ?? row['shape'] ?? '';
+      final bagSize = row['bag_size'] ?? '';
       final chalniFrom = row['chalni_from'] ?? '';
       final chalniTo = row['chalni_to'] ?? '';
-      final chalni = chalniFrom.toString().isNotEmpty
+      final chalni = bagSize.toString().isNotEmpty
+          ? bagSize.toString()
+          : chalniFrom.toString().isNotEmpty
           ? '${chalniFrom}-${chalniTo}'
           : '';
       return [
+        bag,
         diamond,
         shape,
         chalni,
@@ -408,6 +428,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   List<MapEntry<String, String>> _lineMeta(Map<String, dynamic> row) {
     final List<MapEntry<String, String>> meta = [];
+    if ((row['allocation_order_no'] ?? '').toString().isNotEmpty) {
+      meta.add(MapEntry('Order', row['allocation_order_no'].toString()));
+    }
     if (row.containsKey('pcs')) {
       meta.add(MapEntry('PCS', AppFormatters.quantity(row['pcs'])));
     }

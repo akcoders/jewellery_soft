@@ -28,6 +28,7 @@ use App\Models\StoneInventoryReturnHeaderModel;
 use App\Models\StoneInventoryReturnLineModel;
 use App\Models\StoneInventoryItemModel;
 use App\Services\DiamondInventory\StockService as DiamondStockService;
+use App\Services\DiamondBagTraceService;
 use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\StoneInventory\StockService as StoneStockService;
 use App\Services\KarigarMaterialAccountingService;
@@ -172,7 +173,7 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Selected warehouse not found.', 422);
         }
 
-        $parsed = $this->parseDiamondLines($payload['lines'] ?? []);
+        $parsed = $this->parseDiamondLines($payload['lines'] ?? [], true);
         if ($parsed['error'] !== null) {
             return $this->fail($parsed['error'], 422);
         }
@@ -225,6 +226,9 @@ class TransactionsController extends MobileBaseController
                 $lineModel->insert([
                     'issue_id' => $issueId,
                     'item_id' => $itemId,
+                    'bag_id' => (int) ($line['bag_id'] ?? 0) ?: null,
+                    'bag_item_id' => (int) ($line['bag_item_id'] ?? 0) ?: null,
+                    'allocation_order_id' => (int) ($line['allocation_order_id'] ?? 0) ?: null,
                     'pcs' => $line['pcs'],
                     'carat' => $line['carat'],
                     'rate_per_carat' => $line['rate_per_carat'],
@@ -233,6 +237,7 @@ class TransactionsController extends MobileBaseController
             }
 
             $service->applyIssue($issueId);
+            (new DiamondBagTraceService($db))->applyIssue($issueId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $issueId);
             $db->transComplete();
         } catch (Throwable $e) {
@@ -272,7 +277,7 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Selected issue reference not found.', 422);
         }
 
-        $parsed = $this->parseDiamondLines($payload['lines'] ?? []);
+        $parsed = $this->parseDiamondReturnLines($issueId, $payload['lines'] ?? []);
         if ($parsed['error'] !== null) {
             return $this->fail($parsed['error'], 422);
         }
@@ -324,6 +329,10 @@ class TransactionsController extends MobileBaseController
                 $lineModel->insert([
                     'return_id' => $returnId,
                     'item_id' => $itemId,
+                    'issue_line_id' => (int) ($line['issue_line_id'] ?? 0) ?: null,
+                    'bag_id' => (int) ($line['bag_id'] ?? 0) ?: null,
+                    'bag_item_id' => (int) ($line['bag_item_id'] ?? 0) ?: null,
+                    'allocation_order_id' => (int) ($line['allocation_order_id'] ?? 0) ?: null,
                     'pcs' => $line['pcs'],
                     'carat' => $line['carat'],
                     'rate_per_carat' => $line['rate_per_carat'],
@@ -332,6 +341,7 @@ class TransactionsController extends MobileBaseController
             }
 
             $service->applyReturn($returnId);
+            (new DiamondBagTraceService($db))->applyReturn($returnId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'return', $returnId);
             $db->transComplete();
         } catch (Throwable $e) {
@@ -1360,7 +1370,7 @@ class TransactionsController extends MobileBaseController
             ->setBody($pdf);
     }
 
-    private function parseDiamondLines($linesPayload): array
+    private function parseDiamondLines($linesPayload, bool $bagWiseIssue = false): array
     {
         $lines = [];
         if (! is_array($linesPayload)) {
@@ -1372,6 +1382,23 @@ class TransactionsController extends MobileBaseController
                 continue;
             }
             $itemId = (int) ($line['item_id'] ?? 0);
+            $bagItemId = (int) ($line['bag_item_id'] ?? 0);
+            $allocationOrderId = (int) ($line['allocation_order_id'] ?? 0);
+            $bagId = 0;
+            if ($bagWiseIssue) {
+                $bagItem = db_connect()->table('diamond_bag_items')
+                    ->select('id, bag_id, inventory_item_id')
+                    ->where('id', $bagItemId)->get()->getRowArray();
+                if (! $bagItem || (int) ($bagItem['inventory_item_id'] ?? 0) <= 0) {
+                    return ['lines' => [], 'error' => 'Select an available diamond bag, shape and size for every issue line.'];
+                }
+                $itemId = (int) $bagItem['inventory_item_id'];
+                $bagId = (int) $bagItem['bag_id'];
+                if ($allocationOrderId > 0
+                    && db_connect()->table('orders')->where('id', $allocationOrderId)->countAllResults() === 0) {
+                    return ['lines' => [], 'error' => 'Selected diamond order allocation does not exist.'];
+                }
+            }
             $pcs = (float) ($line['pcs'] ?? 0);
             $carat = (float) ($line['carat'] ?? 0);
             $rate = $line['rate_per_carat'] ?? null;
@@ -1380,8 +1407,8 @@ class TransactionsController extends MobileBaseController
             if ($carat <= 0) {
                 return ['lines' => [], 'error' => 'Carat must be greater than zero for each line.'];
             }
-            if ($pcs < 0) {
-                return ['lines' => [], 'error' => 'PCS cannot be negative.'];
+            if (($bagWiseIssue && ($pcs <= 0 || floor($pcs) !== $pcs)) || (! $bagWiseIssue && $pcs < 0)) {
+                return ['lines' => [], 'error' => $bagWiseIssue ? 'Whole-number PCS is mandatory for diamond bag issue.' : 'PCS cannot be negative.'];
             }
             if ($rateValue !== null && $rateValue < 0) {
                 return ['lines' => [], 'error' => 'Rate per carat cannot be negative.'];
@@ -1429,11 +1456,69 @@ class TransactionsController extends MobileBaseController
             $lineValue = $rateValue === null ? null : round($carat * $rateValue, 2);
             $lines[] = [
                 'item_id' => $itemId,
-                'pcs' => round($pcs, 3),
+                'bag_id' => $bagWiseIssue ? $bagId : null,
+                'bag_item_id' => $bagWiseIssue ? $bagItemId : null,
+                'allocation_order_id' => $bagWiseIssue && $allocationOrderId > 0 ? $allocationOrderId : null,
+                'pcs' => $bagWiseIssue ? (int) $pcs : round($pcs, 3),
                 'carat' => round($carat, 3),
                 'rate_per_carat' => $rateValue === null ? null : round($rateValue, 2),
                 'line_value' => $lineValue,
                 'signature' => $signature,
+            ];
+        }
+
+        return ['lines' => $lines, 'error' => null];
+    }
+
+    private function parseDiamondReturnLines(int $issueId, $linesPayload): array
+    {
+        if (! is_array($linesPayload)) {
+            return ['lines' => [], 'error' => 'Invalid lines payload.'];
+        }
+        $options = (new DiamondBagTraceService(db_connect()))->returnableIssueLines($issueId, 0, true);
+        $available = [];
+        foreach ($options as $option) {
+            $available[(int) $option['issue_line_id']] = $option;
+        }
+
+        $lines = [];
+        $requested = [];
+        foreach ($linesPayload as $line) {
+            if (! is_array($line)) {
+                continue;
+            }
+            $issueLineId = (int) ($line['issue_line_id'] ?? 0);
+            $pcs = (float) ($line['pcs'] ?? 0);
+            $carat = (float) ($line['carat'] ?? 0);
+            $rateRaw = $line['rate_per_carat'] ?? null;
+            $rate = $rateRaw === null || $rateRaw === '' ? null : (float) $rateRaw;
+            if ($issueLineId <= 0 || ! isset($available[$issueLineId])) {
+                return ['lines' => [], 'error' => 'Select an exact line from the selected diamond issue.'];
+            }
+            if ($pcs <= 0 || floor($pcs) !== $pcs || $carat <= 0) {
+                return ['lines' => [], 'error' => 'Whole-number PCS and positive CTS are mandatory for diamond return.'];
+            }
+            if ($rate !== null && $rate < 0) {
+                return ['lines' => [], 'error' => 'Rate per carat cannot be negative.'];
+            }
+            $source = $available[$issueLineId];
+            $requested[$issueLineId]['pcs'] = (float) ($requested[$issueLineId]['pcs'] ?? 0) + $pcs;
+            $requested[$issueLineId]['cts'] = (float) ($requested[$issueLineId]['cts'] ?? 0) + $carat;
+            if ($requested[$issueLineId]['pcs'] > ((float) $source['available_pcs'] + 0.0005)
+                || $requested[$issueLineId]['cts'] > ((float) $source['available_cts'] + 0.0005)) {
+                return ['lines' => [], 'error' => 'Return exceeds the available PCS/CTS of ' . (string) $source['label'] . '.'];
+            }
+            $lines[] = [
+                'item_id' => (int) $source['item_id'],
+                'issue_line_id' => $issueLineId,
+                'bag_id' => (int) ($source['bag_id'] ?? 0) ?: null,
+                'bag_item_id' => (int) ($source['bag_item_id'] ?? 0) ?: null,
+                'allocation_order_id' => (int) ($source['allocation_order_id'] ?? 0) ?: null,
+                'pcs' => (int) $pcs,
+                'carat' => round($carat, 3),
+                'rate_per_carat' => $rate === null ? null : round($rate, 2),
+                'line_value' => $rate === null ? null : round($carat * $rate, 2),
+                'signature' => [],
             ];
         }
 
@@ -1561,9 +1646,18 @@ class TransactionsController extends MobileBaseController
             return [];
         }
 
-        return db_connect()->table($table . ' l')
+        $builder = db_connect()->table($table . ' l')
             ->select('l.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut')
-            ->join('items i', 'i.id = l.item_id', 'left')
+            ->join('items i', 'i.id = l.item_id', 'left');
+        if (in_array($table, ['issue_lines', 'return_lines'], true)) {
+            $builder->select('b.bag_no, sm.name AS bag_shape, sz.size_label AS bag_size, o.order_no AS allocation_order_no')
+                ->join('diamond_bags b', 'b.id = l.bag_id', 'left')
+                ->join('diamond_bag_items bi', 'bi.id = l.bag_item_id', 'left')
+                ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
+                ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+                ->join('orders o', 'o.id = l.allocation_order_id', 'left');
+        }
+        return $builder
             ->where('l.' . $field, $headerId)
             ->orderBy('l.id', 'ASC')
             ->get()

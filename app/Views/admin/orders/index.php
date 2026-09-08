@@ -329,7 +329,7 @@
                                         <tbody class="js-dia-body">
                                             <tr>
                                                 <td><select name="studded_diamond_type[]" class="form-select js-diamond-balance-select"><option value="">Select available diamond</option></select></td>
-                                                <td><input type="number" step="0.001" min="0" name="studded_diamond_pcs[]" class="form-control js-dia-pcs" value="0"></td>
+                                                <td><input type="number" step="1" min="1" name="studded_diamond_pcs[]" class="form-control js-dia-pcs"></td>
                                                 <td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="0"></td>
                                                 <td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="0"></td>
                                                 <td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="0.00" readonly></td>
@@ -555,7 +555,7 @@
             if (kind === 'dia') {
                 return '<tr>'
                     + '<td><select name="studded_diamond_type[]" class="form-select js-diamond-balance-select">' + diamondBalanceOptions(r.type || '') + '</select></td>'
-                    + '<td><input type="number" step="0.001" min="0" name="studded_diamond_pcs[]" class="form-control js-dia-pcs" value="' + pcs.toFixed(3) + '"></td>'
+                    + '<td><input type="number" step="1" min="1" name="studded_diamond_pcs[]" class="form-control js-dia-pcs" value="' + (pcs > 0 ? Math.round(pcs) : '') + '"></td>'
                     + '<td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="' + wt.toFixed(3) + '"></td>'
                     + '<td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="' + rate.toFixed(2) + '"></td>'
                     + '<td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="' + total.toFixed(2) + '" readonly></td>'

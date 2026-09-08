@@ -54,6 +54,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   List<dynamic> _gstMasters = [];
   List<dynamic> _items = [];
   List<dynamic> _issueRefs = [];
+  List<dynamic> _diamondOrderAllocations = [];
 
   XFile? _attachment;
 
@@ -66,6 +67,8 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
       _LineForm(
         material: widget.material,
         includePcs: widget.action == 'issue',
+        bagWise: widget.material == 'diamond' && widget.action == 'issue',
+        exactReturn: widget.material == 'diamond' && widget.action == 'return',
       ),
     );
     _loadLookups();
@@ -86,7 +89,15 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     });
     try {
       if (widget.material == 'diamond') {
-        _items = await widget.api.fetchDiamondItems();
+        if (widget.action == 'issue') {
+          _items = await widget.api.fetchDiamondBagItems();
+          _diamondOrderAllocations = await widget.api
+              .fetchDiamondOrderAllocations();
+        } else if (widget.action == 'return') {
+          _items = [];
+        } else {
+          _items = await widget.api.fetchDiamondItems();
+        }
       } else if (widget.material == 'gold') {
         _items = await widget.api.fetchGoldItems();
       } else {
@@ -408,17 +419,33 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                       ),
                     )
                     .toList(),
-                onChanged: (value) {
+                onChanged: (value) async {
                   final selected = _issueRefs.firstWhere(
                     (row) => _asInt(row['id']) == value,
                     orElse: () => null,
                   );
                   setState(() {
                     _issueId = value;
+                    for (final line in _lines) {
+                      line.itemId = null;
+                    }
                     _karigarId = selected == null
                         ? null
                         : _asInt(selected['karigar_id']);
                   });
+                  if (widget.material == 'diamond' && value != null) {
+                    try {
+                      final rows = await widget.api.fetchDiamondIssueLines(
+                        value,
+                      );
+                      if (mounted) setState(() => _items = rows);
+                    } catch (e) {
+                      if (mounted)
+                        _showError(
+                          e.toString().replaceFirst('Exception: ', ''),
+                        );
+                    }
+                  }
                 },
                 validator: (v) =>
                     v == null ? 'Issue reference is required' : null,
@@ -513,6 +540,10 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
               items: _items,
               material: widget.material,
               includePcs: widget.action == 'issue',
+              bagWise: widget.material == 'diamond' && widget.action == 'issue',
+              exactReturn:
+                  widget.material == 'diamond' && widget.action == 'return',
+              orderAllocations: _diamondOrderAllocations,
               onChanged: () => setState(() {}),
               onRemove: _lines.length == 1
                   ? null
@@ -534,6 +565,12 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                     _LineForm(
                       material: widget.material,
                       includePcs: widget.action == 'issue',
+                      bagWise:
+                          widget.material == 'diamond' &&
+                          widget.action == 'issue',
+                      exactReturn:
+                          widget.material == 'diamond' &&
+                          widget.action == 'return',
                     ),
                   );
                 });
@@ -586,12 +623,20 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
 }
 
 class _LineForm {
-  _LineForm({required this.material, required this.includePcs});
+  _LineForm({
+    required this.material,
+    required this.includePcs,
+    required this.bagWise,
+    required this.exactReturn,
+  });
 
   final String material;
   final bool includePcs;
+  final bool bagWise;
+  final bool exactReturn;
 
   int? itemId;
+  int? allocationOrderId;
   bool custom = false;
 
   final TextEditingController pcsCtrl = TextEditingController();
@@ -626,12 +671,18 @@ class _LineForm {
   Map<String, dynamic> toPayload() {
     if (material == 'diamond') {
       final payload = <String, dynamic>{
-        'item_id': itemId ?? 0,
+        if (bagWise)
+          'bag_item_id': itemId ?? 0
+        else if (exactReturn)
+          'issue_line_id': itemId ?? 0
+        else
+          'item_id': itemId ?? 0,
+        if (bagWise) 'allocation_order_id': allocationOrderId,
         'pcs': double.tryParse(pcsCtrl.text) ?? 0,
         'carat': double.tryParse(caratCtrl.text) ?? 0,
         'rate_per_carat': double.tryParse(rateCtrl.text),
       };
-      if (custom || (itemId ?? 0) == 0) {
+      if (!exactReturn && (custom || (itemId ?? 0) == 0)) {
         payload.addAll({
           'diamond_type': diamondTypeCtrl.text.trim(),
           'shape': shapeCtrl.text.trim(),
@@ -669,6 +720,9 @@ class _LineCard extends StatelessWidget {
     required this.items,
     required this.material,
     required this.includePcs,
+    required this.bagWise,
+    required this.exactReturn,
+    required this.orderAllocations,
     this.onChanged,
     this.onRemove,
   });
@@ -678,6 +732,9 @@ class _LineCard extends StatelessWidget {
   final List<dynamic> items;
   final String material;
   final bool includePcs;
+  final bool bagWise;
+  final bool exactReturn;
+  final List<dynamic> orderAllocations;
   final VoidCallback? onChanged;
   final VoidCallback? onRemove;
 
@@ -712,9 +769,13 @@ class _LineCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<int>(
             initialValue: line.itemId,
-            decoration: const InputDecoration(labelText: 'Item'),
+            decoration: InputDecoration(
+              labelText: (bagWise || exactReturn)
+                  ? 'Issued Bag / Shape / Size'
+                  : 'Item',
+            ),
             items: [
-              if (material == 'diamond')
+              if (material == 'diamond' && !bagWise && !exactReturn)
                 const DropdownMenuItem<int>(
                   value: 0,
                   child: Text('Custom / New Item'),
@@ -728,12 +789,48 @@ class _LineCard extends StatelessWidget {
             ],
             onChanged: (value) {
               line.itemId = value;
-              line.custom = material == 'diamond' && (value ?? 0) == 0;
+              line.custom =
+                  material == 'diamond' &&
+                  !bagWise &&
+                  !exactReturn &&
+                  (value ?? 0) == 0;
               onChanged?.call();
             },
             validator: (v) => v == null ? 'Item is required' : null,
           ),
-          if (material == 'diamond' && line.custom) ...[
+          if (bagWise) ...[
+            const SizedBox(height: AppSpacing.sm),
+            DropdownButtonFormField<int>(
+              initialValue: line.allocationOrderId,
+              decoration: const InputDecoration(
+                labelText: 'Order Allocation (optional)',
+                helperText:
+                    'Same bag can be split across multiple order lines.',
+              ),
+              items: [
+                const DropdownMenuItem<int>(
+                  value: null,
+                  child: Text('Unallocated / general jobwork'),
+                ),
+                ...orderAllocations.map(
+                  (row) => DropdownMenuItem<int>(
+                    value: _asIntValue(row['id']),
+                    child: Text(
+                      [
+                        row['order_no']?.toString() ?? '',
+                        row['order_name']?.toString() ?? '',
+                      ].where((value) => value.isNotEmpty).join(' · '),
+                    ),
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                line.allocationOrderId = value;
+                onChanged?.call();
+              },
+            ),
+          ],
+          if (material == 'diamond' && line.custom && !exactReturn) ...[
             const SizedBox(height: AppSpacing.sm),
             TextFormField(
               controller: line.diamondTypeCtrl,
@@ -793,16 +890,36 @@ class _LineCard extends StatelessWidget {
                 Expanded(
                   child: TextFormField(
                     controller: line.pcsCtrl,
-                    decoration: const InputDecoration(labelText: 'PCS'),
+                    decoration: InputDecoration(
+                      labelText: (bagWise || exactReturn) ? 'PCS *' : 'PCS',
+                    ),
                     keyboardType: TextInputType.number,
+                    validator: (bagWise || exactReturn)
+                        ? (value) {
+                            final number = int.tryParse(value?.trim() ?? '');
+                            return number == null || number <= 0
+                                ? 'Whole PCS required'
+                                : null;
+                          }
+                        : null,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: TextFormField(
                     controller: line.caratCtrl,
-                    decoration: const InputDecoration(labelText: 'Carat'),
+                    decoration: InputDecoration(
+                      labelText: (bagWise || exactReturn) ? 'CTS *' : 'Carat',
+                    ),
                     keyboardType: TextInputType.number,
+                    validator: (bagWise || exactReturn)
+                        ? (value) {
+                            final number = double.tryParse(value?.trim() ?? '');
+                            return number == null || number <= 0
+                                ? 'CTS required'
+                                : null;
+                          }
+                        : null,
                   ),
                 ),
               ],
@@ -853,6 +970,15 @@ class _LineCard extends StatelessWidget {
 
   String _itemLabel(dynamic row) {
     if (material == 'diamond') {
+      if (bagWise || exactReturn) {
+        final bag = row['bag_no']?.toString() ?? '';
+        final type = row['diamond_type']?.toString() ?? '';
+        final shape = row['shape_name']?.toString() ?? '';
+        final size = (row['size_label'] ?? row['size_code'])?.toString() ?? '';
+        final pcs = row['pcs_available']?.toString() ?? '0';
+        final cts = row['weight_cts_available']?.toString() ?? '0';
+        return '$bag | $type | $shape $size | $pcs pcs / $cts cts';
+      }
       final type = row['diamond_type']?.toString() ?? '';
       final shape = row['shape']?.toString() ?? '';
       final chalniFrom = row['chalni_from']?.toString() ?? '';
@@ -875,6 +1001,12 @@ class _LineCard extends StatelessWidget {
       ].where((e) => e.toString().isNotEmpty).join(' ');
     }
     return row['product_name']?.toString() ?? '-';
+  }
+
+  int? _asIntValue(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
   }
 
   int? _safeInt(dynamic value) {
