@@ -1,6 +1,7 @@
 "use strict";
 
-const CACHE_NAME = "aabhushan-pwa-20260908091250";
+const CACHE_PREFIX = "aabhushan-pwa-";
+const CACHE_NAME = CACHE_PREFIX + "20260908095031";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -14,13 +15,31 @@ const APP_SHELL = [
   "./icons/Icon-maskable-512.png",
 ];
 
+function cacheAppShell() {
+  return caches.open(CACHE_NAME).then(function (cache) {
+    return Promise.all(
+      APP_SHELL.map(function (path) {
+        const request = new Request(
+          new URL(path, self.registration.scope).toString(),
+          { cache: "reload" }
+        );
+        return fetch(request).then(function (response) {
+          if (!response || !response.ok) {
+            throw new Error("Unable to refresh PWA asset: " + path);
+          }
+          return cache.put(request, response);
+        });
+      })
+    );
+  });
+}
+
 self.addEventListener("install", function (event) {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(APP_SHELL);
+    cacheAppShell().then(function () {
+      return self.skipWaiting();
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", function (event) {
@@ -31,7 +50,7 @@ self.addEventListener("activate", function (event) {
         return Promise.all(
           keys
             .filter(function (key) {
-              return key.startsWith("aabhushan-pwa-") && key !== CACHE_NAME;
+              return key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME;
             })
             .map(function (key) {
               return caches.delete(key);
@@ -40,6 +59,17 @@ self.addEventListener("activate", function (event) {
       })
       .then(function () {
         return self.clients.claim();
+      })
+      .then(function () {
+        return self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      })
+      .then(function (clients) {
+        clients.forEach(function (client) {
+          client.postMessage({
+            type: "AABHUSHAN_PWA_UPDATED",
+            version: CACHE_NAME,
+          });
+        });
       })
   );
 });
@@ -80,7 +110,7 @@ self.addEventListener("fetch", function (event) {
   event.respondWith(
     caches.match(request).then(function (cached) {
       if (cached) return cached;
-      return fetch(request).then(function (response) {
+      return fetch(request, { cache: "no-cache" }).then(function (response) {
         if (response && response.ok) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then(function (cache) {

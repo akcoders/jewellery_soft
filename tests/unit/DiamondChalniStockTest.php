@@ -16,7 +16,9 @@ final class DiamondChalniStockTest extends CIUnitTestCase
         $this->assertStringContainsString("'000000-00000' => 3.630", $migration);
         $this->assertStringContainsString("'3-4' => 23.380", $migration);
         $this->assertStringContainsString("'11-12' => 0.420", $migration);
-        $this->assertStringContainsString('VVS-VS. ROUND', $migration);
+        $this->assertStringContainsString("ORIGINAL_OPENING_REFERENCE = 'DIA-OPEN-20260401'", $migration);
+        $this->assertStringContainsString('ORIGINAL_VVS_ROUND_OPENING_CTS = 171.890', $migration);
+        $this->assertStringContainsString("'VVSMIX'", $migration);
     }
 
     public function testStockServiceSeparatesLedgerTracedAndUntracedBalances(): void

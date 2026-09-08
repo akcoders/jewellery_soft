@@ -76,6 +76,34 @@ denied permission.
   instructions.
 - After uploading a new build, purge the Hostinger/CDN cache so `index.html`,
   `manifest.json` and `aabhushan_app_sw.js` are refreshed immediately.
+- The app checks for a new service worker on every online launch. A newly
+  deployed cache version removes earlier Aabhushan PWA caches and reloads the
+  running app once, so installed devices receive the update when they next
+  open the app online.
+
+## Clear server and installed-app caches
+
+Clear the CodeIgniter application cache on production with:
+
+```bash
+cd /home/u897223014/domains/webignitors.in/public_html/aabhushan
+/usr/bin/php spark cache:clear
+```
+
+Also use **Hostinger hPanel > Cache Manager > Purge All** after deploying a
+new PWA build. The CLI application cache and Hostinger's web/CDN cache are
+separate.
+
+To force-clear the Aabhushan PWA cache on one phone, open this URL on that
+phone while online:
+
+`https://aabhushan.webignitors.in/pwa/?clear-pwa-cache=1`
+
+It clears only caches whose names start with `aabhushan-pwa-`, checks for the
+latest worker and reloads the app. Browser security does not permit a server
+to erase storage instantly on every phone; devices that are offline update on
+their next online launch. This flow does not unregister or delete the nested
+OneSignal push service worker.
 
 ## Existing notification cron
 

@@ -8,6 +8,8 @@ use RuntimeException;
 class CreateDiamondChalniStock extends Migration
 {
     private const SUPPLIED_TOTAL_CTS = 146.190;
+    private const ORIGINAL_OPENING_REFERENCE = 'DIA-OPEN-20260401';
+    private const ORIGINAL_VVS_ROUND_OPENING_CTS = 171.890;
 
     /** @var array<string,float> */
     private const VVS_ROUND_STOCK = [
@@ -156,6 +158,11 @@ class CreateDiamondChalniStock extends Migration
 
     private function resolveVvsRoundItemId(): int
     {
+        $historicalItemId = $this->resolveFromOriginalOpening();
+        if ($historicalItemId > 0) {
+            return $historicalItemId;
+        }
+
         $fallback = 0;
         foreach ($this->db->table('items')->select('id, diamond_type, shape, clarity')->orderBy('id', 'ASC')->get()->getResultArray() as $item) {
             $clarity = $this->key((string) ($item['clarity'] ?? ''));
@@ -164,14 +171,39 @@ class CreateDiamondChalniStock extends Migration
             if ($clarity === 'VVSVSROUND') {
                 return (int) $item['id'];
             }
-            if ($fallback === 0 && (($clarity === 'VVSROUND') || ($type === 'VVS' && $shape === 'ROUND'))) {
+            $isVvsAlias = in_array($clarity, ['VVSROUND', 'VVSMIX', 'VVSVSMIX'], true)
+                || in_array($type, ['VVS', 'VVSROUND', 'VVSMIX', 'VVSVSMIX'], true);
+            if ($fallback === 0 && $isVvsAlias && $shape === 'ROUND') {
                 $fallback = (int) $item['id'];
             }
         }
         if ($fallback > 0) {
             return $fallback;
         }
-        throw new RuntimeException('VVS-VS. ROUND diamond product is missing; chalni stock import was stopped.');
+        throw new RuntimeException('The original VVS Round diamond stock item could not be identified; chalni stock import was stopped.');
+    }
+
+    private function resolveFromOriginalOpening(): int
+    {
+        if (! $this->db->tableExists('diamond_inventory_opening_balances')) {
+            return 0;
+        }
+
+        $rows = $this->db->table('diamond_inventory_opening_balances ob')
+            ->select('ob.item_id')
+            ->join('items i', 'i.id = ob.item_id', 'inner')
+            ->where('ob.reference_no', self::ORIGINAL_OPENING_REFERENCE)
+            ->where('ob.carat', self::ORIGINAL_VVS_ROUND_OPENING_CTS)
+            ->get()
+            ->getResultArray();
+
+        $itemIds = array_values(array_unique(array_map(
+            static fn (array $row): int => (int) ($row['item_id'] ?? 0),
+            $rows
+        )));
+        $itemIds = array_values(array_filter($itemIds, static fn (int $id): bool => $id > 0));
+
+        return count($itemIds) === 1 ? $itemIds[0] : 0;
     }
 
     private function key(string $value): string

@@ -39,9 +39,51 @@
   <noscript>Aabhushan ERP requires JavaScript to run.</noscript>
   <script>
     if ("serviceWorker" in navigator) {
+      var aabhushanPwaReloading = false;
+      var aabhushanPwaHadController = Boolean(navigator.serviceWorker.controller);
+
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (!aabhushanPwaHadController || aabhushanPwaReloading) return;
+        aabhushanPwaReloading = true;
+        window.location.reload();
+      });
+
+      window.aabhushanForcePwaUpdate = async function () {
+        if ("caches" in window) {
+          var cacheNames = await caches.keys();
+          await Promise.all(
+            cacheNames
+              .filter(function (name) {
+                return name.indexOf("aabhushan-pwa-") === 0;
+              })
+              .map(function (name) {
+                return caches.delete(name);
+              })
+          );
+        }
+
+        var registration = await navigator.serviceWorker.getRegistration("./");
+        if (registration) await registration.update();
+
+        var cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("clear-pwa-cache");
+        cleanUrl.searchParams.set("pwa-updated", Date.now().toString());
+        window.location.replace(cleanUrl.toString());
+      };
+
       window.addEventListener("load", function () {
         navigator.serviceWorker
-          .register("aabhushan_app_sw.js", { scope: "./" })
+          .register("aabhushan_app_sw.js", {
+            scope: "./",
+            updateViaCache: "none",
+          })
+          .then(function (registration) {
+            registration.update();
+            var params = new URLSearchParams(window.location.search);
+            if (params.get("clear-pwa-cache") === "1") {
+              return window.aabhushanForcePwaUpdate();
+            }
+          })
           .catch(function (error) {
             console.warn("Aabhushan app service worker failed:", error);
           });

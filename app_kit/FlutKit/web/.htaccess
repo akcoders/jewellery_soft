@@ -10,11 +10,11 @@ Options -Indexes
 </IfModule>
 
 <IfModule mod_headers.c>
-  <FilesMatch "^(index\.html|manifest\.json|flutter_bootstrap\.js|aabhushan_app_sw\.js|OneSignalSDKWorker\.js)$">
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-  </FilesMatch>
   <FilesMatch "\.(js|wasm|png|jpg|jpeg|webp|svg|woff2?|ttf)$">
     Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+  <FilesMatch "^(index\.html|manifest\.json|version\.json|flutter_bootstrap\.js|main\.dart\.js|aabhushan_pwa_bridge\.js|aabhushan_app_sw\.js|OneSignalSDKWorker\.js)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
   </FilesMatch>
 </IfModule>
 
