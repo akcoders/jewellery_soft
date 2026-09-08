@@ -37,6 +37,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
 
     $routes->get('designs', 'Admin\DesignController::index', ['filter' => 'permission:masters.designs.read']);
     $routes->get('designs/create', 'Admin\DesignController::create', ['filter' => 'permission:masters.designs.manage']);
+    $routes->get('designs/(:num)/diamonds', 'Admin\DesignController::diamonds/$1', ['filter' => 'permission:masters.designs.read']);
     $routes->post('designs', 'Admin\DesignController::store', ['filter' => 'permission:masters.designs.manage']);
     $routes->get('departments', 'Admin\DepartmentController::index', ['filter' => 'permission:organization.departments.read']);
     $routes->get('departments/create', 'Admin\DepartmentController::create', ['filter' => 'permission:organization.departments.manage']);

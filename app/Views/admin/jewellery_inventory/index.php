@@ -48,7 +48,7 @@
                             <td>
                                 <?php if (! is_array($stones) || $stones === []): ?><span class="text-muted">None recorded</span><?php endif; ?>
                                 <?php foreach (is_array($stones) ? $stones : [] as $stone): ?>
-                                    <div class="small"><strong><?= esc((string) (($stone['name'] ?? '') ?: 'Stone')) ?></strong>: <?= number_format((float) ($stone['pcs'] ?? 0), 0) ?> pcs / <?= number_format((float) ($stone['weight'] ?? 0), 3) ?> cts<?= (float) ($stone['rate'] ?? 0) !== 0.0 ? ' @ ₹' . number_format((float) $stone['rate'], 2) : '' ?></div>
+                                    <div class="small"><strong><?= esc(\App\Libraries\DiamondDisplay::componentName($stone)) ?></strong>: <?= number_format((float) ($stone['pcs'] ?? 0), 0) ?> pcs / <?= number_format((float) ($stone['weight'] ?? 0), 3) ?> cts<?= (float) ($stone['rate'] ?? 0) !== 0.0 ? ' @ ₹' . number_format((float) $stone['rate'], 2) : '' ?></div>
                                 <?php endforeach; ?>
                             </td>
                             <td>₹<?= number_format((float) ($row['total_value'] ?? 0), 2) ?><br><small class="text-muted">Labour ₹<?= number_format((float) ($row['labour_charges'] ?? 0), 2) ?> · <?= esc((string) ($row['payment_status'] ?? 'Pending')) ?></small></td>

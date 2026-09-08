@@ -5,6 +5,7 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\DesignMasterModel;
 use App\Models\KarigarModel;
+use App\Services\DesignDiamondDetailService;
 
 class DesignController extends BaseController
 {
@@ -36,6 +37,20 @@ class DesignController extends BaseController
             'title'    => 'Add Design',
             'karigars' => (new KarigarModel())->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
         ]);
+    }
+
+    public function diamonds(int $id)
+    {
+        $design = $this->designModel->find($id);
+        if (! $design) {
+            return $this->response->setStatusCode(404)->setBody('Design not found.');
+        }
+
+        return $this->response->setHeader('Cache-Control', 'private, no-store')
+            ->setContentType('text/html')->setBody(view('admin/designs/diamonds', [
+                'design' => $design,
+                'orders' => (new DesignDiamondDetailService())->ordersForDesign($design),
+            ]));
     }
 
     public function store()

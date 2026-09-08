@@ -1128,7 +1128,6 @@ class DocumentsController extends ApiBaseController
                 }
                 $name = trim((string) ($row['diamond_type'] ?? 'Diamond'));
                 $grade = trim(implode('/', array_filter([
-                    (string) ($row['shape'] ?? ''),
                     (string) ($row['color'] ?? ''),
                     (string) ($row['clarity'] ?? ''),
                 ], static fn(string $v): bool => trim($v) !== '')));
