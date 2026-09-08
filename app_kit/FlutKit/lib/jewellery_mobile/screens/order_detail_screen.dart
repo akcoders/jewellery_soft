@@ -6,6 +6,7 @@ import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_status_badge.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_followup_form_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -31,6 +32,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Map<String, dynamic> _order = {};
   List<dynamic> _items = [];
   List<dynamic> _followups = [];
+  List<dynamic> _diamondRequirements = [];
+  bool _canRaiseDiamondRequirement = false;
   List<String> _allowedStages = const [];
 
   @override
@@ -70,6 +73,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _order = orderMap ?? data.cast<String, dynamic>();
         _items = (data['items'] as List?) ?? <dynamic>[];
         _followups = (data['followups'] as List?) ?? <dynamic>[];
+        _diamondRequirements =
+            (data['diamond_requirements'] as List?) ?? <dynamic>[];
+        _canRaiseDiamondRequirement =
+            data['can_raise_diamond_requirement'] == true ||
+            data['can_raise_diamond_requirement'] == 1;
         _allowedStages = ((data['allowed_stages'] as List?) ?? <dynamic>[])
             .map((e) => e.toString())
             .toList(growable: false);
@@ -102,6 +110,98 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       _load();
     }
   }
+
+  Future<void> _raiseDiamondRequirement() async {
+    final note = TextEditingController();
+    DateTime? requiredBy;
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Raise Diamond Requirement'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: note,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Requirement note *',
+                    hintText: 'Quality, quantity or special instruction',
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final selected = await showDatePicker(
+                      context: context,
+                      initialDate:
+                          requiredBy ??
+                          DateTime.now().add(const Duration(days: 1)),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (selected != null) {
+                      setDialogState(() => requiredBy = selected);
+                    }
+                  },
+                  icon: const Icon(Icons.calendar_today_outlined),
+                  label: Text(
+                    requiredBy == null
+                        ? 'Select required date'
+                        : _dateValue(requiredBy!),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (note.text.trim().isEmpty) return;
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Raise for Approval'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (submitted != true) {
+      note.dispose();
+      return;
+    }
+    try {
+      await widget.api.raiseDiamondRequirement(
+        orderId: widget.orderId,
+        note: note.text,
+        requiredBy: requiredBy == null ? '' : _dateValue(requiredBy!),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Diamond requirement raised for admin approval.'),
+        ),
+      );
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    } finally {
+      note.dispose();
+    }
+  }
+
+  String _dateValue(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
   Future<void> _openUrl(String url) async {
     if (url.trim().isEmpty) return;
@@ -288,6 +388,70 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     icon: Icons.follow_the_signs_outlined,
                   ),
                   const SizedBox(height: AppSpacing.lg),
+                  if (_diamondRequirements.isNotEmpty ||
+                      _canRaiseDiamondRequirement) ...[
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: AppSectionTitle('Diamond Requirement'),
+                        ),
+                        if (_canRaiseDiamondRequirement)
+                          OutlinedButton.icon(
+                            onPressed: _raiseDiamondRequirement,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Raise'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    if (_diamondRequirements.isEmpty)
+                      const AppEmptyState(
+                        title: 'No requirement raised',
+                        message:
+                            'Raise a request for admin approval and bag preparation assignment.',
+                      )
+                    else
+                      ..._diamondRequirements.map((raw) {
+                        final row = (raw as Map).cast<String, dynamic>();
+                        final requirementStatus = (row['status'] ?? '')
+                            .toString();
+                        final bagNo = (row['bag_no'] ?? '').toString();
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: ListTile(
+                            leading: const Icon(Icons.diamond_outlined),
+                            title: Text(
+                              (row['requirement_no'] ?? '-').toString(),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${requirementStatus.replaceAll('_', ' ')} · ${row['assignee_name'] ?? 'Awaiting admin'}${bagNo.isNotEmpty ? ' · $bagNo' : ''}',
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () async {
+                              final changed = await Navigator.of(context)
+                                  .push<bool>(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          DiamondRequirementDetailScreen(
+                                            api: widget.api,
+                                            requirementId:
+                                                int.tryParse(
+                                                  row['id'].toString(),
+                                                ) ??
+                                                0,
+                                          ),
+                                    ),
+                                  );
+                              if (changed == true) _load();
+                            },
+                          ),
+                        );
+                      }),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
                   if (imageUrl.isNotEmpty) ...[
                     const AppSectionTitle('Order Image'),
                     const SizedBox(height: AppSpacing.md),

@@ -40,6 +40,11 @@ class DiamondBagTraceService
             ->join('stock s', 's.item_id = i.id', 'left')
             ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
             ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left');
+        if ($this->db->tableExists('diamond_requirements') && $this->db->fieldExists('requirement_id', 'diamond_bags')) {
+            $builder->select('b.requirement_id, dr.order_id AS requirement_order_id, requirement_order.order_no AS requirement_order_no')
+                ->join('diamond_requirements dr', 'dr.id = b.requirement_id', 'left')
+                ->join('orders requirement_order', 'requirement_order.id = dr.order_id', 'left');
+        }
         if (! $includeEmpty) {
             $builder->groupStart()->where('bi.pcs_available >', 0)->orWhere('bi.weight_cts_available >', 0)->groupEnd();
         }
@@ -52,7 +57,7 @@ class DiamondBagTraceService
     /**
      * @return list<array<string,mixed>>
      */
-    public function receiptOptions(int $karigarId): array
+    public function receiptOptions(int $karigarId, int $orderId = 0): array
     {
         if ($karigarId <= 0 || ! $this->ready() || ! $this->db->fieldExists('bag_item_id', 'issue_lines')) {
             return [];
@@ -78,8 +83,11 @@ class DiamondBagTraceService
             ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
             ->join('orders o', 'o.id = il.allocation_order_id', 'left')
             ->where('ih.karigar_id', $karigarId)
-            ->where('il.bag_item_id IS NOT NULL', null, false)
-            ->orderBy('ih.issue_date', 'ASC')
+            ->where('il.bag_item_id IS NOT NULL', null, false);
+        if ($orderId > 0) {
+            $rows->where('il.allocation_order_id', $orderId);
+        }
+        $rows = $rows->orderBy('ih.issue_date', 'ASC')
             ->orderBy('il.id', 'ASC')
             ->get()
             ->getResultArray();
@@ -192,6 +200,7 @@ class DiamondBagTraceService
 
         $totals = [];
         foreach ($lines as $line) {
+            $this->assertRequirementAllocation($line);
             $bagItemId = (int) $line['bag_item_id'];
             $totals[$bagItemId]['pcs'] = (float) ($totals[$bagItemId]['pcs'] ?? 0) + (float) $line['pcs'];
             $totals[$bagItemId]['carat'] = (float) ($totals[$bagItemId]['carat'] ?? 0) + (float) $line['carat'];
@@ -228,6 +237,8 @@ class DiamondBagTraceService
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
         }
+        (new DiamondChalniStockService($this->db))->applyIssue($issueId);
+        $this->markRequirementsIssued($lines);
     }
 
     public function reverseIssue(int $issueId): void
@@ -248,6 +259,8 @@ class DiamondBagTraceService
             throw new RuntimeException('This diamond issue is already returned or studded. It cannot be edited or deleted.');
         }
 
+        (new DiamondChalniStockService($this->db))->reverseIssue($issueId);
+
         foreach ($lines as $line) {
             $bagItem = $this->lockBagItem((int) $line['bag_item_id']);
             $this->db->table('diamond_bag_items')->where('id', (int) $line['bag_item_id'])->update([
@@ -261,6 +274,7 @@ class DiamondBagTraceService
             ->whereIn('issue_line_id', $lineIds)
             ->where('movement_type', 'ISSUE')
             ->delete();
+        $this->refreshRequirementIssueStatus($lines);
     }
 
     public function applyReturn(int $returnId): void
@@ -314,6 +328,7 @@ class DiamondBagTraceService
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
         }
+        (new DiamondChalniStockService($this->db))->applyReturn($returnId);
     }
 
     public function reverseReturn(int $returnId): void
@@ -321,6 +336,7 @@ class DiamondBagTraceService
         if (! $this->ready()) {
             return;
         }
+        (new DiamondChalniStockService($this->db))->reverseReturn($returnId);
         $movements = $this->db->table('diamond_bag_movements bm')
             ->select('bm.*')
             ->join('return_lines rl', 'rl.id = bm.return_line_id', 'inner')
@@ -354,7 +370,7 @@ class DiamondBagTraceService
             return;
         }
         $detail = $this->db->table('order_receive_details rd')
-            ->select('rd.*, il.pcs AS issued_pcs, il.carat AS issued_cts, ih.karigar_id')
+            ->select('rd.*, il.pcs AS issued_pcs, il.carat AS issued_cts, il.allocation_order_id, ih.karigar_id')
             ->join('issue_lines il', 'il.id = rd.diamond_issue_line_id', 'inner')
             ->join('issue_headers ih', 'ih.id = il.issue_id', 'inner')
             ->where('rd.id', $receiveDetailId)
@@ -374,6 +390,10 @@ class DiamondBagTraceService
             || ($used['carat'] + $cts) > ((float) $detail['issued_cts'] + self::EPSILON)) {
             throw new RuntimeException('Studded diamond exceeds the available PCS/CTS in the selected issue bag line.');
         }
+        if ((int) ($detail['allocation_order_id'] ?? 0) > 0
+            && (int) ($detail['allocation_order_id'] ?? 0) !== (int) ($detail['order_id'] ?? 0)) {
+            throw new RuntimeException('Selected diamond bag was issued for another order.');
+        }
 
         $this->db->table('diamond_bag_movements')->insert([
             'movement_date' => date('Y-m-d'),
@@ -390,6 +410,87 @@ class DiamondBagTraceService
             'created_by' => (int) ($detail['created_by'] ?? 0) ?: null,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    /** @param array<string,mixed> $line */
+    private function assertRequirementAllocation(array $line): void
+    {
+        if (! $this->db->tableExists('diamond_requirements') || ! $this->db->fieldExists('requirement_id', 'diamond_bags')) {
+            return;
+        }
+        $bagId = (int) ($line['bag_id'] ?? 0);
+        if ($bagId <= 0) {
+            return;
+        }
+        $requirement = $this->db->table('diamond_bags b')
+            ->select('dr.order_id')
+            ->join('diamond_requirements dr', 'dr.id = b.requirement_id', 'inner')
+            ->where('b.id', $bagId)->get()->getRowArray();
+        if (! is_array($requirement)) {
+            return;
+        }
+        $requiredOrderId = (int) ($requirement['order_id'] ?? 0);
+        $allocatedOrderId = (int) ($line['allocation_order_id'] ?? 0);
+        if ($requiredOrderId <= 0 || $allocatedOrderId !== $requiredOrderId) {
+            throw new RuntimeException('This requirement bag can only be issued against its linked order.');
+        }
+    }
+
+    /** @param list<array<string,mixed>> $lines */
+    private function markRequirementsIssued(array $lines): void
+    {
+        if (! $this->db->tableExists('diamond_requirements') || ! $this->db->fieldExists('requirement_id', 'diamond_bags')) {
+            return;
+        }
+        $bagIds = array_values(array_unique(array_filter(array_map(
+            static fn(array $line): int => (int) ($line['bag_id'] ?? 0),
+            $lines
+        ))));
+        if ($bagIds === []) {
+            return;
+        }
+        $requirements = $this->db->table('diamond_bags')->select('requirement_id')
+            ->whereIn('id', $bagIds)->where('requirement_id IS NOT NULL', null, false)->get()->getResultArray();
+        $ids = array_values(array_unique(array_filter(array_map(static fn(array $row): int => (int) ($row['requirement_id'] ?? 0), $requirements))));
+        if ($ids !== []) {
+            $this->db->table('diamond_requirements')->whereIn('id', $ids)->where('status', 'bag_ready')->update([
+                'status' => 'issued',
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+    }
+
+    /** @param list<array<string,mixed>> $lines */
+    private function refreshRequirementIssueStatus(array $lines): void
+    {
+        if (! $this->db->tableExists('diamond_requirements') || ! $this->db->fieldExists('requirement_id', 'diamond_bags')) {
+            return;
+        }
+        $bagIds = array_values(array_unique(array_filter(array_map(
+            static fn(array $line): int => (int) ($line['bag_id'] ?? 0),
+            $lines
+        ))));
+        if ($bagIds === []) {
+            return;
+        }
+
+        foreach ($bagIds as $bagId) {
+            $bag = $this->db->table('diamond_bags')->select('requirement_id')->where('id', $bagId)->get()->getRowArray();
+            $requirementId = (int) ($bag['requirement_id'] ?? 0);
+            if ($requirementId <= 0) {
+                continue;
+            }
+            $remainingIssues = $this->db->table('diamond_bag_movements')
+                ->where('bag_id', $bagId)
+                ->where('movement_type', 'ISSUE')
+                ->countAllResults();
+            if ($remainingIssues === 0) {
+                $this->db->table('diamond_requirements')->where('id', $requirementId)->where('status', 'issued')->update([
+                    'status' => 'bag_ready',
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        }
     }
 
     /** @return array{pcs:float,carat:float} */

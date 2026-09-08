@@ -1,4 +1,5 @@
 import 'package:flutkit/jewellery_mobile/screens/dashboard_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/followups_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/inventory_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/notification_center_screen.dart';
@@ -101,6 +102,26 @@ class _AppShellState extends State<AppShell> {
     final payload = OneSignalService.consumeOpenedNotification();
     if (!mounted || payload == null) return;
 
+    final screen = (payload['screen'] ?? '').toString().toLowerCase();
+    if (screen == 'diamond_requirements') {
+      _switchSection('diamond_requirements');
+      final requirementId = _asInt(payload['requirement_id']);
+      if (requirementId > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => DiamondRequirementDetailScreen(
+                api: _api,
+                requirementId: requirementId,
+              ),
+            ),
+          );
+        });
+      }
+      return;
+    }
+
     final orderId = _asInt(payload['order_id']);
     if (orderId > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -115,7 +136,6 @@ class _AppShellState extends State<AppShell> {
     }
 
     final taskId = _asInt(payload['task_id']);
-    final screen = (payload['screen'] ?? '').toString().toLowerCase();
     if ((taskId > 0 || screen == 'tasks') && widget.session.canUsePerformance) {
       _switchSection('tasks');
       return;
@@ -174,6 +194,11 @@ class _AppShellState extends State<AppShell> {
         );
       case 'followups':
         return FollowupsScreen(api: _api);
+      case 'diamond_requirements':
+        return DiamondRequirementsScreen(
+          key: ValueKey('diamond_requirements_$_refreshTick'),
+          api: _api,
+        );
       case 'diamond_issues':
         return TransactionsScreen(
           key: ValueKey('diamond_issues_$_refreshTick'),
@@ -379,6 +404,11 @@ class _AppShellState extends State<AppShell> {
                       ),
                       _drawerSection('Diamond'),
                       _drawerItem(
+                        'diamond_requirements',
+                        'Bag Requirements',
+                        Icons.fact_check_outlined,
+                      ),
+                      _drawerItem(
                         'diamond_issues',
                         'Diamond Issue',
                         Icons.diamond_outlined,
@@ -511,6 +541,7 @@ class _AppShellState extends State<AppShell> {
 
   Color _accentForSection() {
     switch (_section) {
+      case 'diamond_requirements':
       case 'diamond_issues':
       case 'diamond_returns':
       case 'diamond_purchases':
@@ -536,6 +567,8 @@ class _AppShellState extends State<AppShell> {
         return 'Order Followups';
       case 'diamond_issues':
         return 'Diamond Issues';
+      case 'diamond_requirements':
+        return 'Diamond Requirements';
       case 'diamond_returns':
         return 'Diamond Returns';
       case 'diamond_purchases':

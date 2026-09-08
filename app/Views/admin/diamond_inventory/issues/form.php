@@ -31,7 +31,7 @@ if ($rows === []) {
 <div class="card erp-form-shell mb-3"><div class="card-header d-flex justify-content-between align-items-center"><div><h6 class="mb-1">Bag-wise Issue Lines</h6><small class="text-muted">Bag, shape/size, PCS and CTS are mandatory.</small></div><button type="button" class="btn btn-sm btn-primary" id="add-issue-line"><i class="fe fe-plus me-1"></i>Add Allocation</button></div>
 <div class="table-responsive"><table class="table table-bordered align-middle mb-0" data-dt-skip="true"><thead><tr><th style="min-width:360px">Bag / Shape / Size *</th><th style="min-width:260px">Order Allocation</th><th style="min-width:100px">PCS *</th><th style="min-width:110px">CTS *</th><th style="min-width:130px">Rate / CTS</th><th style="min-width:130px">Value</th><th></th></tr></thead><tbody id="issue-lines-body">
 <?php foreach ($rows as $row): ?><tr>
-    <td><select name="bag_item_id[]" class="form-select js-bag-item" required><option value="">Select available bag size</option><?php foreach (($bagItems ?? []) as $item): ?><?php $label = implode(' / ', array_filter([(string) ($item['bag_no'] ?? ''), (string) ($item['diamond_type'] ?? ''), (string) (($item['shape_name'] ?? '') ?: ($item['item_shape'] ?? '')), (string) (($item['size_label'] ?? '') ?: ($item['size_code'] ?? ''))])); ?><option value="<?= (int) $item['id'] ?>" data-pcs="<?= esc(number_format((float) ($item['pcs_available'] ?? 0), 0, '.', '')) ?>" data-cts="<?= esc(number_format((float) ($item['weight_cts_available'] ?? 0), 3, '.', '')) ?>" data-rate="<?= esc(number_format((float) ($item['avg_cost_per_carat'] ?? 0), 2, '.', '')) ?>" <?= (string) ($row['bag_item_id'] ?? '') === (string) $item['id'] ? 'selected' : '' ?>><?= esc($label) ?> · <?= number_format((float) $item['pcs_available'], 0) ?> pcs / <?= number_format((float) $item['weight_cts_available'], 3) ?> cts</option><?php endforeach; ?></select></td>
+    <td><select name="bag_item_id[]" class="form-select js-bag-item" required><option value="">Select available bag size</option><?php foreach (($bagItems ?? []) as $item): ?><?php $label = implode(' / ', array_filter([(string) ($item['bag_no'] ?? ''), (string) ($item['diamond_type'] ?? ''), (string) (($item['shape_name'] ?? '') ?: ($item['item_shape'] ?? '')), (string) (($item['size_label'] ?? '') ?: ($item['size_code'] ?? '')), ! empty($item['requirement_order_no']) ? 'For ' . (string) $item['requirement_order_no'] : ''])); ?><option value="<?= (int) $item['id'] ?>" data-pcs="<?= esc(number_format((float) ($item['pcs_available'] ?? 0), 0, '.', '')) ?>" data-cts="<?= esc(number_format((float) ($item['weight_cts_available'] ?? 0), 3, '.', '')) ?>" data-rate="<?= esc(number_format((float) ($item['avg_cost_per_carat'] ?? 0), 2, '.', '')) ?>" data-order-id="<?= (int) ($item['requirement_order_id'] ?? 0) ?>" <?= (string) ($row['bag_item_id'] ?? '') === (string) $item['id'] ? 'selected' : '' ?>><?= esc($label) ?> · <?= number_format((float) $item['pcs_available'], 0) ?> pcs / <?= number_format((float) $item['weight_cts_available'], 3) ?> cts</option><?php endforeach; ?></select></td>
     <td><select name="diamond_order_id[]" class="form-select"><option value="">Unallocated / general jobwork</option><?php foreach (($orders ?? []) as $order): ?><option value="<?= (int) $order['id'] ?>" <?= (string) ($row['allocation_order_id'] ?? '') === (string) $order['id'] ? 'selected' : '' ?>><?= esc((string) $order['order_no'] . (((string) ($order['order_name'] ?? '')) !== '' ? (' · ' . (string) $order['order_name']) : '')) ?></option><?php endforeach; ?></select></td>
     <td><input type="number" min="1" step="1" name="pcs[]" class="form-control js-pcs" required value="<?= esc((string) ($row['pcs'] ?? '')) ?>"></td>
     <td><input type="number" min="0.001" step="0.001" name="carat[]" class="form-control js-cts" required value="<?= esc((string) ($row['carat'] ?? '')) ?>"></td>
@@ -45,9 +45,34 @@ if ($rows === []) {
     function bind(row) {
         const calc = function () { const cts = parseFloat(row.querySelector('.js-cts')?.value || 0) || 0; const rate = parseFloat(row.querySelector('.js-rate')?.value || 0) || 0; row.querySelector('.js-value').value = rate > 0 ? (cts * rate).toFixed(2) : ''; };
         row.querySelector('.js-cts')?.addEventListener('input', calc); row.querySelector('.js-rate')?.addEventListener('input', calc);
-        row.querySelector('.js-bag-item')?.addEventListener('change', function (event) { const option = event.target.options[event.target.selectedIndex]; const pcs = row.querySelector('.js-pcs'); const cts = row.querySelector('.js-cts'); const rate = row.querySelector('.js-rate'); if (pcs) pcs.value = option?.value ? (option.getAttribute('data-pcs') || '') : ''; if (cts) cts.value = option?.value ? (option.getAttribute('data-cts') || '') : ''; if (rate && !rate.value) rate.value = option?.getAttribute('data-rate') || ''; calc(); });
+        const bag = row.querySelector('.js-bag-item');
+        const order = row.querySelector('[name="diamond_order_id[]"]');
+        const syncRequirementOrder = function (fillQuantity) {
+            const option = bag?.options[bag.selectedIndex];
+            const requiredOrder = option?.getAttribute('data-order-id') || '';
+            if (fillQuantity) {
+                const pcs = row.querySelector('.js-pcs');
+                const cts = row.querySelector('.js-cts');
+                const rate = row.querySelector('.js-rate');
+                if (pcs) pcs.value = option?.value ? (option.getAttribute('data-pcs') || '') : '';
+                if (cts) cts.value = option?.value ? (option.getAttribute('data-cts') || '') : '';
+                if (rate && !rate.value) rate.value = option?.getAttribute('data-rate') || '';
+            }
+            if (order && requiredOrder && requiredOrder !== '0') {
+                order.value = requiredOrder;
+                order.dataset.lockedOrder = requiredOrder;
+                order.setAttribute('required', 'required');
+            } else if (order) {
+                delete order.dataset.lockedOrder;
+                order.removeAttribute('required');
+            }
+            calc();
+        };
+        bag?.addEventListener('change', function () { syncRequirementOrder(true); });
+        order?.addEventListener('change', function () { if (order.dataset.lockedOrder) order.value = order.dataset.lockedOrder; });
+        syncRequirementOrder(false);
         row.querySelector('.js-remove')?.addEventListener('click', function () { if (body.querySelectorAll('tr').length > 1) row.remove(); }); calc();
     }
-    body.querySelectorAll('tr').forEach(bind); add.addEventListener('click', function () { const row = body.querySelector('tr').cloneNode(true); row.querySelectorAll('select').forEach(function (el) { el.value = ''; }); row.querySelectorAll('input').forEach(function (el) { el.value = ''; }); body.appendChild(row); bind(row); });
+    body.querySelectorAll('tr').forEach(bind); add.addEventListener('click', function () { const row = body.querySelector('tr').cloneNode(true); row.querySelectorAll('select').forEach(function (el) { el.value = ''; el.removeAttribute('required'); delete el.dataset.lockedOrder; }); row.querySelectorAll('input').forEach(function (el) { el.value = ''; }); body.appendChild(row); bind(row); });
 })();
 </script>

@@ -186,6 +186,7 @@
                         data-available-pcs="<?= esc(number_format((float) ($item['pcs_available'] ?? 0), 0, '.', '')) ?>"
                         data-available-cts="<?= esc(number_format((float) ($item['weight_cts_available'] ?? 0), 3, '.', '')) ?>"
                         data-default-rate="<?= esc(number_format((float) ($item['avg_cost_per_carat'] ?? 0), 2, '.', '')) ?>"
+                        data-order-id="<?= (int) ($item['requirement_order_id'] ?? 0) ?>"
                     >
                         <?= esc($label) ?> · <?= number_format((float) $item['pcs_available'], 0) ?> pcs / <?= number_format((float) $item['weight_cts_available'], 3) ?> cts
                     </option>
@@ -294,6 +295,7 @@
             const pcs = row.querySelector('.diamond-pcs');
             const carat = row.querySelector('.diamond-carat');
             const rate = row.querySelector('.diamond-rate');
+            const order = row.querySelector('[name="diamond_order_id[]"]');
             if (item && rate) {
                 item.addEventListener('change', function () {
                     const opt = item.options[item.selectedIndex];
@@ -302,7 +304,21 @@
                     if (opt && (rate.value || '').trim() === '') {
                         rate.value = opt.getAttribute('data-default-rate') || '';
                     }
+                    const requiredOrder = opt?.getAttribute('data-order-id') || '';
+                    if (order && requiredOrder && requiredOrder !== '0') {
+                        order.value = requiredOrder;
+                        order.dataset.lockedOrder = requiredOrder;
+                        order.setAttribute('required', 'required');
+                    } else if (order) {
+                        delete order.dataset.lockedOrder;
+                        order.removeAttribute('required');
+                    }
                     recalcRow(row, '.diamond-carat', '.diamond-rate', '.diamond-value');
+                });
+            }
+            if (order) {
+                order.addEventListener('change', function () {
+                    if (order.dataset.lockedOrder) order.value = order.dataset.lockedOrder;
                 });
             }
         });

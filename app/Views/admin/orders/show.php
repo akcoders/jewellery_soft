@@ -90,6 +90,9 @@ $followups = is_array($followups ?? null) ? $followups : [];
 $studdedDetails = is_array($studdedDetails ?? null) ? $studdedDetails : [];
 $receiveSummary = is_array($receiveSummary ?? null) ? $receiveSummary : [];
 $items = is_array($items ?? null) ? $items : [];
+$diamondRequirements = is_array($diamondRequirements ?? null) ? $diamondRequirements : [];
+$canRaiseDiamondRequirement = (bool) ($canRaiseDiamondRequirement ?? false);
+$canManageDiamondRequirements = (bool) ($canManageDiamondRequirements ?? false);
 $photoGallery = [];
 $imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
 foreach ($attachments as $file) {
@@ -149,6 +152,7 @@ $statusClass = match ($status) {
                 </div>
             </div>
             <div class="order-detail-actions">
+                <?php if ($canRaiseDiamondRequirement): ?><button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#diamondRequirementModal"><i class="fe fe-gem me-1"></i>Diamond Requirement</button><?php endif; ?>
                 <?php if (! in_array($status, ['Cancelled', 'Completed'], true)): ?><a href="<?= site_url('admin/orders/' . $order['id'] . '/edit') ?>" class="btn btn-light"><i class="fe fe-edit me-1"></i>Edit</a><?php endif; ?>
                 <?php if ($canReceive): ?><button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#receiveModal"><i class="fe fe-check-circle me-1"></i>Receive Jewellery</button><?php endif; ?>
                 <a href="<?= site_url((string) $order['order_type'] === 'Repair' ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-light"><i class="fe fe-arrow-left me-1"></i>Order List</a>
@@ -157,6 +161,18 @@ $statusClass = match ($status) {
     </div>
 
     <?php if (! $canReceive && ! in_array($status, ['Cancelled', 'Completed'], true)): ?><div class="alert alert-warning">Assign a karigar before receiving finished jewellery.</div><?php endif; ?>
+
+    <?php if ($diamondRequirements !== []): ?>
+    <div class="card order-section-card mb-4">
+        <div class="card-header"><h5 class="order-section-title"><i class="fe fe-gem"></i>Diamond Requirement Workflow</h5><?php if ($canManageDiamondRequirements): ?><a href="<?= site_url('admin/diamond-inventory/requirements') ?>" class="btn btn-sm btn-outline-primary">Manage Requirements</a><?php endif; ?></div>
+        <div class="card-body p-0"><div class="table-responsive"><table class="table align-middle mb-0" data-dt-skip="true"><thead><tr><th>Requirement</th><th>Status</th><th>Requested By</th><th>Assigned To</th><th>Due</th><th>Ready Bag</th></tr></thead><tbody>
+        <?php foreach ($diamondRequirements as $requirement): ?>
+            <?php $requirementStatus = (string) ($requirement['status'] ?? ''); $requirementBadge = match ($requirementStatus) { 'pending_approval' => 'warning', 'assigned' => 'info', 'bag_ready' => 'success', 'issued' => 'primary', 'rejected' => 'danger', default => 'secondary' }; ?>
+            <tr><td><?php if ($canManageDiamondRequirements): ?><a class="fw-semibold" href="<?= site_url('admin/diamond-inventory/requirements/' . (int) $requirement['id']) ?>"><?= esc((string) $requirement['requirement_no']) ?></a><?php else: ?><strong><?= esc((string) $requirement['requirement_no']) ?></strong><?php endif; ?><div class="small text-muted"><?= esc((string) (($requirement['requirement_note'] ?? '') ?: 'No note')) ?></div></td><td><span class="badge bg-<?= esc($requirementBadge) ?>"><?= esc(ucwords(str_replace('_', ' ', $requirementStatus))) ?></span></td><td><?= esc((string) (($requirement['requester_name'] ?? '') ?: '-')) ?></td><td><?= esc((string) (($requirement['assignee_name'] ?? '') ?: 'Awaiting approval')) ?></td><td><?= ! empty($requirement['preparation_due_at']) ? date('d M Y, h:i A', strtotime((string) $requirement['preparation_due_at'])) : (! empty($requirement['required_by']) ? date('d M Y', strtotime((string) $requirement['required_by'])) : '-') ?></td><td><?php if (! empty($requirement['bag_id'])): ?><?php if ($canManageDiamondRequirements): ?><a href="<?= site_url('admin/diamond-inventory/bags/' . (int) $requirement['bag_id']) ?>" class="badge bg-light text-dark border"><?php else: ?><span class="badge bg-light text-dark border"><?php endif; ?><?= esc((string) $requirement['bag_no']) ?> · <?= number_format((float) ($requirement['pcs_balance'] ?? 0), 0) ?> pcs / <?= number_format((float) ($requirement['cts_balance'] ?? 0), 3) ?> cts<?php if ($canManageDiamondRequirements): ?></a><?php else: ?></span><?php endif; ?><?php else: ?>—<?php endif; ?></td></tr>
+        <?php endforeach; ?>
+        </tbody></table></div></div>
+    </div>
+    <?php endif; ?>
 
     <div class="row g-4 mb-4">
         <div class="col-xl-8">
@@ -254,6 +270,14 @@ $statusClass = match ($status) {
         </tbody></table></div></div>
     </div>
 </div>
+
+<?php if ($canRaiseDiamondRequirement): ?>
+<div class="modal fade" id="diamondRequirementModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" method="post" action="<?= site_url('admin/orders/' . (int) $order['id'] . '/diamond-requirements') ?>"><?= csrf_field() ?>
+    <div class="modal-header"><h5 class="modal-title">Raise Diamond Requirement</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><div class="alert alert-light border mb-3">Order <strong><?= esc((string) $order['order_no']) ?></strong><br><span class="text-muted">Admin will approve this request and assign a staff member to prepare the size-wise diamond bag.</span></div><div class="mb-3"><label class="form-label">Requirement note *</label><textarea name="requirement_note" class="form-control" rows="4" required placeholder="Diamond quality, urgency or special instruction"></textarea></div><div><label class="form-label">Required by</label><input type="date" name="required_by" class="form-control" min="<?= date('Y-m-d') ?>"></div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary">Raise for Approval</button></div>
+</form></div></div>
+<?php endif; ?>
 
 <?php if ($canReceive): ?>
 <div class="modal fade" id="receiveModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="<?= site_url('admin/orders/'.$order['id'].'/receive') ?>"><?= csrf_field() ?>

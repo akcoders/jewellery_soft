@@ -29,6 +29,7 @@ use App\Models\StoneLedgerEntryModel;
 use App\Models\DeliveryChallanModel;
 use App\Services\AdminPostingService;
 use App\Services\DiamondBagTraceService;
+use App\Services\DiamondRequirementService;
 use App\Services\FinishedJewelleryService;
 use App\Services\GoldInventory\StockService as GoldInventoryStockService;
 use App\Services\KarigarMaterialAccountingService;
@@ -38,6 +39,7 @@ use App\Services\OrderCategoryService;
 use App\Services\OrderNumberService;
 use App\Services\OrderThumbnailService;
 use App\Services\PdfService;
+use App\Services\RbacService;
 use App\Services\StaffPerformanceService;
 use App\Services\StoneInventory\StockService as StoneInventoryStockService;
 use Config\Jewellery;
@@ -76,6 +78,8 @@ class OrderController extends BaseController
     private OrderNumberService $orderNumberService;
     private OrderThumbnailService $orderThumbnailService;
     private MobileNotificationEventService $mobileNotificationEvents;
+    private DiamondRequirementService $diamondRequirementService;
+    private RbacService $rbacService;
     private StaffPerformanceService $staffPerformanceService;
     private PdfService $pdfService;
     private Jewellery $jewelleryConfig;
@@ -113,6 +117,8 @@ class OrderController extends BaseController
         $this->orderNumberService = new OrderNumberService();
         $this->orderThumbnailService = new OrderThumbnailService();
         $this->mobileNotificationEvents = new MobileNotificationEventService();
+        $this->diamondRequirementService = new DiamondRequirementService();
+        $this->rbacService = new RbacService();
         $this->staffPerformanceService = new StaffPerformanceService();
         $this->pdfService = new PdfService();
         $this->jewelleryConfig = config(Jewellery::class);
@@ -822,11 +828,18 @@ class OrderController extends BaseController
             'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'goldPurities' => $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
             'stoneInventoryItems' => $this->stoneInventoryOptions(),
-            'karigarDiamondOptions' => $this->karigarDiamondOptions((int) ($order['assigned_karigar_id'] ?? 0)),
+            'karigarDiamondOptions' => $this->karigarDiamondOptions((int) ($order['assigned_karigar_id'] ?? 0), $id),
             'followups' => $followups,
             'readyImages' => $this->productionReadyImages($id),
             'receiveSummary' => is_array($receiveSummary) ? $receiveSummary : [],
             'studdedDetails' => $studdedDetails,
+            'diamondRequirements' => $this->diamondRequirementService->forOrder($id),
+            'canRaiseDiamondRequirement' => $this->diamondRequirementService->canRaise(
+                $id,
+                (int) session('admin_id'),
+                $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage')
+            ),
+            'canManageDiamondRequirements' => $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage'),
         ]);
     }
 
@@ -2164,7 +2177,7 @@ class OrderController extends BaseController
      *
      * @return list<array{value:string,label:string,available_cts:float,available_pcs:float}>
      */
-    private function karigarDiamondOptions(int $karigarId): array
+    private function karigarDiamondOptions(int $karigarId, int $orderId = 0): array
     {
         if ($karigarId <= 0) {
             return [];
@@ -2189,8 +2202,11 @@ class OrderController extends BaseController
             return [];
         }
 
-        $items = (new DiamondBagTraceService($db))->receiptOptions($karigarId);
-        if ($db->tableExists('issue_headers') && $db->tableExists('issue_lines') && $db->tableExists('items')) {
+        $items = (new DiamondBagTraceService($db))->receiptOptions($karigarId, $orderId);
+        $requiresExactBag = $orderId > 0
+            && $db->tableExists('diamond_requirements')
+            && $db->table('diamond_requirements')->where('order_id', $orderId)->countAllResults() > 0;
+        if (! $requiresExactBag && $db->tableExists('issue_headers') && $db->tableExists('issue_lines') && $db->tableExists('items')) {
             $issuedBuilder = $db->table('issue_lines il')
                 ->select('il.item_id, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, SUM(il.pcs) AS pcs, SUM(il.carat) AS cts', false)
                 ->join('issue_headers ih', 'ih.id = il.issue_id', 'inner')
@@ -2238,7 +2254,7 @@ class OrderController extends BaseController
             }
         }
 
-        if ($items === []) {
+        if ($items === [] && ! $requiresExactBag) {
             return [[
                 'value' => 'Diamond',
                 'label' => 'Diamond (pooled balance)',
@@ -2274,7 +2290,7 @@ class OrderController extends BaseController
         if ($rows === []) {
             return null;
         }
-        $options = $this->karigarDiamondOptions($karigarId);
+        $options = $this->karigarDiamondOptions($karigarId, $orderId);
         $allowed = [];
         foreach ($options as $option) {
             $allowed[(string) $option['value']] = $option;

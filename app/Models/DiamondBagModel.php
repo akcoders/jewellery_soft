@@ -13,6 +13,7 @@ class DiamondBagModel extends Model
         'bag_no',
         'prepared_date',
         'order_id',
+        'requirement_id',
         'warehouse_id',
         'bin_id',
         'shape',

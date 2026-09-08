@@ -637,6 +637,7 @@ class _LineForm {
 
   int? itemId;
   int? allocationOrderId;
+  int? requirementOrderId;
   bool custom = false;
 
   final TextEditingController pcsCtrl = TextEditingController();
@@ -799,6 +800,15 @@ class _LineCard extends StatelessWidget {
                   final cts = _safeDouble(selected['weight_cts_available']);
                   line.pcsCtrl.text = pcs.toStringAsFixed(0);
                   line.caratCtrl.text = cts.toStringAsFixed(3);
+                  final requiredOrder = _safeInt(
+                    selected['requirement_order_id'],
+                  );
+                  line.requirementOrderId = (requiredOrder ?? 0) > 0
+                      ? requiredOrder
+                      : null;
+                  if (line.requirementOrderId != null) {
+                    line.allocationOrderId = line.requirementOrderId;
+                  }
                 }
               }
               line.custom =
@@ -813,11 +823,17 @@ class _LineCard extends StatelessWidget {
           if (bagWise) ...[
             const SizedBox(height: AppSpacing.sm),
             DropdownButtonFormField<int>(
+              key: ValueKey(
+                'order_${line.itemId}_${line.allocationOrderId ?? 0}',
+              ),
               initialValue: line.allocationOrderId,
-              decoration: const InputDecoration(
-                labelText: 'Order Allocation (optional)',
-                helperText:
-                    'Same bag can be split across multiple order lines.',
+              decoration: InputDecoration(
+                labelText: line.requirementOrderId == null
+                    ? 'Order Allocation (optional)'
+                    : 'Required Order Allocation *',
+                helperText: line.requirementOrderId == null
+                    ? 'Same bag can be split across multiple order lines.'
+                    : 'This prepared requirement bag is locked to its order.',
               ),
               items: [
                 const DropdownMenuItem<int>(
@@ -836,10 +852,17 @@ class _LineCard extends StatelessWidget {
                   ),
                 ),
               ],
-              onChanged: (value) {
-                line.allocationOrderId = value;
-                onChanged?.call();
-              },
+              onChanged: line.requirementOrderId != null
+                  ? null
+                  : (value) {
+                      line.allocationOrderId = value;
+                      onChanged?.call();
+                    },
+              validator: (value) =>
+                  line.requirementOrderId != null &&
+                      value != line.requirementOrderId
+                  ? 'Select the requirement order'
+                  : null,
             ),
           ],
           if (material == 'diamond' && line.custom && !exactReturn) ...[
@@ -989,7 +1012,8 @@ class _LineCard extends StatelessWidget {
         final size = (row['size_label'] ?? row['size_code'])?.toString() ?? '';
         final pcs = row['pcs_available']?.toString() ?? '0';
         final cts = row['weight_cts_available']?.toString() ?? '0';
-        return '$bag | $type | $shape $size | $pcs pcs / $cts cts';
+        final order = row['requirement_order_no']?.toString() ?? '';
+        return '$bag | $type | $shape $size | $pcs pcs / $cts cts${order.isEmpty ? '' : ' | For $order'}';
       }
       final type = row['diamond_type']?.toString() ?? '';
       final shape = row['shape']?.toString() ?? '';

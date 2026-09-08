@@ -7,6 +7,7 @@ use App\Models\DiamondBagItemModel;
 use App\Models\DiamondBagModel;
 use App\Models\InventoryLocationModel;
 use App\Services\AdminPostingService;
+use App\Services\DiamondChalniStockService;
 use RuntimeException;
 use Throwable;
 
@@ -158,6 +159,10 @@ class DiamondBagController extends BaseController
         if (! $bag) {
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Bag not found.');
         }
+        if ((int) ($bag['requirement_id'] ?? 0) > 0) {
+            return redirect()->to(site_url('admin/diamond-inventory/bags/' . $id))
+                ->with('error', 'An approved requirement bag cannot be deleted from the generic bag register.');
+        }
         if ($this->bagHasIssue($id)) {
             return redirect()->to(site_url('admin/diamond-inventory/bags/' . $id))->with('error', 'Issued bag cannot be deleted.');
         }
@@ -288,6 +293,7 @@ class DiamondBagController extends BaseController
                 throw new RuntimeException('Bag quantity exceeds unbagged diamond stock. Available: ' . number_format(max(0, $available), 3) . ' cts.');
             }
         }
+        (new DiamondChalniStockService(db_connect()))->assertPackable($rows, $excludeBagId);
     }
 
     /** @param list<array<string,mixed>> $rows */

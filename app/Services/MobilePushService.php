@@ -804,10 +804,14 @@ class MobilePushService
         $query = [];
         $orderId = (int) ($data['order_id'] ?? 0);
         $taskId = (int) ($data['task_id'] ?? 0);
+        $requirementId = (int) ($data['requirement_id'] ?? 0);
         if ($orderId > 0) {
             $query['order_id'] = $orderId;
         } elseif ($taskId > 0) {
             $query['task_id'] = $taskId;
+        }
+        if ($requirementId > 0) {
+            $query['requirement_id'] = $requirementId;
         }
         foreach (['type', 'screen'] as $key) {
             $value = trim((string) ($data[$key] ?? ''));

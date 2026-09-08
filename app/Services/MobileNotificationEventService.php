@@ -156,6 +156,102 @@ class MobileNotificationEventService
         ];
     }
 
+    public function notifyDiamondRequirementRaised(int $requirementId): array
+    {
+        $row = $this->diamondRequirement($requirementId);
+        if ($row === null) {
+            return $this->emptySummary('Diamond requirement not found.');
+        }
+
+        return $this->queueForPermission('diamond.inventory.manage', [
+            'type' => 'diamond_requirement_raised',
+            'reference_table' => 'diamond_requirements',
+            'reference_id' => $requirementId,
+            'dedupe_key' => 'diamond-requirement-raised:' . $requirementId,
+            'title' => 'Diamond Requirement Approval',
+            'message' => (string) $row['requirement_no'] . ' for order ' . (string) $row['order_no'] . ' is waiting for approval.',
+            'payload' => [
+                'type' => 'diamond_requirement_raised',
+                'screen' => 'diamond_requirements',
+                'requirement_id' => $requirementId,
+                'order_id' => (int) $row['order_id'],
+                'order_no' => (string) $row['order_no'],
+            ],
+        ]);
+    }
+
+    public function notifyDiamondRequirementAssigned(int $requirementId): array
+    {
+        $row = $this->diamondRequirement($requirementId);
+        $assignedTo = (int) ($row['assigned_to'] ?? 0);
+        if ($row === null || $assignedTo <= 0) {
+            return $this->emptySummary('Diamond requirement assignee not found.');
+        }
+
+        return $this->pushService->queueForAdmin($assignedTo, [
+            'type' => 'diamond_bag_assignment',
+            'reference_table' => 'diamond_requirements',
+            'reference_id' => $requirementId,
+            'dedupe_key' => 'diamond-bag-assigned:' . $requirementId . ':admin:' . $assignedTo,
+            'title' => 'Diamond Bag Assigned',
+            'message' => 'Prepare ' . (string) $row['requirement_no'] . ' for order ' . (string) $row['order_no'] . '.',
+            'defer_dispatch' => true,
+            'payload' => [
+                'type' => 'diamond_bag_assignment',
+                'screen' => 'diamond_requirements',
+                'requirement_id' => $requirementId,
+                'order_id' => (int) $row['order_id'],
+                'order_no' => (string) $row['order_no'],
+            ],
+        ]);
+    }
+
+    public function notifyDiamondBagReady(int $requirementId): array
+    {
+        $row = $this->diamondRequirement($requirementId);
+        if ($row === null) {
+            return $this->emptySummary('Diamond requirement not found.');
+        }
+        $summary = $this->queueForPermission('diamond.inventory.manage', [
+            'type' => 'diamond_bag_ready',
+            'reference_table' => 'diamond_requirements',
+            'reference_id' => $requirementId,
+            'dedupe_key' => 'diamond-bag-ready:' . $requirementId,
+            'title' => 'Diamond Bag Ready',
+            'message' => (string) ($row['bag_no'] ?: 'Bag') . ' is ready for order ' . (string) $row['order_no'] . '.',
+            'payload' => [
+                'type' => 'diamond_bag_ready',
+                'screen' => 'diamond_requirements',
+                'requirement_id' => $requirementId,
+                'order_id' => (int) $row['order_id'],
+                'order_no' => (string) $row['order_no'],
+                'bag_id' => (int) ($row['bag_id'] ?? 0),
+            ],
+        ]);
+
+        $requester = (int) ($row['requested_by'] ?? 0);
+        if ($requester > 0 && ! $this->rbacService->userCan($requester, 'diamond.inventory.manage')) {
+            $this->pushService->queueForAdmin($requester, [
+                'type' => 'diamond_bag_ready',
+                'reference_table' => 'diamond_requirements',
+                'reference_id' => $requirementId,
+                'dedupe_key' => 'diamond-bag-ready:' . $requirementId . ':requester:' . $requester,
+                'title' => 'Diamond Bag Ready',
+                'message' => (string) ($row['bag_no'] ?: 'Bag') . ' is ready for order ' . (string) $row['order_no'] . '.',
+                'defer_dispatch' => true,
+                'payload' => [
+                    'type' => 'diamond_bag_ready',
+                    'screen' => 'diamond_requirements',
+                    'requirement_id' => $requirementId,
+                    'order_id' => (int) $row['order_id'],
+                    'bag_id' => (int) ($row['bag_id'] ?? 0),
+                ],
+            ]);
+        }
+
+        return $summary;
+    }
+
     public function queueHourlyDelayedFollowups(?DateTimeImmutable $now = null): array
     {
         $timezone = new DateTimeZone(self::WORKDAY_TIMEZONE);
@@ -313,6 +409,21 @@ class MobileNotificationEventService
                 $this->pushService->cancelByReference('order_followups', $id);
             }
         }
+    }
+
+    /** @return array<string,mixed>|null */
+    private function diamondRequirement(int $requirementId): ?array
+    {
+        $db = db_connect();
+        if ($requirementId <= 0 || ! $db->tableExists('diamond_requirements')) {
+            return null;
+        }
+        $row = $db->table('diamond_requirements dr')
+            ->select('dr.*, o.order_no, b.bag_no')
+            ->join('orders o', 'o.id = dr.order_id', 'inner')
+            ->join('diamond_bags b', 'b.id = dr.bag_id', 'left')
+            ->where('dr.id', $requirementId)->get()->getRowArray();
+        return is_array($row) ? $row : null;
     }
 
     private function emptySummary(string $message): array

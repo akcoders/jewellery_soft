@@ -154,14 +154,14 @@
   function consumeLaunchQuery() {
     const params = new URLSearchParams(window.location.search);
     const data = {};
-    ["order_id", "task_id", "type", "screen"].forEach(function (key) {
+    ["order_id", "task_id", "requirement_id", "type", "screen"].forEach(function (key) {
       const value = params.get(key);
       if (value) data[key] = value;
     });
     if (!Object.keys(data).length) return;
 
     send({ kind: "event", event: "notificationOpened", data });
-    ["order_id", "task_id", "type", "screen"].forEach(function (key) {
+    ["order_id", "task_id", "requirement_id", "type", "screen"].forEach(function (key) {
       params.delete(key);
     });
     const query = params.toString();

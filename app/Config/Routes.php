@@ -198,6 +198,11 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->get('diamond-inventory/bags/(:num)/edit', 'Admin\DiamondBagController::edit/$1', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->post('diamond-inventory/bags/(:num)/update', 'Admin\DiamondBagController::update/$1', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->post('diamond-inventory/bags/(:num)/delete', 'Admin\DiamondBagController::delete/$1', ['filter' => 'permission:diamond.inventory.manage']);
+    $routes->get('diamond-inventory/requirements', 'Admin\DiamondRequirementController::index', ['filter' => 'permission:diamond.inventory.manage']);
+    $routes->get('diamond-inventory/requirements/(:num)', 'Admin\DiamondRequirementController::show/$1', ['filter' => 'permission:diamond.inventory.manage']);
+    $routes->post('diamond-inventory/requirements/(:num)/approve', 'Admin\DiamondRequirementController::approve/$1', ['filter' => 'permission:diamond.inventory.manage']);
+    $routes->post('diamond-inventory/requirements/(:num)/reject', 'Admin\DiamondRequirementController::reject/$1', ['filter' => 'permission:diamond.inventory.manage']);
+    $routes->post('orders/(:num)/diamond-requirements', 'Admin\DiamondRequirementController::store/$1', ['filter' => 'csrf']);
     $routes->get('diamond-inventory/items/create', 'Admin\DiamondInventory\ItemsController::create', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->post('diamond-inventory/items', 'Admin\DiamondInventory\ItemsController::store', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->get('diamond-inventory/items/(:num)/edit', 'Admin\DiamondInventory\ItemsController::edit/$1', ['filter' => 'permission:diamond.inventory.manage']);
@@ -239,6 +244,8 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('diamond-inventory/adjustments/(:num)/delete', 'Admin\DiamondInventory\AdjustmentsController::delete/$1', ['filter' => 'permission:diamond.inventory.manage']);
 
     $routes->get('diamond-inventory/stock', 'Admin\DiamondInventory\StockController::index', ['filter' => 'permission:diamond.inventory.read']);
+    $routes->post('diamond-inventory/stock/chalni', 'Admin\DiamondInventory\StockController::saveChalniStock', ['filter' => 'permission:diamond.inventory.manage']);
+    $routes->post('diamond-inventory/stock/chalni', 'Admin\DiamondInventory\StockController::saveChalniStock', ['filter' => 'permission:diamond.inventory.manage']);
 
     $routes->get('stone-inventory/items', 'Admin\StoneInventory\ItemsController::index', ['filter' => 'permission:stone.inventory.read']);
     $routes->get('stone-inventory/items/create', 'Admin\StoneInventory\ItemsController::create', ['filter' => 'permission:stone.inventory.manage']);
@@ -426,6 +433,10 @@ $routes->group('api', static function ($routes): void {
         $routes->get('orders/(:num)', 'Api\Mobile\OrdersController::show/$1');
         $routes->get('orders/(:num)/followups', 'Api\Mobile\OrdersController::followups/$1');
         $routes->post('orders/(:num)/followups', 'Api\Mobile\OrdersController::addFollowup/$1');
+        $routes->get('diamond-requirements', 'Api\Mobile\DiamondRequirementsController::index');
+        $routes->get('diamond-requirements/(:num)', 'Api\Mobile\DiamondRequirementsController::show/$1');
+        $routes->post('orders/(:num)/diamond-requirements', 'Api\Mobile\DiamondRequirementsController::raise/$1');
+        $routes->post('diamond-requirements/(:num)/prepare', 'Api\Mobile\DiamondRequirementsController::prepare/$1');
 
         $routes->get('inventory/summary', 'Api\Mobile\InventoryController::summary');
         $routes->get('inventory/diamonds', 'Api\Mobile\InventoryController::diamonds');

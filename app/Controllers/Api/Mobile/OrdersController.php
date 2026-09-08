@@ -3,6 +3,8 @@
 namespace App\Controllers\Api\Mobile;
 
 use App\Services\MobileNotificationEventService;
+use App\Services\DiamondRequirementService;
+use App\Services\RbacService;
 use App\Services\StaffPerformanceService;
 use Config\Jewellery;
 use Throwable;
@@ -12,12 +14,16 @@ class OrdersController extends MobileBaseController
     private Jewellery $jewelleryConfig;
     private MobileNotificationEventService $mobileNotificationEvents;
     private StaffPerformanceService $staffPerformanceService;
+    private DiamondRequirementService $diamondRequirementService;
+    private RbacService $rbacService;
 
     public function __construct()
     {
         $this->jewelleryConfig = config(Jewellery::class);
         $this->mobileNotificationEvents = new MobileNotificationEventService();
         $this->staffPerformanceService = new StaffPerformanceService();
+        $this->diamondRequirementService = new DiamondRequirementService();
+        $this->rbacService = new RbacService();
     }
 
     public function index()
@@ -105,11 +111,18 @@ class OrdersController extends MobileBaseController
         $followups = $this->followupRows($id);
         $documents = $this->documentLinks($order);
         $media = $this->orderMedia($id);
+        $mobileUserId = (int) ($this->mobileAdmin['id'] ?? 0);
 
         return $this->ok([
             'order' => array_merge($order, $documents, $media),
             'items' => $items,
             'followups' => $followups,
+            'diamond_requirements' => $this->diamondRequirementService->forOrder($id),
+            'can_raise_diamond_requirement' => $this->diamondRequirementService->canRaise(
+                $id,
+                $mobileUserId,
+                $this->rbacService->userCan($mobileUserId, 'diamond.inventory.manage')
+            ),
             'allowed_stages' => $this->jewelleryConfig->orderStatuses,
         ]);
     }

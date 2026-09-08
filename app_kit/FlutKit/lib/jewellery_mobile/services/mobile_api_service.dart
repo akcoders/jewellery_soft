@@ -406,6 +406,52 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<List<dynamic>> fetchDiamondRequirements() async {
+    final res = await _get('/api/mobile/diamond-requirements');
+    final data = (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+    return (data['items'] as List?) ?? <dynamic>[];
+  }
+
+  Future<Map<String, dynamic>> fetchDiamondRequirement(int id) async {
+    final res = await _get('/api/mobile/diamond-requirements/$id');
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> raiseDiamondRequirement({
+    required int orderId,
+    required String note,
+    String requiredBy = '',
+  }) async {
+    final payload = <String, dynamic>{'requirement_note': note.trim()};
+    if (requiredBy.trim().isNotEmpty) {
+      payload['required_by'] = requiredBy.trim();
+    }
+    final res = await _post(
+      '/api/mobile/orders/$orderId/diamond-requirements',
+      body: payload,
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> prepareDiamondBag({
+    required int requirementId,
+    required int locationId,
+    required String preparedDate,
+    required List<Map<String, dynamic>> items,
+    String notes = '',
+  }) async {
+    final res = await _post(
+      '/api/mobile/diamond-requirements/$requirementId/prepare',
+      body: {
+        'location_id': locationId,
+        'prepared_date': preparedDate,
+        'items': items,
+        'notes': notes.trim(),
+      },
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<String> downloadPdf({
     required String path,
     required String fileName,
