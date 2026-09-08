@@ -225,7 +225,7 @@ class IssuesController extends BaseController
         return view('admin/diamond_inventory/issues/edit', [
             'title' => 'Edit Diamond Issue',
             'items' => $this->itemOptions(),
-            'bagItems' => (new DiamondBagTraceService())->availableBagItems(true),
+            'bagItems' => $this->bagItemOptionsForIssueEdit($id),
             'orders' => $this->orderOptions(),
             'locations' => $this->locationOptions(),
             'karigars' => $this->karigarOptions(),
@@ -516,6 +516,31 @@ class IssuesController extends BaseController
     {
         return db_connect()->table('orders')->select('id, order_no, order_name')
             ->whereNotIn('status', ['Cancelled', 'Completed'])->orderBy('id', 'DESC')->limit(1000)->get()->getResultArray();
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function bagItemOptionsForIssueEdit(int $issueId): array
+    {
+        $items = (new DiamondBagTraceService())->availableBagItems(true);
+        $current = db_connect()->table('issue_lines')
+            ->select('bag_item_id, COALESCE(SUM(pcs),0) AS pcs, COALESCE(SUM(carat),0) AS cts', false)
+            ->where('issue_id', $issueId)
+            ->where('bag_item_id IS NOT NULL', null, false)
+            ->groupBy('bag_item_id')
+            ->get()
+            ->getResultArray();
+        $restorable = [];
+        foreach ($current as $row) {
+            $restorable[(int) $row['bag_item_id']] = $row;
+        }
+        foreach ($items as &$item) {
+            $row = $restorable[(int) $item['id']] ?? [];
+            $item['pcs_available'] = round((float) ($item['pcs_available'] ?? 0) + (float) ($row['pcs'] ?? 0), 3);
+            $item['weight_cts_available'] = round((float) ($item['weight_cts_available'] ?? 0) + (float) ($row['cts'] ?? 0), 3);
+        }
+        unset($item);
+
+        return $items;
     }
 
     /**

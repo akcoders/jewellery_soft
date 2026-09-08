@@ -57,6 +57,8 @@ final class DiamondBagTraceabilityTest extends CIUnitTestCase
         $this->assertStringContainsString('shape_master_id[]', $bagForm);
         $this->assertStringContainsString('size_master_id[]', $bagForm);
         $this->assertStringContainsString('bag_item_id[]', $issueForm);
+        $this->assertStringContainsString('data-pcs=', $issueForm);
+        $this->assertStringContainsString('data-cts=', $issueForm);
         $this->assertStringContainsString('issue_line_id[]', $returnForm);
         $this->assertStringContainsString('parseDiamondLines($payload[\'lines\'] ?? [], true)', $mobile);
         $this->assertStringContainsString('parseDiamondReturnLines', $mobile);

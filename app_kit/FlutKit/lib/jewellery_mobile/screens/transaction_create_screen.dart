@@ -789,6 +789,18 @@ class _LineCard extends StatelessWidget {
             ],
             onChanged: (value) {
               line.itemId = value;
+              if (bagWise && value != null) {
+                final selected = items.firstWhere(
+                  (row) => _safeInt(row['id']) == value,
+                  orElse: () => null,
+                );
+                if (selected != null) {
+                  final pcs = _safeDouble(selected['pcs_available']);
+                  final cts = _safeDouble(selected['weight_cts_available']);
+                  line.pcsCtrl.text = pcs.toStringAsFixed(0);
+                  line.caratCtrl.text = cts.toStringAsFixed(3);
+                }
+              }
               line.custom =
                   material == 'diamond' &&
                   !bagWise &&
@@ -1013,5 +1025,10 @@ class _LineCard extends StatelessWidget {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '');
+  }
+
+  double _safeDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 }

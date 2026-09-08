@@ -183,6 +183,8 @@
                     ?>
                     <option
                         value="<?= (int) $item['id'] ?>"
+                        data-available-pcs="<?= esc(number_format((float) ($item['pcs_available'] ?? 0), 0, '.', '')) ?>"
+                        data-available-cts="<?= esc(number_format((float) ($item['weight_cts_available'] ?? 0), 3, '.', '')) ?>"
                         data-default-rate="<?= esc(number_format((float) ($item['avg_cost_per_carat'] ?? 0), 2, '.', '')) ?>"
                     >
                         <?= esc($label) ?> · <?= number_format((float) $item['pcs_available'], 0) ?> pcs / <?= number_format((float) $item['weight_cts_available'], 3) ?> cts
@@ -289,14 +291,18 @@
         addRow('diamond-lines-body', 'diamond-line-template', function (row) {
             bindCommonRow(row, '.diamond-carat', '.diamond-rate', '.diamond-value');
             const item = row.querySelector('.diamond-bag-item');
+            const pcs = row.querySelector('.diamond-pcs');
+            const carat = row.querySelector('.diamond-carat');
             const rate = row.querySelector('.diamond-rate');
             if (item && rate) {
                 item.addEventListener('change', function () {
                     const opt = item.options[item.selectedIndex];
+                    if (pcs) pcs.value = opt && opt.value ? (opt.getAttribute('data-available-pcs') || '') : '';
+                    if (carat) carat.value = opt && opt.value ? (opt.getAttribute('data-available-cts') || '') : '';
                     if (opt && (rate.value || '').trim() === '') {
                         rate.value = opt.getAttribute('data-default-rate') || '';
-                        recalcRow(row, '.diamond-carat', '.diamond-rate', '.diamond-value');
                     }
+                    recalcRow(row, '.diamond-carat', '.diamond-rate', '.diamond-value');
                 });
             }
         });
