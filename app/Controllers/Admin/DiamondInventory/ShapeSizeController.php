@@ -63,8 +63,11 @@ class ShapeSizeController extends BaseController
         $shapeId = (int) $this->request->getPost('shape_id');
         $code = strtoupper(trim((string) $this->request->getPost('size_code')));
         $label = trim((string) $this->request->getPost('size_label'));
+        $chalni = trim((string) $this->request->getPost('chalni_label'));
         $minRaw = trim((string) $this->request->getPost('min_mm'));
         $maxRaw = trim((string) $this->request->getPost('max_mm'));
+        $lengthRaw = trim((string) $this->request->getPost('length_mm'));
+        $widthRaw = trim((string) $this->request->getPost('width_mm'));
 
         if (! $this->shapeModel->find($shapeId) || $code === '' || $label === '') {
             return redirect()->back()->withInput()->with('error', 'Shape, size code and size label are required.');
@@ -77,14 +80,25 @@ class ShapeSizeController extends BaseController
         if ($min !== null && ($min <= 0 || $max < $min)) {
             return redirect()->back()->withInput()->with('error', 'Size millimetre range is invalid.');
         }
+        $length = $lengthRaw === '' ? null : (float) $lengthRaw;
+        $width = $widthRaw === '' ? null : (float) $widthRaw;
+        if ($width !== null && $length === null) {
+            return redirect()->back()->withInput()->with('error', 'Enter length/diameter before width.');
+        }
+        if (($length !== null && $length <= 0) || ($width !== null && $width <= 0)) {
+            return redirect()->back()->withInput()->with('error', 'Diamond dimensions must be greater than zero.');
+        }
 
         try {
             $this->sizeModel->insert([
                 'shape_id' => $shapeId,
                 'size_code' => preg_replace('/\s+/', '-', $code),
                 'size_label' => $label,
+                'chalni_label' => $chalni === '' ? null : $chalni,
                 'min_mm' => $min,
                 'max_mm' => $max,
+                'length_mm' => $length,
+                'width_mm' => $width ?? $length,
                 'sort_order' => max(0, (int) $this->request->getPost('sort_order')),
                 'is_active' => 1,
             ]);
