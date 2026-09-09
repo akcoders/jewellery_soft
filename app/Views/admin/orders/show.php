@@ -93,6 +93,7 @@ $items = is_array($items ?? null) ? $items : [];
 $diamondRequirements = is_array($diamondRequirements ?? null) ? $diamondRequirements : [];
 $canRaiseDiamondRequirement = (bool) ($canRaiseDiamondRequirement ?? false);
 $canManageDiamondRequirements = (bool) ($canManageDiamondRequirements ?? false);
+$canDeleteOrder = (bool) ($canDeleteOrder ?? false);
 $photoGallery = [];
 $imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
 foreach ($attachments as $file) {
@@ -158,6 +159,7 @@ $statusClass = match ($status) {
                 <?php if ($canRaiseDiamondRequirement): ?><button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#diamondRequirementModal"><i class="fe fe-gem me-1"></i>Diamond Requirement</button><?php endif; ?>
                 <?php if (! in_array($status, ['Cancelled', 'Completed'], true)): ?><a href="<?= site_url('admin/orders/' . $order['id'] . '/edit') ?>" class="btn btn-light"><i class="fe fe-edit me-1"></i>Edit</a><?php endif; ?>
                 <?php if ($canReceive): ?><button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#receiveModal"><i class="fe fe-check-circle me-1"></i>Receive Jewellery</button><?php endif; ?>
+                <?php if ($canDeleteOrder): ?><button type="button" class="btn btn-light text-danger" data-bs-toggle="modal" data-bs-target="#deleteOrderModal"><i class="fe fe-trash-2 me-1"></i>Delete Order</button><?php endif; ?>
                 <a href="<?= site_url((string) $order['order_type'] === 'Repair' ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-light"><i class="fe fe-arrow-left me-1"></i>Order List</a>
             </div>
         </div>
@@ -289,6 +291,45 @@ $statusClass = match ($status) {
     <div class="modal-body"><div class="alert alert-light border mb-3">Order <strong><?= esc((string) $order['order_no']) ?></strong><br><span class="text-muted">Admin will approve this request and assign a staff member to prepare the size-wise diamond bag.</span></div><div class="mb-3"><label class="form-label">Requirement note *</label><textarea name="requirement_note" class="form-control" rows="4" required placeholder="Diamond quality, urgency or special instruction"></textarea></div><div><label class="form-label">Required by</label><input type="date" name="required_by" class="form-control" min="<?= date('Y-m-d') ?>"></div></div>
     <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary">Raise for Approval</button></div>
 </form></div></div>
+<?php endif; ?>
+
+<?php if ($canDeleteOrder): ?>
+<div class="modal fade" id="deleteOrderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="post" action="<?= site_url('admin/orders/' . (int) $order['id'] . '/delete') ?>" id="deleteOrderForm">
+            <?= csrf_field() ?>
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <span class="badge bg-danger-subtle text-danger mb-2">Permanent action</span>
+                    <h5 class="modal-title">Delete this order?</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong><?= esc((string) $order['order_no']) ?></strong> and its follow-ups, receiving records, eligible ledger postings, finished inventory record, notifications and private order images will be permanently removed.
+                </div>
+                <p class="small text-muted">Shared material issue/return vouchers and design-master images are detached and retained. Deletion is blocked if the order is part of a sale invoice, labour bill, debit/credit note, reservation, or moved jewellery inventory.</p>
+                <div class="mb-3">
+                    <label class="form-label" for="delete_reason">Deletion reason *</label>
+                    <textarea class="form-control" id="delete_reason" name="delete_reason" rows="3" minlength="5" required placeholder="Why is this order being deleted?"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="confirm_order_no">Type the exact order number *</label>
+                    <input class="form-control font-monospace" id="confirm_order_no" name="confirm_order_no" autocomplete="off" required placeholder="<?= esc((string) $order['order_no'], 'attr') ?>">
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="1" name="confirm_permanent_delete" id="confirm_permanent_delete">
+                    <label class="form-check-label" for="confirm_permanent_delete">I understand this action cannot be undone.</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep Order</button>
+                <button type="submit" class="btn btn-danger" id="confirmDeleteOrderButton" disabled><i class="fe fe-trash-2 me-1"></i>Delete Permanently</button>
+            </div>
+        </form>
+    </div>
+</div>
 <?php endif; ?>
 
 <?php if ($canReceive): ?>
@@ -498,4 +539,28 @@ $statusClass = match ($status) {
         });
     })();
 </script>
+<?php if ($canDeleteOrder): ?>
+<script>
+    (function () {
+        const form = document.getElementById('deleteOrderForm');
+        if (!form) return;
+        const expected = <?= json_encode((string) $order['order_no'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const orderNo = document.getElementById('confirm_order_no');
+        const reason = document.getElementById('delete_reason');
+        const acknowledgement = document.getElementById('confirm_permanent_delete');
+        const submit = document.getElementById('confirmDeleteOrderButton');
+        const refresh = function () {
+            submit.disabled = orderNo.value.trim() !== expected
+                || reason.value.trim().length < 5
+                || !acknowledgement.checked;
+        };
+        form.addEventListener('input', refresh);
+        form.addEventListener('change', refresh);
+        form.addEventListener('submit', function (event) {
+            refresh();
+            if (submit.disabled) event.preventDefault();
+        });
+    })();
+</script>
+<?php endif; ?>
 <?= $this->endSection() ?>

@@ -101,7 +101,12 @@ class PurchasesController extends BaseController
                 throw new \RuntimeException('Please select a valid active vendor.');
             }
             $taxable = round(array_sum(array_column($parsed['lines'], 'line_value')), 2);
-            $tax = $this->taxMasterService->calculate((int) $this->request->getPost('gst_master_id'), $taxable);
+            $roundOff = round((float) ($this->request->getPost('round_off_amount') ?: 0), 2);
+            $tax = $this->taxMasterService->calculate(
+                (int) $this->request->getPost('gst_master_id'),
+                $taxable,
+                $roundOff
+            );
 
             $purchaseId = (int) $this->headerModel->insert([
                 'purchase_date' => (string) $this->request->getPost('purchase_date'),
@@ -123,6 +128,7 @@ class PurchasesController extends BaseController
                 'igst_rate' => $tax['igst_rate'],
                 'igst_amount' => $tax['igst_amount'],
                 'gst_amount' => $tax['gst_amount'],
+                'round_off_amount' => $tax['round_off_amount'],
                 'tax_percentage' => round((float) $tax['cgst_rate'] + (float) $tax['sgst_rate'] + (float) $tax['igst_rate'], 3),
                 'invoice_total' => $tax['invoice_total'],
                 'payment_status' => 'Pending',
@@ -250,7 +256,12 @@ class PurchasesController extends BaseController
                 throw new \RuntimeException('Please select a valid active vendor.');
             }
             $taxable = round(array_sum(array_column($parsed['lines'], 'line_value')), 2);
-            $tax = $this->taxMasterService->calculate((int) $this->request->getPost('gst_master_id'), $taxable);
+            $roundOff = round((float) ($this->request->getPost('round_off_amount') ?: 0), 2);
+            $tax = $this->taxMasterService->calculate(
+                (int) $this->request->getPost('gst_master_id'),
+                $taxable,
+                $roundOff
+            );
 
             $this->headerModel->update($id, [
                 'purchase_date' => (string) $this->request->getPost('purchase_date'),
@@ -272,6 +283,7 @@ class PurchasesController extends BaseController
                 'igst_rate' => $tax['igst_rate'],
                 'igst_amount' => $tax['igst_amount'],
                 'gst_amount' => $tax['gst_amount'],
+                'round_off_amount' => $tax['round_off_amount'],
                 'tax_percentage' => round((float) $tax['cgst_rate'] + (float) $tax['sgst_rate'] + (float) $tax['igst_rate'], 3),
                 'invoice_total' => $tax['invoice_total'],
                 'stock_posted' => 1,
@@ -471,6 +483,7 @@ class PurchasesController extends BaseController
             'invoice_no' => 'permit_empty|max_length[80]',
             'due_date' => 'permit_empty|valid_date',
             'gst_master_id' => 'required|integer|greater_than[0]',
+            'round_off_amount' => 'permit_empty|decimal',
             'invoice_total' => 'permit_empty|decimal|greater_than_equal_to[0]',
             'notes' => 'permit_empty',
         ])) {

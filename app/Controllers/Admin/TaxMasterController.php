@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\GstMasterModel;
 use App\Models\TaxTypeModel;
 use App\Services\TaxMasterService;
+use Throwable;
 
 class TaxMasterController extends BaseController
 {
@@ -33,36 +34,16 @@ class TaxMasterController extends BaseController
 
     public function storeGstMaster()
     {
-        $name = trim((string) $this->request->getPost('name'));
-        $typeIds = (array) $this->request->getPost('tax_type_id');
-        $percentages = (array) $this->request->getPost('percentage');
-        if ($name === '' || mb_strlen($name) > 120) {
-            return redirect()->back()->withInput()->with('error', 'Enter a valid GST master name.');
-        }
-        if (db_connect()->table('gst_masters')->where('name', $name)->countAllResults() > 0) {
-            return redirect()->back()->withInput()->with('error', 'This GST master already exists.');
+        $input = $this->gstMasterInput(true);
+        if ($input['error'] !== null) {
+            return redirect()->back()->withInput()->with('error', $input['error']);
         }
 
-        $components = [];
-        foreach ($typeIds as $index => $typeIdRaw) {
-            $typeId = (int) $typeIdRaw;
-            $percentage = round((float) ($percentages[$index] ?? 0), 3);
-            if ($typeId <= 0 || $percentage <= 0) {
-                continue;
-            }
-            if (isset($components[$typeId])) {
-                return redirect()->back()->withInput()->with('error', 'The same tax type cannot be added twice.');
-            }
-            $components[$typeId] = $percentage;
-        }
-        if ($components === [] && ! $this->request->getPost('allow_zero_tax')) {
-            return redirect()->back()->withInput()->with('error', 'Add at least one tax component or mark this as a zero-tax master.');
-        }
-
+        $name = $input['name'];
+        $components = $input['components'];
         $db = db_connect();
-        $validTypes = $db->table('tax_types')->select('id')->where('is_active', 1)->whereIn('id', array_keys($components) ?: [0])->get()->getResultArray();
-        if (count($validTypes) !== count($components)) {
-            return redirect()->back()->withInput()->with('error', 'One or more tax types are invalid or inactive.');
+        if ($db->table('gst_masters')->where('name', $name)->countAllResults() > 0) {
+            return redirect()->back()->withInput()->with('error', 'This GST master already exists.');
         }
 
         $db->transStart();
@@ -87,6 +68,40 @@ class TaxMasterController extends BaseController
             : redirect()->back()->withInput()->with('error', 'Unable to create GST master.');
     }
 
+    public function updateGstMaster(int $id)
+    {
+        $db = db_connect();
+        if (! $db->table('gst_masters')->where('id', $id)->get()->getRowArray()) {
+            return redirect()->back()->with('error', 'GST master not found.');
+        }
+
+        $input = $this->gstMasterInput(false);
+        if ($input['error'] !== null) {
+            return redirect()->back()->withInput()->with('error', $input['error']);
+        }
+        if ($db->table('gst_masters')
+            ->where('name', $input['name'])
+            ->where('id !=', $id)
+            ->countAllResults() > 0) {
+            return redirect()->back()->withInput()->with('error', 'This GST master already exists.');
+        }
+
+        try {
+            $result = (new TaxMasterService($db))->updateMasterAndLinkedPurchases(
+                $id,
+                $input['name'],
+                $input['components']
+            );
+        } catch (Throwable $e) {
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()->back()->with(
+            'success',
+            'GST master updated. ' . (int) $result['total'] . ' linked purchase record(s) recalculated.'
+        );
+    }
+
     public function toggleTaxType(int $id)
     {
         $model = new TaxTypeModel();
@@ -107,5 +122,58 @@ class TaxMasterController extends BaseController
         }
         $model->update($id, ['is_active' => (int) ($row['is_active'] ?? 0) === 1 ? 0 : 1]);
         return redirect()->back()->with('success', 'GST master status updated.');
+    }
+
+    /**
+     * @return array{name:string,components:array<int,float>,error:?string}
+     */
+    private function gstMasterInput(bool $activeTaxTypesOnly): array
+    {
+        $name = trim((string) $this->request->getPost('name'));
+        if ($name === '' || mb_strlen($name) > 120) {
+            return ['name' => $name, 'components' => [], 'error' => 'Enter a valid GST master name.'];
+        }
+
+        $typeIds = (array) $this->request->getPost('tax_type_id');
+        $percentages = (array) $this->request->getPost('percentage');
+        $components = [];
+        $rowCount = max(count($typeIds), count($percentages));
+        for ($index = 0; $index < $rowCount; $index++) {
+            $typeId = (int) ($typeIds[$index] ?? 0);
+            $percentageRaw = trim((string) ($percentages[$index] ?? ''));
+            if ($typeId <= 0 && $percentageRaw === '') {
+                continue;
+            }
+            if ($typeId <= 0 || $percentageRaw === '' || ! is_numeric($percentageRaw)) {
+                return ['name' => $name, 'components' => [], 'error' => 'Select a tax type and enter its percentage for every component.'];
+            }
+            $percentage = round((float) $percentageRaw, 3);
+            if ($percentage <= 0 || $percentage > 100) {
+                return ['name' => $name, 'components' => [], 'error' => 'Each tax percentage must be greater than 0 and not more than 100.'];
+            }
+            if (isset($components[$typeId])) {
+                return ['name' => $name, 'components' => [], 'error' => 'The same tax type cannot be added twice.'];
+            }
+            $components[$typeId] = $percentage;
+        }
+
+        if ($components === [] && ! $this->request->getPost('allow_zero_tax')) {
+            return ['name' => $name, 'components' => [], 'error' => 'Add at least one tax component or mark this as a zero-tax master.'];
+        }
+
+        if ($components !== []) {
+            $builder = db_connect()->table('tax_types')->select('id')->whereIn('id', array_keys($components));
+            if ($activeTaxTypesOnly) {
+                $builder->where('is_active', 1);
+            }
+            if (count($builder->get()->getResultArray()) !== count($components)) {
+                $message = $activeTaxTypesOnly
+                    ? 'One or more tax types are invalid or inactive.'
+                    : 'One or more tax types are invalid.';
+                return ['name' => $name, 'components' => [], 'error' => $message];
+            }
+        }
+
+        return ['name' => $name, 'components' => $components, 'error' => null];
     }
 }

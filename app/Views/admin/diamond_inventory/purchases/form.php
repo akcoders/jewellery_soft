@@ -81,6 +81,7 @@ $vendorId = old('vendor_id', (string) ($purchase['vendor_id'] ?? ''));
 $invoiceNo = old('invoice_no', (string) ($purchase['invoice_no'] ?? ''));
 $dueDate = old('due_date', (string) ($purchase['due_date'] ?? ''));
 $gstMasterId = old('gst_master_id', (string) ($purchase['gst_master_id'] ?? ''));
+$roundOff = old('round_off_amount', (string) ($purchase['round_off_amount'] ?? '0.00'));
 $invoiceTotal = old('invoice_total', (string) ($purchase['invoice_total'] ?? '0.00'));
 $notes = old('notes', (string) ($purchase['notes'] ?? ''));
 $supplierName = old('supplier_name', (string) ($purchase['supplier_name'] ?? ''));
@@ -229,6 +230,19 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
             <div class="col-md-2"><label class="form-label">Taxable Amount</label><input type="text" id="subtotal_display" class="form-control" readonly value="0.00"></div>
             <div class="col-md-4"><label class="form-label">Tax breakup</label><div id="gst_breakup_display" class="form-control bg-light h-auto" style="min-height:38px">Select a GST master</div></div>
             <div class="col-md-2"><label class="form-label">GST Amount</label><input type="text" id="tax_value_display" class="form-control" readonly value="0.00"></div>
+            <div class="col-md-3">
+                <label class="form-label">Round Off</label>
+                <input type="number" step="0.01" name="round_off_amount" id="round_off_amount" class="form-control" value="<?= esc((string) $roundOff) ?>">
+                <small class="text-muted">You can keep or manually change this value.</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Auto Round-off Suggestion</label>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span id="round_off_suggestion" class="badge bg-light text-dark border px-3 py-2">Suggested: ₹0.00</span>
+                    <button type="button" id="apply_round_off_suggestion" class="btn btn-outline-primary">Use suggestion</button>
+                </div>
+                <small class="text-muted">Rounds the invoice grand total to the nearest whole rupee.</small>
+            </div>
             <div class="col-md-3"><label class="form-label">Invoice Total</label><input type="number" step="0.01" min="0" name="invoice_total" id="invoice_total" class="form-control fw-semibold" readonly value="<?= esc((string) $invoiceTotal) ?>"></div>
         </div>
     </div>
@@ -326,6 +340,10 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
         const body = document.getElementById('purchase-lines-body');
         const addBtn = document.getElementById('add-purchase-line');
         const tpl = document.getElementById('purchase-line-template');
+        const roundOffInput = document.getElementById('round_off_amount');
+        const roundOffSuggestion = document.getElementById('round_off_suggestion');
+        const applyRoundOffSuggestion = document.getElementById('apply_round_off_suggestion');
+        let suggestedRoundOff = 0;
 
         if (!body || !addBtn || !tpl) {
             return;
@@ -346,15 +364,23 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
             body.querySelectorAll('tr').forEach(function(row) {
                 const carat = parseFloat((row.querySelector('.line-carat') || {}).value || '0') || 0;
                 const rate = parseFloat((row.querySelector('.line-rate') || {}).value || '0') || 0;
-                subtotal += (carat * rate);
+                subtotal += Math.round((carat * rate + Number.EPSILON) * 100) / 100;
             });
+            subtotal = Math.round((subtotal + Number.EPSILON) * 100) / 100;
 
             const gstSelect = document.getElementById('gst_master_id');
             const selected = gstSelect ? gstSelect.options[gstSelect.selectedIndex] : null;
             let components = [];
             try { components = JSON.parse((selected || {}).getAttribute?.('data-components') || '[]'); } catch (error) { components = []; }
-            const taxValue = components.reduce(function(total, component) { return total + subtotal * Number(component.percentage || 0) / 100; }, 0);
-            const invoiceTotal = subtotal + taxValue;
+            const taxAmounts = components.map(function(component) {
+                return Math.round((subtotal * Number(component.percentage || 0) / 100 + Number.EPSILON) * 100) / 100;
+            });
+            const taxValue = Math.round((taxAmounts.reduce(function(total, amount) { return total + amount; }, 0) + Number.EPSILON) * 100) / 100;
+            const beforeRoundOff = subtotal + taxValue;
+            suggestedRoundOff = Math.round((Math.round(beforeRoundOff) - beforeRoundOff + Number.EPSILON) * 100) / 100;
+            if (Math.abs(suggestedRoundOff) < 0.005) suggestedRoundOff = 0;
+            const enteredRoundOff = parseFloat((roundOffInput || {}).value || '0') || 0;
+            const invoiceTotal = Math.max(0, beforeRoundOff + enteredRoundOff);
 
             const subtotalEl = document.getElementById('subtotal_display');
             const taxValueEl = document.getElementById('tax_value_display');
@@ -362,8 +388,12 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
             if (subtotalEl) subtotalEl.value = subtotal.toFixed(2);
             if (taxValueEl) taxValueEl.value = taxValue.toFixed(2);
             if (invoiceTotalEl) invoiceTotalEl.value = invoiceTotal.toFixed(2);
+            if (roundOffSuggestion) {
+                const sign = suggestedRoundOff > 0 ? '+' : (suggestedRoundOff < 0 ? '-' : '');
+                roundOffSuggestion.textContent = 'Suggested: ' + sign + '₹' + Math.abs(suggestedRoundOff).toFixed(2);
+            }
             const breakup = document.getElementById('gst_breakup_display');
-            if (breakup) breakup.textContent = components.length ? components.map(function(component) { return String(component.name || '').toUpperCase() + ' ' + Number(component.percentage || 0).toFixed(3) + '% = ₹' + (subtotal * Number(component.percentage || 0) / 100).toFixed(2); }).join(' | ') : 'No tax components';
+            if (breakup) breakup.textContent = components.length ? components.map(function(component, index) { return String(component.name || '').toUpperCase() + ' ' + Number(component.percentage || 0).toFixed(3) + '% = ₹' + taxAmounts[index].toFixed(2); }).join(' | ') : 'No tax components';
         }
 
         function bindRow(row) {
@@ -444,6 +474,16 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
         const taxInput = document.getElementById('gst_master_id');
         if (taxInput) {
             taxInput.addEventListener('change', recalcTotals);
+        }
+        if (roundOffInput) {
+            roundOffInput.addEventListener('input', recalcTotals);
+        }
+        if (applyRoundOffSuggestion) {
+            applyRoundOffSuggestion.addEventListener('click', function() {
+                if (!roundOffInput) return;
+                roundOffInput.value = suggestedRoundOff.toFixed(2);
+                recalcTotals();
+            });
         }
 
         if (typeof jQuery !== 'undefined' && typeof jQuery.fn.select2 !== 'undefined') {

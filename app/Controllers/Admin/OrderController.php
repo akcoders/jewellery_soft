@@ -36,6 +36,7 @@ use App\Services\KarigarMaterialAccountingService;
 use App\Services\MobileNotificationEventService;
 use App\Services\OrderWhatsAppService;
 use App\Services\OrderCategoryService;
+use App\Services\OrderDeletionService;
 use App\Services\OrderNumberService;
 use App\Services\OrderThumbnailService;
 use App\Services\PdfService;
@@ -75,6 +76,7 @@ class OrderController extends BaseController
     private FinishedJewelleryService $finishedJewelleryService;
     private OrderWhatsAppService $orderWhatsAppService;
     private OrderCategoryService $orderCategoryService;
+    private OrderDeletionService $orderDeletionService;
     private OrderNumberService $orderNumberService;
     private OrderThumbnailService $orderThumbnailService;
     private MobileNotificationEventService $mobileNotificationEvents;
@@ -114,6 +116,7 @@ class OrderController extends BaseController
         $this->finishedJewelleryService = new FinishedJewelleryService();
         $this->orderWhatsAppService = new OrderWhatsAppService();
         $this->orderCategoryService = new OrderCategoryService();
+        $this->orderDeletionService = new OrderDeletionService();
         $this->orderNumberService = new OrderNumberService();
         $this->orderThumbnailService = new OrderThumbnailService();
         $this->mobileNotificationEvents = new MobileNotificationEventService();
@@ -886,6 +889,7 @@ class OrderController extends BaseController
                 $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage')
             ),
             'canManageDiamondRequirements' => $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage'),
+            'canDeleteOrder' => $this->rbacService->userCan((int) session('admin_id'), 'orders.delete'),
         ]);
     }
 
@@ -1290,6 +1294,53 @@ class OrderController extends BaseController
         $this->staffPerformanceService->closeOrderFollowupSchedules($id);
 
         return redirect()->back()->with('success', 'Order cancelled.');
+    }
+
+    public function delete(int $id)
+    {
+        $order = db_connect()->table('orders')->select('id, order_no')->where('id', $id)->get()->getRowArray();
+        if (! $order) {
+            return redirect()->to(site_url('admin/orders'))->with('error', 'Order not found or it has already been deleted.');
+        }
+
+        $confirmedOrderNo = trim((string) $this->request->getPost('confirm_order_no'));
+        $reason = trim((string) $this->request->getPost('delete_reason'));
+        $acknowledged = (string) $this->request->getPost('confirm_permanent_delete') === '1';
+        if (! $acknowledged || ! hash_equals((string) $order['order_no'], $confirmedOrderNo)) {
+            return redirect()->back()->with('error', 'Permanent deletion was not confirmed. Type the exact order number and tick the confirmation box.');
+        }
+
+        $adminId = $this->currentAuditUserId();
+        if ($adminId <= 0) {
+            return redirect()->back()->with('error', 'Audit user is required. Please login again.');
+        }
+
+        try {
+            $result = $this->orderDeletionService->delete(
+                $id,
+                $adminId,
+                $reason,
+                $this->request->getIPAddress()
+            );
+        } catch (Throwable $e) {
+            log_message('error', 'Order deletion failed for #{orderId}: {message}', [
+                'orderId' => $id,
+                'message' => $e->getMessage(),
+            ]);
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        $message = sprintf(
+            'Order %s permanently deleted with %d related records and %d private image file(s).',
+            (string) $result['order_no'],
+            (int) $result['records_deleted'],
+            (int) $result['files_deleted']
+        );
+        if ((int) $result['files_retained'] > 0) {
+            $message .= sprintf(' %d shared, external, or already-missing file(s) were safely retained.', (int) $result['files_retained']);
+        }
+
+        return redirect()->to(site_url('admin/orders'))->with('success', $message);
     }
 
     public function addFollowup(int $id)
