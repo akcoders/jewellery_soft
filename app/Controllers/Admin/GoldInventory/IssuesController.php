@@ -13,6 +13,7 @@ use App\Models\KarigarModel;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\GoldInventory\StockService;
 use App\Services\IssuementVoucherNumberService;
+use App\Services\MobileNotificationEventService;
 use Throwable;
 
 class IssuesController extends BaseController
@@ -163,6 +164,9 @@ class IssuesController extends BaseController
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'issue', $issueId);
 
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'issue', 'Gold', 'gold_inventory_issue_headers', $issueId, 'admin'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

@@ -10,6 +10,7 @@ use App\Models\ReturnLineModel;
 use App\Services\DiamondBagTraceService;
 use App\Services\DiamondInventory\StockService;
 use App\Services\KarigarMaterialAccountingService;
+use App\Services\MobileNotificationEventService;
 use Throwable;
 
 class ReturnsController extends BaseController
@@ -145,6 +146,9 @@ class ReturnsController extends BaseController
             (new DiamondBagTraceService($db))->applyReturn($returnId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'return', $returnId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'return', 'Diamond', 'return_headers', $returnId, 'admin'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

@@ -80,6 +80,42 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringNotContainsString("'Api\\OrdersController::create'", $routes);
     }
 
+    public function testAdminReceivesAllRequestedBusinessEventNotifications(): void
+    {
+        $events = (string) file_get_contents(APPPATH . 'Services/MobileNotificationEventService.php');
+        $adminOrder = (string) file_get_contents(APPPATH . 'Controllers/Admin/OrderController.php');
+        $customerOrder = (string) file_get_contents(APPPATH . 'Controllers/Customer/OrdersController.php');
+        $mobileOrder = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/OrdersController.php');
+        $adminRequirement = (string) file_get_contents(APPPATH . 'Controllers/Admin/DiamondRequirementController.php');
+        $mobileRequirement = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/DiamondRequirementsController.php');
+        $mobileTransactions = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/TransactionsController.php');
+        $combinedIssuement = (string) file_get_contents(APPPATH . 'Controllers/Admin/IssuementController.php');
+        $legacyPurchase = (string) file_get_contents(APPPATH . 'Controllers/Admin/PurchaseController.php');
+
+        $adminInventory = '';
+        foreach (['GoldInventory', 'DiamondInventory', 'StoneInventory'] as $inventory) {
+            foreach (['Purchases', 'Issues', 'Returns'] as $controller) {
+                $adminInventory .= (string) file_get_contents(
+                    APPPATH . 'Controllers/Admin/' . $inventory . '/' . $controller . 'Controller.php'
+                );
+            }
+        }
+
+        $this->assertStringContainsString('notifyOrderCreated', $adminOrder . $customerOrder);
+        $this->assertStringContainsString('notifyFollowupAdded', $adminOrder . $mobileOrder);
+        $this->assertStringContainsString('notifyDiamondRequirementRaised', $adminRequirement . $mobileRequirement);
+        $this->assertStringContainsString("'type' => 'purchase_created'", $events);
+        $this->assertStringContainsString("'type' => 'issuement_created'", $events);
+        $this->assertStringContainsString("'type' => 'return_created'", $events);
+        $this->assertStringContainsString("'permission' => 'accounts.read'", $events);
+        $this->assertStringContainsString("'permission' => 'issuements.read'", $events);
+        $this->assertSame(9, substr_count($adminInventory, 'notifyInventoryTransactionCreated('));
+        $this->assertSame(9, substr_count($mobileTransactions, 'notifyInventoryTransactionCreated('));
+        $this->assertStringContainsString('notifyInventoryTransactionCreated(', $combinedIssuement);
+        $this->assertStringContainsString('notifyInventoryTransactionCreated(', $legacyPurchase);
+        $this->assertStringContainsString('Inventory transaction notification failed', $events);
+    }
+
     public function testNotificationCycleHasOverlapLockAndRunsBothGenerationAndDispatch(): void
     {
         $command = (string) file_get_contents(APPPATH . 'Commands/RunMobileNotificationCycle.php');

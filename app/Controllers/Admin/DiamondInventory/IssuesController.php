@@ -13,6 +13,7 @@ use App\Services\DiamondInventory\StockService;
 use App\Services\DiamondBagTraceService;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\IssuementVoucherNumberService;
+use App\Services\MobileNotificationEventService;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use Throwable;
 
@@ -158,6 +159,9 @@ class IssuesController extends BaseController
             (new DiamondBagTraceService($db))->applyIssue($issueId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $issueId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'issue', 'Diamond', 'issue_headers', $issueId, 'admin'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

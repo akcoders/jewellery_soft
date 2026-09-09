@@ -11,6 +11,7 @@ use App\Models\GoldPurityModel;
 use App\Models\InventoryLocationModel;
 use App\Services\GoldInventory\StockService;
 use App\Services\KarigarMaterialAccountingService;
+use App\Services\MobileNotificationEventService;
 use Throwable;
 
 class ReturnsController extends BaseController
@@ -158,6 +159,9 @@ class ReturnsController extends BaseController
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'return', $returnId);
 
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'return', 'Gold', 'gold_inventory_return_headers', $returnId, 'admin'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

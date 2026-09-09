@@ -33,6 +33,7 @@ use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\StoneInventory\StockService as StoneStockService;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\IssuementVoucherNumberService;
+use App\Services\MobileNotificationEventService;
 use App\Services\PdfService;
 use App\Services\TaxMasterService;
 use Throwable;
@@ -132,6 +133,9 @@ class TransactionsController extends MobileBaseController
 
             $service->applyPurchase($headerId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'purchase', 'Diamond', 'purchase_headers', $headerId, 'mobile'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return $this->fail('Unable to save purchase: ' . $e->getMessage(), 500);
@@ -240,6 +244,9 @@ class TransactionsController extends MobileBaseController
             (new DiamondBagTraceService($db))->applyIssue($issueId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $issueId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'issue', 'Diamond', 'issue_headers', $issueId, 'mobile'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return $this->fail('Unable to save issue: ' . $e->getMessage(), 500);
@@ -344,6 +351,9 @@ class TransactionsController extends MobileBaseController
             (new DiamondBagTraceService($db))->applyReturn($returnId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'return', $returnId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'return', 'Diamond', 'return_headers', $returnId, 'mobile'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return $this->fail('Unable to save return: ' . $e->getMessage(), 500);
@@ -579,6 +589,9 @@ class TransactionsController extends MobileBaseController
 
             $service->applyPurchase($headerId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'purchase', 'Gold', 'gold_inventory_purchase_headers', $headerId, 'mobile'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return $this->fail('Unable to save purchase: ' . $e->getMessage(), 500);
@@ -678,6 +691,9 @@ class TransactionsController extends MobileBaseController
             $service->applyIssue($issueId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'issue', $issueId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'issue', 'Gold', 'gold_inventory_issue_headers', $issueId, 'mobile'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return $this->fail('Unable to save issue: ' . $e->getMessage(), 500);
@@ -774,6 +790,9 @@ class TransactionsController extends MobileBaseController
             $service->applyReturn($returnId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'return', $returnId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'return', 'Gold', 'gold_inventory_return_headers', $returnId, 'mobile'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return $this->fail('Unable to save return: ' . $e->getMessage(), 500);
@@ -1012,6 +1031,9 @@ class TransactionsController extends MobileBaseController
 
             $service->applyPurchase($headerId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'purchase', 'Stone', 'stone_inventory_purchase_headers', $headerId, 'mobile'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return $this->fail('Unable to save purchase: ' . $e->getMessage(), 500);
@@ -1111,6 +1133,9 @@ class TransactionsController extends MobileBaseController
             $service->applyIssue($issueId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'issue', $issueId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'issue', 'Stone', 'stone_inventory_issue_headers', $issueId, 'mobile'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return $this->fail('Unable to save issue: ' . $e->getMessage(), 500);
@@ -1206,6 +1231,9 @@ class TransactionsController extends MobileBaseController
             $service->applyReturn($returnId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'return', $returnId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'return', 'Stone', 'stone_inventory_return_headers', $returnId, 'mobile'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return $this->fail('Unable to save return: ' . $e->getMessage(), 500);

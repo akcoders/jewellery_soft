@@ -9,6 +9,7 @@ use App\Models\PurchaseHeaderModel;
 use App\Models\PurchaseLineModel;
 use App\Models\VendorModel;
 use App\Services\DiamondInventory\StockService;
+use App\Services\MobileNotificationEventService;
 use App\Services\TaxMasterService;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use Throwable;
@@ -153,6 +154,9 @@ class PurchasesController extends BaseController
                 throw new \RuntimeException($uploadError);
             }
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'purchase', 'Diamond', 'purchase_headers', $purchaseId, 'admin'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

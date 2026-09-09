@@ -9,6 +9,7 @@ use App\Models\StoneInventoryPurchaseLineModel;
 use App\Models\StonePurchaseAttachmentModel;
 use App\Models\VendorModel;
 use App\Services\StoneInventory\StockService;
+use App\Services\MobileNotificationEventService;
 use App\Services\TaxMasterService;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use Throwable;
@@ -149,6 +150,9 @@ class PurchasesController extends BaseController
                 throw new \RuntimeException($uploadError);
             }
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'purchase', 'Stone', 'stone_inventory_purchase_headers', $purchaseId, 'admin'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

@@ -10,6 +10,7 @@ use App\Models\GoldPurityModel;
 use App\Models\InventoryLocationModel;
 use App\Models\VendorModel;
 use App\Services\GoldInventory\StockService;
+use App\Services\MobileNotificationEventService;
 use App\Services\TaxMasterService;
 use Throwable;
 
@@ -132,6 +133,9 @@ class PurchasesController extends BaseController
             ]);
 
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'purchase', 'Gold', 'gold_inventory_purchase_headers', $purchaseId, 'admin'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

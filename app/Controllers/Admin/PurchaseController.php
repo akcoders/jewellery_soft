@@ -13,6 +13,7 @@ use App\Models\VendorModel;
 use App\Services\AdminPostingService;
 use App\Services\PostingService;
 use App\Services\TaxMasterService;
+use App\Services\MobileNotificationEventService;
 use Throwable;
 
 class PurchaseController extends BaseController
@@ -269,6 +270,9 @@ class PurchaseController extends BaseController
             ], $postingLines);
 
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'purchase', $type, 'purchases', (int) $purchaseId, 'admin'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

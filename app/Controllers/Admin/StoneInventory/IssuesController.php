@@ -11,6 +11,7 @@ use App\Models\StoneInventoryIssueLineModel;
 use App\Models\StoneInventoryItemModel;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\IssuementVoucherNumberService;
+use App\Services\MobileNotificationEventService;
 use App\Services\StoneInventory\StockService;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use Throwable;
@@ -145,6 +146,9 @@ class IssuesController extends BaseController
             $service->applyIssue($issueId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'issue', $issueId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'issue', 'Stone', 'stone_inventory_issue_headers', $issueId, 'admin'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

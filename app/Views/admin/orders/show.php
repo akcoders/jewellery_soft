@@ -256,6 +256,14 @@ $statusClass = match ($status) {
     </div>
 
     <div class="card order-section-card mb-4">
+        <div class="card-header"><h5 class="order-section-title"><i class="fe fe-message-circle"></i>Follow-up History</h5><span class="order-section-count"><?= count($followups) ?> update<?= count($followups) === 1 ? '' : 's' ?></span></div>
+        <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover order-followups-table mb-0" data-dt-skip="true"><thead><tr><th>Stage</th><th>Description</th><th>Next Follow-up</th><th>Taken By</th><th>Taken On</th><th>Image</th></tr></thead><tbody>
+        <?php if ($followups === []): ?><tr><td colspan="6" class="text-center text-muted py-4">No follow-ups recorded for this order.</td></tr><?php endif; ?>
+        <?php foreach ($followups as $followup): ?><tr><td><span class="badge bg-light text-dark border"><?= esc((string) (($followup['stage'] ?? '') ?: '-')) ?></span></td><td><div class="followup-description"><?= esc((string) (($followup['description'] ?? '') ?: '-')) ?></div></td><td><?= esc($formatDate((string) ($followup['next_followup_date'] ?? ''))) ?></td><td><?= esc((string) (($followup['followup_taken_by_name'] ?? '') ?: 'Admin')) ?></td><td><?= esc($formatDate((string) ($followup['followup_taken_on'] ?? ''))) ?></td><td><?php if (! empty($followup['image_path'])): ?><?php $followupImageUrl = base_url(ltrim((string) $followup['image_path'], '/')); ?><a href="<?= esc($followupImageUrl, 'attr') ?>" target="_blank" rel="noopener"><img class="followup-image js-order-image" src="<?= esc($followupImageUrl, 'attr') ?>" alt="Follow-up image" loading="lazy"></a><?php else: ?><span class="text-muted">—</span><?php endif; ?></td></tr><?php endforeach; ?>
+        </tbody></table></div></div>
+    </div>
+
+    <div class="card order-section-card mb-4">
         <div class="card-header"><h5 class="order-section-title"><i class="fe fe-gem"></i><?= esc('Studded & Finished Jewellery Details') ?></h5><span class="order-section-count"><?= count($studdedDetails) ?> component<?= count($studdedDetails) === 1 ? '' : 's' ?></span></div>
         <div class="card-body">
             <?php if ($receiveSummary !== []): ?>
@@ -272,14 +280,6 @@ $statusClass = match ($status) {
             <?php foreach ($studdedDetails as $detail): ?><tr><td><span class="order-component-badge"><?= esc(ucfirst((string) ($detail['component_type'] ?? '-'))) ?></span></td><td><?= esc(\App\Libraries\DiamondDisplay::componentName($detail)) ?></td><td><?= number_format((float) ($detail['pcs'] ?? 0), 3) ?></td><td><?= number_format((float) ($detail['weight_cts'] ?? 0), 3) ?></td><td><?= number_format((float) ($detail['weight_gm'] ?? 0), 3) ?></td><td>₹<?= number_format((float) ($detail['rate'] ?? 0), 2) ?></td><td><strong>₹<?= number_format((float) ($detail['line_total'] ?? 0), 2) ?></strong></td></tr><?php endforeach; ?>
             </tbody></table></div>
         </div>
-    </div>
-
-    <div class="card order-section-card mb-4">
-        <div class="card-header"><h5 class="order-section-title"><i class="fe fe-message-circle"></i>Follow-up History</h5><span class="order-section-count"><?= count($followups) ?> update<?= count($followups) === 1 ? '' : 's' ?></span></div>
-        <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover order-followups-table mb-0" data-dt-skip="true"><thead><tr><th>Stage</th><th>Description</th><th>Next Follow-up</th><th>Taken By</th><th>Taken On</th><th>Image</th></tr></thead><tbody>
-        <?php if ($followups === []): ?><tr><td colspan="6" class="text-center text-muted py-4">No follow-ups recorded for this order.</td></tr><?php endif; ?>
-        <?php foreach ($followups as $followup): ?><tr><td><span class="badge bg-light text-dark border"><?= esc((string) (($followup['stage'] ?? '') ?: '-')) ?></span></td><td><div class="followup-description"><?= esc((string) (($followup['description'] ?? '') ?: '-')) ?></div></td><td><?= esc($formatDate((string) ($followup['next_followup_date'] ?? ''))) ?></td><td><?= esc((string) (($followup['followup_taken_by_name'] ?? '') ?: 'Admin')) ?></td><td><?= esc($formatDate((string) ($followup['followup_taken_on'] ?? ''))) ?></td><td><?php if (! empty($followup['image_path'])): ?><?php $followupImageUrl = base_url(ltrim((string) $followup['image_path'], '/')); ?><a href="<?= esc($followupImageUrl, 'attr') ?>" target="_blank" rel="noopener"><img class="followup-image js-order-image" src="<?= esc($followupImageUrl, 'attr') ?>" alt="Follow-up image" loading="lazy"></a><?php else: ?><span class="text-muted">—</span><?php endif; ?></td></tr><?php endforeach; ?>
-        </tbody></table></div></div>
     </div>
 </div>
 

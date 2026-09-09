@@ -20,6 +20,7 @@ use App\Services\DiamondBagTraceService;
 use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\IssuementVoucherNumberService;
 use App\Services\KarigarMaterialAccountingService;
+use App\Services\MobileNotificationEventService;
 use App\Services\StoneInventory\StockService as StoneStockService;
 use Throwable;
 
@@ -290,6 +291,8 @@ class IssuementController extends BaseController
         }
 
         $createdMaterials = [];
+        $notificationTable = '';
+        $notificationId = 0;
 
         try {
             $db->transException(true)->transStart();
@@ -330,6 +333,8 @@ class IssuementController extends BaseController
                 (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'issue', $goldIssueId);
 
                 $createdMaterials[] = 'Gold';
+                $notificationTable = $notificationTable ?: 'gold_inventory_issue_headers';
+                $notificationId = $notificationId ?: $goldIssueId;
             }
 
             if ($diamondLines['lines'] !== []) {
@@ -364,6 +369,8 @@ class IssuementController extends BaseController
                 (new DiamondBagTraceService($db))->applyIssue($diamondIssueId);
                 (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $diamondIssueId);
                 $createdMaterials[] = 'Diamond';
+                $notificationTable = $notificationTable ?: 'issue_headers';
+                $notificationId = $notificationId ?: $diamondIssueId;
             }
 
             if ($stoneLines['lines'] !== []) {
@@ -394,9 +401,19 @@ class IssuementController extends BaseController
                 $stoneService->applyIssue($stoneIssueId);
                 (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'issue', $stoneIssueId);
                 $createdMaterials[] = 'Stone';
+                $notificationTable = $notificationTable ?: 'stone_inventory_issue_headers';
+                $notificationId = $notificationId ?: $stoneIssueId;
             }
 
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'issue',
+                implode(' + ', $createdMaterials),
+                $notificationTable,
+                $notificationId,
+                'admin',
+                ['voucher_no' => $commonVoucherNo, 'issue_to' => $issueTo]
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

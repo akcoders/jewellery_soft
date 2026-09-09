@@ -8,6 +8,7 @@ use App\Models\StoneInventoryItemModel;
 use App\Models\StoneInventoryReturnHeaderModel;
 use App\Models\StoneInventoryReturnLineModel;
 use App\Services\KarigarMaterialAccountingService;
+use App\Services\MobileNotificationEventService;
 use App\Services\StoneInventory\StockService;
 use Throwable;
 
@@ -138,6 +139,9 @@ class ReturnsController extends BaseController
             $service->applyReturn($returnId);
             (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'return', $returnId);
             $db->transComplete();
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'return', 'Stone', 'stone_inventory_return_headers', $returnId, 'admin'
+            );
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', $e->getMessage());

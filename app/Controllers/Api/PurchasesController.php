@@ -3,6 +3,7 @@
 namespace App\Controllers\Api;
 
 use App\Services\PostingService;
+use App\Services\MobileNotificationEventService;
 use RuntimeException;
 
 class PurchasesController extends ApiBaseController
@@ -93,6 +94,10 @@ class PurchasesController extends ApiBaseController
         ], $postingLines);
 
         $db->transComplete();
+        (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+            'purchase', 'Material', 'grns', $grnId, 'api',
+            ['reference_no' => $grnNo, 'vendor_id' => $vendorId]
+        );
 
         return $this->ok(['grn_id' => $grnId, 'grn_no' => $grnNo, 'voucher' => $voucher], 'GRN posted.', 201);
     }
@@ -122,6 +127,9 @@ class PurchasesController extends ApiBaseController
             'status' => (string) ($payload['status'] ?? 'Pending'),
             'created_by' => (int) (session('admin_id') ?: 0),
         ], true);
+        (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+            'purchase', 'Material', 'purchase_invoices', $id, 'api'
+        );
 
         return $this->ok(['purchase_invoice_id' => $id, 'invoice_no' => $invoiceNo], 'Purchase invoice created.', 201);
     }
