@@ -592,6 +592,15 @@ class OrderController extends BaseController
             'new_order_category' => 'permit_empty|max_length[100]',
             'order_type'  => 'required|max_length[30]',
             'order_from'  => 'permit_empty|max_length[150]',
+            'order_received_date' => 'required|valid_date',
+            'contact_number' => 'permit_empty|max_length[40]',
+            'material_category' => 'required|in_list[Gold,Diamond,Jadau,Silver]',
+            'certificate_requirement' => 'permit_empty|max_length[120]',
+            'additional_details' => 'permit_empty|max_length[5000]',
+            'gold_rate_block_status' => 'required|in_list[Not Fixed,Fixed]',
+            'gold_rate_per_gm' => 'permit_empty|decimal|greater_than[0]',
+            'approximate_price' => 'permit_empty|decimal|greater_than_equal_to[0]',
+            'advance_amount' => 'permit_empty|decimal|greater_than_equal_to[0]',
             'customer_id' => 'permit_empty|integer',
             'sales_person_user_id' => 'permit_empty|integer',
             'order_design_type' => 'required|in_list[Fresh,Repeat]',
@@ -620,6 +629,18 @@ class OrderController extends BaseController
 
         $customerId = $this->nullableInt($this->request->getPost('customer_id'));
         $salesPersonUserId = $this->nullableInt($this->request->getPost('sales_person_user_id'));
+        $detailedOrder = $this->collectDetailedOrderFields();
+        if ($detailedOrder['gold_rate_block_status'] === 'Fixed' && $detailedOrder['gold_rate_per_gm'] === null) {
+            return redirect()->back()->withInput()->with('error', 'Enter the fixed gold rate per gram.');
+        }
+        if ($detailedOrder['approximate_price'] !== null
+            && $detailedOrder['advance_amount'] > $detailedOrder['approximate_price']) {
+            return redirect()->back()->withInput()->with('error', 'Advance amount cannot exceed the approximate price.');
+        }
+        if ($detailedOrder['contact_number'] === null && $customerId !== null) {
+            $customer = $this->customerModel->select('phone')->find($customerId);
+            $detailedOrder['contact_number'] = trim((string) ($customer['phone'] ?? '')) ?: null;
+        }
         if ($salesPersonUserId !== null) {
             if ($customerId === null || (new CustomerUserModel())->where('id', $salesPersonUserId)
                 ->where('customer_id', $customerId)->where('role', 'sales_person')->where('is_active', 1)->countAllResults() === 0) {
@@ -691,6 +712,15 @@ class OrderController extends BaseController
                 'order_type'  => $isRepairOrder ? 'Repair' : $orderType,
                 'order_design_type' => $designType,
                 'order_from'  => trim((string) $this->request->getPost('order_from')) ?: null,
+                'order_received_date' => $detailedOrder['order_received_date'],
+                'contact_number' => $detailedOrder['contact_number'],
+                'material_category' => $detailedOrder['material_category'],
+                'certificate_requirement' => $detailedOrder['certificate_requirement'],
+                'additional_details' => $detailedOrder['additional_details'],
+                'gold_rate_block_status' => $detailedOrder['gold_rate_block_status'],
+                'gold_rate_per_gm' => $detailedOrder['gold_rate_per_gm'],
+                'approximate_price' => $detailedOrder['approximate_price'],
+                'advance_amount' => $detailedOrder['advance_amount'],
                 'customer_id' => $customerId,
                 'sales_person_user_id' => $salesPersonUserId,
                 'lead_id'     => null,
@@ -885,6 +915,15 @@ class OrderController extends BaseController
             'new_order_category' => 'permit_empty|max_length[100]',
             'order_type'  => 'required|max_length[30]',
             'order_from'  => 'permit_empty|max_length[150]',
+            'order_received_date' => 'required|valid_date',
+            'contact_number' => 'permit_empty|max_length[40]',
+            'material_category' => 'required|in_list[Gold,Diamond,Jadau,Silver]',
+            'certificate_requirement' => 'permit_empty|max_length[120]',
+            'additional_details' => 'permit_empty|max_length[5000]',
+            'gold_rate_block_status' => 'required|in_list[Not Fixed,Fixed]',
+            'gold_rate_per_gm' => 'permit_empty|decimal|greater_than[0]',
+            'approximate_price' => 'permit_empty|decimal|greater_than_equal_to[0]',
+            'advance_amount' => 'permit_empty|decimal|greater_than_equal_to[0]',
             'customer_id' => 'permit_empty|integer',
             'sales_person_user_id' => 'permit_empty|integer',
             'priority'    => 'required',
@@ -906,6 +945,18 @@ class OrderController extends BaseController
 
         $customerId = $this->nullableInt($this->request->getPost('customer_id'));
         $salesPersonUserId = $this->nullableInt($this->request->getPost('sales_person_user_id'));
+        $detailedOrder = $this->collectDetailedOrderFields();
+        if ($detailedOrder['gold_rate_block_status'] === 'Fixed' && $detailedOrder['gold_rate_per_gm'] === null) {
+            return redirect()->back()->withInput()->with('error', 'Enter the fixed gold rate per gram.');
+        }
+        if ($detailedOrder['approximate_price'] !== null
+            && $detailedOrder['advance_amount'] > $detailedOrder['approximate_price']) {
+            return redirect()->back()->withInput()->with('error', 'Advance amount cannot exceed the approximate price.');
+        }
+        if ($detailedOrder['contact_number'] === null && $customerId !== null) {
+            $customer = $this->customerModel->select('phone')->find($customerId);
+            $detailedOrder['contact_number'] = trim((string) ($customer['phone'] ?? '')) ?: null;
+        }
         if ($salesPersonUserId !== null && ($customerId === null || (new CustomerUserModel())
             ->where('id', $salesPersonUserId)
             ->where('customer_id', $customerId)
@@ -934,6 +985,15 @@ class OrderController extends BaseController
             'order_category_id' => (int) $category['id'],
             'order_type'  => $isRepairOrder ? 'Repair' : $orderType,
             'order_from'  => trim((string) $this->request->getPost('order_from')) ?: null,
+            'order_received_date' => $detailedOrder['order_received_date'],
+            'contact_number' => $detailedOrder['contact_number'],
+            'material_category' => $detailedOrder['material_category'],
+            'certificate_requirement' => $detailedOrder['certificate_requirement'],
+            'additional_details' => $detailedOrder['additional_details'],
+            'gold_rate_block_status' => $detailedOrder['gold_rate_block_status'],
+            'gold_rate_per_gm' => $detailedOrder['gold_rate_per_gm'],
+            'approximate_price' => $detailedOrder['approximate_price'],
+            'advance_amount' => $detailedOrder['advance_amount'],
             'customer_id' => $customerId,
             'sales_person_user_id' => $salesPersonUserId,
             'priority'    => $priority,
@@ -3168,6 +3228,36 @@ class OrderController extends BaseController
         }
 
         return date('Y-m-d H:i:s', strtotime($dateTime));
+    }
+
+    /** @return array<string, mixed> */
+    private function collectDetailedOrderFields(): array
+    {
+        $goldRateStatus = trim((string) $this->request->getPost('gold_rate_block_status'));
+        $goldRateStatus = $goldRateStatus === 'Fixed' ? 'Fixed' : 'Not Fixed';
+
+        return [
+            'order_received_date' => $this->nullableDate(trim((string) $this->request->getPost('order_received_date'))),
+            'contact_number' => trim((string) $this->request->getPost('contact_number')) ?: null,
+            'material_category' => trim((string) $this->request->getPost('material_category')),
+            'certificate_requirement' => trim((string) $this->request->getPost('certificate_requirement')) ?: null,
+            'additional_details' => trim((string) $this->request->getPost('additional_details')) ?: null,
+            'gold_rate_block_status' => $goldRateStatus,
+            'gold_rate_per_gm' => $goldRateStatus === 'Fixed'
+                ? $this->nullableDecimal($this->request->getPost('gold_rate_per_gm'))
+                : null,
+            'approximate_price' => $this->nullableDecimal($this->request->getPost('approximate_price')),
+            'advance_amount' => $this->nullableDecimal($this->request->getPost('advance_amount')) ?? 0.0,
+        ];
+    }
+
+    private function nullableDecimal($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (float) $value;
     }
 
     private function isSafeAdminReturnUrl(string $url): bool

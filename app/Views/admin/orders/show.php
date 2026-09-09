@@ -128,6 +128,9 @@ $formatDate = static function (?string $value): string {
     $timestamp = strtotime(trim((string) $value));
     return $timestamp === false ? '-' : date('d M Y', $timestamp);
 };
+$formatAmount = static function ($value): string {
+    return $value === null || $value === '' ? '-' : '₹' . number_format((float) $value, 2);
+};
 $statusClass = match ($status) {
     'Completed', 'Dispatched', 'Ready' => 'success',
     'Cancelled' => 'danger',
@@ -182,14 +185,22 @@ $statusClass = match ($status) {
                     <?php $details = [
                         ['Order Name', ($order['order_name'] ?? '') ?: '-', 'fe fe-tag'],
                         ['Jewellery Category', ($order['order_category_name'] ?? '') ?: '-', 'fe fe-grid'],
+                        ['Material Category', ($order['material_category'] ?? '') ?: '-', 'fe fe-gem'],
                         ['Order From', ($order['order_from'] ?? '') ?: '-', 'fe fe-log-in'],
                         ['Customer', ($order['customer_name'] ?? '') ?: '-', 'fe fe-user'],
+                        ['Contact Number', ($order['contact_number'] ?? '') ?: '-', 'fe fe-phone'],
+                        ['Order Received', $formatDate((string) ($order['order_received_date'] ?? '')), 'fe fe-calendar'],
                         ['Assigned Karigar', ($order['karigar_name'] ?? '') ?: 'Not assigned', 'fe fe-tool'],
                         ['Sales Person', ($order['sales_person_name'] ?? '') ?: '-', 'fe fe-briefcase'],
                         ['Sales Mobile', ($order['sales_person_mobile'] ?? '') ?: '-', 'fe fe-phone'],
                         ['Order Follower', ($order['follower_name'] ?? '') ?: 'Not assigned', 'fe fe-user-check'],
                         ['Next Follow-up Due', $formatDate((string) ($order['followup_due_at'] ?? '')), 'fe fe-clock'],
-                        ['Due Date', $formatDate((string) ($order['due_date'] ?? '')), 'fe fe-calendar'],
+                        ['Client Delivery Date', $formatDate((string) ($order['due_date'] ?? '')), 'fe fe-calendar'],
+                        ['Certificate', ($order['certificate_requirement'] ?? '') ?: 'Not required', 'fe fe-award'],
+                        ['Gold Rate Block', (($order['gold_rate_block_status'] ?? '') ?: 'Not Fixed') . ((float) ($order['gold_rate_per_gm'] ?? 0) > 0 ? ' · ₹' . number_format((float) $order['gold_rate_per_gm'], 2) . '/gm' : ''), 'fe fe-lock'],
+                        ['Approximate Price', $formatAmount($order['approximate_price'] ?? null), 'fe fe-credit-card'],
+                        ['Advance Amount', $formatAmount($order['advance_amount'] ?? 0), 'fe fe-check-circle'],
+                        ['Approx. Balance', $formatAmount(max(0, (float) ($order['approximate_price'] ?? 0) - (float) ($order['advance_amount'] ?? 0))), 'fe fe-pie-chart'],
                         ['Order Type', ($order['order_type'] ?? '') ?: '-', 'fe fe-shopping-bag'],
                         ['Design Type', ($order['order_design_type'] ?? '') ?: 'Fresh', 'fe fe-repeat'],
                         ['Created On', $formatDate((string) ($order['created_at'] ?? '')), 'fe fe-clock'],
@@ -203,6 +214,7 @@ $statusClass = match ($status) {
                         <?php endforeach; ?>
                     </div>
                     <div class="order-notes"><strong>Order notes</strong><?= nl2br(esc((string) (($order['order_notes'] ?? '') ?: 'No additional notes recorded.'))) ?></div>
+                    <?php if (trim((string) ($order['additional_details'] ?? '')) !== ''): ?><div class="order-notes"><strong>Additional details / finish instructions</strong><?= nl2br(esc((string) $order['additional_details'])) ?></div><?php endif; ?>
                 </div>
             </div>
         </div>
@@ -237,9 +249,9 @@ $statusClass = match ($status) {
 
     <div class="card order-section-card mb-4">
         <div class="card-header"><h5 class="order-section-title"><i class="fe fe-list"></i>Order Items</h5><span class="order-section-count"><?= count($items) ?> item<?= count($items) === 1 ? '' : 's' ?></span></div>
-        <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover order-items-table mb-0" data-dt-skip="true"><thead><tr><th>Design</th><th>Description</th><th>Purity</th><th>Size</th><th>Qty</th><th>Status</th></tr></thead><tbody>
-        <?php if ($items === []): ?><tr><td colspan="6" class="text-center text-muted py-4">No order items recorded.</td></tr><?php endif; ?>
-        <?php foreach ($items as $item): ?><tr><td><div class="order-design-code"><?= esc((string) (($item['design_code'] ?? '') ?: 'Fresh design')) ?></div><div class="order-design-name"><?= esc((string) (($item['design_name'] ?? '') ?: 'No design master linked')) ?></div></td><td><?= esc((string) (($item['item_description'] ?? '') ?: '-')) ?></td><td><?= esc(trim((string) ($item['purity_code'] ?? '') . ' ' . (string) ($item['color_name'] ?? '')) ?: '-') ?></td><td><?= esc((string) (($item['size_label'] ?? '') ?: '-')) ?></td><td><?= esc((string) ($item['qty'] ?? 0)) ?></td><td><span class="badge bg-<?= esc($statusClass) ?>"><?= esc((string) ($item['item_status'] ?? '-')) ?></span></td></tr><?php endforeach; ?>
+        <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover order-items-table mb-0" data-dt-skip="true"><thead><tr><th>Design</th><th>Description</th><th>Purity</th><th>Size / Length</th><th>Qty</th><th>Gold Target</th><th>Diamond Target</th><th>Status</th></tr></thead><tbody>
+        <?php if ($items === []): ?><tr><td colspan="8" class="text-center text-muted py-4">No order items recorded.</td></tr><?php endif; ?>
+        <?php foreach ($items as $item): ?><tr><td><div class="order-design-code"><?= esc((string) (($item['design_code'] ?? '') ?: 'Fresh design')) ?></div><div class="order-design-name"><?= esc((string) (($item['design_name'] ?? '') ?: 'No design master linked')) ?></div></td><td><?= esc((string) (($item['item_description'] ?? '') ?: '-')) ?></td><td><?= esc(trim((string) ($item['purity_code'] ?? '') . ' ' . (string) ($item['color_name'] ?? '')) ?: '-') ?></td><td><?= esc((string) (($item['size_label'] ?? '') ?: '-')) ?></td><td><?= esc((string) ($item['qty'] ?? 0)) ?></td><td><?= number_format((float) ($item['gold_required_gm'] ?? 0), 3) ?> gm</td><td><?= number_format((float) ($item['diamond_required_cts'] ?? 0), 3) ?> cts</td><td><span class="badge bg-<?= esc($statusClass) ?>"><?= esc((string) ($item['item_status'] ?? '-')) ?></span></td></tr><?php endforeach; ?>
         </tbody></table></div></div>
     </div>
 

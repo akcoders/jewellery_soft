@@ -56,6 +56,8 @@ class OrdersController extends BaseController
             ->where('id', (int) session('customer_user_id'))
             ->where('customer_id', $customerId)
             ->first();
+        $customer = db_connect()->table('customers')->select('id, name, phone')
+            ->where('id', $customerId)->get()->getRowArray();
         return view('customer/orders/create', [
             'title' => 'Create Order',
             'salesPeople' => $salesPeople,
@@ -63,6 +65,7 @@ class OrdersController extends BaseController
             'orderCategories' => (new OrderCategoryService())->options(),
             'isSalesPerson' => session('customer_user_role') === 'sales_person',
             'currentUser' => $currentUser,
+            'customer' => $customer,
         ]);
     }
 
@@ -74,6 +77,15 @@ class OrdersController extends BaseController
             'new_order_category' => 'permit_empty|max_length[100]',
             'order_type' => 'required|in_list[Sales,Manufacturing,Repair]',
             'order_design_type' => 'required|in_list[Fresh,Repeat]',
+            'order_received_date' => 'required|valid_date',
+            'contact_number' => 'permit_empty|max_length[40]',
+            'material_category' => 'required|in_list[Gold,Diamond,Jadau,Silver]',
+            'certificate_requirement' => 'permit_empty|max_length[120]',
+            'additional_details' => 'permit_empty|max_length[5000]',
+            'gold_rate_block_status' => 'required|in_list[Not Fixed,Fixed]',
+            'gold_rate_per_gm' => 'permit_empty|decimal|greater_than[0]',
+            'approximate_price' => 'permit_empty|decimal|greater_than_equal_to[0]',
+            'advance_amount' => 'permit_empty|decimal|greater_than_equal_to[0]',
             'sales_person_user_id' => 'permit_empty|integer',
             'design_id' => 'permit_empty|integer',
             'item_description' => 'required|max_length[500]',
@@ -111,6 +123,17 @@ class OrdersController extends BaseController
         if (! $customer) {
             return redirect()->back()->with('error', 'Customer account was not found.');
         }
+        $detailedOrder = $this->collectDetailedOrderFields();
+        if ($detailedOrder['gold_rate_block_status'] === 'Fixed' && $detailedOrder['gold_rate_per_gm'] === null) {
+            return redirect()->back()->withInput()->with('error', 'Enter the fixed gold rate per gram.');
+        }
+        if ($detailedOrder['approximate_price'] !== null
+            && $detailedOrder['advance_amount'] > $detailedOrder['approximate_price']) {
+            return redirect()->back()->withInput()->with('error', 'Advance amount cannot exceed the approximate price.');
+        }
+        if ($detailedOrder['contact_number'] === null) {
+            $detailedOrder['contact_number'] = trim((string) ($customer['phone'] ?? '')) ?: null;
+        }
 
         $db = db_connect();
         $db->transException(true)->transStart();
@@ -133,6 +156,15 @@ class OrdersController extends BaseController
                 'order_type' => (string) $this->request->getPost('order_type'),
                 'order_design_type' => $designType,
                 'order_from' => (string) $customer['name'],
+                'order_received_date' => $detailedOrder['order_received_date'],
+                'contact_number' => $detailedOrder['contact_number'],
+                'material_category' => $detailedOrder['material_category'],
+                'certificate_requirement' => $detailedOrder['certificate_requirement'],
+                'additional_details' => $detailedOrder['additional_details'],
+                'gold_rate_block_status' => $detailedOrder['gold_rate_block_status'],
+                'gold_rate_per_gm' => $detailedOrder['gold_rate_per_gm'],
+                'approximate_price' => $detailedOrder['approximate_price'],
+                'advance_amount' => $detailedOrder['advance_amount'],
                 'customer_id' => $customerId,
                 'sales_person_user_id' => $salesPersonId ?: null,
                 'status' => 'Confirmed',
@@ -248,5 +280,27 @@ class OrdersController extends BaseController
             ]);
         }
         return $moved;
+    }
+
+    /** @return array<string, mixed> */
+    private function collectDetailedOrderFields(): array
+    {
+        $goldRateStatus = trim((string) $this->request->getPost('gold_rate_block_status'));
+        $goldRateStatus = $goldRateStatus === 'Fixed' ? 'Fixed' : 'Not Fixed';
+        $goldRate = trim((string) $this->request->getPost('gold_rate_per_gm'));
+        $approximatePrice = trim((string) $this->request->getPost('approximate_price'));
+        $advanceAmount = trim((string) $this->request->getPost('advance_amount'));
+
+        return [
+            'order_received_date' => date('Y-m-d', strtotime((string) $this->request->getPost('order_received_date'))),
+            'contact_number' => trim((string) $this->request->getPost('contact_number')) ?: null,
+            'material_category' => trim((string) $this->request->getPost('material_category')),
+            'certificate_requirement' => trim((string) $this->request->getPost('certificate_requirement')) ?: null,
+            'additional_details' => trim((string) $this->request->getPost('additional_details')) ?: null,
+            'gold_rate_block_status' => $goldRateStatus,
+            'gold_rate_per_gm' => $goldRateStatus === 'Fixed' && $goldRate !== '' ? (float) $goldRate : null,
+            'approximate_price' => $approximatePrice === '' ? null : (float) $approximatePrice,
+            'advance_amount' => $advanceAmount === '' ? 0.0 : (float) $advanceAmount,
+        ];
     }
 }

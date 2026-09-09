@@ -6,6 +6,8 @@ $orderTypeValue = (string) old('order_type', (string) ($order['order_type'] ?? '
 $selectedCustomerId = (string) old('customer_id', (string) ($order['customer_id'] ?? ''));
 $selectedSalesPersonId = (string) old('sales_person_user_id', (string) ($order['sales_person_user_id'] ?? ''));
 $selectedCategoryId = (string) old('order_category_id', (string) ($order['order_category_id'] ?? ''));
+$selectedMaterialCategory = (string) old('material_category', (string) ($order['material_category'] ?? 'Gold'));
+$selectedGoldRateStatus = (string) old('gold_rate_block_status', (string) ($order['gold_rate_block_status'] ?? 'Not Fixed'));
 $showRepairFields = $orderTypeValue === 'Repair';
 ?>
 <div class="erp-page-toolbar mb-3">
@@ -27,7 +29,7 @@ $showRepairFields = $orderTypeValue === 'Repair';
                     <input type="text" name="order_name" class="form-control" maxlength="180" value="<?= esc((string) old('order_name', (string) ($order['order_name'] ?? ''))) ?>" required>
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label class="form-label">Jewellery Category <span class="text-danger">*</span></label>
+                    <label class="form-label">Jewellery / Sub Category <span class="text-danger">*</span></label>
                     <select name="order_category_id" id="order-category-select" class="form-control js-searchable-select" data-placeholder="Search jewellery category" required>
                         <option value=""></option>
                         <?php foreach (($orderCategories ?? []) as $category): ?>
@@ -54,7 +56,7 @@ $showRepairFields = $orderTypeValue === 'Repair';
                     <select name="customer_id" id="order-customer-select" class="form-control js-searchable-select" data-placeholder="Search customer">
                         <option value="">Select customer</option>
                         <?php foreach ($customers as $customer): ?>
-                            <option value="<?= esc((string) $customer['id']) ?>" <?= $selectedCustomerId === (string) $customer['id'] ? 'selected' : '' ?>>
+                            <option value="<?= esc((string) $customer['id']) ?>" data-phone="<?= esc((string) ($customer['phone'] ?? ''), 'attr') ?>" <?= $selectedCustomerId === (string) $customer['id'] ? 'selected' : '' ?>>
                                 <?= esc($customer['name']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -79,12 +81,59 @@ $showRepairFields = $orderTypeValue === 'Repair';
                     </select>
                 </div>
                 <div class="col-md-3 mb-3">
-                    <label class="form-label">Due Date</label>
+                    <label class="form-label">Order Received Date <span class="text-danger">*</span></label>
+                    <input type="date" name="order_received_date" class="form-control" value="<?= esc((string) old('order_received_date', (string) (($order['order_received_date'] ?? '') ?: date('Y-m-d', strtotime((string) ($order['created_at'] ?? 'now')))))) ?>" required>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Contact Number</label>
+                    <input type="tel" name="contact_number" id="order-contact-number" class="form-control" maxlength="40" value="<?= esc((string) old('contact_number', (string) ($order['contact_number'] ?? ''))) ?>">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Material Category <span class="text-danger">*</span></label>
+                    <select name="material_category" class="form-control js-searchable-select" required>
+                        <?php foreach (['Gold', 'Diamond', 'Jadau', 'Silver'] as $material): ?>
+                            <option value="<?= esc($material, 'attr') ?>" <?= $selectedMaterialCategory === $material ? 'selected' : '' ?>><?= esc($material) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Client Delivery Date</label>
                     <input type="date" name="due_date" class="form-control" value="<?= esc((string) old('due_date', (string) ($order['due_date'] ?? ''))) ?>">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Certificate Requirement</label>
+                    <select name="certificate_requirement" class="form-control js-searchable-select">
+                        <?php foreach (['' => 'No certificate required', 'IGI' => 'IGI Certificate', 'Kalasha' => 'Kalasha Certificate', 'IGI / Kalasha' => 'IGI / Kalasha (either)', 'Other' => 'Other / Mention in details'] as $value => $label): ?>
+                            <option value="<?= esc($value, 'attr') ?>" <?= (string) old('certificate_requirement', (string) ($order['certificate_requirement'] ?? '')) === $value ? 'selected' : '' ?>><?= esc($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Gold Rate Block</label>
+                    <select name="gold_rate_block_status" id="gold-rate-status" class="form-control js-searchable-select" required>
+                        <option value="Not Fixed" <?= $selectedGoldRateStatus === 'Not Fixed' ? 'selected' : '' ?>>Not Fixed</option>
+                        <option value="Fixed" <?= $selectedGoldRateStatus === 'Fixed' ? 'selected' : '' ?>>Fixed</option>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3" id="gold-rate-wrap" style="<?= $selectedGoldRateStatus === 'Fixed' ? '' : 'display:none;' ?>">
+                    <label class="form-label">Fixed Gold Rate / gm</label>
+                    <input type="number" name="gold_rate_per_gm" id="gold-rate-per-gm" class="form-control" min="0" step="0.01" value="<?= esc((string) old('gold_rate_per_gm', (string) ($order['gold_rate_per_gm'] ?? ''))) ?>">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Approximate Price</label>
+                    <input type="number" name="approximate_price" class="form-control" min="0" step="0.01" value="<?= esc((string) old('approximate_price', (string) ($order['approximate_price'] ?? ''))) ?>">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Advance Amount</label>
+                    <input type="number" name="advance_amount" class="form-control" min="0" step="0.01" value="<?= esc((string) old('advance_amount', (string) ($order['advance_amount'] ?? '0'))) ?>">
                 </div>
                 <div class="col-12 mb-3">
                     <label class="form-label">Order Notes</label>
                     <textarea name="order_notes" class="form-control" rows="3"><?= esc((string) old('order_notes', (string) ($order['order_notes'] ?? ''))) ?></textarea>
+                </div>
+                <div class="col-12 mb-3">
+                    <label class="form-label">Additional Details / Finish Instructions</label>
+                    <textarea name="additional_details" class="form-control" rows="3" maxlength="5000"><?= esc((string) old('additional_details', (string) ($order['additional_details'] ?? ''))) ?></textarea>
                 </div>
             </div>
 
@@ -131,6 +180,10 @@ $showRepairFields = $orderTypeValue === 'Repair';
         const salesPersonDetail = document.getElementById('sales-person-detail');
         const categorySelect = document.getElementById('order-category-select');
         const newCategoryInput = document.getElementById('new-order-category');
+        const contactNumber = document.getElementById('order-contact-number');
+        const goldRateStatus = document.getElementById('gold-rate-status');
+        const goldRateWrap = document.getElementById('gold-rate-wrap');
+        const goldRateInput = document.getElementById('gold-rate-per-gm');
         const salesPersonOptions = salesPersonSelect
             ? Array.from(salesPersonSelect.options).filter(function (option) { return option.value; }).map(function (option) { return option.cloneNode(true); })
             : [];
@@ -163,6 +216,14 @@ $showRepairFields = $orderTypeValue === 'Repair';
             toggleNewCategory();
         }
 
+        function toggleGoldRate() {
+            if (!goldRateStatus || !goldRateWrap || !goldRateInput) return;
+            const fixed = goldRateStatus.value === 'Fixed';
+            goldRateWrap.style.display = fixed ? '' : 'none';
+            goldRateInput.required = fixed;
+            if (!fixed) goldRateInput.value = '';
+        }
+
         function updateSalesPersonDetail() {
             if (!salesPersonSelect || !salesPersonDetail) return;
             const option = salesPersonSelect.options[salesPersonSelect.selectedIndex];
@@ -175,6 +236,10 @@ $showRepairFields = $orderTypeValue === 'Repair';
             if (!customerSelect || !salesPersonSelect) return;
             const customerId = customerSelect.value;
             const selectedValue = salesPersonSelect.value;
+            const customerOption = customerSelect.options[customerSelect.selectedIndex];
+            if (contactNumber && customerOption && customerOption.value && contactNumber.value.trim() === '') {
+                contactNumber.value = customerOption.dataset.phone || '';
+            }
             Array.from(salesPersonSelect.options).forEach(function (option) {
                 if (option.value) option.remove();
             });
@@ -188,8 +253,13 @@ $showRepairFields = $orderTypeValue === 'Repair';
 
         if (customerSelect && window.jQuery) jQuery(customerSelect).on('change', filterSalesPeople);
         if (salesPersonSelect && window.jQuery) jQuery(salesPersonSelect).on('change', updateSalesPersonDetail);
+        if (goldRateStatus) {
+            if (window.jQuery) jQuery(goldRateStatus).on('change', toggleGoldRate);
+            else goldRateStatus.addEventListener('change', toggleGoldRate);
+        }
         filterSalesPeople();
         updateSalesPersonDetail();
+        toggleGoldRate();
     })();
 </script>
 <?= $this->endSection() ?>
