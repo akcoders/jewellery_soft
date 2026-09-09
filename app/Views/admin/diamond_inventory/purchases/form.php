@@ -4,12 +4,10 @@ $rows = [];
 
 if (is_array($oldItemIds)) {
     $oldDiamondTypes = (array) old('diamond_type');
-    $oldShapes = (array) old('shape');
-    $oldChalniFrom = (array) old('chalni_from');
-    $oldChalniTo = (array) old('chalni_to');
+    $oldShapeMasterIds = (array) old('shape_master_id');
+    $oldChalniGroupIds = (array) old('chalni_group_id');
     $oldColors = (array) old('color');
     $oldClarities = (array) old('clarity');
-    $oldCuts = (array) old('cut');
     $oldPcs = (array) old('pcs');
     $oldCarat = (array) old('carat');
     $oldRates = (array) old('rate_per_carat');
@@ -17,12 +15,10 @@ if (is_array($oldItemIds)) {
     $max = max(
         count($oldItemIds),
         count($oldDiamondTypes),
-        count($oldShapes),
-        count($oldChalniFrom),
-        count($oldChalniTo),
+        count($oldShapeMasterIds),
+        count($oldChalniGroupIds),
         count($oldColors),
         count($oldClarities),
-        count($oldCuts),
         count($oldPcs),
         count($oldCarat),
         count($oldRates)
@@ -31,12 +27,10 @@ if (is_array($oldItemIds)) {
         $rows[] = [
             'item_id' => (string) ($oldItemIds[$i] ?? ''),
             'diamond_type' => (string) ($oldDiamondTypes[$i] ?? ''),
-            'shape' => (string) ($oldShapes[$i] ?? ''),
-            'chalni_from' => (string) ($oldChalniFrom[$i] ?? ''),
-            'chalni_to' => (string) ($oldChalniTo[$i] ?? ''),
+            'shape_master_id' => (string) ($oldShapeMasterIds[$i] ?? ''),
+            'chalni_group_id' => (string) ($oldChalniGroupIds[$i] ?? ''),
             'color' => (string) ($oldColors[$i] ?? ''),
             'clarity' => (string) ($oldClarities[$i] ?? ''),
-            'cut' => (string) ($oldCuts[$i] ?? ''),
             'pcs' => (string) ($oldPcs[$i] ?? ''),
             'carat' => (string) ($oldCarat[$i] ?? ''),
             'rate_per_carat' => (string) ($oldRates[$i] ?? ''),
@@ -47,12 +41,10 @@ if (is_array($oldItemIds)) {
         $rows[] = [
             'item_id' => (string) ($line['item_id'] ?? ''),
             'diamond_type' => (string) ($line['diamond_type'] ?? ''),
-            'shape' => (string) ($line['shape'] ?? ''),
-            'chalni_from' => (string) ($line['chalni_from'] ?? ''),
-            'chalni_to' => (string) ($line['chalni_to'] ?? ''),
+            'shape_master_id' => (string) ($line['shape_master_id'] ?? ''),
+            'chalni_group_id' => (string) ($line['chalni_group_id'] ?? ''),
             'color' => (string) ($line['color'] ?? ''),
             'clarity' => (string) ($line['clarity'] ?? ''),
-            'cut' => (string) ($line['cut'] ?? ''),
             'pcs' => (string) ($line['pcs'] ?? ''),
             'carat' => (string) ($line['carat'] ?? ''),
             'rate_per_carat' => (string) ($line['rate_per_carat'] ?? ''),
@@ -64,12 +56,10 @@ if ($rows === []) {
     $rows[] = [
         'item_id' => '',
         'diamond_type' => '',
-        'shape' => '',
-        'chalni_from' => '',
-        'chalni_to' => '',
+        'shape_master_id' => '',
+        'chalni_group_id' => '',
         'color' => '',
         'clarity' => '',
-        'cut' => '',
         'pcs' => '0',
         'carat' => '',
         'rate_per_carat' => '',
@@ -149,12 +139,10 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                     <tr>
                         <th style="min-width:240px;">Existing Item</th>
                         <th style="min-width:130px;">Type</th>
-                        <th style="min-width:110px;">Shape</th>
-                        <th style="min-width:80px;">From</th>
-                        <th style="min-width:80px;">To</th>
+                        <th style="min-width:150px;">Shape</th>
+                        <th style="min-width:210px;">Chalni Group</th>
                         <th style="min-width:90px;">Color</th>
                         <th style="min-width:90px;">Clarity</th>
-                        <th style="min-width:90px;">Cut</th>
                         <th style="min-width:80px;">PCS</th>
                         <th style="min-width:90px;">Carat</th>
                         <th style="min-width:110px;">Rate/cts</th>
@@ -166,16 +154,13 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                     <?php foreach ($rows as $row): ?>
                         <tr>
                             <td>
-                                <select name="item_id[]" class="form-select existing-item">
+                                <select name="item_id[]" class="form-select existing-item purchase-searchable" data-placeholder="Select existing (optional)">
                                     <option value="">Select existing (optional)</option>
                                     <?php foreach (($items ?? []) as $item): ?>
                                         <?php
                                         $label = (string) $item['diamond_type'];
                                         if (!empty($item['shape'])) {
                                             $label .= ' / ' . $item['shape'];
-                                        }
-                                        if ($item['chalni_from'] !== null && $item['chalni_to'] !== null) {
-                                            $label .= ' / ' . $item['chalni_from'] . '-' . $item['chalni_to'];
                                         }
                                         if (!empty($item['color'])) {
                                             $label .= ' / ' . $item['color'];
@@ -187,12 +172,9 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                                         <option
                                             value="<?= (int) $item['id'] ?>"
                                             data-diamond_type="<?= esc((string) $item['diamond_type']) ?>"
-                                            data-shape="<?= esc((string) ($item['shape'] ?? '')) ?>"
-                                            data-chalni_from="<?= esc((string) ($item['chalni_from'] ?? '')) ?>"
-                                            data-chalni_to="<?= esc((string) ($item['chalni_to'] ?? '')) ?>"
+                                            data-shape_master_id="<?= (int) ($item['default_shape_master_id'] ?? 0) ?>"
                                             data-color="<?= esc((string) ($item['color'] ?? '')) ?>"
                                             data-clarity="<?= esc((string) ($item['clarity'] ?? '')) ?>"
-                                            data-cut="<?= esc((string) ($item['cut'] ?? '')) ?>"
                                             <?= (string) $row['item_id'] === (string) $item['id'] ? 'selected' : '' ?>
                                         >
                                             <?= esc($label) ?>
@@ -201,12 +183,24 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                                 </select>
                             </td>
                             <td><input type="text" name="diamond_type[]" class="form-control line-diamond-type" value="<?= esc((string) $row['diamond_type']) ?>"></td>
-                            <td><input type="text" name="shape[]" class="form-control line-shape" value="<?= esc((string) $row['shape']) ?>"></td>
-                            <td><input type="text" name="chalni_from[]" class="form-control line-chalni-from" inputmode="numeric" pattern="[0-9]*" value="<?= esc((string) $row['chalni_from']) ?>"></td>
-                            <td><input type="text" name="chalni_to[]" class="form-control line-chalni-to" inputmode="numeric" pattern="[0-9]*" value="<?= esc((string) $row['chalni_to']) ?>"></td>
+                            <td>
+                                <select name="shape_master_id[]" class="form-select line-shape-master purchase-searchable" data-placeholder="Select shape" required>
+                                    <option value="">Select shape</option>
+                                    <?php foreach (($shapes ?? []) as $shape): ?>
+                                        <option value="<?= (int) $shape['id'] ?>" <?= (string) $row['shape_master_id'] === (string) $shape['id'] ? 'selected' : '' ?>><?= esc((string) $shape['name']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="chalni_group_id[]" class="form-select line-chalni-group purchase-searchable" data-placeholder="Select chalni group" required>
+                                    <option value="">Select chalni group</option>
+                                    <?php foreach (($chalniGroups ?? []) as $group): ?>
+                                        <option value="<?= (int) $group['id'] ?>" <?= (string) $row['chalni_group_id'] === (string) $group['id'] ? 'selected' : '' ?>><?= esc((string) $group['name']) ?> · <?= esc((string) $group['range_label']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
                             <td><input type="text" name="color[]" class="form-control line-color" value="<?= esc((string) $row['color']) ?>"></td>
                             <td><input type="text" name="clarity[]" class="form-control line-clarity" value="<?= esc((string) $row['clarity']) ?>"></td>
-                            <td><input type="text" name="cut[]" class="form-control line-cut" value="<?= esc((string) $row['cut']) ?>"></td>
                             <td><input type="number" step="0.001" min="0" name="pcs[]" class="form-control line-pcs" value="<?= esc((string) $row['pcs']) ?>"></td>
                             <td><input type="number" step="0.001" min="0" name="carat[]" class="form-control line-carat" value="<?= esc((string) $row['carat']) ?>"></td>
                             <td><input type="number" step="0.01" min="0" name="rate_per_carat[]" class="form-control line-rate" value="<?= esc((string) $row['rate_per_carat']) ?>"></td>
@@ -285,16 +279,13 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
 <template id="purchase-line-template">
     <tr>
         <td>
-            <select name="item_id[]" class="form-select existing-item">
+            <select name="item_id[]" class="form-select existing-item purchase-searchable" data-placeholder="Select existing (optional)">
                 <option value="">Select existing (optional)</option>
                 <?php foreach (($items ?? []) as $item): ?>
                     <?php
                     $label = (string) $item['diamond_type'];
                     if (!empty($item['shape'])) {
                         $label .= ' / ' . $item['shape'];
-                    }
-                    if ($item['chalni_from'] !== null && $item['chalni_to'] !== null) {
-                        $label .= ' / ' . $item['chalni_from'] . '-' . $item['chalni_to'];
                     }
                     if (!empty($item['color'])) {
                         $label .= ' / ' . $item['color'];
@@ -306,12 +297,9 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                     <option
                         value="<?= (int) $item['id'] ?>"
                         data-diamond_type="<?= esc((string) $item['diamond_type']) ?>"
-                        data-shape="<?= esc((string) ($item['shape'] ?? '')) ?>"
-                        data-chalni_from="<?= esc((string) ($item['chalni_from'] ?? '')) ?>"
-                        data-chalni_to="<?= esc((string) ($item['chalni_to'] ?? '')) ?>"
+                        data-shape_master_id="<?= (int) ($item['default_shape_master_id'] ?? 0) ?>"
                         data-color="<?= esc((string) ($item['color'] ?? '')) ?>"
                         data-clarity="<?= esc((string) ($item['clarity'] ?? '')) ?>"
-                        data-cut="<?= esc((string) ($item['cut'] ?? '')) ?>"
                     >
                         <?= esc($label) ?>
                     </option>
@@ -319,12 +307,24 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
             </select>
         </td>
         <td><input type="text" name="diamond_type[]" class="form-control line-diamond-type"></td>
-        <td><input type="text" name="shape[]" class="form-control line-shape"></td>
-        <td><input type="text" name="chalni_from[]" class="form-control line-chalni-from" inputmode="numeric" pattern="[0-9]*"></td>
-        <td><input type="text" name="chalni_to[]" class="form-control line-chalni-to" inputmode="numeric" pattern="[0-9]*"></td>
+        <td>
+            <select name="shape_master_id[]" class="form-select line-shape-master purchase-searchable" data-placeholder="Select shape" required>
+                <option value="">Select shape</option>
+                <?php foreach (($shapes ?? []) as $shape): ?>
+                    <option value="<?= (int) $shape['id'] ?>"><?= esc((string) $shape['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </td>
+        <td>
+            <select name="chalni_group_id[]" class="form-select line-chalni-group purchase-searchable" data-placeholder="Select chalni group" required>
+                <option value="">Select chalni group</option>
+                <?php foreach (($chalniGroups ?? []) as $group): ?>
+                    <option value="<?= (int) $group['id'] ?>"><?= esc((string) $group['name']) ?> · <?= esc((string) $group['range_label']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </td>
         <td><input type="text" name="color[]" class="form-control line-color"></td>
         <td><input type="text" name="clarity[]" class="form-control line-clarity"></td>
-        <td><input type="text" name="cut[]" class="form-control line-cut"></td>
         <td><input type="number" step="0.001" min="0" name="pcs[]" class="form-control line-pcs" value="0"></td>
         <td><input type="number" step="0.001" min="0" name="carat[]" class="form-control line-carat"></td>
         <td><input type="number" step="0.01" min="0" name="rate_per_carat[]" class="form-control line-rate"></td>
@@ -396,7 +396,26 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
             if (breakup) breakup.textContent = components.length ? components.map(function(component, index) { return String(component.name || '').toUpperCase() + ' ' + Number(component.percentage || 0).toFixed(3) + '% = ₹' + taxAmounts[index].toFixed(2); }).join(' | ') : 'No tax components';
         }
 
+        function initSearchableSelects(row) {
+            if (typeof jQuery === 'undefined' || typeof jQuery.fn.select2 === 'undefined') {
+                return;
+            }
+            jQuery(row).find('select.purchase-searchable').each(function() {
+                const select = jQuery(this);
+                if (select.hasClass('select2-hidden-accessible')) {
+                    return;
+                }
+                select.select2({
+                    width: '100%',
+                    placeholder: select.data('placeholder') || 'Select',
+                    allowClear: !select.prop('required'),
+                    minimumResultsForSearch: 0
+                });
+            });
+        }
+
         function bindRow(row) {
+            initSearchableSelects(row);
             const itemSelect = row.querySelector('.existing-item');
             if (itemSelect) {
                 itemSelect.addEventListener('change', function() {
@@ -406,12 +425,8 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                     }
                     const map = {
                         '.line-diamond-type': selected.getAttribute('data-diamond_type') || '',
-                        '.line-shape': selected.getAttribute('data-shape') || '',
-                        '.line-chalni-from': selected.getAttribute('data-chalni_from') || '',
-                        '.line-chalni-to': selected.getAttribute('data-chalni_to') || '',
                         '.line-color': selected.getAttribute('data-color') || '',
-                        '.line-clarity': selected.getAttribute('data-clarity') || '',
-                        '.line-cut': selected.getAttribute('data-cut') || ''
+                        '.line-clarity': selected.getAttribute('data-clarity') || ''
                     };
                     Object.keys(map).forEach(function(selector) {
                         const input = row.querySelector(selector);
@@ -419,6 +434,15 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                             input.value = map[selector];
                         }
                     });
+                    const shapeSelect = row.querySelector('.line-shape-master');
+                    const shapeId = selected.getAttribute('data-shape_master_id') || '';
+                    if (shapeSelect && shapeId) {
+                        shapeSelect.value = shapeId;
+                        shapeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                        if (typeof jQuery !== 'undefined') {
+                            jQuery(shapeSelect).trigger('change.select2');
+                        }
+                    }
                 });
             }
 
@@ -443,10 +467,10 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                                 input.value = '';
                             }
                         });
-                        const select = row.querySelector('select');
-                        if (select) {
+                        row.querySelectorAll('select').forEach(function(select) {
                             select.value = '';
-                        }
+                            if (typeof jQuery !== 'undefined') jQuery(select).trigger('change.select2');
+                        });
                         recalcRow(row);
                         return;
                     }
@@ -462,9 +486,9 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
             const fragment = tpl.content.cloneNode(true);
             const row = fragment.querySelector('tr');
             if (row) {
+                body.appendChild(row);
                 bindRow(row);
             }
-            body.appendChild(fragment);
         });
 
         body.querySelectorAll('tr').forEach(function(row) {

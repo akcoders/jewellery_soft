@@ -8,6 +8,7 @@ use App\Models\ItemModel;
 use App\Models\PurchaseHeaderModel;
 use App\Models\PurchaseLineModel;
 use App\Models\VendorModel;
+use App\Services\DiamondChalniStockService;
 use App\Services\DiamondInventory\StockService;
 use App\Services\MobileNotificationEventService;
 use App\Services\TaxMasterService;
@@ -66,6 +67,8 @@ class PurchasesController extends BaseController
         return view('admin/diamond_inventory/purchases/create', [
             'title' => 'Create Diamond Purchase',
             'items' => $this->itemOptions(),
+            'shapes' => $this->shapeOptions(),
+            'chalniGroups' => $this->chalniGroupOptions(),
             'vendors' => $this->vendorOptions(),
             'gstMasters' => $this->taxMasterService->options(),
             'purchase' => null,
@@ -84,6 +87,7 @@ class PurchasesController extends BaseController
 
         $db = db_connect();
         $service = new StockService($db);
+        $chalniStockService = new DiamondChalniStockService($db);
         $parsed = $this->collectLinesFromRequest(true);
         if ($parsed['error'] !== null) {
             return redirect()->back()->withInput()->with('error', $parsed['error']);
@@ -147,6 +151,8 @@ class PurchasesController extends BaseController
                 $this->lineModel->insert([
                     'purchase_id' => $purchaseId,
                     'item_id' => $itemId,
+                    'shape_master_id' => $line['shape_master_id'],
+                    'chalni_group_id' => $line['chalni_group_id'],
                     'pcs' => $line['pcs'],
                     'carat' => $line['carat'],
                     'rate_per_carat' => $line['rate_per_carat'],
@@ -155,6 +161,7 @@ class PurchasesController extends BaseController
             }
 
             $service->applyPurchase($purchaseId);
+            $chalniStockService->applyPurchase($purchaseId, (int) session('admin_id'));
             $uploadError = $this->saveAttachmentsFromRequest($purchaseId);
             if ($uploadError !== null) {
                 throw new \RuntimeException($uploadError);
@@ -210,6 +217,8 @@ class PurchasesController extends BaseController
         return view('admin/diamond_inventory/purchases/edit', [
             'title' => 'Edit Diamond Purchase',
             'items' => $this->itemOptions(),
+            'shapes' => $this->shapeOptions(),
+            'chalniGroups' => $this->chalniGroupOptions(),
             'vendors' => $this->vendorOptions(),
             'gstMasters' => $this->taxMasterService->options(),
             'purchase' => $purchase,
@@ -237,6 +246,7 @@ class PurchasesController extends BaseController
 
         $db = db_connect();
         $service = new StockService($db);
+        $chalniStockService = new DiamondChalniStockService($db);
         $parsed = $this->collectLinesFromRequest(true);
         if ($parsed['error'] !== null) {
             return redirect()->back()->withInput()->with('error', $parsed['error']);
@@ -248,6 +258,7 @@ class PurchasesController extends BaseController
         try {
             $db->transException(true)->transStart();
 
+            $chalniStockService->reversePurchase($id);
             $service->reversePurchase($id);
 
             $vendorId = (int) $this->request->getPost('vendor_id');
@@ -300,6 +311,8 @@ class PurchasesController extends BaseController
                 $this->lineModel->insert([
                     'purchase_id' => $id,
                     'item_id' => $itemId,
+                    'shape_master_id' => $line['shape_master_id'],
+                    'chalni_group_id' => $line['chalni_group_id'],
                     'pcs' => $line['pcs'],
                     'carat' => $line['carat'],
                     'rate_per_carat' => $line['rate_per_carat'],
@@ -308,6 +321,7 @@ class PurchasesController extends BaseController
             }
 
             $service->applyPurchase($id);
+            $chalniStockService->applyPurchase($id, (int) session('admin_id'));
             $uploadError = $this->saveAttachmentsFromRequest($id);
             if ($uploadError !== null) {
                 throw new \RuntimeException($uploadError);
@@ -335,9 +349,11 @@ class PurchasesController extends BaseController
 
         $db = db_connect();
         $service = new StockService($db);
+        $chalniStockService = new DiamondChalniStockService($db);
 
         try {
             $db->transException(true)->transStart();
+            $chalniStockService->reversePurchase($id);
             $service->reversePurchase($id);
             $this->deleteAttachmentsForPurchase($id);
             $this->lineModel->where('purchase_id', $id)->delete();
@@ -359,12 +375,10 @@ class PurchasesController extends BaseController
     {
         $itemIds = (array) $this->request->getPost('item_id');
         $diamondTypes = (array) $this->request->getPost('diamond_type');
-        $shapes = (array) $this->request->getPost('shape');
-        $chalniFroms = (array) $this->request->getPost('chalni_from');
-        $chalniTos = (array) $this->request->getPost('chalni_to');
+        $shapeMasterIds = (array) $this->request->getPost('shape_master_id');
+        $chalniGroupIds = (array) $this->request->getPost('chalni_group_id');
         $colors = (array) $this->request->getPost('color');
         $clarities = (array) $this->request->getPost('clarity');
-        $cuts = (array) $this->request->getPost('cut');
         $pcs = (array) $this->request->getPost('pcs');
         $carats = (array) $this->request->getPost('carat');
         $rates = (array) $this->request->getPost('rate_per_carat');
@@ -372,39 +386,52 @@ class PurchasesController extends BaseController
         $max = max(
             count($itemIds),
             count($diamondTypes),
-            count($shapes),
-            count($chalniFroms),
-            count($chalniTos),
+            count($shapeMasterIds),
+            count($chalniGroupIds),
             count($colors),
             count($clarities),
-            count($cuts),
             count($pcs),
             count($carats),
             count($rates)
         );
 
+        $shapeRows = db_connect()->table('diamond_shape_masters')
+            ->select('id, code, name')
+            ->where('is_active', 1)
+            ->get()
+            ->getResultArray();
+        $shapesById = [];
+        foreach ($shapeRows as $shapeRow) {
+            $shapesById[(int) $shapeRow['id']] = $shapeRow;
+        }
+        $groupRows = db_connect()->table('diamond_chalni_groups')
+            ->select('id, code, name, range_label')
+            ->where('is_active', 1)
+            ->get()
+            ->getResultArray();
+        $groupsById = [];
+        foreach ($groupRows as $groupRow) {
+            $groupsById[(int) $groupRow['id']] = $groupRow;
+        }
+
         $lines = [];
         for ($i = 0; $i < $max; $i++) {
             $itemId = (int) ($itemIds[$i] ?? 0);
             $diamondType = trim((string) ($diamondTypes[$i] ?? ''));
-            $shape = trim((string) ($shapes[$i] ?? ''));
-            $chalniFromRaw = trim((string) ($chalniFroms[$i] ?? ''));
-            $chalniToRaw = trim((string) ($chalniTos[$i] ?? ''));
+            $shapeMasterId = (int) ($shapeMasterIds[$i] ?? 0);
+            $chalniGroupId = (int) ($chalniGroupIds[$i] ?? 0);
             $color = trim((string) ($colors[$i] ?? ''));
             $clarity = trim((string) ($clarities[$i] ?? ''));
-            $cut = trim((string) ($cuts[$i] ?? ''));
             $pcsValue = (float) ($pcs[$i] ?? 0);
             $caratValue = (float) ($carats[$i] ?? 0);
             $rateRaw = trim((string) ($rates[$i] ?? ''));
 
             $isBlank = $itemId <= 0
                 && $diamondType === ''
-                && $shape === ''
-                && $chalniFromRaw === ''
-                && $chalniToRaw === ''
+                && $shapeMasterId <= 0
+                && $chalniGroupId <= 0
                 && $color === ''
                 && $clarity === ''
-                && $cut === ''
                 && $pcsValue <= 0
                 && $caratValue <= 0
                 && $rateRaw === '';
@@ -427,33 +454,27 @@ class PurchasesController extends BaseController
                 return ['lines' => [], 'error' => 'Rate per carat cannot be negative.'];
             }
 
+            $shape = $shapesById[$shapeMasterId] ?? null;
+            if (! $shape) {
+                return ['lines' => [], 'error' => 'Please select a valid shape from Shape & Size Master for each line.'];
+            }
+            $group = $groupsById[$chalniGroupId] ?? null;
+            if (! $group) {
+                return ['lines' => [], 'error' => 'Please select a valid chalni group for each line.'];
+            }
+
             if ($itemId <= 0) {
                 if ($diamondType === '') {
                     return ['lines' => [], 'error' => 'Diamond type is required when item is not selected.'];
                 }
-                $from = $chalniFromRaw === '' ? null : $chalniFromRaw;
-                $to = $chalniToRaw === '' ? null : $chalniToRaw;
-                if (($from === null && $to !== null) || ($from !== null && $to === null)) {
-                    return ['lines' => [], 'error' => 'Both chalni from and chalni to are required when chalni is used.'];
-                }
-                if ($from !== null && ! ctype_digit($from)) {
-                    return ['lines' => [], 'error' => 'Chalni from must contain digits only.'];
-                }
-                if ($to !== null && ! ctype_digit($to)) {
-                    return ['lines' => [], 'error' => 'Chalni to must contain digits only.'];
-                }
-                if ($from !== null && $to !== null && ((int) ltrim($from, '0')) > ((int) ltrim($to, '0'))) {
-                    return ['lines' => [], 'error' => 'Chalni from must be less than or equal to chalni to.'];
-                }
-
                 $signature = [
                     'diamond_type' => $diamondType,
-                    'shape' => $shape,
-                    'chalni_from' => $from,
-                    'chalni_to' => $to,
+                    'shape' => (string) $shape['name'],
+                    'chalni_from' => null,
+                    'chalni_to' => null,
                     'color' => $color,
                     'clarity' => $clarity,
-                    'cut' => $cut,
+                    'cut' => null,
                 ];
             } else {
                 if (! $this->itemModel->find($itemId)) {
@@ -464,6 +485,8 @@ class PurchasesController extends BaseController
 
             $lines[] = [
                 'item_id' => $itemId,
+                'shape_master_id' => $shapeMasterId,
+                'chalni_group_id' => $chalniGroupId,
                 'pcs' => round($pcsValue, 3),
                 'carat' => round($caratValue, 3),
                 'rate_per_carat' => round($rateValue, 2),
@@ -505,7 +528,44 @@ class PurchasesController extends BaseController
      */
     private function itemOptions(): array
     {
-        return $this->itemModel->orderBy('diamond_type', 'ASC')->orderBy('id', 'DESC')->findAll();
+        $items = $this->itemModel->orderBy('diamond_type', 'ASC')->orderBy('id', 'DESC')->findAll();
+        $shapeIds = [];
+        foreach ($this->shapeOptions() as $shape) {
+            $shapeIds[$this->masterKey((string) ($shape['code'] ?? ''))] = (int) $shape['id'];
+            $shapeIds[$this->masterKey((string) ($shape['name'] ?? ''))] = (int) $shape['id'];
+        }
+        foreach ($items as &$item) {
+            $item['default_shape_master_id'] = $shapeIds[$this->masterKey((string) ($item['shape'] ?? ''))] ?? null;
+        }
+        unset($item);
+        return $items;
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function shapeOptions(): array
+    {
+        return db_connect()->table('diamond_shape_masters')
+            ->where('is_active', 1)
+            ->orderBy('sort_order', 'ASC')
+            ->orderBy('name', 'ASC')
+            ->get()
+            ->getResultArray();
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function chalniGroupOptions(): array
+    {
+        return db_connect()->table('diamond_chalni_groups')
+            ->where('is_active', 1)
+            ->orderBy('sort_order', 'ASC')
+            ->orderBy('name', 'ASC')
+            ->get()
+            ->getResultArray();
+    }
+
+    private function masterKey(string $value): string
+    {
+        return strtoupper((string) preg_replace('/[^A-Z0-9]+/i', '', trim($value)));
     }
 
     /**
@@ -522,8 +582,11 @@ class PurchasesController extends BaseController
     private function lineRows(int $purchaseId): array
     {
         return db_connect()->table('purchase_lines pl')
-            ->select('pl.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut')
+            ->select('pl.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, '
+                . 'sh.name AS master_shape_name, cg.name AS master_chalni_group_name, cg.range_label AS master_chalni_range')
             ->join('items i', 'i.id = pl.item_id', 'left')
+            ->join('diamond_shape_masters sh', 'sh.id = pl.shape_master_id', 'left')
+            ->join('diamond_chalni_groups cg', 'cg.id = pl.chalni_group_id', 'left')
             ->where('pl.purchase_id', $purchaseId)
             ->orderBy('pl.id', 'ASC')
             ->get()

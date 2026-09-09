@@ -70,10 +70,18 @@ class DiamondChalniStockService
 
         $buckets = [];
         if ($this->ready()) {
-            $buckets = $this->db->table('diamond_chalni_stocks cs')
-                ->select('cs.*, sh.name AS shape_name, sh.code AS shape_code, sz.size_code, sz.size_label, sz.chalni_label, sz.length_mm, sz.width_mm')
+            $builder = $this->db->table('diamond_chalni_stocks cs')
+                ->select('cs.*, sh.name AS shape_name, sh.code AS shape_code, sz.size_code, sz.size_label, sz.chalni_label, '
+                    . 'sz.length_mm, sz.width_mm')
                 ->join('diamond_shape_masters sh', 'sh.id=cs.shape_id', 'left')
-                ->join('diamond_size_masters sz', 'sz.id=cs.size_id', 'left')
+                ->join('diamond_size_masters sz', 'sz.id=cs.size_id', 'left');
+            if ($this->db->tableExists('diamond_chalni_groups') && $this->db->fieldExists('chalni_group_id', 'diamond_chalni_stocks')) {
+                $builder->select('cg.name AS group_name, cg.range_label AS group_range_label')
+                    ->join('diamond_chalni_groups cg', 'cg.id=cs.chalni_group_id', 'left');
+            } else {
+                $builder->select('NULL AS group_name, NULL AS group_range_label', false);
+            }
+            $buckets = $builder
                 ->where('cs.item_id', $itemId)->where('cs.is_active', 1)
                 ->orderBy('sh.sort_order', 'ASC')->orderBy('cs.id', 'ASC')
                 ->get()->getResultArray();
@@ -297,6 +305,87 @@ class DiamondChalniStockService
         $this->reverseHeaderMovements('return_lines', 'return_id', $returnId);
     }
 
+    public function applyPurchase(int $purchaseId, int $userId = 0): void
+    {
+        if (! $this->purchaseTraceReady()) {
+            return;
+        }
+        $lines = $this->db->table('purchase_lines pl')
+            ->select('pl.id, pl.item_id, pl.shape_master_id AS shape_id, pl.chalni_group_id AS group_id, '
+                . 'pl.pcs, pl.carat, ph.purchase_date AS transaction_date, ph.invoice_no, cg.code AS group_code, '
+                . 'cg.name AS group_name, cg.range_label')
+            ->join('purchase_headers ph', 'ph.id = pl.purchase_id', 'inner')
+            ->join('diamond_chalni_groups cg', 'cg.id = pl.chalni_group_id', 'inner')
+            ->where('pl.purchase_id', $purchaseId)
+            ->where('pl.shape_master_id IS NOT NULL', null, false)
+            ->where('pl.chalni_group_id IS NOT NULL', null, false)
+            ->get()
+            ->getResultArray();
+
+        foreach ($lines as $line) {
+            if ($this->hasSourceMovement('purchase_lines', (int) $line['id'])) {
+                continue;
+            }
+            $bucket = $this->findGroupBucket(
+                (int) $line['item_id'],
+                (int) $line['shape_id'],
+                (int) $line['group_id']
+            );
+            if (! $bucket) {
+                $bucket = $this->createBucketFromGroup($line, $userId);
+            }
+            if (! $bucket) {
+                throw new RuntimeException('Unable to create the selected diamond chalni-group stock bucket.');
+            }
+            $reference = trim((string) ($line['invoice_no'] ?? ''));
+            $this->changeBucket(
+                $bucket,
+                (float) ($line['pcs'] ?? 0),
+                (float) ($line['carat'] ?? 0),
+                'PURCHASE',
+                'purchase_lines',
+                (int) $line['id'],
+                'Purchased into ' . (string) $line['group_name'] . ($reference !== '' ? ' · Invoice ' . $reference : ''),
+                $userId,
+                (string) ($line['transaction_date'] ?? date('Y-m-d'))
+            );
+        }
+    }
+
+    public function reversePurchase(int $purchaseId): void
+    {
+        if (! $this->purchaseTraceReady()) {
+            return;
+        }
+        $lineIds = array_map(
+            static fn(array $row): int => (int) $row['id'],
+            $this->db->table('purchase_lines')->select('id')->where('purchase_id', $purchaseId)->get()->getResultArray()
+        );
+        if ($lineIds === []) {
+            return;
+        }
+        $movements = $this->db->table('diamond_chalni_stock_movements')
+            ->where('source_table', 'purchase_lines')
+            ->whereIn('source_id', $lineIds)
+            ->get()
+            ->getResultArray();
+        $required = [];
+        foreach ($movements as $movement) {
+            $bucketId = (int) $movement['chalni_stock_id'];
+            $required[$bucketId]['pcs'] = round((float) ($required[$bucketId]['pcs'] ?? 0) + max(0, (float) $movement['pcs_delta']), 3);
+            $required[$bucketId]['cts'] = round((float) ($required[$bucketId]['cts'] ?? 0) + max(0, (float) $movement['carat_delta']), 3);
+        }
+        foreach ($required as $bucketId => $amount) {
+            $bucket = $this->db->table('diamond_chalni_stocks')->where('id', $bucketId)->get()->getRowArray();
+            if (! $bucket
+                || (float) ($bucket['pcs_balance'] ?? 0) + self::EPSILON < (float) $amount['pcs']
+                || (float) ($bucket['carat_balance'] ?? 0) + self::EPSILON < (float) $amount['cts']) {
+                throw new RuntimeException('This purchase cannot be edited or deleted because its chalni-group stock has already been issued or consumed.');
+            }
+        }
+        $this->reverseHeaderMovements('purchase_lines', 'purchase_id', $purchaseId);
+    }
+
     /** @param list<array<string,mixed>> $rows */
     public function assertPackable(array $rows, int $excludeBagId = 0): void
     {
@@ -385,18 +474,71 @@ class DiamondChalniStockService
             }
         }
         $sizeRange = $this->numericRange($label);
-        if (! $sizeRange) {
-            return null;
-        }
         $matches = [];
-        foreach ($buckets as $bucket) {
-            $bucketRange = $this->numericRange((string) $bucket['category_label']);
-            if ($bucketRange && $bucketRange[0] <= ($sizeRange[0] + self::EPSILON) && $bucketRange[1] >= ($sizeRange[1] - self::EPSILON)) {
-                $matches[] = ['span' => $bucketRange[1] - $bucketRange[0], 'row' => $bucket];
+        if ($sizeRange) {
+            foreach ($buckets as $bucket) {
+                $bucketRange = $this->numericRange((string) $bucket['category_label']);
+                if ($bucketRange && $bucketRange[0] <= ($sizeRange[0] + self::EPSILON) && $bucketRange[1] >= ($sizeRange[1] - self::EPSILON)) {
+                    $matches[] = ['span' => $bucketRange[1] - $bucketRange[0], 'row' => $bucket];
+                }
+            }
+            usort($matches, static fn(array $a, array $b): int => $a['span'] <=> $b['span']);
+            if (isset($matches[0]['row'])) {
+                return $matches[0]['row'];
             }
         }
-        usort($matches, static fn(array $a, array $b): int => $a['span'] <=> $b['span']);
-        return $matches[0]['row'] ?? null;
+        if ($this->db->tableExists('diamond_chalni_group_sizes')
+            && $this->db->fieldExists('chalni_group_id', 'diamond_chalni_stocks')) {
+            $mapping = $this->db->table('diamond_chalni_group_sizes')->select('group_id')->where('size_id', $sizeId)->get()->getRowArray();
+            if ($mapping) {
+                return $this->findGroupBucket($itemId, $shapeId, (int) $mapping['group_id']);
+            }
+        }
+        return null;
+    }
+
+    /** @return array<string,mixed>|null */
+    private function findGroupBucket(int $itemId, int $shapeId, int $groupId): ?array
+    {
+        if ($itemId <= 0 || $shapeId <= 0 || $groupId <= 0 || ! $this->purchaseTraceReady()) {
+            return null;
+        }
+        return $this->db->table('diamond_chalni_stocks')
+            ->where('item_id', $itemId)
+            ->where('shape_id', $shapeId)
+            ->where('chalni_group_id', $groupId)
+            ->where('is_active', 1)
+            ->get()
+            ->getRowArray() ?: null;
+    }
+
+    /** @param array<string,mixed> $line @return array<string,mixed>|null */
+    private function createBucketFromGroup(array $line, int $userId): ?array
+    {
+        $groupId = (int) ($line['group_id'] ?? 0);
+        $code = trim((string) ($line['group_code'] ?? ''));
+        if ($groupId <= 0 || $code === '') {
+            return null;
+        }
+        $now = date('Y-m-d H:i:s');
+        $this->db->table('diamond_chalni_stocks')->insert([
+            'item_id' => (int) $line['item_id'],
+            'shape_id' => (int) $line['shape_id'],
+            'size_id' => null,
+            'chalni_group_id' => $groupId,
+            'category_label' => 'GROUP:' . strtoupper($code),
+            'pcs_balance' => 0,
+            'carat_balance' => 0,
+            'source_type' => 'PURCHASE_GROUP',
+            'source_reference' => (string) ($line['group_name'] ?? $code),
+            'notes' => trim((string) ($line['range_label'] ?? '')) ?: null,
+            'is_active' => 1,
+            'created_by' => $userId > 0 ? $userId : null,
+            'updated_by' => $userId > 0 ? $userId : null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        return $this->db->table('diamond_chalni_stocks')->where('id', (int) $this->db->insertID())->get()->getRowArray() ?: null;
     }
 
     /** @param array<string,mixed> $line @return array<string,mixed>|null */
@@ -507,6 +649,16 @@ class DiamondChalniStockService
     {
         return $this->db->table('diamond_chalni_stock_movements')
             ->where('source_table', $table)->where('source_id', $sourceId)->countAllResults() > 0;
+    }
+
+    private function purchaseTraceReady(): bool
+    {
+        return $this->ready()
+            && $this->db->tableExists('diamond_chalni_groups')
+            && $this->db->tableExists('purchase_lines')
+            && $this->db->fieldExists('shape_master_id', 'purchase_lines')
+            && $this->db->fieldExists('chalni_group_id', 'purchase_lines')
+            && $this->db->fieldExists('chalni_group_id', 'diamond_chalni_stocks');
     }
 
     private function recordMovement(

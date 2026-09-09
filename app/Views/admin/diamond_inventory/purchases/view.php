@@ -60,7 +60,8 @@
                 <thead>
                     <tr>
                         <th>Item</th>
-                        <th>Chalni</th>
+                        <th>Shape</th>
+                        <th>Chalni Group</th>
                         <th>Color</th>
                         <th>Clarity</th>
                         <th>PCS</th>
@@ -71,12 +72,20 @@
                 </thead>
                 <tbody>
                     <?php if (($lines ?? []) === []): ?>
-                        <tr><td colspan="8" class="text-center text-muted">No lines found.</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted">No lines found.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($lines ?? []) as $line): ?>
                         <tr>
-                            <td><?= esc((string) ($line['diamond_type'] . ' ' . ($line['shape'] ? '(' . $line['shape'] . ')' : ''))) ?></td>
-                            <td><?= esc(($line['chalni_from'] !== null && $line['chalni_to'] !== null) ? ($line['chalni_from'] . ' - ' . $line['chalni_to']) : 'NA') ?></td>
+                            <td><?= esc((string) ($line['diamond_type'] ?? 'Diamond')) ?></td>
+                            <td><?= esc((string) (($line['master_shape_name'] ?? '') ?: ($line['shape'] ?? '-'))) ?></td>
+                            <td>
+                                <?php if (! empty($line['master_chalni_group_name'])): ?>
+                                    <span class="badge bg-primary-subtle text-primary"><?= esc((string) $line['master_chalni_group_name']) ?></span>
+                                    <small class="d-block text-muted mt-1"><?= esc((string) ($line['master_chalni_range'] ?? '')) ?></small>
+                                <?php else: ?>
+                                    <?= esc(($line['chalni_from'] !== null && $line['chalni_to'] !== null) ? ($line['chalni_from'] . ' - ' . $line['chalni_to']) : 'Unclassified') ?>
+                                <?php endif; ?>
+                            </td>
                             <td><?= esc((string) ($line['color'] ?? '-')) ?></td>
                             <td><?= esc((string) ($line['clarity'] ?? '-')) ?></td>
                             <td><?= number_format((float) $line['pcs'], 3) ?></td>

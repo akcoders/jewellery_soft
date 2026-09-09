@@ -95,9 +95,12 @@ if ($defaultShapeId <= 0 && (($shapes ?? []) !== [])) {
                 <?php foreach (($buckets ?? []) as $bucket): ?>
                     <?php $share = $tracedCts > 0 ? ((float) $bucket['carat_balance'] / $tracedCts) * 100 : 0; ?>
                     <tr>
-                        <td><span class="chalni-code"><?= esc((string) $bucket['category_label']) ?></span></td>
+                        <td>
+                            <span class="chalni-code"><?= esc((string) (($bucket['group_name'] ?? '') ?: $bucket['category_label'])) ?></span>
+                            <?php if (! empty($bucket['group_range_label'])): ?><small class="d-block text-muted mt-1"><?= esc((string) $bucket['group_range_label']) ?></small><?php endif; ?>
+                        </td>
                         <td><strong><?= esc((string) ($bucket['shape_name'] ?? '-')) ?></strong></td>
-                        <td><?= esc((string) (($bucket['size_label'] ?? '') ?: 'Custom category')) ?></td>
+                        <td><?= esc((string) (($bucket['size_label'] ?? '') ?: (! empty($bucket['group_name']) ? 'Multiple mapped chalnis' : 'Custom category'))) ?></td>
                         <td><?= esc((string) ($bucket['dimension_label'] ?? '-')) ?></td>
                         <td class="text-end stock-number"><?= number_format((float) ($bucket['pcs_balance'] ?? 0), 0) ?></td>
                         <td class="text-end stock-number"><?= number_format((float) ($bucket['carat_balance'] ?? 0), 3) ?></td>

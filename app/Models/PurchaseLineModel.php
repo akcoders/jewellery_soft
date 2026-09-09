@@ -12,6 +12,8 @@ class PurchaseLineModel extends Model
     protected $allowedFields = [
         'purchase_id',
         'item_id',
+        'shape_master_id',
+        'chalni_group_id',
         'pcs',
         'carat',
         'rate_per_carat',
