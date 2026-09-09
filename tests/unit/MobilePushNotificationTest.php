@@ -89,6 +89,15 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString('dispatchPendingNotifications($limit)', $command);
     }
 
+    public function testOptionalOrderImageCannotStopNotificationDispatch(): void
+    {
+        $service = (string) file_get_contents(APPPATH . 'Services/MobilePushService.php');
+
+        $this->assertStringContainsString("LOWER(file_type) IN ('finish_photo', 'photo')", $service);
+        $this->assertStringNotContainsString("whereIn('LOWER(file_type)', ['finish_photo', 'photo'], false)", $service);
+        $this->assertStringContainsString('Push image lookup skipped for order', $service);
+    }
+
     public function testDeviceTaskFallbackRequiresAuthenticatedConfirmation(): void
     {
         $service = (string) file_get_contents(APPPATH . 'Services/MobilePushService.php');

@@ -174,6 +174,9 @@ class OrdersController extends BaseController
                 'whatsapp_notification_number' => trim((string) ($customer['phone'] ?? '')) ?: null,
                 'whatsapp_notify_order_created' => 0,
             ], true);
+            if ($orderId <= 0) {
+                throw new \RuntimeException('The order header could not be saved.');
+            }
             $itemId = (int) (new OrderItemModel())->insert([
                 'order_id' => $orderId,
                 'design_id' => $designId ?: null,
@@ -184,13 +187,23 @@ class OrdersController extends BaseController
                 'diamond_required_cts' => max(0, (float) $this->request->getPost('diamond_required_cts')),
                 'item_status' => 'Confirmed',
             ], true);
-            (new OrderStatusHistoryModel())->insert([
+            if ($itemId <= 0) {
+                throw new \RuntimeException('The order item could not be saved.');
+            }
+            $historyId = (new OrderStatusHistoryModel())->insert([
                 'order_id' => $orderId,
                 'from_status' => null,
                 'to_status' => 'Confirmed',
                 'remarks' => 'Order created from authenticated customer portal.',
-            ]);
+            ], true);
+            if ((int) $historyId <= 0) {
+                throw new \RuntimeException('The initial order status could not be saved.');
+            }
             $moved = $this->storeImages($orderId, $itemId);
+            $db->transComplete();
+            if (! $db->transStatus()) {
+                throw new \RuntimeException('The order transaction was rolled back.');
+            }
         } catch (Throwable $e) {
             $db->transRollback();
             foreach ($moved as $path) {
@@ -199,9 +212,8 @@ class OrdersController extends BaseController
                 }
             }
             log_message('error', 'Customer portal order creation failed: {message}', ['message' => $e->getMessage()]);
-            return redirect()->back()->withInput()->with('error', 'Could not create the order. Please try again.');
+            return redirect()->back()->withInput()->with('error', $this->orderCreationFailureMessage($e));
         }
-        $db->transComplete();
 
         try {
             (new MobileNotificationEventService())->notifyOrderCreated($orderId, 'customer_portal');
@@ -302,5 +314,17 @@ class OrdersController extends BaseController
             'approximate_price' => $approximatePrice === '' ? null : (float) $approximatePrice,
             'advance_amount' => $advanceAmount === '' ? 0.0 : (float) $advanceAmount,
         ];
+    }
+
+    private function orderCreationFailureMessage(Throwable $exception): string
+    {
+        $message = strtolower($exception->getMessage());
+        if (str_contains($message, 'unknown column')
+            || str_contains($message, 'doesn\'t exist')
+            || str_contains($message, 'base table or view not found')) {
+            return 'Order database update is pending. Ask the administrator to run all pending Database Updates, then submit the order again.';
+        }
+
+        return 'Could not create the order. No order was saved. Please try again.';
     }
 }

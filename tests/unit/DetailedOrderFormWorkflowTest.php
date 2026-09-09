@@ -90,6 +90,22 @@ final class DetailedOrderFormWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('Size / Length', $show);
     }
 
+    public function testOrderCreationNeverReportsSuccessAfterAStorageRollback(): void
+    {
+        $adminController = $this->source('Controllers/Admin/OrderController.php');
+        $customerController = $this->source('Controllers/Customer/OrdersController.php');
+
+        $this->assertStringContainsString('$db->transException(true)->transStart();', $adminController);
+        $this->assertStringContainsString('catch (Throwable $e)', $adminController);
+        $this->assertStringContainsString('if ($orderId <= 0)', $adminController);
+        $this->assertStringContainsString('if (! $db->transStatus())', $adminController);
+        $this->assertStringContainsString('Order database update is pending.', $adminController);
+
+        $this->assertStringContainsString('if ($orderId <= 0)', $customerController);
+        $this->assertStringContainsString('if (! $db->transStatus())', $customerController);
+        $this->assertStringContainsString('Order database update is pending.', $customerController);
+    }
+
     /** @return list<string> */
     private function detailedFields(): array
     {

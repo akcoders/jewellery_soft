@@ -835,14 +835,23 @@ class MobilePushService
             return null;
         }
 
-        $attachment = $db->table('order_attachments')
-            ->select('file_path')
-            ->where('order_id', $orderId)
-            ->whereIn('LOWER(file_type)', ['finish_photo', 'photo'], false)
-            ->orderBy("FIELD(LOWER(file_type), 'finish_photo', 'photo')", '', false)
-            ->orderBy('id', 'DESC')
-            ->get()
-            ->getRowArray();
+        try {
+            $attachment = $db->table('order_attachments')
+                ->select('file_path')
+                ->where('order_id', $orderId)
+                ->where("LOWER(file_type) IN ('finish_photo', 'photo')", null, false)
+                ->orderBy("FIELD(LOWER(file_type), 'finish_photo', 'photo')", '', false)
+                ->orderBy('id', 'DESC')
+                ->get()
+                ->getRowArray();
+        } catch (Throwable $e) {
+            log_message('warning', 'Push image lookup skipped for order {orderId}: {message}', [
+                'orderId' => $orderId,
+                'message' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
         $path = trim((string) ($attachment['file_path'] ?? ''));
         if ($path === '') {
             return null;

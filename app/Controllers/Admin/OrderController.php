@@ -692,7 +692,8 @@ class OrderController extends BaseController
         }
 
         $db = \Config\Database::connect();
-        $db->transStart();
+        $db->transException(true)->transStart();
+        $orderId = 0;
 
         try {
             $category = $this->orderCategoryService->resolve(
@@ -705,7 +706,7 @@ class OrderController extends BaseController
                 (int) ($salesPersonUserId ?? 0),
                 trim((string) $this->request->getPost('order_from'))
             );
-            $orderId = $this->orderModel->insert([
+            $orderId = (int) $this->orderModel->insert([
                 'order_no'    => $orderNo,
                 'order_name' => trim((string) $this->request->getPost('order_name')),
                 'order_category_id' => (int) $category['id'],
@@ -743,9 +744,12 @@ class OrderController extends BaseController
                 'repair_received_at' => $isRepairOrder ? $this->nullableDate((string) $this->request->getPost('repair_received_at')) : null,
                 'created_by'  => (int) session('admin_id'),
             ], true);
+            if ($orderId <= 0) {
+                throw new \RuntimeException('The order header could not be saved.');
+            }
 
             foreach ($items as $i => $item) {
-                $itemId = $this->orderItemModel->insert([
+                $itemId = (int) $this->orderItemModel->insert([
                     'order_id'              => (int) $orderId,
                     'design_id'             => $item['design_id'],
                     'gold_purity_id'        => $item['gold_purity_id'],
@@ -756,8 +760,11 @@ class OrderController extends BaseController
                     'diamond_required_cts'  => $item['diamond_required_cts'],
                     'item_status'           => $status,
                 ], true);
+                if ($itemId <= 0) {
+                    throw new \RuntimeException('An order item could not be saved.');
+                }
 
-                $this->jobCardModel->insert([
+                $jobCardId = $this->jobCardModel->insert([
                     'job_card_no'  => 'JC' . date('ymdHis') . random_int(10, 99) . $i,
                     'order_id'     => (int) $orderId,
                     'order_item_id'=> (int) $itemId,
@@ -766,25 +773,34 @@ class OrderController extends BaseController
                     'due_date'     => $this->nullableDate((string) $this->request->getPost('due_date')),
                     'qc_status'    => 'Pending',
                     'created_by'   => (int) session('admin_id'),
-                ]);
+                ], true);
+                if ((int) $jobCardId <= 0) {
+                    throw new \RuntimeException('The order job card could not be saved.');
+                }
             }
 
-            $this->historyModel->insert([
+            $historyId = $this->historyModel->insert([
                 'order_id'    => (int) $orderId,
                 'from_status' => null,
                 'to_status'   => $status,
                 'remarks'     => 'Order created.',
                 'changed_by'  => (int) session('admin_id'),
-            ]);
+            ], true);
+            if ((int) $historyId <= 0) {
+                throw new \RuntimeException('The initial order status could not be saved.');
+            }
 
             $this->storeAttachments((int) $orderId);
-        } catch (Exception $e) {
+            $db->transComplete();
+            if (! $db->transStatus()) {
+                throw new \RuntimeException('The order transaction was rolled back.');
+            }
+        } catch (Throwable $e) {
             $db->transRollback();
+            log_message('error', 'Admin order creation failed: {message}', ['message' => $e->getMessage()]);
 
-            return redirect()->back()->withInput()->with('error', 'Could not create order: ' . $e->getMessage());
+            return redirect()->back()->withInput()->with('error', $this->orderCreationFailureMessage($e));
         }
-
-        $db->transComplete();
 
         if ($this->request->getPost('whatsapp_notify_order_created')) {
             $this->dispatchWhatsappOrderCreated((int) $orderId);
@@ -3249,6 +3265,18 @@ class OrderController extends BaseController
             'approximate_price' => $this->nullableDecimal($this->request->getPost('approximate_price')),
             'advance_amount' => $this->nullableDecimal($this->request->getPost('advance_amount')) ?? 0.0,
         ];
+    }
+
+    private function orderCreationFailureMessage(Throwable $exception): string
+    {
+        $message = strtolower($exception->getMessage());
+        if (str_contains($message, 'unknown column')
+            || str_contains($message, 'doesn\'t exist')
+            || str_contains($message, 'base table or view not found')) {
+            return 'Order database update is pending. Open Database Update, run all pending migrations, then submit the order again.';
+        }
+
+        return 'Could not create the order. No order was saved. Please retry or check the application log.';
     }
 
     private function nullableDecimal($value): ?float
