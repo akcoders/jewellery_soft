@@ -35,6 +35,7 @@ use App\Services\KarigarMaterialAccountingService;
 use App\Services\IssuementVoucherNumberService;
 use App\Services\MobileNotificationEventService;
 use App\Services\PdfService;
+use App\Services\PurchaseTermsService;
 use App\Services\TaxMasterService;
 use Throwable;
 
@@ -65,6 +66,15 @@ class TransactionsController extends MobileBaseController
         $purchaseDate = trim((string) ($payload['purchase_date'] ?? ''));
         if ($purchaseDate === '' || strtotime($purchaseDate) === false) {
             return $this->fail('Purchase date is required.', 422);
+        }
+
+        try {
+            $termsService = new PurchaseTermsService();
+            $paymentTerms = array_key_exists('terms', $payload)
+                ? $termsService->resolve($purchaseDate, $payload['terms'])
+                : $termsService->resolveLegacyDueDate($purchaseDate, $payload['due_date'] ?? null);
+        } catch (\InvalidArgumentException $e) {
+            return $this->fail($e->getMessage(), 422);
         }
 
         $linesPayload = $payload['lines'] ?? [];
@@ -101,7 +111,8 @@ class TransactionsController extends MobileBaseController
                 'vendor_id' => $vendorId > 0 ? $vendorId : null,
                 'supplier_name' => $supplierName !== '' ? $supplierName : null,
                 'invoice_no' => trim((string) ($payload['invoice_no'] ?? '')) ?: null,
-                'due_date' => trim((string) ($payload['due_date'] ?? '')) ?: null,
+                'payment_terms_days' => $paymentTerms['payment_terms_days'],
+                'due_date' => $paymentTerms['due_date'],
                 'gst_master_id' => $tax['gst_master_id'],
                 'tax_breakup_json' => $tax['tax_breakup_json'],
                 'taxable_amount' => $tax['taxable_amount'],

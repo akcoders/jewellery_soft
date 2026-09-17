@@ -273,6 +273,15 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           _metaRow('Date', date.toString()),
           _metaRow('Party', party.toString()),
           _metaRow('Ref', purpose.toString()),
+          if (widget.transactionKey == 'diamond_purchase') ...[
+            _metaRow(
+              'Terms',
+              header['payment_terms_days'] == null
+                  ? '-'
+                  : '${header['payment_terms_days']} days',
+            ),
+            _metaRow('Due Date', (header['due_date'] ?? '-').toString()),
+          ],
           if ((header['order_no'] ?? '').toString().isNotEmpty)
             _metaRow('Order', header['order_no'].toString()),
         ],

@@ -41,6 +41,7 @@
                         <th>Date</th>
                         <th>Supplier</th>
                         <th>Invoice</th>
+                        <th>Terms</th>
                         <th>Due Date</th>
                         <th>GST Breakup</th>
                         <th>Lines</th>
@@ -52,7 +53,7 @@
                 </thead>
                 <tbody>
                     <?php if (($purchases ?? []) === []): ?>
-                        <tr><td colspan="11" class="text-center text-muted">No purchase records found.</td></tr>
+                        <tr><td colspan="12" class="text-center text-muted">No purchase records found.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($purchases ?? []) as $purchase): ?>
                         <tr>
@@ -60,6 +61,7 @@
                             <td><?= esc((string) $purchase['purchase_date']) ?></td>
                             <td><?= esc((string) ($purchase['vendor_name'] ?: $purchase['supplier_name'] ?: '-')) ?></td>
                             <td><?= esc((string) ($purchase['invoice_no'] ?? '-')) ?></td>
+                            <td><?= ($purchase['payment_terms_days'] ?? null) !== null ? ((int) $purchase['payment_terms_days'] . ' days') : '-' ?></td>
                             <td><?= esc((string) ($purchase['due_date'] ?? '-')) ?></td>
                             <td><small class="d-block">CGST ₹<?= number_format((float) ($purchase['cgst_amount'] ?? 0), 2) ?></small><small class="d-block">SGST ₹<?= number_format((float) ($purchase['sgst_amount'] ?? 0), 2) ?></small><small class="d-block">IGST ₹<?= number_format((float) ($purchase['igst_amount'] ?? 0), 2) ?></small></td>
                             <td><?= (int) $purchase['line_count'] ?></td>

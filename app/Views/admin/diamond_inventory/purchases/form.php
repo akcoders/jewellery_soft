@@ -69,6 +69,7 @@ if ($rows === []) {
 $purchaseDate = old('purchase_date', (string) ($purchase['purchase_date'] ?? date('Y-m-d')));
 $vendorId = old('vendor_id', (string) ($purchase['vendor_id'] ?? ''));
 $invoiceNo = old('invoice_no', (string) ($purchase['invoice_no'] ?? ''));
+$terms = old('terms', (string) ($purchase['payment_terms_days'] ?? ''));
 $dueDate = old('due_date', (string) ($purchase['due_date'] ?? ''));
 $gstMasterId = old('gst_master_id', (string) ($purchase['gst_master_id'] ?? ''));
 $roundOff = old('round_off_amount', (string) ($purchase['round_off_amount'] ?? '0.00'));
@@ -86,7 +87,7 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
         <div class="row g-3">
             <div class="col-md-2">
                 <label class="form-label">Purchase Date <span class="text-danger">*</span></label>
-                <input type="date" name="purchase_date" class="form-control" required value="<?= esc((string) $purchaseDate) ?>">
+                <input type="date" name="purchase_date" id="diamond_purchase_date" class="form-control" required value="<?= esc((string) $purchaseDate) ?>">
             </div>
             <div class="col-md-4">
                 <label class="form-label">Supplier <span class="text-danger">*</span></label>
@@ -110,8 +111,14 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                 <input type="text" name="invoice_no" class="form-control" value="<?= esc((string) $invoiceNo) ?>">
             </div>
             <div class="col-md-2">
+                <label class="form-label">Terms (Days)</label>
+                <input type="number" name="terms" id="diamond_payment_terms" class="form-control" min="0" max="<?= \App\Services\PurchaseTermsService::MAX_TERMS_DAYS ?>" step="1" inputmode="numeric" value="<?= esc((string) $terms) ?>" placeholder="e.g. 30">
+                <small class="text-muted">Days allowed after purchase for payment.</small>
+            </div>
+            <div class="col-md-2">
                 <label class="form-label">Due Date</label>
-                <input type="date" name="due_date" class="form-control" value="<?= esc((string) $dueDate) ?>">
+                <input type="date" name="due_date" id="diamond_due_date" class="form-control bg-light" readonly value="<?= esc((string) $dueDate) ?>">
+                <small class="text-muted">Calculated automatically.</small>
             </div>
             <div class="col-md-12"><hr class="my-1"><div class="small fw-semibold text-muted">SUPPLIER DETAILS</div></div>
             <div class="col-md-4"><label class="form-label">Supplier Name</label><input type="text" name="supplier_name" id="supplier_name" class="form-control" readonly value="<?= esc((string) $supplierName) ?>"></div>
@@ -343,6 +350,9 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
         const roundOffInput = document.getElementById('round_off_amount');
         const roundOffSuggestion = document.getElementById('round_off_suggestion');
         const applyRoundOffSuggestion = document.getElementById('apply_round_off_suggestion');
+        const purchaseDateInput = document.getElementById('diamond_purchase_date');
+        const termsInput = document.getElementById('diamond_payment_terms');
+        const dueDateInput = document.getElementById('diamond_due_date');
         let suggestedRoundOff = 0;
 
         if (!body || !addBtn || !tpl) {
@@ -357,6 +367,21 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                 output.value = (carat * rate).toFixed(2);
             }
             recalcTotals();
+        }
+
+        function recalcDueDate() {
+            if (!purchaseDateInput || !termsInput || !dueDateInput) return;
+            const purchaseDate = purchaseDateInput.value;
+            const rawTerms = termsInput.value.trim();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate) || !/^\d+$/.test(rawTerms)) {
+                dueDateInput.value = '';
+                return;
+            }
+
+            const parts = purchaseDate.split('-').map(Number);
+            const dueDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+            dueDate.setUTCDate(dueDate.getUTCDate() + Number(rawTerms));
+            dueDateInput.value = dueDate.toISOString().slice(0, 10);
         }
 
         function recalcTotals() {
@@ -509,6 +534,8 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
                 recalcTotals();
             });
         }
+        if (purchaseDateInput) purchaseDateInput.addEventListener('change', recalcDueDate);
+        if (termsInput) termsInput.addEventListener('input', recalcDueDate);
 
         if (typeof jQuery !== 'undefined' && typeof jQuery.fn.select2 !== 'undefined') {
             jQuery('#vendor_id').select2({
@@ -534,5 +561,6 @@ $supplierEmail = old('supplier_email', (string) ($purchase['supplier_email'] ?? 
         if (vendorSelect) vendorSelect.addEventListener('change', fillVendorDetails);
 
         recalcTotals();
+        recalcDueDate();
     })();
 </script>

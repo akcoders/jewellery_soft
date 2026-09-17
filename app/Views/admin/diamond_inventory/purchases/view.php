@@ -35,6 +35,7 @@
             <div class="col-md-3"><strong>Date:</strong> <?= esc((string) $purchase['purchase_date']) ?></div>
             <div class="col-md-3"><strong>Supplier:</strong> <?= esc((string) ($purchase['vendor_name'] ?: $purchase['supplier_name'] ?: '-')) ?></div>
             <div class="col-md-3"><strong>Invoice:</strong> <?= esc((string) ($purchase['invoice_no'] ?: '-')) ?></div>
+            <div class="col-md-3"><strong>Terms:</strong> <?= ($purchase['payment_terms_days'] ?? null) !== null ? ((int) $purchase['payment_terms_days'] . ' days') : '-' ?></div>
             <div class="col-md-3"><strong>Due Date:</strong> <?= esc((string) ($purchase['due_date'] ?: '-')) ?></div>
             <div class="col-md-3 mt-2"><strong>GSTIN:</strong> <?= esc((string) ($purchase['supplier_gstin'] ?? '-')) ?></div>
             <div class="col-md-5 mt-2"><strong>Address:</strong> <?= esc((string) ($purchase['supplier_address'] ?? '-')) ?></div>

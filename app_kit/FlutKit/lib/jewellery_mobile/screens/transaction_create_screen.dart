@@ -40,6 +40,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   String _invoiceNo = '';
   String _voucherNo = '';
   String _supplierName = '';
+  String _terms = '';
   String _dueDate = '';
 
   int? _karigarId;
@@ -191,7 +192,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         payload['notes'] = _notes.trim();
         payload['gst_master_id'] = _gstMasterId;
         if (widget.material == 'diamond') {
-          payload['due_date'] = _dueDate.trim();
+          payload['terms'] = int.tryParse(_terms.trim());
         }
       } else if (widget.action == 'issue') {
         payload['voucher_no'] = _voucherNo.trim();
@@ -256,6 +257,18 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
 
   String _formatDate(DateTime date) {
     return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  void _recalculateDueDate() {
+    final termsDays = int.tryParse(_terms.trim());
+    if (termsDays == null || termsDays < 0 || termsDays > 36500) {
+      _dueDate = '';
+      return;
+    }
+
+    _dueDate = _formatDate(
+      DateTime(_txnDate.year, _txnDate.month, _txnDate.day + termsDays),
+    );
   }
 
   int? _asInt(dynamic value) {
@@ -339,7 +352,10 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                 initialDate: _txnDate,
               );
               if (picked != null && mounted) {
-                setState(() => _txnDate = picked);
+                setState(() {
+                  _txnDate = picked;
+                  _recalculateDueDate();
+                });
               }
             },
             icon: const Icon(Icons.event),
@@ -392,11 +408,42 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
             if (widget.material == 'diamond') ...[
               const SizedBox(height: AppSpacing.md),
               TextFormField(
-                initialValue: _dueDate,
+                initialValue: _terms,
                 decoration: const InputDecoration(
-                  labelText: 'Due Date (YYYY-MM-DD)',
+                  labelText: 'Terms (Days)',
+                  helperText: 'Number of days after purchase for payment.',
                 ),
-                onChanged: (v) => _dueDate = v,
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  final raw = value?.trim() ?? '';
+                  if (raw.isEmpty) return null;
+                  final days = int.tryParse(raw);
+                  if (days == null || days < 0 || days > 36500) {
+                    return 'Enter whole days from 0 to 36500';
+                  }
+                  return null;
+                },
+                onChanged: (value) {
+                  setState(() {
+                    _terms = value;
+                    _recalculateDueDate();
+                  });
+                },
+              ),
+              const SizedBox(height: AppSpacing.md),
+              InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Due Date',
+                  helperText: 'Calculated automatically from date and terms.',
+                ),
+                child: Text(
+                  _dueDate.isEmpty ? 'Enter terms to calculate' : _dueDate,
+                  style: TextStyle(
+                    color: _dueDate.isEmpty
+                        ? AppColors.textSecondary
+                        : AppColors.textPrimary,
+                  ),
+                ),
               ),
             ],
             const SizedBox(height: AppSpacing.md),

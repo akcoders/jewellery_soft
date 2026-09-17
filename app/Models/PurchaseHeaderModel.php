@@ -20,6 +20,7 @@ class PurchaseHeaderModel extends Model
         'supplier_email',
         'invoice_no',
         'due_date',
+        'payment_terms_days',
         'place_of_supply',
         'purchase_description',
         'gst_master_id',

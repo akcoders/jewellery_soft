@@ -11,6 +11,7 @@ use App\Models\VendorModel;
 use App\Services\DiamondChalniStockService;
 use App\Services\DiamondInventory\StockService;
 use App\Services\MobileNotificationEventService;
+use App\Services\PurchaseTermsService;
 use App\Services\TaxMasterService;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use Throwable;
@@ -23,6 +24,7 @@ class PurchasesController extends BaseController
     private VendorModel $vendorModel;
     private DiamondPurchaseAttachmentModel $attachmentModel;
     private TaxMasterService $taxMasterService;
+    private PurchaseTermsService $purchaseTermsService;
 
     public function __construct()
     {
@@ -33,6 +35,7 @@ class PurchasesController extends BaseController
         $this->vendorModel = new VendorModel();
         $this->attachmentModel = new DiamondPurchaseAttachmentModel();
         $this->taxMasterService = new TaxMasterService();
+        $this->purchaseTermsService = new PurchaseTermsService();
     }
 
     public function index(): string
@@ -111,6 +114,10 @@ class PurchasesController extends BaseController
                 $taxable,
                 $roundOff
             );
+            $paymentTerms = $this->purchaseTermsService->resolve(
+                (string) $this->request->getPost('purchase_date'),
+                $this->request->getPost('terms')
+            );
 
             $purchaseId = (int) $this->headerModel->insert([
                 'purchase_date' => (string) $this->request->getPost('purchase_date'),
@@ -121,7 +128,8 @@ class PurchasesController extends BaseController
                 'supplier_phone' => $vendor['phone'] ?? null,
                 'supplier_email' => $vendor['email'] ?? null,
                 'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
-                'due_date' => trim((string) $this->request->getPost('due_date')) ?: null,
+                'payment_terms_days' => $paymentTerms['payment_terms_days'],
+                'due_date' => $paymentTerms['due_date'],
                 'gst_master_id' => $tax['gst_master_id'],
                 'tax_breakup_json' => $tax['tax_breakup_json'],
                 'taxable_amount' => $tax['taxable_amount'],
@@ -273,6 +281,10 @@ class PurchasesController extends BaseController
                 $taxable,
                 $roundOff
             );
+            $paymentTerms = $this->purchaseTermsService->resolve(
+                (string) $this->request->getPost('purchase_date'),
+                $this->request->getPost('terms')
+            );
 
             $this->headerModel->update($id, [
                 'purchase_date' => (string) $this->request->getPost('purchase_date'),
@@ -283,7 +295,8 @@ class PurchasesController extends BaseController
                 'supplier_phone' => $vendor['phone'] ?? null,
                 'supplier_email' => $vendor['email'] ?? null,
                 'invoice_no' => trim((string) $this->request->getPost('invoice_no')) ?: null,
-                'due_date' => trim((string) $this->request->getPost('due_date')) ?: null,
+                'payment_terms_days' => $paymentTerms['payment_terms_days'],
+                'due_date' => $paymentTerms['due_date'],
                 'gst_master_id' => $tax['gst_master_id'],
                 'tax_breakup_json' => $tax['tax_breakup_json'],
                 'taxable_amount' => $tax['taxable_amount'],
@@ -504,7 +517,7 @@ class PurchasesController extends BaseController
             'purchase_date' => 'required|valid_date',
             'vendor_id' => 'required|integer|greater_than[0]',
             'invoice_no' => 'permit_empty|max_length[80]',
-            'due_date' => 'permit_empty|valid_date',
+            'terms' => 'permit_empty|integer|greater_than_equal_to[0]|less_than_equal_to[' . PurchaseTermsService::MAX_TERMS_DAYS . ']',
             'gst_master_id' => 'required|integer|greater_than[0]',
             'round_off_amount' => 'permit_empty|decimal',
             'invoice_total' => 'permit_empty|decimal|greater_than_equal_to[0]',

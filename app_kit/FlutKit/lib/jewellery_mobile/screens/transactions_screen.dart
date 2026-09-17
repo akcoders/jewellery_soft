@@ -102,6 +102,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         row['issue_date'],
         row['return_date'],
         row['purchase_date'],
+        row['payment_terms_days'],
+        row['due_date'],
       ].map((e) => (e ?? '').toString().toLowerCase()).join(' ');
       return haystack.contains(q);
     }).toList();
@@ -209,6 +211,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         Text('Party: $party'),
                         Text('Ref: $purpose'),
                         Text('Date: $date'),
+                        if (widget.transactionKey == 'diamond_purchase')
+                          Text(
+                            'Terms: ${row['payment_terms_days'] ?? '-'}${row['payment_terms_days'] == null ? '' : ' days'} · Due: ${row['due_date'] ?? '-'}',
+                          ),
                       ],
                     ),
                   ),

@@ -180,7 +180,7 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('purchase_headers ph')
-            ->select('ph.id, ph.purchase_date, ph.supplier_name, ph.invoice_no, ph.notes, ph.created_at')
+            ->select('ph.id, ph.purchase_date, ph.supplier_name, ph.invoice_no, ph.payment_terms_days, ph.due_date, ph.notes, ph.created_at')
             ->orderBy('ph.id', 'DESC')
             ->get(200)
             ->getResultArray();
