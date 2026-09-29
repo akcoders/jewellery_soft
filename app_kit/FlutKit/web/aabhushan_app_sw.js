@@ -8,6 +8,8 @@ const APP_SHELL = [
   "./flutter_bootstrap.js",
   "./main.dart.js",
   "./manifest.json",
+  "./assets/FontManifest.json",
+  "./assets/fonts/MaterialIcons-Regular.otf",
   "./favicon.png",
   "./icons/Icon-192.png",
   "./icons/Icon-512.png",

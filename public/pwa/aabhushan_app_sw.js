@@ -1,13 +1,15 @@
 "use strict";
 
 const CACHE_PREFIX = "aabhushan-pwa-";
-const CACHE_NAME = CACHE_PREFIX + "20260929094214";
+const CACHE_NAME = CACHE_PREFIX + "20260929111359";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./flutter_bootstrap.js",
   "./main.dart.js",
   "./manifest.json",
+  "./assets/FontManifest.json",
+  "./assets/fonts/MaterialIcons-Regular.otf",
   "./favicon.png",
   "./icons/Icon-192.png",
   "./icons/Icon-512.png",

@@ -38,6 +38,7 @@ final class MobileOrderPurchaseIssuementParityTest extends CIUnitTestCase
         $controller = $this->source('Controllers/Api/Mobile/TransactionsController.php');
         $shell = $this->rootSource('app_kit/FlutKit/lib/jewellery_mobile/screens/app_shell.dart');
         $screen = $this->rootSource('app_kit/FlutKit/lib/jewellery_mobile/screens/issuement_create_screen.dart');
+        $serviceWorker = $this->rootSource('app_kit/FlutKit/web/aabhushan_app_sw.js');
 
         $this->assertStringContainsString("post('issuements'", $routes);
         $this->assertStringContainsString('function createCombinedIssuement()', $controller);
@@ -46,6 +47,10 @@ final class MobileOrderPurchaseIssuementParityTest extends CIUnitTestCase
             $this->assertStringContainsString("'{$field}'", $screen);
         }
         $this->assertStringContainsString("'issuements'", $shell);
+        $this->assertStringContainsString('leading: const _IssuementMenuIcon()', $shell);
+        $this->assertStringContainsString('class _IssuementMenuIconPainter extends CustomPainter', $shell);
+        $this->assertStringContainsString('./assets/FontManifest.json', $serviceWorker);
+        $this->assertStringContainsString('./assets/fonts/MaterialIcons-Regular.otf', $serviceWorker);
         $this->assertStringNotContainsString("_drawerItem(\n                        'diamond_issues'", $shell);
         $this->assertStringNotContainsString("_drawerItem(\n                        'gold_issues'", $shell);
         $this->assertStringNotContainsString("_drawerItem(\n                        'stone_issues'", $shell);

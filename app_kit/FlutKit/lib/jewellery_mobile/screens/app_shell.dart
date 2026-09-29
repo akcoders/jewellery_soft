@@ -443,6 +443,7 @@ class _AppShellState extends State<AppShell> {
                         'issuements',
                         'Issuements',
                         Icons.outbox_outlined,
+                        leading: const _IssuementMenuIcon(),
                       ),
                       _drawerSection('Diamond'),
                       _drawerItem(
@@ -636,12 +637,17 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Widget _drawerItem(String key, String label, IconData icon) {
+  Widget _drawerItem(
+    String key,
+    String label,
+    IconData icon, {
+    Widget? leading,
+  }) {
     final selected = _section == key;
     return ListTile(
       selected: selected,
       selectedTileColor: AppColors.brandRed.withValues(alpha: 0.12),
-      leading: Icon(icon),
+      leading: leading ?? Icon(icon),
       title: Text(label),
       onTap: () => _select(key),
     );
@@ -660,6 +666,65 @@ class _AppShellState extends State<AppShell> {
         ),
       ),
     );
+  }
+}
+
+/// A code-drawn icon keeps the Issuements entry visible even when a device has
+/// retained an older, tree-shaken Material Icons font from a previous PWA build.
+class _IssuementMenuIcon extends StatelessWidget {
+  const _IssuementMenuIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = IconTheme.of(context);
+    return SizedBox.square(
+      dimension: theme.size ?? 24,
+      child: CustomPaint(
+        painter: _IssuementMenuIconPainter(
+          color: theme.color ?? AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
+class _IssuementMenuIconPainter extends CustomPainter {
+  const _IssuementMenuIconPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.shortestSide / 24;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.9 * scale
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(3 * scale, 10 * scale, 18 * scale, 11 * scale),
+        Radius.circular(2 * scale),
+      ),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(12 * scale, 15 * scale),
+      Offset(12 * scale, 3 * scale),
+      paint,
+    );
+    final arrow = Path()
+      ..moveTo(7.5 * scale, 7.5 * scale)
+      ..lineTo(12 * scale, 3 * scale)
+      ..lineTo(16.5 * scale, 7.5 * scale);
+    canvas.drawPath(arrow, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _IssuementMenuIconPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 
