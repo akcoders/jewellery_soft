@@ -56,6 +56,11 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<Map<String, dynamic>> fetchAppUpdateStatus() async {
+    final res = await _get('/api/mobile/app-update');
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<void> logout() async {
     try {
       await _post('/api/mobile/logout', body: const {});
@@ -67,10 +72,12 @@ class MobileApiService {
     String query = '',
     int page = 1,
     int limit = 20,
+    bool followupsOnly = false,
   }) async {
     final q = <String, String>{'page': '$page', 'limit': '$limit'};
     if (status.trim().isNotEmpty) q['status'] = status.trim();
     if (query.trim().isNotEmpty) q['q'] = query.trim();
+    if (followupsOnly) q['scope'] = 'followups';
     final res = await _get('/api/mobile/orders', query: q);
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }

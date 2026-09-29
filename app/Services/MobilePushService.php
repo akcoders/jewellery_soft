@@ -562,6 +562,36 @@ class MobilePushService
         return $name;
     }
 
+    public function notificationBelongsToAdmin(array $row, int $adminUserId): bool
+    {
+        $type = strtolower(trim((string) ($row['type'] ?? '')));
+        if (! in_array($type, ['followup', 'followup_added', 'followup_assignment', 'followup_due', 'followup_delay'], true)) {
+            return true;
+        }
+        if ($adminUserId <= 0) {
+            return false;
+        }
+
+        $payload = $this->decodedPayload($row['payload_json'] ?? null);
+        $orderId = (int) ($payload['order_id'] ?? 0);
+        $referenceTable = trim((string) ($row['reference_table'] ?? ''));
+        $referenceId = (int) ($row['reference_id'] ?? 0);
+        $db = db_connect();
+        if ($orderId <= 0 && $referenceTable === 'orders') {
+            $orderId = $referenceId;
+        }
+        if ($orderId <= 0 && $referenceTable === 'order_followups' && $referenceId > 0) {
+            $followup = $db->table('order_followups')->select('order_id')->where('id', $referenceId)->get()->getRowArray();
+            $orderId = (int) ($followup['order_id'] ?? 0);
+        }
+        if ($orderId <= 0) {
+            return false;
+        }
+
+        $order = $db->table('orders')->select('followup_assigned_to')->where('id', $orderId)->get()->getRowArray();
+        return is_array($order) && (int) ($order['followup_assigned_to'] ?? 0) === $adminUserId;
+    }
+
     private function isConfigured(array $config): bool
     {
         return (int) ($config['onesignal_enabled'] ?? 0) === 1
@@ -621,7 +651,12 @@ class MobilePushService
                 && ! in_array(strtolower((string) ($task['status'] ?? '')), ['done', 'cancelled'], true);
         }
 
-        if (in_array($type, ['order_created', 'followup_added'], true)) {
+        if (str_starts_with($type, 'followup_')
+            && ! $this->notificationBelongsToAdmin($row, (int) ($row['admin_user_id'] ?? 0))) {
+            return false;
+        }
+
+        if (in_array($type, ['order_created', 'followup_added', 'followup_assignment'], true)) {
             $createdAt = $this->dateTime($row['created_at'] ?? null);
             return $createdAt !== null && $createdAt >= $this->now()->modify('-24 hours');
         }
@@ -635,23 +670,33 @@ class MobilePushService
         }
 
         $db = db_connect();
-        $followup = $db->table('order_followups')->where('id', $referenceId)->get()->getRowArray();
-        if (! is_array($followup)) {
-            return false;
+        $referenceTable = trim((string) ($row['reference_table'] ?? ''));
+        $followup = null;
+        $orderId = 0;
+        if ($referenceTable === 'orders') {
+            $orderId = $referenceId;
+        } else {
+            $followup = $db->table('order_followups')->where('id', $referenceId)->get()->getRowArray();
+            if (! is_array($followup)) {
+                return false;
+            }
+            $orderId = (int) ($followup['order_id'] ?? 0);
         }
-
-        $orderId = (int) ($followup['order_id'] ?? 0);
-        $order = $db->table('orders')->select('status')->where('id', $orderId)->get()->getRowArray();
+        $order = $db->table('orders')->select('status, followup_due_at')->where('id', $orderId)->get()->getRowArray();
         if (! is_array($order) || in_array(strtolower(trim((string) ($order['status'] ?? ''))), $this->terminalOrderStatuses(), true)) {
             return false;
         }
 
-        $latest = $db->table('order_followups')->selectMax('id')->where('order_id', $orderId)->get()->getRowArray();
-        if ((int) ($latest['id'] ?? 0) !== $referenceId) {
-            return false;
+        if (is_array($followup)) {
+            $latest = $db->table('order_followups')->selectMax('id')->where('order_id', $orderId)->get()->getRowArray();
+            if ((int) ($latest['id'] ?? 0) !== $referenceId) {
+                return false;
+            }
         }
 
-        $dueAt = $this->dateTime($followup['next_followup_date'] ?? null);
+        $dueAt = $this->dateTime(is_array($followup)
+            ? ($followup['next_followup_date'] ?? null)
+            : ($order['followup_due_at'] ?? null));
         if ($dueAt === null || $dueAt > $this->now()) {
             return false;
         }

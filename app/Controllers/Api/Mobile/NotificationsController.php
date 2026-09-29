@@ -35,6 +35,11 @@ class NotificationsController extends MobileBaseController
             ->orderBy('COALESCE(scheduled_at, created_at)', 'DESC', false)
             ->orderBy('id', 'DESC')
             ->findAll(200);
+        $adminId = (int) ($this->mobileAdmin['id'] ?? 0);
+        $rows = array_values(array_filter(
+            $rows,
+            fn(array $row): bool => $this->pushService->notificationBelongsToAdmin($row, $adminId)
+        ));
 
         return $this->ok($rows);
     }

@@ -65,6 +65,7 @@ $isAccountsOutstanding = $isAccounts && $segment3 === 'outstanding-summary';
 $isVendors  = $segment2 === 'vendors';
 $isCompanySettings = $segment2 === 'company-settings';
 $isDatabaseUpdate = $segment2 === 'system' && $segment3 === 'database-update';
+$isSystemMaintenance = $segment2 === 'system' && $segment3 === 'maintenance';
 $isInventory= $segment2 === 'inventory';
 $isInventoryStock = $isInventory && ($segment3 === '' || $segment3 === 'stock');
 $isInventoryWarehouses = $isInventory && $segment3 === 'warehouses';
@@ -1887,6 +1888,9 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
                         <?php if (admin_can('company-settings.manage')): ?>
                         <li class="<?= $isDatabaseUpdate ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/system/database-update') ?>"><i class="fe fe-database"></i> <span>Database Update</span></a>
+                        </li>
+                        <li class="<?= $isSystemMaintenance ? 'active' : '' ?>">
+                            <a href="<?= site_url('admin/system/maintenance') ?>"><i class="fe fe-tool"></i> <span>System Maintenance</span></a>
                         </li>
                         <?php endif; ?>
                         <?php if ($canAccessControl): ?>

@@ -149,16 +149,26 @@ class OrderController extends BaseController
             static fn(array $order): int => (int) ($order['id'] ?? 0),
             $orders
         ), static fn(int $id): bool => $id > 0));
+        $dashboardAdminId = (int) session('admin_id');
+        $canManageAllFollowups = $this->rbacService->userCan($dashboardAdminId, 'orders.assign');
+        $visibleFollowupOrderIds = $canManageAllFollowups
+            ? $orderIds
+            : array_values(array_filter(array_map(
+                static fn(array $order): int => (int) ($order['followup_assigned_to'] ?? 0) === $dashboardAdminId
+                    ? (int) ($order['id'] ?? 0)
+                    : 0,
+                $orders
+            ), static fn(int $id): bool => $id > 0));
 
         $latestFollowupByOrder = [];
         $itemsByOrder = [];
         $designUsage = [];
         $thumbnailByOrder = $this->dashboardOrderThumbnails($orderIds);
 
-        if ($orderIds !== []) {
+        if ($visibleFollowupOrderIds !== []) {
             $latestSubquery = db_connect()->table('order_followups')
                 ->select('MAX(id) AS id')
-                ->whereIn('order_id', $orderIds)
+                ->whereIn('order_id', $visibleFollowupOrderIds)
                 ->groupBy('order_id')
                 ->getCompiledSelect();
 
@@ -173,6 +183,9 @@ class OrderController extends BaseController
                 $latestFollowupByOrder[(int) ($followup['order_id'] ?? 0)] = $followup;
             }
 
+        }
+
+        if ($orderIds !== []) {
             $items = db_connect()->table('order_items oi')
                 ->select('oi.order_id, oi.design_id, oi.item_description, dm.design_code, dm.name AS design_name')
                 ->join('design_masters dm', 'dm.id = oi.design_id', 'left')
@@ -307,7 +320,7 @@ class OrderController extends BaseController
     public function timeline(int $id)
     {
         $order = $this->orderModel
-            ->select('orders.id, orders.order_no, orders.order_name, orders.order_from, orders.status, orders.due_date, orders.created_at, customers.name AS customer_name, karigars.name AS karigar_name')
+            ->select('orders.id, orders.order_no, orders.order_name, orders.order_from, orders.status, orders.due_date, orders.created_at, orders.followup_assigned_to, customers.name AS customer_name, karigars.name AS karigar_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
             ->find($id);
@@ -319,13 +332,19 @@ class OrderController extends BaseController
             ]);
         }
 
-        $followups = $this->followupModel
-            ->select('order_followups.*, admin_users.name AS followup_taken_by_name')
-            ->join('admin_users', 'admin_users.id = order_followups.followup_taken_by', 'left')
-            ->where('order_followups.order_id', $id)
-            ->orderBy('order_followups.followup_taken_on', 'DESC')
-            ->orderBy('order_followups.id', 'DESC')
-            ->findAll();
+        $currentAdminId = (int) session('admin_id');
+        $canViewFollowups = (int) ($order['followup_assigned_to'] ?? 0) === $currentAdminId
+            || $this->rbacService->userCan($currentAdminId, 'orders.assign');
+        $followups = [];
+        if ($canViewFollowups) {
+            $followups = $this->followupModel
+                ->select('order_followups.*, admin_users.name AS followup_taken_by_name')
+                ->join('admin_users', 'admin_users.id = order_followups.followup_taken_by', 'left')
+                ->where('order_followups.order_id', $id)
+                ->orderBy('order_followups.followup_taken_on', 'DESC')
+                ->orderBy('order_followups.id', 'DESC')
+                ->findAll();
+        }
 
         $history = $this->historyModel
             ->select('order_status_history.*, admin_users.name AS changed_by_name')
@@ -416,13 +435,18 @@ class OrderController extends BaseController
     {
         $this->syncCompletedOrdersFromReceive();
 
-        $orders = $this->orderModel
+        $canManageFollowers = $this->rbacService->userCan((int) session('admin_id'), 'orders.assign');
+        $orderQuery = $this->orderModel
             ->select('orders.*, customers.name as customer_name, karigars.name as karigar_name, follower.name as follower_name, order_categories.name as order_category_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
             ->join('admin_users follower', 'follower.id = orders.followup_assigned_to', 'left')
             ->join('order_categories', 'order_categories.id = orders.order_category_id', 'left')
-            ->whereNotIn('orders.status', ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'])
+            ->whereNotIn('orders.status', ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled']);
+        if (! $canManageFollowers) {
+            $orderQuery->where('orders.followup_assigned_to', (int) session('admin_id'));
+        }
+        $orders = $orderQuery
             ->orderBy('orders.id', 'DESC')
             ->findAll();
 
@@ -497,7 +521,7 @@ class OrderController extends BaseController
             'title' => 'Order Followups',
             'orders' => $orders,
             'statuses' => $this->jewelleryConfig->orderStatuses,
-            'staffFollowers' => $this->staffPerformanceService->staffOptions(),
+            'staffFollowers' => $canManageFollowers ? $this->staffPerformanceService->staffOptions() : [],
         ]);
     }
 
@@ -843,12 +867,19 @@ class OrderController extends BaseController
             ->where('order_id', $id)
             ->findAll();
 
-        $followups = $this->followupModel
-            ->select('order_followups.*, admin_users.name as followup_taken_by_name')
-            ->join('admin_users', 'admin_users.id = order_followups.followup_taken_by', 'left')
-            ->where('order_followups.order_id', $id)
-            ->orderBy('order_followups.id', 'DESC')
-            ->findAll();
+        $currentAdminId = (int) session('admin_id');
+        $canChangeFollower = $this->rbacService->userCan($currentAdminId, 'orders.assign');
+        $canViewFollowups = $canChangeFollower
+            || (int) ($order['followup_assigned_to'] ?? 0) === $currentAdminId;
+        $followups = [];
+        if ($canViewFollowups) {
+            $followups = $this->followupModel
+                ->select('order_followups.*, admin_users.name as followup_taken_by_name')
+                ->join('admin_users', 'admin_users.id = order_followups.followup_taken_by', 'left')
+                ->where('order_followups.order_id', $id)
+                ->orderBy('order_followups.id', 'DESC')
+                ->findAll();
+        }
 
 
         $receiveSummary = $this->receiveSummaryModel
@@ -891,8 +922,8 @@ class OrderController extends BaseController
             ),
             'canManageDiamondRequirements' => $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage'),
             'canDeleteOrder' => $this->rbacService->userCan((int) session('admin_id'), 'orders.delete'),
-            'canChangeFollower' => $this->rbacService->userCan((int) session('admin_id'), 'orders.assign'),
-            'staffFollowers' => $this->staffPerformanceService->staffOptions(),
+            'canChangeFollower' => $canChangeFollower,
+            'staffFollowers' => $canChangeFollower ? $this->staffPerformanceService->staffOptions() : [],
         ]);
     }
 
@@ -1085,6 +1116,12 @@ class OrderController extends BaseController
 
         $this->staffPerformanceService->syncOrderAssignment($id, $followerId, $followupDueAt, (int) session('admin_id'));
 
+        try {
+            $this->mobileNotificationEvents->notifyFollowerAssigned($id);
+        } catch (Throwable $e) {
+            log_message('error', 'Order follower assignment push failed: {message}', ['message' => $e->getMessage()]);
+        }
+
         return redirect()->back()->with('success', 'Customer, karigar and first follow-up assigned successfully.');
     }
 
@@ -1132,6 +1169,12 @@ class OrderController extends BaseController
         } catch (Throwable $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', 'Could not change order follower: ' . $e->getMessage());
+        }
+
+        try {
+            $this->mobileNotificationEvents->notifyFollowerAssigned($id);
+        } catch (Throwable $e) {
+            log_message('error', 'Order follower reassignment push failed: {message}', ['message' => $e->getMessage()]);
         }
 
         return redirect()->back()->with('success', 'Order follower updated successfully.');

@@ -34,7 +34,11 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
       _error = '';
     });
     try {
-      final data = await widget.api.fetchOrders(page: 1, limit: 200);
+      final data = await widget.api.fetchOrders(
+        page: 1,
+        limit: 200,
+        followupsOnly: true,
+      );
       final orders = (data['items'] as List?) ?? <dynamic>[];
       final groups = _groupFollowups(orders);
       await FollowupNotificationService.syncFromOrders(orders);

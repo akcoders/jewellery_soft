@@ -86,7 +86,7 @@ class MobileNotificationEventService
 
         $db = db_connect();
         $row = $db->table('order_followups ofu')
-            ->select('ofu.id, ofu.order_id, ofu.stage, ofu.description, ofu.next_followup_date, o.order_no, o.status')
+            ->select('ofu.id, ofu.order_id, ofu.stage, ofu.description, ofu.next_followup_date, o.order_no, o.status, o.followup_assigned_to')
             ->join('orders o', 'o.id = ofu.order_id', 'inner')
             ->where('ofu.id', $followupId)
             ->where('ofu.order_id', $orderId)
@@ -101,7 +101,8 @@ class MobileNotificationEventService
 
         $orderNo = trim((string) ($row['order_no'] ?? '')) ?: ('#' . $orderId);
         $stage = trim((string) ($row['stage'] ?? '')) ?: 'Updated';
-        $immediate = $this->queueForPermission('orders.followup', [
+        $followerId = (int) ($row['followup_assigned_to'] ?? 0);
+        $immediate = $this->queueForFollower($followerId, [
             'type' => 'followup_added',
             'reference_table' => 'order_followups',
             'reference_id' => $followupId,
@@ -131,7 +132,7 @@ class MobileNotificationEventService
         $orderStatus = strtolower(trim((string) ($row['status'] ?? '')));
         $terminalStatuses = array_map('strtolower', self::TERMINAL_ORDER_STATUSES);
         if ($nextAt !== null && $nextAt > new DateTimeImmutable('now', $timezone) && ! in_array($orderStatus, $terminalStatuses, true)) {
-            $scheduled = $this->queueForPermission('orders.followup', [
+            $scheduled = $this->queueForFollower($followerId, [
                 'type' => 'followup_due',
                 'reference_table' => 'order_followups',
                 'reference_id' => $followupId,
@@ -152,6 +153,72 @@ class MobileNotificationEventService
         return [
             'queued' => (bool) ($immediate['queued'] ?? false) || (bool) ($scheduled['queued'] ?? false),
             'immediate' => $immediate,
+            'scheduled' => $scheduled,
+        ];
+    }
+
+    public function notifyFollowerAssigned(int $orderId): array
+    {
+        $db = db_connect();
+        $order = $db->table('orders')
+            ->select('id, order_no, status, followup_assigned_to, followup_due_at')
+            ->where('id', $orderId)
+            ->get()
+            ->getRowArray();
+        if (! is_array($order)) {
+            return $this->emptySummary('Order not found.');
+        }
+
+        $followerId = (int) ($order['followup_assigned_to'] ?? 0);
+        if ($followerId <= 0) {
+            return $this->emptySummary('Order follower is not assigned.');
+        }
+
+        $this->cancelFollowupNotificationsForOtherFollowers($orderId, $followerId);
+        $orderNo = trim((string) ($order['order_no'] ?? '')) ?: ('#' . $orderId);
+        $dueAt = trim((string) ($order['followup_due_at'] ?? ''));
+        $assigned = $this->queueForFollower($followerId, [
+            'type' => 'followup_assignment',
+            'reference_table' => 'orders',
+            'reference_id' => $orderId,
+            'dedupe_key' => 'followup-assignment:' . $orderId . ':' . $followerId . ':' . md5($dueAt),
+            'title' => 'Order Follow-up Assigned',
+            'message' => 'You are now the follower for order ' . $orderNo . '.',
+            'payload' => [
+                'type' => 'followup_assignment',
+                'screen' => 'followups',
+                'order_id' => $orderId,
+                'order_no' => $orderNo,
+                'due_at' => $dueAt,
+            ],
+        ]);
+
+        $scheduled = $this->emptySummary('No active follow-up time was selected.');
+        $status = strtolower(trim((string) ($order['status'] ?? '')));
+        $terminalStatuses = array_map('strtolower', self::TERMINAL_ORDER_STATUSES);
+        $dueTimestamp = $dueAt !== '' ? strtotime($dueAt) : false;
+        if ($dueTimestamp !== false && $dueTimestamp > time() && ! in_array($status, $terminalStatuses, true)) {
+            $scheduled = $this->queueForFollower($followerId, [
+                'type' => 'followup_due',
+                'reference_table' => 'orders',
+                'reference_id' => $orderId,
+                'dedupe_key' => 'order-followup-due:' . $orderId . ':' . $followerId . ':' . $dueTimestamp,
+                'title' => 'Follow-up Due',
+                'message' => 'Order ' . $orderNo . ' follow-up is due now.',
+                'scheduled_at' => date('Y-m-d H:i:s', $dueTimestamp),
+                'payload' => [
+                    'type' => 'followup_due',
+                    'screen' => 'followups',
+                    'order_id' => $orderId,
+                    'order_no' => $orderNo,
+                    'due_at' => $dueAt,
+                ],
+            ]);
+        }
+
+        return [
+            'queued' => (bool) ($assigned['queued'] ?? false) || (bool) ($scheduled['queued'] ?? false),
+            'assigned' => $assigned,
             'scheduled' => $scheduled,
         ];
     }
@@ -384,7 +451,7 @@ class MobileNotificationEventService
             ->getCompiledSelect();
 
         $rows = $db->table('order_followups ofu')
-            ->select('ofu.id, ofu.order_id, ofu.stage, ofu.next_followup_date, o.order_no, o.status')
+            ->select('ofu.id, ofu.order_id, ofu.stage, ofu.next_followup_date, o.order_no, o.status, o.followup_assigned_to')
             ->join('(' . $latestSubquery . ') latest', 'latest.id = ofu.id', 'inner', false)
             ->join('orders o', 'o.id = ofu.order_id', 'inner')
             ->where('ofu.next_followup_date IS NOT NULL', null, false)
@@ -399,7 +466,8 @@ class MobileNotificationEventService
         foreach ($rows as $row) {
             $followupId = (int) ($row['id'] ?? 0);
             $orderId = (int) ($row['order_id'] ?? 0);
-            if ($followupId <= 0 || $orderId <= 0) {
+            $followerId = (int) ($row['followup_assigned_to'] ?? 0);
+            if ($followupId <= 0 || $orderId <= 0 || $followerId <= 0) {
                 continue;
             }
 
@@ -415,7 +483,7 @@ class MobileNotificationEventService
                 ['followup_delay'],
                 $dedupeKey
             );
-            $summary = $this->queueForPermission('orders.followup', [
+            $summary = $this->queueForFollower($followerId, [
                 'type' => 'followup_delay',
                 'reference_table' => 'order_followups',
                 'reference_id' => $followupId,
@@ -440,6 +508,23 @@ class MobileNotificationEventService
             'notifications_queued' => $queued,
             'slot' => $slot,
         ];
+    }
+
+    public function notifyPwaUpdateReleased(int $releaseId, string $version): array
+    {
+        return $this->queueForActiveUsers([
+            'type' => 'app_update',
+            'reference_table' => 'pwa_update_releases',
+            'reference_id' => $releaseId,
+            'dedupe_key' => 'app-update:' . $releaseId,
+            'title' => 'Aabhushan App Updated',
+            'message' => 'App updated. Please relaunch to clear the old cache.',
+            'payload' => [
+                'type' => 'app_update',
+                'screen' => 'dashboard',
+                'app_version' => $version,
+            ],
+        ]);
     }
 
     public static function isWorkingHour(DateTimeInterface $time): bool
@@ -502,6 +587,88 @@ class MobileNotificationEventService
             'duplicate_count' => $duplicateCount,
             'results' => $results,
         ];
+    }
+
+    private function queueForFollower(int $followerId, array $notification): array
+    {
+        if ($followerId <= 0) {
+            return $this->emptySummary('Order follower is not assigned.');
+        }
+        $notification['defer_dispatch'] = true;
+        $baseDedupeKey = trim((string) ($notification['dedupe_key'] ?? ''));
+        if ($baseDedupeKey !== '') {
+            $notification['dedupe_key'] = $baseDedupeKey . ':admin:' . $followerId;
+        }
+        $result = $this->pushService->queueForAdmin($followerId, $notification);
+
+        return [
+            'queued' => (bool) ($result['queued'] ?? false),
+            'recipient_count' => 1,
+            'queued_count' => ($result['queued'] ?? false) && ($result['created'] ?? false) ? 1 : 0,
+            'failed_count' => ($result['queued'] ?? false) || ($result['duplicate'] ?? false) ? 0 : 1,
+            'duplicate_count' => ($result['duplicate'] ?? false) ? 1 : 0,
+            'results' => [$followerId => $result],
+            'message' => (string) ($result['message'] ?? ''),
+        ];
+    }
+
+    private function queueForActiveUsers(array $notification): array
+    {
+        $notification['defer_dispatch'] = true;
+        $admins = $this->adminUserModel->where('is_active', 1)->orderBy('id', 'ASC')->findAll();
+        $results = [];
+        $queuedCount = 0;
+        $baseDedupeKey = trim((string) ($notification['dedupe_key'] ?? ''));
+        foreach ($admins as $admin) {
+            $adminId = (int) ($admin['id'] ?? 0);
+            if ($adminId <= 0) {
+                continue;
+            }
+            $personalized = $notification;
+            if ($baseDedupeKey !== '') {
+                $personalized['dedupe_key'] = $baseDedupeKey . ':admin:' . $adminId;
+            }
+            $result = $this->pushService->queueForAdminRow($admin, $personalized);
+            $results[$adminId] = $result;
+            if (($result['queued'] ?? false) && ($result['created'] ?? false)) {
+                $queuedCount++;
+            }
+        }
+
+        return [
+            'queued' => $queuedCount > 0,
+            'recipient_count' => count($results),
+            'queued_count' => $queuedCount,
+            'results' => $results,
+        ];
+    }
+
+    private function cancelFollowupNotificationsForOtherFollowers(int $orderId, int $followerId): void
+    {
+        $db = db_connect();
+        if (! $db->tableExists('mobile_push_notifications')) {
+            return;
+        }
+        $followupIds = array_values(array_filter(array_map(
+            static fn(array $row): int => (int) ($row['id'] ?? 0),
+            $db->table('order_followups')->select('id')->where('order_id', $orderId)->get()->getResultArray()
+        )));
+        $builder = $db->table('mobile_push_notifications')
+            ->where('admin_user_id !=', $followerId)
+            ->whereIn('type', ['followup_added', 'followup_assignment', 'followup_due', 'followup_delay'])
+            ->whereNotIn('status', ['sent', 'done', 'cancelled']);
+        $builder->groupStart()
+            ->groupStart()->where('reference_table', 'orders')->where('reference_id', $orderId)->groupEnd();
+        if ($followupIds !== []) {
+            $builder->orGroupStart()->where('reference_table', 'order_followups')->whereIn('reference_id', $followupIds)->groupEnd();
+        }
+        $builder->groupEnd()->update([
+            'status' => 'cancelled',
+            'done_flag' => 1,
+            'done_at' => date('Y-m-d H:i:s'),
+            'error_message' => 'Order follower changed.',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
     }
 
     private function cancelSupersededFollowupReminders(int $orderId, int $currentFollowupId): void

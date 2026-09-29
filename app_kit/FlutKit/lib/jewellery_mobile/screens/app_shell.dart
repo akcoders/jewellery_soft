@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutkit/jewellery_mobile/screens/dashboard_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/followups_screen.dart';
@@ -16,6 +18,7 @@ import 'package:flutkit/jewellery_mobile/screens/transaction_create_screen.dart'
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/services/onesignal_service.dart';
 import 'package:flutkit/jewellery_mobile/services/pwa_install_service.dart';
+import 'package:flutkit/jewellery_mobile/services/pwa_update_service.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
 import 'package:flutkit/jewellery_mobile/session/mobile_session_store.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
@@ -40,6 +43,9 @@ class _AppShellState extends State<AppShell> {
   bool _drawerOpen = false;
   int _refreshTick = 0;
   int _notificationCount = 0;
+  Timer? _appUpdateTimer;
+  bool _checkingAppUpdate = false;
+  String _shownAppUpdateVersion = '';
 
   @override
   void initState() {
@@ -53,7 +59,12 @@ class _AppShellState extends State<AppShell> {
     _loadNotificationCount();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleOpenedNotification();
+      _checkAppUpdate();
     });
+    _appUpdateTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _checkAppUpdate(),
+    );
   }
 
   @override
@@ -62,7 +73,54 @@ class _AppShellState extends State<AppShell> {
     OneSignalService.openedNotification.removeListener(
       _handleOpenedNotification,
     );
+    _appUpdateTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _checkAppUpdate() async {
+    if (!PwaUpdateService.supported || _checkingAppUpdate || !mounted) return;
+    _checkingAppUpdate = true;
+    try {
+      final data = await _api.fetchAppUpdateStatus();
+      final update = (data['update'] as Map?)?.cast<String, dynamic>();
+      final version = (update?['version'] ?? '').toString().trim();
+      if (!mounted ||
+          version.isEmpty ||
+          version == PwaUpdateService.appliedVersion ||
+          version == _shownAppUpdateVersion) {
+        return;
+      }
+      _shownAppUpdateVersion = version;
+      final message = (update?['message'] ?? '').toString().trim();
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => PopScope<void>(
+          canPop: false,
+          child: AlertDialog(
+            icon: const Icon(Icons.system_update_alt, size: 42),
+            title: const Text('App updated — please relaunch'),
+            content: Text(
+              message.isEmpty
+                  ? 'A new Aabhushan ERP version is available. Relaunch now to clear the old PWA cache and load the update.'
+                  : message,
+            ),
+            actions: [
+              FilledButton.icon(
+                onPressed: () =>
+                    PwaUpdateService.clearCacheAndRelaunch(version),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Clear Cache & Relaunch'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (_) {
+      // The app remains usable while offline; the next timer cycle retries.
+    } finally {
+      _checkingAppUpdate = false;
+    }
   }
 
   void _select(String key) {

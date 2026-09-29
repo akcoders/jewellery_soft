@@ -49,6 +49,14 @@
       });
 
       window.aabhushanForcePwaUpdate = async function () {
+        var currentParams = new URLSearchParams(window.location.search);
+        var appliedVersion = currentParams.get("app-update-version");
+        if (appliedVersion) {
+          window.localStorage.setItem(
+            "aabhushan_pwa_applied_update",
+            appliedVersion
+          );
+        }
         if ("caches" in window) {
           var cacheNames = await caches.keys();
           await Promise.all(
@@ -67,6 +75,7 @@
 
         var cleanUrl = new URL(window.location.href);
         cleanUrl.searchParams.delete("clear-pwa-cache");
+        cleanUrl.searchParams.delete("app-update-version");
         cleanUrl.searchParams.set("pwa-updated", Date.now().toString());
         window.location.replace(cleanUrl.toString());
       };

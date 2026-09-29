@@ -148,6 +148,9 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('company-settings', 'Admin\CompanySettingsController::update', ['filter' => 'permission:company-settings.manage']);
     $routes->get('system/database-update', 'Admin\DatabaseUpdateController::index', ['filter' => 'permission:company-settings.manage']);
     $routes->post('system/database-update', 'Admin\DatabaseUpdateController::run', ['filter' => 'permission:company-settings.manage']);
+    $routes->get('system/maintenance', 'Admin\SystemMaintenanceController::index', ['filter' => 'permission:company-settings.manage']);
+    $routes->post('system/maintenance/pwa-update', 'Admin\SystemMaintenanceController::publishPwaUpdate', ['filter' => 'permission:company-settings.manage']);
+    $routes->post('system/maintenance/monthly-cleanup', 'Admin\SystemMaintenanceController::cleanupMonth', ['filter' => 'permission:company-settings.manage']);
     $routes->get('purchases', 'Admin\PurchaseController::index', ['filter' => 'permission:gold.inventory.read,stone.inventory.read']);
     $routes->get('purchases/gold/create', 'Admin\PurchaseController::createGold', ['filter' => 'permission:gold.inventory.manage']);
     $routes->post('purchases/gold', 'Admin\PurchaseController::storeGold', ['filter' => 'permission:gold.inventory.manage']);
@@ -429,6 +432,7 @@ $routes->group('api', static function ($routes): void {
         $routes->get('performance', 'Api\Mobile\PerformanceController::index');
         $routes->get('notifications', 'Api\Mobile\NotificationsController::index');
         $routes->get('notifications/status', 'Api\Mobile\NotificationsController::status');
+        $routes->get('app-update', 'Api\Mobile\AppUpdateController::status');
         $routes->post('notifications/(:num)/local-fallback', 'Api\Mobile\NotificationsController::localFallback/$1');
         $routes->post('notifications/(:num)/done', 'Api\Mobile\NotificationsController::done/$1');
 
