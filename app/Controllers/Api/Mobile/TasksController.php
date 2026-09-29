@@ -80,6 +80,9 @@ class TasksController extends MobileBaseController
         if ((int) ($task['is_done'] ?? 0) === 1 || in_array((string) ($task['status'] ?? ''), ['cancelled', 'completed_on_time', 'completed_late'], true)) {
             return $this->fail('Task is already closed.', 422);
         }
+        if ((string) ($task['reference_type'] ?? '') === 'diamond_requirement') {
+            return $this->fail('Open the assigned diamond bag request and prepare the bag to complete this task.', 422);
+        }
 
         $payload = $this->payload();
         $proofBase64 = trim((string) ($payload['proof_base64'] ?? ''));

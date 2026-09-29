@@ -1,8 +1,12 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class DiamondRequirementsScreen extends StatefulWidget {
   const DiamondRequirementsScreen({super.key, required this.api});
@@ -65,10 +69,9 @@ class _DiamondRequirementsScreenState extends State<DiamondRequirementsScreen> {
               padding: const EdgeInsets.all(AppSpacing.lg),
               itemCount: _items.length,
               itemBuilder: (context, index) {
-                final row = (_items[index] as Map).cast<String, dynamic>();
+                final row = _map(_items[index]);
                 final status = (row['status'] ?? '').toString();
-                final canPrepare =
-                    row['can_prepare'] == true || row['can_prepare'] == 1;
+                final canPrepare = _bool(row['can_prepare']);
                 return Card(
                   margin: const EdgeInsets.only(bottom: AppSpacing.md),
                   child: InkWell(
@@ -143,12 +146,15 @@ class _DiamondRequirementsScreenState extends State<DiamondRequirementsScreen> {
                                 Icons.person_outline,
                                 row['assignee_name'] ?? 'Awaiting assignment',
                               ),
-                              if ((row['preparation_due_at'] ?? '')
+                              if ((row['preparation_due_at'] ??
+                                      row['required_by'] ??
+                                      '')
                                   .toString()
                                   .isNotEmpty)
                                 _smallChip(
                                   Icons.schedule_outlined,
-                                  row['preparation_due_at'],
+                                  row['preparation_due_at'] ??
+                                      row['required_by'],
                                 ),
                               if ((row['bag_no'] ?? '').toString().isNotEmpty)
                                 _smallChip(
@@ -220,6 +226,9 @@ class _DiamondRequirementDetailScreenState
   final List<_BagLine> _lines = [_BagLine()];
   int? _locationId;
   DateTime _preparedDate = DateTime.now();
+  Uint8List? _auditImage;
+  String _auditImageName = '';
+  String _auditImageMime = 'image/jpeg';
 
   @override
   void initState() {
@@ -245,19 +254,18 @@ class _DiamondRequirementDetailScreenState
       final data = await widget.api.fetchDiamondRequirement(
         widget.requirementId,
       );
-      final requirement =
-          (data['requirement'] as Map?)?.cast<String, dynamic>() ?? {};
-      final lookups = (data['lookups'] as Map?)?.cast<String, dynamic>() ?? {};
+      final requirement = _map(data['requirement']);
+      final lookups = _map(data['lookups']);
       if (!mounted) return;
       setState(() {
         _requirement = requirement;
-        _bagItems = (data['bag_items'] as List?) ?? [];
-        _inventoryItems = (lookups['inventory_items'] as List?) ?? [];
-        _shapes = (lookups['shapes'] as List?) ?? [];
-        _sizes = (lookups['sizes'] as List?) ?? [];
-        _locations = (lookups['locations'] as List?) ?? [];
+        _bagItems = _list(data['bag_items']);
+        _inventoryItems = _list(lookups['inventory_items']);
+        _shapes = _list(lookups['shapes']);
+        _sizes = _list(lookups['sizes']);
+        _locations = _list(lookups['locations']);
         if (_locationId == null && _locations.isNotEmpty) {
-          _locationId = _int((_locations.first as Map)['id']);
+          _locationId = _int(_map(_locations.first)['id']);
         }
       });
     } catch (e) {
@@ -282,6 +290,9 @@ class _DiamondRequirementDetailScreenState
         locationId: _locationId!,
         preparedDate: _date(_preparedDate),
         notes: _notes.text,
+        imageBase64: _auditImage == null
+            ? ''
+            : 'data:$_auditImageMime;base64,${base64Encode(_auditImage!)}',
         items: _lines
             .map(
               (line) => {
@@ -310,10 +321,41 @@ class _DiamondRequirementDetailScreenState
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _pickBagPhoto() async {
+    final image = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 82,
+      maxWidth: 1800,
+      requestFullMetadata: false,
+    );
+    if (image == null) return;
+    final bytes = await image.readAsBytes();
+    if (bytes.length > 4 * 1024 * 1024) {
+      _message('Bag photo must be smaller than 4 MB.');
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _auditImage = bytes;
+        _auditImageName = image.name;
+        final extension = image.name.split('.').last.toLowerCase();
+        _auditImageMime =
+            image.mimeType ??
+            (extension == 'png'
+                ? 'image/png'
+                : extension == 'webp'
+                ? 'image/webp'
+                : 'image/jpeg');
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = (_requirement['status'] ?? '').toString();
-    final canPrepare = status == 'assigned' && _inventoryItems.isNotEmpty;
+    final assignedHere =
+        status == 'assigned' && _bool(_requirement['can_prepare']);
+    final canPrepare = assignedHere && _inventoryItems.isNotEmpty;
     return Scaffold(
       appBar: AppBar(title: const Text('Diamond Bag Requirement')),
       body: _loading && _requirement.isEmpty
@@ -360,6 +402,34 @@ class _DiamondRequirementDetailScreenState
                             color: AppColors.textSecondary,
                           ),
                         ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            if ((_requirement['required_by'] ?? '')
+                                .toString()
+                                .isNotEmpty)
+                              _smallChip(
+                                Icons.event_outlined,
+                                'Required ${_requirement['required_by']}',
+                              ),
+                            if ((_requirement['preparation_due_at'] ?? '')
+                                .toString()
+                                .isNotEmpty)
+                              _smallChip(
+                                Icons.schedule_outlined,
+                                'Task due ${_requirement['preparation_due_at']}',
+                              ),
+                            if ((_requirement['ready_at'] ?? '')
+                                .toString()
+                                .isNotEmpty)
+                              _smallChip(
+                                Icons.task_alt_outlined,
+                                'Completed ${_requirement['ready_at']}',
+                              ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -376,7 +446,7 @@ class _DiamondRequirementDetailScreenState
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   ..._bagItems.map((raw) {
-                    final row = (raw as Map).cast<String, dynamic>();
+                    final row = _map(raw);
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                       leading: const Icon(Icons.diamond_outlined),
@@ -396,10 +466,11 @@ class _DiamondRequirementDetailScreenState
                         'Admin will approve this requirement and assign bag preparation.',
                   ),
                 if (status == 'assigned' && !canPrepare && !_loading)
-                  const AppEmptyState(
+                  AppEmptyState(
                     title: 'Bag preparation unavailable',
-                    message:
-                        'This requirement is assigned to another staff member.',
+                    message: assignedHere
+                        ? 'No available diamond inventory was found for bag preparation.'
+                        : 'Only the assigned staff member can add diamonds and complete this bag.',
                   ),
                 if (canPrepare) _preparationForm(),
               ],
@@ -431,8 +502,8 @@ class _DiamondRequirementDetailScreenState
             items: _locations
                 .map(
                   (raw) => DropdownMenuItem<int>(
-                    value: _int((raw as Map)['id']),
-                    child: Text((raw['name'] ?? '-').toString()),
+                    value: _int(_map(raw)['id']),
+                    child: Text((_map(raw)['name'] ?? '-').toString()),
                   ),
                 )
                 .toList(),
@@ -453,11 +524,34 @@ class _DiamondRequirementDetailScreenState
             label: Text('Prepared on ${_date(_preparedDate)}'),
           ),
           const SizedBox(height: AppSpacing.md),
+          OutlinedButton.icon(
+            onPressed: _saving ? null : _pickBagPhoto,
+            icon: const Icon(Icons.add_a_photo_outlined),
+            label: Text(
+              _auditImage == null
+                  ? 'Add Bag Photo (optional)'
+                  : 'Photo: $_auditImageName',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (_auditImage != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              child: Image.memory(
+                _auditImage!,
+                height: 160,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
           ...List.generate(_lines.length, (index) => _lineCard(index)),
           OutlinedButton.icon(
             onPressed: () => setState(() => _lines.add(_BagLine())),
             icon: const Icon(Icons.add),
-            label: const Text('Add Diamond Size'),
+            label: const Text('Add Bag Row'),
           ),
           const SizedBox(height: AppSpacing.md),
           TextFormField(
@@ -485,7 +579,7 @@ class _DiamondRequirementDetailScreenState
   Widget _lineCard(int index) {
     final line = _lines[index];
     final sizes = _sizes.where((raw) {
-      final row = raw as Map;
+      final row = _map(raw);
       return _int(row['shape_id']) == line.shapeId;
     }).toList();
     return Card(
@@ -498,7 +592,7 @@ class _DiamondRequirementDetailScreenState
               children: [
                 Expanded(
                   child: Text(
-                    'Diamond size ${index + 1}',
+                    'Diamond row ${index + 1}',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -520,7 +614,7 @@ class _DiamondRequirementDetailScreenState
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Diamond Product *'),
               items: _inventoryItems.map((raw) {
-                final row = raw as Map;
+                final row = _map(raw);
                 final available =
                     _double(row['carat_balance']) - _double(row['bagged_cts']);
                 return DropdownMenuItem<int>(
@@ -543,8 +637,8 @@ class _DiamondRequirementDetailScreenState
               items: _shapes
                   .map(
                     (raw) => DropdownMenuItem<int>(
-                      value: _int((raw as Map)['id']),
-                      child: Text((raw['name'] ?? '-').toString()),
+                      value: _int(_map(raw)['id']),
+                      child: Text((_map(raw)['name'] ?? '-').toString()),
                     ),
                   )
                   .toList(),
@@ -560,7 +654,7 @@ class _DiamondRequirementDetailScreenState
                 'size_${index}_${line.shapeId ?? 0}_${line.sizeId ?? 0}',
               ),
               initialValue:
-                  sizes.any((raw) => _int((raw as Map)['id']) == line.sizeId)
+                  sizes.any((raw) => _int(_map(raw)['id']) == line.sizeId)
                   ? line.sizeId
                   : null,
               isExpanded: true,
@@ -568,9 +662,11 @@ class _DiamondRequirementDetailScreenState
               items: sizes
                   .map(
                     (raw) => DropdownMenuItem<int>(
-                      value: _int((raw as Map)['id']),
+                      value: _int(_map(raw)['id']),
                       child: Text(
-                        (raw['size_label'] ?? raw['size_code'] ?? '-')
+                        (_map(raw)['size_label'] ??
+                                _map(raw)['size_code'] ??
+                                '-')
                             .toString(),
                       ),
                     ),
@@ -688,6 +784,20 @@ int _int(dynamic value) {
 double _double(dynamic value) {
   if (value is num) return value.toDouble();
   return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+Map<String, dynamic> _map(dynamic value) {
+  if (value is Map) return value.cast<String, dynamic>();
+  return <String, dynamic>{};
+}
+
+List<dynamic> _list(dynamic value) => value is List ? value : <dynamic>[];
+
+bool _bool(dynamic value) {
+  if (value is bool) return value;
+  if (value is num) return value.toInt() == 1;
+  final normalized = value?.toString().trim().toLowerCase() ?? '';
+  return normalized == '1' || normalized == 'true' || normalized == 'yes';
 }
 
 String _date(DateTime value) =>

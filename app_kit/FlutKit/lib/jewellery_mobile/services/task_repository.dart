@@ -34,6 +34,8 @@ class TaskItem {
     required this.assignedByName,
     required this.isOverdue,
     required this.scoreDelta,
+    required this.referenceType,
+    required this.referenceId,
   });
 
   final int id;
@@ -47,6 +49,11 @@ class TaskItem {
   final String assignedByName;
   final bool isOverdue;
   final double scoreDelta;
+  final String referenceType;
+  final int referenceId;
+
+  bool get isDiamondBagTask =>
+      referenceType == 'diamond_requirement' && referenceId > 0;
   factory TaskItem.fromApi(Map<String, dynamic> json) {
     return TaskItem(
       id: _safeInt(json['id']),
@@ -60,6 +67,8 @@ class TaskItem {
       assignedByName: (json['assigned_by_name'] ?? 'Admin').toString(),
       isOverdue: _safeBool(json['is_overdue']),
       scoreDelta: double.tryParse((json['score_delta'] ?? 0).toString()) ?? 0,
+      referenceType: (json['reference_type'] ?? '').toString(),
+      referenceId: _safeInt(json['reference_id']),
     );
   }
 

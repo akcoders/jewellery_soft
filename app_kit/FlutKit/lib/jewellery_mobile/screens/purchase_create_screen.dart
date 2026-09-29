@@ -1,10 +1,10 @@
 import 'dart:convert';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class PurchaseCreateScreen extends StatefulWidget {
   const PurchaseCreateScreen({
@@ -51,7 +51,7 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
   List<dynamic> _purities = [];
   List<dynamic> _shapes = [];
   List<dynamic> _chalniGroups = [];
-  List<PlatformFile> _files = [];
+  List<XFile> _files = [];
   final List<_PurchaseLine> _lines = [_PurchaseLine()];
 
   String get _material => widget.material.toLowerCase();
@@ -146,29 +146,15 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
     });
   }
 
-  Future<void> _pickFiles() async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      withData: true,
-      type: FileType.custom,
-      allowedExtensions: [
-        'jpg',
-        'jpeg',
-        'png',
-        'webp',
-        'pdf',
-        'doc',
-        'docx',
-        'xls',
-        'xlsx',
-        'csv',
-        'txt',
-      ],
+  Future<void> _takePhoto() async {
+    final image = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+      maxWidth: 1800,
+      requestFullMetadata: false,
     );
-    if (!mounted || result == null) return;
-    setState(
-      () => _files = result.files.where((file) => file.bytes != null).toList(),
-    );
+    if (!mounted || image == null) return;
+    setState(() => _files = [..._files, image]);
   }
 
   Future<void> _submit() async {
@@ -194,15 +180,16 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
 
     setState(() => _saving = true);
     try {
-      final attachments = _files
-          .map(
-            (file) => {
-              'name': file.name,
-              'extension': file.extension ?? '',
-              'base64': base64Encode(file.bytes!),
-            },
-          )
-          .toList();
+      final attachments = <Map<String, dynamic>>[];
+      for (final file in _files) {
+        final bytes = await file.readAsBytes();
+        attachments.add({
+          'name': file.name,
+          'extension': file.name.split('.').last.toLowerCase(),
+          'mime_type': file.mimeType ?? 'image/jpeg',
+          'base64': base64Encode(bytes),
+        });
+      }
       final payload = <String, dynamic>{
         'purchase_date': _date(_purchaseDate),
         'vendor_id': _vendorId ?? 0,
@@ -672,17 +659,18 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
 
   Widget _attachmentSection() => _section('Attachments', [
     OutlinedButton.icon(
-      onPressed: _pickFiles,
-      icon: const Icon(Icons.attach_file),
+      onPressed: _takePhoto,
+      icon: const Icon(Icons.camera_alt_outlined),
       label: Text(
-        _files.isEmpty ? 'Choose files' : '${_files.length} file(s) selected',
+        _files.isEmpty ? 'Take attachment photo' : 'Take another photo',
       ),
     ),
+    if (_files.isNotEmpty) Text('${_files.length} photo(s) captured'),
     ..._files.map(
       (file) => ListTile(
         dense: true,
         contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.insert_drive_file_outlined),
+        leading: const Icon(Icons.photo_camera_back_outlined),
         title: Text(file.name),
         trailing: IconButton(
           icon: const Icon(Icons.close),

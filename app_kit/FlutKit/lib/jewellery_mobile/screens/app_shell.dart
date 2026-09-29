@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutkit/jewellery_mobile/screens/dashboard_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/diamond_bags_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/followups_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/inventory_screen.dart';
@@ -257,7 +258,7 @@ class _AppShellState extends State<AppShell> {
       case 'followups':
         return FollowupsScreen(api: _api);
       case 'diamond_requirements':
-        return DiamondRequirementsScreen(
+        return DiamondBagsScreen(
           key: ValueKey('diamond_requirements_$_refreshTick'),
           api: _api,
         );
@@ -448,8 +449,8 @@ class _AppShellState extends State<AppShell> {
                       _drawerSection('Diamond'),
                       _drawerItem(
                         'diamond_requirements',
-                        'Bag Requirements',
-                        Icons.fact_check_outlined,
+                        'Diamond Bags',
+                        Icons.inventory_2_outlined,
                       ),
                       _drawerItem(
                         'diamond_returns',
@@ -613,7 +614,7 @@ class _AppShellState extends State<AppShell> {
       case 'issuements':
         return 'Issuements';
       case 'diamond_requirements':
-        return 'Diamond Requirements';
+        return 'Diamond Bags';
       case 'diamond_returns':
         return 'Diamond Returns';
       case 'diamond_purchases':

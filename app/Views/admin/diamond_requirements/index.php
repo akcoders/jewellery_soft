@@ -46,7 +46,8 @@ $statusMeta = static fn(string $status): array => match ($status) {
     <div class="modal-header"><h5 class="modal-title">Approve <?= esc((string) $row['requirement_no']) ?></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body"><div class="alert alert-light border">Order <strong><?= esc((string) $row['order_no']) ?></strong><br><?= esc((string) (($row['requirement_note'] ?? '') ?: 'No requirement note')) ?></div>
         <div class="mb-3"><label class="form-label">Assign bag preparation to *</label><select name="assigned_to" class="form-select" required><option value="">Select staff</option><?php foreach (($staff ?? []) as $user): ?><option value="<?= (int) $user['id'] ?>"><?= esc((string) $user['name']) ?> · <?= esc((string) $user['email']) ?></option><?php endforeach; ?></select></div>
-        <div class="mb-3"><label class="form-label">Preparation due date &amp; time</label><input type="datetime-local" name="preparation_due_at" class="form-control"></div>
+        <?php $defaultDue = ! empty($row['required_by']) ? (string) $row['required_by'] . 'T18:00' : date('Y-m-d\T18:00', strtotime('+1 day')); ?>
+        <div class="mb-3"><label class="form-label">Preparation due date &amp; time *</label><input type="datetime-local" name="preparation_due_at" class="form-control" required value="<?= esc($defaultDue) ?>"><div class="form-text">The assigned staff task must be completed by this time.</div></div>
         <div><label class="form-label">Approval note</label><textarea name="approval_note" class="form-control" rows="3"></textarea></div>
     </div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary">Approve &amp; Notify</button></div>
 </form></div></div>

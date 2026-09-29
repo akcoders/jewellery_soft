@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
 import 'package:flutkit/jewellery_mobile/services/task_repository.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
@@ -62,45 +63,11 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
   }
 
   Future<void> _completeTask(TaskItem task) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Attach completion proof',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'A proof image is compulsory before this task can be completed.',
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.pop(context, ImageSource.camera),
-                icon: const Icon(Icons.camera_alt_outlined),
-                label: const Text('Take Photo'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.pop(context, ImageSource.gallery),
-                icon: const Icon(Icons.photo_library_outlined),
-                label: const Text('Choose From Gallery'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (source == null) return;
     final image = await ImagePicker().pickImage(
-      source: source,
+      source: ImageSource.camera,
       imageQuality: 82,
       maxWidth: 1800,
+      requestFullMetadata: false,
     );
     if (image == null || !mounted) return;
     final imageBytes = await image.readAsBytes();
@@ -182,6 +149,21 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
     } finally {
       noteController.dispose();
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _openWorkflowTask(TaskItem task) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => DiamondRequirementDetailScreen(
+          api: widget.api,
+          requirementId: task.referenceId,
+        ),
+      ),
+    );
+    if (changed == true) {
+      await _load();
+      TaskRefreshBus.notify();
     }
   }
 
@@ -345,9 +327,21 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _submitting ? null : () => _completeTask(task),
-                  icon: const Icon(Icons.verified_outlined),
-                  label: const Text('Complete With Proof'),
+                  onPressed: _submitting
+                      ? null
+                      : () => task.isDiamondBagTask
+                            ? _openWorkflowTask(task)
+                            : _completeTask(task),
+                  icon: Icon(
+                    task.isDiamondBagTask
+                        ? Icons.inventory_2_outlined
+                        : Icons.verified_outlined,
+                  ),
+                  label: Text(
+                    task.isDiamondBagTask
+                        ? 'Open Bag Creation Request'
+                        : 'Complete With Proof',
+                  ),
                 ),
               ),
             ),

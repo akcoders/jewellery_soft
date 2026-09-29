@@ -1,10 +1,10 @@
 import 'dart:convert';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class IssuementCreateScreen extends StatefulWidget {
   const IssuementCreateScreen({super.key, required this.api});
@@ -35,7 +35,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   final List<_IssueLine> _goldLines = [];
   final List<_IssueLine> _diamondLines = [];
   final List<_IssueLine> _stoneLines = [];
-  PlatformFile? _attachment;
+  XFile? _attachment;
 
   @override
   void initState() {
@@ -84,13 +84,14 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   }
 
   Future<void> _pickAttachment() async {
-    final result = await FilePicker.platform.pickFiles(
-      withData: true,
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+    final image = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+      maxWidth: 1800,
+      requestFullMetadata: false,
     );
-    if (!mounted || result == null || result.files.single.bytes == null) return;
-    setState(() => _attachment = result.files.single);
+    if (!mounted || image == null) return;
+    setState(() => _attachment = image);
   }
 
   Future<void> _submit() async {
@@ -117,7 +118,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
         'location_id': _locationId,
         'purpose': _purpose.text.trim(),
         'notes': _notes.text.trim(),
-        'attachment_base64': _attachmentData(_attachment!),
+        'attachment_base64': await _attachmentData(_attachment!),
         'gold_lines': _goldLines
             .map(
               (line) => {
@@ -190,9 +191,9 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
                     _text(_notes, 'Notes', lines: 3),
                     OutlinedButton.icon(
                       onPressed: _pickAttachment,
-                      icon: const Icon(Icons.attach_file),
+                      icon: const Icon(Icons.camera_alt_outlined),
                       label: Text(
-                        _attachment?.name ?? 'Choose required attachment',
+                        _attachment?.name ?? 'Take required attachment photo',
                       ),
                     ),
                   ]),
@@ -558,14 +559,14 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   double _number(String value) => double.tryParse(value.trim()) ?? 0;
   double? _optionalNumber(String value) =>
       value.trim().isEmpty ? null : double.tryParse(value.trim());
-  String _attachmentData(PlatformFile file) {
-    final mime = switch ((file.extension ?? '').toLowerCase()) {
+  Future<String> _attachmentData(XFile file) async {
+    final extension = file.name.split('.').last.toLowerCase();
+    final mime = switch (extension) {
       'png' => 'image/png',
       'webp' => 'image/webp',
-      'pdf' => 'application/pdf',
       _ => 'image/jpeg',
     };
-    return 'data:$mime;base64,${base64Encode(file.bytes!)}';
+    return 'data:$mime;base64,${base64Encode(await file.readAsBytes())}';
   }
 
   String _date(DateTime value) =>

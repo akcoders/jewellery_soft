@@ -50,8 +50,10 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final file = await picker.pickImage(
-      source: ImageSource.gallery,
+      source: ImageSource.camera,
       imageQuality: 85,
+      maxWidth: 1800,
+      requestFullMetadata: false,
     );
     if (!mounted) return;
     setState(() => _picked = file);
@@ -200,11 +202,9 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
               const SizedBox(height: AppSpacing.md),
               OutlinedButton.icon(
                 onPressed: _pickImage,
-                icon: const Icon(Icons.image),
+                icon: const Icon(Icons.camera_alt_outlined),
                 label: Text(
-                  _picked == null
-                      ? 'Attach image (optional)'
-                      : 'Image selected',
+                  _picked == null ? 'Take photo (optional)' : 'Photo captured',
                 ),
               ),
               const Spacer(),

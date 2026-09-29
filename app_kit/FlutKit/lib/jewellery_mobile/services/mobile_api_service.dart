@@ -485,6 +485,17 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<List<dynamic>> fetchDiamondBags() async {
+    final res = await _get('/api/mobile/diamond-bags');
+    final data = (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+    return (data['items'] as List?) ?? <dynamic>[];
+  }
+
+  Future<Map<String, dynamic>> fetchDiamondBag(int id) async {
+    final res = await _get('/api/mobile/diamond-bags/$id');
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<Map<String, dynamic>> raiseDiamondRequirement({
     required int orderId,
     required String note,
@@ -507,15 +518,20 @@ class MobileApiService {
     required String preparedDate,
     required List<Map<String, dynamic>> items,
     String notes = '',
+    String imageBase64 = '',
   }) async {
+    final body = <String, dynamic>{
+      'location_id': locationId,
+      'prepared_date': preparedDate,
+      'items': items,
+      'notes': notes.trim(),
+    };
+    if (imageBase64.trim().isNotEmpty) {
+      body['image_base64'] = imageBase64.trim();
+    }
     final res = await _post(
       '/api/mobile/diamond-requirements/$requirementId/prepare',
-      body: {
-        'location_id': locationId,
-        'prepared_date': preparedDate,
-        'items': items,
-        'notes': notes.trim(),
-      },
+      body: body,
     );
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }

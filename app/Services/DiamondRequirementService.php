@@ -6,6 +6,7 @@ use App\Models\DiamondBagItemModel;
 use App\Models\DiamondBagModel;
 use App\Models\DiamondRequirementModel;
 use App\Models\InventoryLocationModel;
+use App\Models\MobileTaskModel;
 use RuntimeException;
 use Throwable;
 
@@ -17,6 +18,8 @@ class DiamondRequirementService
     private DiamondRequirementModel $requirements;
     private DiamondBagModel $bags;
     private DiamondBagItemModel $bagItems;
+    private MobileTaskModel $tasks;
+    private MobilePushService $pushService;
 
     public function __construct()
     {
@@ -24,6 +27,8 @@ class DiamondRequirementService
         $this->requirements = new DiamondRequirementModel();
         $this->bags = new DiamondBagModel();
         $this->bagItems = new DiamondBagItemModel();
+        $this->tasks = new MobileTaskModel();
+        $this->pushService = new MobilePushService();
     }
 
     public function ready(): bool
@@ -144,23 +149,33 @@ class DiamondRequirementService
         if ((string) ($row['status'] ?? '') !== 'pending_approval') {
             throw new RuntimeException('Only a pending requirement can be approved.');
         }
-        $assignee = $this->db->table('admin_users')->select('id')->where('id', $assignedTo)->where('is_active', 1)->get()->getRowArray();
-        if (! $assignee) {
-            throw new RuntimeException('Select an active staff member for bag preparation.');
+        if (! (new StaffPerformanceService())->isStaffUser($assignedTo)) {
+            throw new RuntimeException('Select an active non-admin staff member for bag preparation.');
         }
 
-        $due = $this->validDateTime($dueAt);
+        $due = $this->preparationDueAt($dueAt, (string) ($row['required_by'] ?? ''));
         $now = date('Y-m-d H:i:s');
-        $this->requirements->update($id, [
-            'status' => 'assigned',
-            'approved_by' => $approvedBy,
-            'approved_at' => $now,
-            'assigned_to' => $assignedTo,
-            'assigned_by' => $approvedBy,
-            'assigned_at' => $now,
-            'preparation_due_at' => $due,
-            'approval_note' => trim($note) ?: null,
-        ]);
+        $taskId = 0;
+        try {
+            $this->db->transException(true)->transStart();
+            $this->requirements->update($id, [
+                'status' => 'assigned',
+                'approved_by' => $approvedBy,
+                'approved_at' => $now,
+                'assigned_to' => $assignedTo,
+                'assigned_by' => $approvedBy,
+                'assigned_at' => $now,
+                'preparation_due_at' => $due,
+                'approval_note' => trim($note) ?: null,
+            ]);
+            $taskId = $this->upsertPreparationTask($row, $assignedTo, $approvedBy, $due);
+            $this->db->transComplete();
+        } catch (Throwable $e) {
+            $this->db->transRollback();
+            throw $e;
+        }
+
+        $this->queuePreparationTaskReminder($taskId, $assignedTo, $id, $row, $due);
 
         return $this->findDetailed($id) ?? ['id' => $id];
     }
@@ -184,6 +199,7 @@ class DiamondRequirementService
             'rejected_at' => date('Y-m-d H:i:s'),
             'rejection_reason' => trim($reason),
         ]);
+        $this->cancelPreparationTask($id, 'Requirement rejected.');
         return $this->findDetailed($id) ?? ['id' => $id];
     }
 
@@ -222,6 +238,7 @@ class DiamondRequirementService
         $this->assertPackable($rows);
         $warehouse = (new AdminPostingService())->resolveWarehouseBinByLocation($locationId);
 
+        $taskId = 0;
         try {
             $this->db->transException(true)->transStart();
             $current = $this->db->table('diamond_requirements')->where('id', $requirementId)->get()->getRowArray();
@@ -296,16 +313,26 @@ class DiamondRequirementService
                 'pcs_balance' => $totalPcs,
                 'cts_balance' => round($totalCts, 3),
             ]);
+            $readyAt = date('Y-m-d H:i:s');
             $this->requirements->update($requirementId, [
                 'status' => 'bag_ready',
                 'bag_id' => $bagId,
                 'ready_by' => $preparedBy,
-                'ready_at' => date('Y-m-d H:i:s'),
+                'ready_at' => $readyAt,
             ]);
+            $taskId = $this->completePreparationTask($requirementId, $preparedBy, $readyAt);
             $this->db->transComplete();
         } catch (Throwable $e) {
             $this->db->transRollback();
             throw $e;
+        }
+
+        if ($taskId > 0) {
+            try {
+                $this->pushService->cancelByReference('mobile_tasks', $taskId);
+            } catch (Throwable $e) {
+                log_message('error', 'Diamond bag task reminder cancellation failed: {message}', ['message' => $e->getMessage()]);
+            }
         }
 
         return $this->findDetailed($requirementId) ?? ['id' => $requirementId];
@@ -499,5 +526,161 @@ class DiamondRequirementService
             throw new RuntimeException('Invalid bag preparation due date/time.');
         }
         return date('Y-m-d H:i:s', $time);
+    }
+
+    private function preparationDueAt(?string $dueAt, string $requiredBy): string
+    {
+        $due = $this->validDateTime($dueAt);
+        if ($due !== null) {
+            return $due;
+        }
+
+        $requiredDate = $this->validDate($requiredBy);
+        if ($requiredDate !== null) {
+            return $requiredDate . ' 18:00:00';
+        }
+
+        return date('Y-m-d 18:00:00', strtotime('+1 day'));
+    }
+
+    /** @param array<string,mixed> $requirement */
+    private function upsertPreparationTask(
+        array $requirement,
+        int $assignedTo,
+        int $assignedBy,
+        string $dueAt
+    ): int {
+        if (! $this->db->tableExists('mobile_tasks')
+            || ! $this->db->fieldExists('reference_type', 'mobile_tasks')
+            || ! $this->db->fieldExists('reference_id', 'mobile_tasks')) {
+            throw new RuntimeException('Run the latest database migration before assigning diamond bag tasks.');
+        }
+
+        $requirementId = (int) ($requirement['id'] ?? 0);
+        $requirementNo = trim((string) ($requirement['requirement_no'] ?? '')) ?: ('#' . $requirementId);
+        $orderNo = trim((string) ($requirement['order_no'] ?? '')) ?: ('#' . (int) ($requirement['order_id'] ?? 0));
+        $instruction = trim((string) ($requirement['requirement_note'] ?? ''));
+        $data = [
+            'admin_user_id' => $assignedTo,
+            'title' => 'Prepare Diamond Bag ' . $requirementNo,
+            'note' => 'Order ' . $orderNo . ($instruction !== '' ? ' · ' . $instruction : ''),
+            'priority' => strtotime($dueAt) <= strtotime('+1 day') ? 'urgent' : 'high',
+            'scheduled_at' => $dueAt,
+            'status' => 'pending',
+            'is_done' => 0,
+            'completed_at' => null,
+            'completed_by' => null,
+            'proof_name' => null,
+            'proof_path' => null,
+            'proof_note' => null,
+            'counts_for_performance' => 1,
+            'score_delta' => 0,
+            'reference_type' => 'diamond_requirement',
+            'reference_id' => $requirementId,
+            'created_by' => $assignedBy,
+        ];
+        $existing = $this->tasks
+            ->where('reference_type', 'diamond_requirement')
+            ->where('reference_id', $requirementId)
+            ->first();
+        if (is_array($existing)) {
+            $taskId = (int) $existing['id'];
+            $this->tasks->update($taskId, $data);
+            return $taskId;
+        }
+
+        return (int) $this->tasks->insert($data, true);
+    }
+
+    /** @param array<string,mixed> $requirement */
+    private function queuePreparationTaskReminder(
+        int $taskId,
+        int $assignedTo,
+        int $requirementId,
+        array $requirement,
+        string $dueAt
+    ): void {
+        if ($taskId <= 0 || strtotime($dueAt) <= time()) {
+            return;
+        }
+        try {
+            $this->pushService->queueForAdmin($assignedTo, [
+                'type' => 'task',
+                'reference_table' => 'mobile_tasks',
+                'reference_id' => $taskId,
+                'dedupe_key' => 'diamond-bag-task-due:' . $taskId,
+                'title' => 'Diamond bag task due',
+                'message' => 'Prepare ' . (string) ($requirement['requirement_no'] ?? ('requirement #' . $requirementId)),
+                'scheduled_at' => $dueAt,
+                'payload' => [
+                    'type' => 'diamond_bag_assignment',
+                    'screen' => 'diamond_requirements',
+                    'task_id' => $taskId,
+                    'requirement_id' => $requirementId,
+                    'order_id' => (int) ($requirement['order_id'] ?? 0),
+                ],
+            ]);
+        } catch (Throwable $e) {
+            log_message('error', 'Diamond bag task reminder failed: {message}', ['message' => $e->getMessage()]);
+        }
+    }
+
+    private function completePreparationTask(int $requirementId, int $completedBy, string $completedAt): int
+    {
+        if (! $this->db->tableExists('mobile_tasks')
+            || ! $this->db->fieldExists('reference_type', 'mobile_tasks')) {
+            return 0;
+        }
+        $task = $this->tasks
+            ->where('reference_type', 'diamond_requirement')
+            ->where('reference_id', $requirementId)
+            ->first();
+        if (! is_array($task)) {
+            return 0;
+        }
+
+        $taskId = (int) $task['id'];
+        if ((int) ($task['is_done'] ?? 0) === 0) {
+            $onTime = $completedAt <= (string) ($task['scheduled_at'] ?? '');
+            $this->tasks->update($taskId, [
+                'is_done' => 1,
+                'status' => $onTime ? 'completed_on_time' : 'completed_late',
+                'completed_at' => $completedAt,
+                'completed_by' => $completedBy,
+                'proof_note' => 'Automatically completed when the assigned diamond bag was prepared.',
+                'score_delta' => $onTime
+                    ? StaffPerformanceService::TASK_ON_TIME_POINTS
+                    : StaffPerformanceService::TASK_LATE_POINTS,
+            ]);
+        }
+        return $taskId;
+    }
+
+    private function cancelPreparationTask(int $requirementId, string $reason): void
+    {
+        if (! $this->db->tableExists('mobile_tasks')
+            || ! $this->db->fieldExists('reference_type', 'mobile_tasks')) {
+            return;
+        }
+        $task = $this->tasks
+            ->where('reference_type', 'diamond_requirement')
+            ->where('reference_id', $requirementId)
+            ->first();
+        if (! is_array($task) || (int) ($task['is_done'] ?? 0) === 1) {
+            return;
+        }
+        $taskId = (int) $task['id'];
+        $this->tasks->update($taskId, [
+            'is_done' => 1,
+            'status' => 'cancelled',
+            'completed_at' => date('Y-m-d H:i:s'),
+            'proof_note' => $reason,
+            'score_delta' => 0,
+        ]);
+        try {
+            $this->pushService->cancelByReference('mobile_tasks', $taskId);
+        } catch (Throwable $e) {
+            log_message('error', 'Diamond bag task cancellation failed: {message}', ['message' => $e->getMessage()]);
+        }
     }
 }

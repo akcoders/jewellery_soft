@@ -3,10 +3,10 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
-use App\Models\AdminUserModel;
 use App\Services\DiamondRequirementService;
 use App\Services\MobileNotificationEventService;
 use App\Services\RbacService;
+use App\Services\StaffPerformanceService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use Throwable;
 
@@ -29,7 +29,7 @@ class DiamondRequirementController extends BaseController
         return view('admin/diamond_requirements/index', [
             'title' => 'Diamond Requirements',
             'requirements' => $this->requirements->forAdmin(),
-            'staff' => (new AdminUserModel())->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'staff' => (new StaffPerformanceService())->staffOptions(),
         ]);
     }
 
@@ -97,7 +97,7 @@ class DiamondRequirementController extends BaseController
             'title' => 'Diamond Requirement Details',
             'requirement' => $row,
             'bagItems' => $this->requirements->bagItems($id),
-            'staff' => (new AdminUserModel())->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'staff' => (new StaffPerformanceService())->staffOptions(),
         ]);
     }
 }

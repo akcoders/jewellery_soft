@@ -445,6 +445,8 @@ $routes->group('api', static function ($routes): void {
         $routes->post('orders/(:num)/follower', 'Api\Mobile\OrdersController::updateFollower/$1');
         $routes->get('diamond-requirements', 'Api\Mobile\DiamondRequirementsController::index');
         $routes->get('diamond-requirements/(:num)', 'Api\Mobile\DiamondRequirementsController::show/$1');
+        $routes->get('diamond-bags', 'Api\Mobile\DiamondBagsController::index');
+        $routes->get('diamond-bags/(:num)', 'Api\Mobile\DiamondBagsController::show/$1');
         $routes->post('orders/(:num)/diamond-requirements', 'Api\Mobile\DiamondRequirementsController::raise/$1');
         $routes->post('diamond-requirements/(:num)/prepare', 'Api\Mobile\DiamondRequirementsController::prepare/$1');
 

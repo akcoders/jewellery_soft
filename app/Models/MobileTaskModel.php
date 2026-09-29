@@ -26,6 +26,8 @@ class MobileTaskModel extends Model
         'proof_note',
         'counts_for_performance',
         'score_delta',
+        'reference_type',
+        'reference_id',
         'created_by',
     ];
 }

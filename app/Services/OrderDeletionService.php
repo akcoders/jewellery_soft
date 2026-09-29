@@ -45,6 +45,13 @@ class OrderDeletionService
         $movementIds = $this->idsWhere('order_material_movements', 'order_id', $orderId);
         $followupIds = $this->idsWhere('order_followups', 'order_id', $orderId);
         $requirementIds = $this->idsWhere('diamond_requirements', 'order_id', $orderId);
+        $requirementTaskIds = [];
+        if ($requirementIds !== [] && $this->tableHasFields('mobile_tasks', ['id', 'reference_type', 'reference_id'])) {
+            $taskRows = $this->db->table('mobile_tasks')->select('id')
+                ->where('reference_type', 'diamond_requirement')
+                ->whereIn('reference_id', $requirementIds)->get()->getResultArray();
+            $requirementTaskIds = array_map(static fn(array $row): int => (int) $row['id'], $taskRows);
+        }
         $packingListIds = $this->idsWhere('packing_lists', 'order_id', $orderId);
         $fgRows = $this->rowsWhere('fg_items', 'order_id', $orderId);
         $fgItemIds = array_map(static fn(array $row): int => (int) $row['id'], $fgRows);
@@ -93,6 +100,7 @@ class OrderDeletionService
                 'orders' => [$orderId],
                 'order_followups' => $followupIds,
                 'diamond_requirements' => $requirementIds,
+                'mobile_tasks' => $requirementTaskIds,
                 'job_cards' => $jobCardIds,
                 'order_material_movements' => $movementIds,
                 'fg_items' => $fgItemIds,
@@ -109,6 +117,7 @@ class OrderDeletionService
             $this->deleteWhereIn('packing_list_items', 'packing_list_id', $packingListIds, $counts);
             $this->deleteWhereIn('showroom_fg_movements', 'fg_item_id', $fgItemIds, $counts);
             $this->deleteWhereIn('qc_checks', 'fg_item_id', $fgItemIds, $counts);
+            $this->deleteWhereIn('mobile_tasks', 'id', $requirementTaskIds, $counts);
 
             // These are order-owned operational records. Their accounting effects were
             // reversed above before the source rows are removed.

@@ -5,6 +5,7 @@ import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class OrderCreateScreen extends StatefulWidget {
   const OrderCreateScreen({super.key, required this.api});
@@ -150,15 +151,60 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
   }
 
   Future<void> _pickFiles() async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      withData: true,
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'dwg', 'dxf'],
-    );
-    if (!mounted || result == null) return;
-    final files = result.files.where((file) => file.bytes != null).toList();
-    setState(() => _files = files);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        withData: true,
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'dwg', 'dxf'],
+      );
+      if (!mounted || result == null) return;
+      final files = result.files.where((file) => file.bytes != null).toList();
+      if (files.isEmpty) {
+        _show('The selected file could not be read. Please choose it again.');
+        return;
+      }
+      setState(() => _files = [..._files, ...files]);
+    } catch (e) {
+      if (mounted) _show(_message(e));
+    }
+  }
+
+  Future<void> _pickPhotos() async {
+    try {
+      final images = await ImagePicker().pickMultiImage(
+        imageQuality: 85,
+        maxWidth: 1800,
+        requestFullMetadata: false,
+      );
+      if (images.isEmpty) return;
+
+      final photos = <PlatformFile>[];
+      for (final image in images) {
+        final bytes = await image.readAsBytes();
+        if (bytes.length > 10 * 1024 * 1024) {
+          if (mounted) _show('${image.name} is larger than 10 MB.');
+          continue;
+        }
+        final extension = image.name.split('.').last.toLowerCase();
+        if (!const ['jpg', 'jpeg', 'png', 'webp'].contains(extension)) {
+          if (mounted) {
+            _show('${image.name} must be a JPG, PNG, or WebP image.');
+          }
+          continue;
+        }
+        photos.add(
+          PlatformFile(name: image.name, size: bytes.length, bytes: bytes),
+        );
+      }
+      if (!mounted || photos.isEmpty) return;
+      setState(() {
+        _files = [..._files, ...photos];
+        _fileType = 'photo';
+      });
+    } catch (e) {
+      if (mounted) _show(_message(e));
+    }
   }
 
   Future<void> _submit() async {
@@ -523,14 +569,17 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
                   ]),
                   _section('Reference Images & Files', [
                     OutlinedButton.icon(
+                      onPressed: _pickPhotos,
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Choose photos'),
+                    ),
+                    OutlinedButton.icon(
                       onPressed: _pickFiles,
                       icon: const Icon(Icons.attach_file),
-                      label: Text(
-                        _files.isEmpty
-                            ? 'Choose files'
-                            : '${_files.length} file(s) selected',
-                      ),
+                      label: const Text('Choose PDF / CAD file'),
                     ),
+                    if (_files.isNotEmpty)
+                      Text('${_files.length} file(s) selected'),
                     if (_files.isNotEmpty)
                       ..._files.map(
                         (file) => ListTile(

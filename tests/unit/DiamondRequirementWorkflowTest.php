@@ -9,6 +9,7 @@ final class DiamondRequirementWorkflowTest extends CIUnitTestCase
     public function testMigrationCreatesRequirementApprovalAndBagAssignmentSchema(): void
     {
         $migration = $this->source('Database/Migrations/2026-09-08-000086_CreateDiamondRequirementWorkflow.php');
+        $taskMigration = $this->source('Database/Migrations/2026-09-29-000093_LinkDiamondRequirementTasks.php');
 
         $this->assertStringContainsString("createTable('diamond_requirements'", $migration);
         $this->assertStringContainsString("'requested_by'", $migration);
@@ -17,6 +18,9 @@ final class DiamondRequirementWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("'preparation_due_at'", $migration);
         $this->assertStringContainsString("'ready_at'", $migration);
         $this->assertStringContainsString("'requirement_id'", $migration);
+        $this->assertStringContainsString("'reference_type'", $taskMigration);
+        $this->assertStringContainsString("'reference_id'", $taskMigration);
+        $this->assertStringContainsString('backfillAssignedRequirementTasks', $taskMigration);
     }
 
     public function testFollowerRaiseAdminAssignmentAndAssigneePreparationAreEnforced(): void
@@ -30,6 +34,10 @@ final class DiamondRequirementWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('This bag preparation is assigned to another staff member.', $service);
         $this->assertStringContainsString("'status' => 'preparing'", $service);
         $this->assertStringContainsString("'status' => 'bag_ready'", $service);
+        $this->assertStringContainsString('upsertPreparationTask', $service);
+        $this->assertStringContainsString('completePreparationTask', $service);
+        $this->assertStringContainsString("'completed_at' => \$completedAt", $service);
+        $this->assertStringContainsString("'reference_type' => 'diamond_requirement'", $service);
         $this->assertStringContainsString("'shape_master_id'", $service);
         $this->assertStringContainsString("'size_master_id'", $service);
         $this->assertStringContainsString('whole PCS and positive CTS are required', $service);
@@ -60,8 +68,15 @@ final class DiamondRequirementWorkflowTest extends CIUnitTestCase
         $routes = $this->source('Config/Routes.php');
         $orderView = $this->source('Views/admin/orders/show.php');
         $mobileController = $this->source('Controllers/Api/Mobile/DiamondRequirementsController.php');
+        $bagController = $this->source('Controllers/Api/Mobile/DiamondBagsController.php');
         $mobileScreen = (string) file_get_contents(
             ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/diamond_requirements_screen.dart'
+        );
+        $bagsScreen = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/diamond_bags_screen.dart'
+        );
+        $taskScreen = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/task_scheduler_screen.dart'
         );
         $notifications = $this->source('Services/MobileNotificationEventService.php');
         $push = $this->source('Services/MobilePushService.php');
@@ -69,10 +84,19 @@ final class DiamondRequirementWorkflowTest extends CIUnitTestCase
 
         $this->assertStringContainsString('orders/(:num)/diamond-requirements', $routes);
         $this->assertStringContainsString('diamond-requirements/(:num)/prepare', $routes);
+        $this->assertStringContainsString("get('diamond-bags'", $routes);
+        $this->assertStringContainsString("get('diamond-bags/(:num)'", $routes);
         $this->assertStringContainsString('Raise Diamond Requirement', $orderView);
         $this->assertStringContainsString('approveAndAssign', $mobileController . $this->source('Controllers/Admin/DiamondRequirementController.php'));
         $this->assertStringContainsString('Complete & Mark Bag Ready', $mobileScreen);
-        $this->assertStringContainsString('Add Diamond Size', $mobileScreen);
+        $this->assertStringContainsString('Add Bag Row', $mobileScreen);
+        $this->assertStringContainsString('Add Bag Photo (optional)', $mobileScreen);
+        $this->assertStringContainsString("return \$this->requirements->forAdmin()", str_replace('$items = ', 'return ', $mobileController));
+        $this->assertStringContainsString(': (object) []', $mobileController);
+        $this->assertStringContainsString('class DiamondBagsController', $bagController);
+        $this->assertStringContainsString("text: 'Creation Requests'", $bagsScreen);
+        $this->assertStringContainsString('ISSUE → ORDER → STUDDING TRAIL', $bagsScreen);
+        $this->assertStringContainsString('Open Bag Creation Request', $taskScreen);
         $this->assertStringContainsString("'screen' => 'diamond_requirements'", $notifications);
         $this->assertStringContainsString('notifyDiamondRequirementAssigned', $notifications);
         $this->assertStringContainsString('notifyDiamondBagReady', $notifications);

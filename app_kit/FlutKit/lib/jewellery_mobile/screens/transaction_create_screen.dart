@@ -136,8 +136,10 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   Future<void> _pickAttachment() async {
     final picker = ImagePicker();
     final file = await picker.pickImage(
-      source: ImageSource.gallery,
+      source: ImageSource.camera,
       imageQuality: 85,
+      maxWidth: 1800,
+      requestFullMetadata: false,
     );
     if (!mounted) return;
     setState(() => _attachment = file);
@@ -650,9 +652,9 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
           const SizedBox(height: AppSpacing.md),
           OutlinedButton.icon(
             onPressed: _pickAttachment,
-            icon: const Icon(Icons.attach_file),
+            icon: const Icon(Icons.camera_alt_outlined),
             label: Text(
-              _attachment == null ? 'Select attachment' : 'Attachment selected',
+              _attachment == null ? 'Take attachment photo' : 'Photo captured',
             ),
           ),
           if (_attachment == null)

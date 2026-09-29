@@ -26,7 +26,7 @@ class DiamondRequirementsController extends MobileBaseController
             return $response;
         }
         $userId = (int) $this->mobileAdmin['id'];
-        $items = $this->requirements->forMobileUser($userId);
+        $items = $this->requirements->forAdmin();
         foreach ($items as &$item) {
             $item['can_prepare'] = (string) ($item['status'] ?? '') === 'assigned'
                 && (int) ($item['assigned_to'] ?? 0) === $userId;
@@ -44,16 +44,15 @@ class DiamondRequirementsController extends MobileBaseController
         if (! is_array($row)) {
             return $this->fail('Diamond requirement not found.', 404);
         }
-        if (! $this->canView($row)) {
-            return $this->fail('You do not have access to this requirement.', 403);
-        }
+        $row['can_prepare'] = (string) ($row['status'] ?? '') === 'assigned'
+            && (int) ($row['assigned_to'] ?? 0) === (int) $this->mobileAdmin['id'];
         return $this->ok([
             'requirement' => $row,
             'bag_items' => $this->requirements->bagItems($id),
             'lookups' => (string) ($row['status'] ?? '') === 'assigned'
                 && (int) ($row['assigned_to'] ?? 0) === (int) $this->mobileAdmin['id']
                 ? $this->requirements->preparationLookups()
-                : [],
+                : (object) [],
         ]);
     }
 
@@ -131,17 +130,6 @@ class DiamondRequirementsController extends MobileBaseController
             }
             return $this->fail($e->getMessage(), 422);
         }
-    }
-
-    /** @param array<string,mixed> $row */
-    private function canView(array $row): bool
-    {
-        $userId = (int) $this->mobileAdmin['id'];
-        return in_array($userId, [
-            (int) ($row['requested_by'] ?? 0),
-            (int) ($row['assigned_to'] ?? 0),
-            (int) ($row['followup_assigned_to'] ?? 0),
-        ], true) || $this->rbac->userCan($userId, 'diamond.inventory.manage');
     }
 
     /** @return array{name:string,path:string} */
