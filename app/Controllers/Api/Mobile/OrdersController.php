@@ -392,11 +392,21 @@ class OrdersController extends MobileBaseController
         $documents = $this->documentLinks($order);
         $media = $this->orderMedia($id);
         $mobileUserId = (int) ($this->mobileAdmin['id'] ?? 0);
+        $canChangeFollower = $this->rbacService->userCan($mobileUserId, 'orders.assign');
+        $followupClosed = in_array(
+            (string) ($order['status'] ?? ''),
+            ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'],
+            true
+        );
 
         return $this->ok([
             'order' => array_merge($order, $documents, $media),
             'items' => $items,
             'followups' => $followups,
+            'can_add_followup' => ! $followupClosed
+                && (int) ($order['followup_assigned_to'] ?? 0) === $mobileUserId,
+            'can_change_follower' => $canChangeFollower,
+            'staff_followers' => $canChangeFollower ? $this->staffPerformanceService->staffOptions() : [],
             'diamond_requirements' => $this->diamondRequirementService->forOrder($id),
             'can_raise_diamond_requirement' => $this->diamondRequirementService->canRaise(
                 $id,
@@ -554,6 +564,74 @@ class OrdersController extends MobileBaseController
             'followups' => $this->followupRows($id),
             'notification' => $push,
         ], 'Followup saved and order status synced.');
+    }
+
+    public function updateFollower(int $id)
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $currentUserId = (int) ($this->mobileAdmin['id'] ?? 0);
+        if (! $this->rbacService->userCan($currentUserId, 'orders.assign')) {
+            return $this->fail('You do not have permission to change the order follower.', 403);
+        }
+
+        $db = db_connect();
+        $order = $db->table('orders')->where('id', $id)->get()->getRowArray();
+        if (! $order) {
+            return $this->fail('Order not found.', 404);
+        }
+
+        $payload = $this->payload();
+        $followerId = (int) ($payload['followup_assigned_to'] ?? 0);
+        if ($followerId <= 0 || ! $this->staffPerformanceService->isStaffUser($followerId)) {
+            return $this->fail('Please select an active non-admin order follower.', 422);
+        }
+
+        $terminalStatus = in_array(
+            (string) ($order['status'] ?? ''),
+            ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'],
+            true
+        );
+        $followupDueAt = null;
+        if (! $terminalStatus) {
+            $dueValue = trim((string) ($payload['followup_due_at'] ?? ''));
+            $dueTimestamp = strtotime($dueValue);
+            if ($dueValue === '' || $dueTimestamp === false) {
+                return $this->fail('followup_due_at is required.', 422);
+            }
+            if ($dueTimestamp <= time()) {
+                return $this->fail('followup_due_at must be a future date and time.', 422);
+            }
+            $followupDueAt = date('Y-m-d H:i:s', $dueTimestamp);
+        }
+
+        try {
+            $db->transException(true)->transStart();
+            $db->table('orders')->where('id', $id)->update([
+                'followup_assigned_to' => $followerId,
+                'followup_due_at' => $followupDueAt,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+            $this->staffPerformanceService->syncOrderAssignment(
+                $id,
+                $followerId,
+                $followupDueAt,
+                $currentUserId
+            );
+            $db->transComplete();
+        } catch (Throwable $e) {
+            $db->transRollback();
+            return $this->fail('Could not change order follower: ' . $e->getMessage(), 500);
+        }
+
+        return $this->ok([
+            'order_id' => $id,
+            'followup_assigned_to' => $followerId,
+            'followup_due_at' => $followupDueAt,
+        ], 'Order follower updated successfully.');
     }
 
     /** @return array{items:list<array<string,mixed>>,error:?string} */

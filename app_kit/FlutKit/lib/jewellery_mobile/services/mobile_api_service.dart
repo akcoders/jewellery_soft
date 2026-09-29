@@ -119,6 +119,22 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<Map<String, dynamic>> updateOrderFollower({
+    required int orderId,
+    required int followerId,
+    String followupDueAt = '',
+  }) async {
+    final payload = <String, dynamic>{'followup_assigned_to': followerId};
+    if (followupDueAt.trim().isNotEmpty) {
+      payload['followup_due_at'] = followupDueAt.trim();
+    }
+    final res = await _post(
+      '/api/mobile/orders/$orderId/follower',
+      body: payload,
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<List<dynamic>> fetchTasks({String query = ''}) async {
     final q = <String, String>{};
     if (query.trim().isNotEmpty) {

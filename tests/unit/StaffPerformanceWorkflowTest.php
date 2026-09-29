@@ -38,19 +38,36 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $create = $this->source('Views/admin/orders/create.php');
         $edit = $this->source('Views/admin/orders/edit.php');
         $orderList = $this->source('Views/admin/orders/index.php');
+        $followupList = $this->source('Views/admin/orders/followups.php');
+        $orderDetail = $this->source('Views/admin/orders/show.php');
+        $routes = $this->source('Config/Routes.php');
+        $mobileOrderDetail = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/order_detail_screen.dart');
+        $mobileApi = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/services/mobile_api_service.dart');
 
         $this->assertStringContainsString("getPost('followup_assigned_to')", $controller);
         $this->assertStringContainsString("getPost('followup_due_at')", $controller);
         $this->assertStringContainsString('syncOrderAssignment(', $controller);
         $this->assertStringContainsString('completeOrderFollowup(', $controller);
         $this->assertStringContainsString('Only the assigned order follower can submit this follow-up.', $mobileController);
+        $this->assertStringContainsString('Only the assigned order follower can submit this follow-up.', $controller);
         $this->assertStringContainsString('next_followup_date is required while the order remains open.', $mobileController);
+        $this->assertStringContainsString('public function updateFollower(int $id)', $controller);
+        $this->assertStringContainsString('public function updateFollower(int $id)', $mobileController);
+        $this->assertStringContainsString("orders/(:num)/follower", $routes);
+        $this->assertStringContainsString("'can_add_followup'", $mobileController);
+        $this->assertStringContainsString("'can_change_follower'", $mobileController);
         $this->assertStringNotContainsString('name="followup_assigned_to"', $create);
         $this->assertStringNotContainsString('name="followup_due_at"', $create);
         $this->assertStringNotContainsString('name="followup_assigned_to"', $edit);
         $this->assertStringContainsString('id="assignKarigarModal"', $orderList);
         $this->assertStringContainsString('name="followup_assigned_to"', $orderList);
         $this->assertStringContainsString('name="followup_due_at"', $orderList);
+        $this->assertStringContainsString('Only the assigned follower can take this follow-up', $followupList);
+        $this->assertStringContainsString('id="changeFollowerModal"', $followupList);
+        $this->assertStringContainsString('id="changeFollowerModal"', $orderDetail);
+        $this->assertStringContainsString('updateOrderFollower', $mobileApi);
+        $this->assertStringContainsString('_canTakeOrderFollowup', $mobileOrderDetail);
+        $this->assertStringContainsString('Change Follower', $mobileOrderDetail);
     }
 
     public function testAdminTasksAndMobileProofReplaceLegacyKpiScreens(): void

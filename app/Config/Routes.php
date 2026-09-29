@@ -358,6 +358,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('orders/(:num)/cancel', 'Admin\OrderController::cancel/$1', ['filter' => 'permission:orders.status']);
     $routes->post('orders/(:num)/delete', 'Admin\OrderController::delete/$1', ['filter' => 'permission:orders.delete']);
     $routes->post('orders/(:num)/followups', 'Admin\OrderController::addFollowup/$1', ['filter' => 'permission:orders.followup']);
+    $routes->post('orders/(:num)/follower', 'Admin\OrderController::updateFollower/$1', ['filter' => 'permission:orders.assign']);
     $routes->post('orders/(:num)/attachments', 'Admin\OrderController::addAttachment/$1', ['filter' => 'permission:orders.documents']);
     $routes->post('orders/(:num)/receive', 'Admin\OrderController::addReceive/$1', ['filter' => 'permission:orders.receive']);
     $routes->post('orders/(:num)/assign', 'Admin\OrderController::assignKarigar/$1', ['filter' => 'permission:orders.assign']);
@@ -437,6 +438,7 @@ $routes->group('api', static function ($routes): void {
         $routes->get('orders/(:num)', 'Api\Mobile\OrdersController::show/$1');
         $routes->get('orders/(:num)/followups', 'Api\Mobile\OrdersController::followups/$1');
         $routes->post('orders/(:num)/followups', 'Api\Mobile\OrdersController::addFollowup/$1');
+        $routes->post('orders/(:num)/follower', 'Api\Mobile\OrdersController::updateFollower/$1');
         $routes->get('diamond-requirements', 'Api\Mobile\DiamondRequirementsController::index');
         $routes->get('diamond-requirements/(:num)', 'Api\Mobile\DiamondRequirementsController::show/$1');
         $routes->post('orders/(:num)/diamond-requirements', 'Api\Mobile\DiamondRequirementsController::raise/$1');

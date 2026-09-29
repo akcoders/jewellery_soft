@@ -34,6 +34,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   List<dynamic> _followups = [];
   List<dynamic> _diamondRequirements = [];
   bool _canRaiseDiamondRequirement = false;
+  bool _canTakeOrderFollowup = false;
+  bool _canChangeFollower = false;
+  List<dynamic> _staffFollowers = [];
   List<String> _allowedStages = const [];
 
   @override
@@ -78,6 +81,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _canRaiseDiamondRequirement =
             data['can_raise_diamond_requirement'] == true ||
             data['can_raise_diamond_requirement'] == 1;
+        _canTakeOrderFollowup =
+            data['can_add_followup'] == true || data['can_add_followup'] == 1;
+        _canChangeFollower =
+            data['can_change_follower'] == true ||
+            data['can_change_follower'] == 1;
+        _staffFollowers = (data['staff_followers'] as List?) ?? <dynamic>[];
         _allowedStages = ((data['allowed_stages'] as List?) ?? <dynamic>[])
             .map((e) => e.toString())
             .toList(growable: false);
@@ -108,6 +117,211 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
     if (result == true) {
       _load();
+    }
+  }
+
+  Future<void> _changeFollower() async {
+    final followerRows = _staffFollowers
+        .whereType<Map>()
+        .map((row) => row.cast<String, dynamic>())
+        .toList(growable: false);
+    if (followerRows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active staff follower is available.')),
+      );
+      return;
+    }
+
+    final currentFollowerId = int.tryParse(
+      (_order['followup_assigned_to'] ?? '').toString(),
+    );
+    final availableIds = followerRows
+        .map((row) => int.tryParse((row['id'] ?? '').toString()))
+        .whereType<int>()
+        .toSet();
+    int? selectedFollowerId = availableIds.contains(currentFollowerId)
+        ? currentFollowerId
+        : null;
+    final status = (_order['status'] ?? '').toString();
+    final closed = {
+      'Ready',
+      'Packed',
+      'Dispatched',
+      'Delivered',
+      'Completed',
+      'Complete',
+      'Cancelled',
+    }.contains(status);
+    DateTime? dueAt = DateTime.tryParse(
+      (_order['followup_due_at'] ?? '').toString().replaceFirst(' ', 'T'),
+    );
+    if (!closed && (dueAt == null || !dueAt.isAfter(DateTime.now()))) {
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      dueAt = DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 11);
+    }
+    var saving = false;
+    var dialogError = '';
+
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Change Order Follower'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DropdownButtonFormField<int>(
+                  initialValue: selectedFollowerId,
+                  decoration: const InputDecoration(
+                    labelText: 'Order follower *',
+                  ),
+                  items: followerRows
+                      .map((row) {
+                        final id =
+                            int.tryParse((row['id'] ?? '').toString()) ?? 0;
+                        final name = (row['name'] ?? 'Staff').toString();
+                        final role = (row['role_label'] ?? 'Staff').toString();
+                        return DropdownMenuItem<int>(
+                          value: id,
+                          child: Text('$name · $role'),
+                        );
+                      })
+                      .where((item) => (item.value ?? 0) > 0)
+                      .toList(),
+                  onChanged: saving
+                      ? null
+                      : (value) =>
+                            setDialogState(() => selectedFollowerId = value),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                if (closed)
+                  const Text(
+                    'This order is closed. The follower will change without scheduling another follow-up.',
+                  )
+                else
+                  OutlinedButton.icon(
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            final selectedDate = await showDatePicker(
+                              context: dialogContext,
+                              initialDate: dueAt ?? DateTime.now(),
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 730),
+                              ),
+                            );
+                            if (selectedDate == null ||
+                                !dialogContext.mounted) {
+                              return;
+                            }
+                            final selectedTime = await showTimePicker(
+                              context: dialogContext,
+                              initialTime: dueAt == null
+                                  ? const TimeOfDay(hour: 11, minute: 0)
+                                  : TimeOfDay.fromDateTime(dueAt!),
+                            );
+                            if (selectedTime == null ||
+                                !dialogContext.mounted) {
+                              return;
+                            }
+                            setDialogState(() {
+                              dueAt = DateTime(
+                                selectedDate.year,
+                                selectedDate.month,
+                                selectedDate.day,
+                                selectedTime.hour,
+                                selectedTime.minute,
+                              );
+                            });
+                          },
+                    icon: const Icon(Icons.event_outlined),
+                    label: Text(
+                      dueAt == null
+                          ? 'Select next follow-up date & time'
+                          : AppFormatters.dateTime(dueAt),
+                    ),
+                  ),
+                if (dialogError.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    dialogError,
+                    style: const TextStyle(color: AppColors.danger),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (selectedFollowerId == null) {
+                        setDialogState(
+                          () => dialogError = 'Select an order follower.',
+                        );
+                        return;
+                      }
+                      if (!closed &&
+                          (dueAt == null || !dueAt!.isAfter(DateTime.now()))) {
+                        setDialogState(
+                          () => dialogError =
+                              'Select a future follow-up date and time.',
+                        );
+                        return;
+                      }
+                      setDialogState(() {
+                        saving = true;
+                        dialogError = '';
+                      });
+                      try {
+                        await widget.api.updateOrderFollower(
+                          orderId: widget.orderId,
+                          followerId: selectedFollowerId!,
+                          followupDueAt: closed || dueAt == null
+                              ? ''
+                              : _dateTimeValue(dueAt!),
+                        );
+                        if (!dialogContext.mounted) return;
+                        Navigator.pop(dialogContext, true);
+                      } catch (e) {
+                        if (!dialogContext.mounted) return;
+                        setDialogState(() {
+                          saving = false;
+                          dialogError = e.toString().replaceFirst(
+                            'Exception: ',
+                            '',
+                          );
+                        });
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Update Follower'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (changed == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Order follower updated.')));
+      await _load();
     }
   }
 
@@ -203,6 +417,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   String _dateValue(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
+  String _dateTimeValue(DateTime value) =>
+      '${_dateValue(value)} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}:00';
+
   Future<void> _openUrl(String url) async {
     if (url.trim().isEmpty) return;
     final ok = await launchUrl(
@@ -215,10 +432,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Unable to open document.')));
     }
-  }
-
-  bool _canTakeFollowup(String status) {
-    return !{'Cancelled', 'Completed'}.contains(status);
   }
 
   String _primaryImageUrl() {
@@ -239,7 +452,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Widget build(BuildContext context) {
     final title = (_order['order_no'] ?? 'Order Detail').toString();
     final status = (_order['status'] ?? '-').toString();
-    final canTakeFollowup = _canTakeFollowup(status);
+    final canTakeFollowup = _canTakeOrderFollowup;
     final imageUrl = _primaryImageUrl();
     final packingListUrl = (_order['packing_list_url'] ?? '').toString();
     final deliveryChallanUrl = (_order['delivery_challan_url'] ?? '')
@@ -387,6 +600,36 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         : 'Due ${AppFormatters.dateTime(_order['followup_due_at'])}',
                     icon: Icons.follow_the_signs_outlined,
                   ),
+                  if (_canChangeFollower) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton.icon(
+                        onPressed: _changeFollower,
+                        icon: const Icon(Icons.manage_accounts_outlined),
+                        label: const Text('Change Follower'),
+                      ),
+                    ),
+                  ],
+                  if (!canTakeFollowup &&
+                      !{
+                        'Ready',
+                        'Packed',
+                        'Dispatched',
+                        'Delivered',
+                        'Completed',
+                        'Complete',
+                        'Cancelled',
+                      }.contains(status)) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    const Text(
+                      'Only the assigned order follower can take this follow-up.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   if (_diamondRequirements.isNotEmpty ||
                       _canRaiseDiamondRequirement) ...[
@@ -588,9 +831,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   const AppSectionTitle('Followups'),
                   const SizedBox(height: AppSpacing.md),
                   if (_followups.isEmpty)
-                    const AppEmptyState(
+                    AppEmptyState(
                       title: 'No followups yet',
-                      message: 'Tap "Take Followup" to add the first update.',
+                      message: canTakeFollowup
+                          ? 'Tap "Take Followup" to add the first update.'
+                          : 'The assigned follower can add the first update.',
                     )
                   else
                     ..._followups.map((rowRaw) {

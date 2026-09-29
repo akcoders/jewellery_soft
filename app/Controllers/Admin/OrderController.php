@@ -422,7 +422,7 @@ class OrderController extends BaseController
             ->join('karigars', 'karigars.id = orders.assigned_karigar_id', 'left')
             ->join('admin_users follower', 'follower.id = orders.followup_assigned_to', 'left')
             ->join('order_categories', 'order_categories.id = orders.order_category_id', 'left')
-            ->whereNotIn('orders.status', ['Completed', 'Cancelled', 'Ready'])
+            ->whereNotIn('orders.status', ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'])
             ->orderBy('orders.id', 'DESC')
             ->findAll();
 
@@ -497,6 +497,7 @@ class OrderController extends BaseController
             'title' => 'Order Followups',
             'orders' => $orders,
             'statuses' => $this->jewelleryConfig->orderStatuses,
+            'staffFollowers' => $this->staffPerformanceService->staffOptions(),
         ]);
     }
 
@@ -890,6 +891,8 @@ class OrderController extends BaseController
             ),
             'canManageDiamondRequirements' => $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage'),
             'canDeleteOrder' => $this->rbacService->userCan((int) session('admin_id'), 'orders.delete'),
+            'canChangeFollower' => $this->rbacService->userCan((int) session('admin_id'), 'orders.assign'),
+            'staffFollowers' => $this->staffPerformanceService->staffOptions(),
         ]);
     }
 
@@ -1083,6 +1086,55 @@ class OrderController extends BaseController
         $this->staffPerformanceService->syncOrderAssignment($id, $followerId, $followupDueAt, (int) session('admin_id'));
 
         return redirect()->back()->with('success', 'Customer, karigar and first follow-up assigned successfully.');
+    }
+
+    public function updateFollower(int $id)
+    {
+        $order = $this->orderModel->find($id);
+        if (! $order) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Order not found.');
+        }
+
+        $followerId = (int) ($this->request->getPost('followup_assigned_to') ?? 0);
+        if ($followerId <= 0 || ! $this->staffPerformanceService->isStaffUser($followerId)) {
+            return redirect()->back()->withInput()->with('error', 'Please select an active non-admin order follower.');
+        }
+
+        $terminalStatus = in_array(
+            (string) ($order['status'] ?? ''),
+            ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'],
+            true
+        );
+        $followupDueAt = $terminalStatus
+            ? null
+            : $this->nullableDateTime((string) $this->request->getPost('followup_due_at'));
+        if (! $terminalStatus && $followupDueAt === null) {
+            return redirect()->back()->withInput()->with('error', 'Please select the next follow-up date and time.');
+        }
+        if ($followupDueAt !== null && strtotime($followupDueAt) <= time()) {
+            return redirect()->back()->withInput()->with('error', 'Next follow-up date and time must be in the future.');
+        }
+
+        $db = db_connect();
+        try {
+            $db->transException(true)->transStart();
+            $this->orderModel->update($id, [
+                'followup_assigned_to' => $followerId,
+                'followup_due_at' => $followupDueAt,
+            ]);
+            $this->staffPerformanceService->syncOrderAssignment(
+                $id,
+                $followerId,
+                $followupDueAt,
+                (int) session('admin_id')
+            );
+            $db->transComplete();
+        } catch (Throwable $e) {
+            $db->transRollback();
+            return redirect()->back()->withInput()->with('error', 'Could not change order follower: ' . $e->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Order follower updated successfully.');
     }
 
     public function karigarSummary(int $id)
@@ -1351,11 +1403,20 @@ class OrderController extends BaseController
         if (! $order) {
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Order not found.');
         }
-        if ((string) ($order['status'] ?? '') === 'Cancelled') {
-            return redirect()->back()->withInput()->with('error', 'Cancelled order cannot take followup.');
+        if (in_array(
+            (string) ($order['status'] ?? ''),
+            ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'],
+            true
+        )) {
+            return redirect()->back()->withInput()->with('error', 'Followup is not allowed for this order status.');
         }
-        if ((string) ($order['status'] ?? '') === 'Completed') {
-            return redirect()->back()->withInput()->with('error', 'Completed order cannot take followup.');
+        $assignedFollowerId = (int) ($order['followup_assigned_to'] ?? 0);
+        $currentAdminId = (int) session('admin_id');
+        if ($assignedFollowerId <= 0) {
+            return redirect()->back()->withInput()->with('error', 'This order does not have an assigned follower yet.');
+        }
+        if ($assignedFollowerId !== $currentAdminId) {
+            return redirect()->back()->withInput()->with('error', 'Only the assigned order follower can submit this follow-up.');
         }
 
         $rules = [

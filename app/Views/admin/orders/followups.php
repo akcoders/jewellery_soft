@@ -1,6 +1,7 @@
 <?= $this->extend('admin/layouts/main') ?>
 
 <?= $this->section('content') ?>
+<?php $currentAdminId = (int) session('admin_id'); ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Order Followups</h4>
 </div>
@@ -33,6 +34,13 @@
                         </tr>
                     <?php endif; ?>
                     <?php foreach (($orders ?? []) as $order): ?>
+                        <?php
+                            $assignedFollowerId = (int) ($order['followup_assigned_to'] ?? 0);
+                            $canTakeFollowup = $assignedFollowerId > 0 && $assignedFollowerId === $currentAdminId;
+                            $takeFollowupTitle = $assignedFollowerId <= 0
+                                ? 'Admin must assign an order follower first'
+                                : ($canTakeFollowup ? 'Take Followup' : 'Only the assigned follower can take this follow-up');
+                        ?>
                         <tr>
                             <td><span class="followup-order-thumb"><i class="fe fe-image"></i><?php if (! empty($order['thumbnail_url'])): ?><img src="<?= esc((string) $order['thumbnail_url'], 'attr') ?>" alt="" loading="lazy" onerror="this.style.display='none'"><?php endif; ?></span></td>
                             <td>
@@ -54,18 +62,36 @@
                             <td><?= esc((string) ($order['followup_days_text'] ?? '-')) ?></td>
                             <td><?= esc((string) (($order['last_followup_on'] ?? '') !== '' ? $order['last_followup_on'] : '-')) ?></td>
                             <td>
-                                <button
-                                    type="button"
-                                    class="btn btn-sm btn-primary js-take-followup-btn"
-                                    data-order-id="<?= esc((string) $order['id']) ?>"
-                                    data-order-no="<?= esc((string) $order['order_no']) ?>"
-                                    data-order-status="<?= esc((string) $order['status']) ?>"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#takeFollowupModal"
-                                    <?= (string) ($order['status'] ?? '') === 'Cancelled' ? 'disabled' : '' ?>
-                                >
-                                    <i class="fe fe-edit-3"></i> Take Followup
-                                </button>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-primary js-take-followup-btn"
+                                        data-order-id="<?= esc((string) $order['id']) ?>"
+                                        data-order-no="<?= esc((string) $order['order_no']) ?>"
+                                        data-order-status="<?= esc((string) $order['status']) ?>"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#takeFollowupModal"
+                                        title="<?= esc($takeFollowupTitle, 'attr') ?>"
+                                        <?= ! $canTakeFollowup ? 'disabled' : '' ?>
+                                    >
+                                        <i class="fe fe-edit-3"></i> Take Followup
+                                    </button>
+                                    <?php if (admin_can('orders.assign')): ?>
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-secondary js-change-follower-btn"
+                                            data-order-id="<?= esc((string) $order['id']) ?>"
+                                            data-order-no="<?= esc((string) $order['order_no']) ?>"
+                                            data-follower-id="<?= esc((string) $assignedFollowerId) ?>"
+                                            data-followup-due-at="<?= ! empty($order['followup_due_at']) ? esc(date('Y-m-d\\TH:i', strtotime((string) $order['followup_due_at'])), 'attr') : '' ?>"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#changeFollowerModal"
+                                            title="Change order follower"
+                                        >
+                                            <i class="fe fe-user-check"></i> Change Follower
+                                        </button>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -74,6 +100,42 @@
         </div>
     </div>
 </div>
+
+<?php if (admin_can('orders.assign')): ?>
+<div class="modal fade" id="changeFollowerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Change Follower - <span id="change-follower-order-label"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="change-follower-form" method="post">
+                <?= csrf_field() ?>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Order Follower <span class="text-danger">*</span></label>
+                        <select class="form-select" id="change-follower-select" name="followup_assigned_to" required>
+                            <option value="">Select staff follower</option>
+                            <?php foreach (($staffFollowers ?? []) as $person): ?>
+                                <option value="<?= (int) $person['id'] ?>"><?= esc((string) $person['name']) ?> · <?= esc((string) ($person['role_label'] ?? 'Staff')) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Next Follow-up Date &amp; Time <span class="text-danger">*</span></label>
+                        <input type="datetime-local" class="form-control" id="change-follower-due-at" name="followup_due_at" required>
+                        <div class="form-text">The pending follow-up will immediately move to the selected follower.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Follower</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="modal fade" id="takeFollowupModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -136,27 +198,35 @@
         const form = document.getElementById('take-followup-form');
         const orderLabel = document.getElementById('followup-order-label');
         const stageSelect = document.getElementById('followup-stage');
+        const followerForm = document.getElementById('change-follower-form');
+        const followerOrderLabel = document.getElementById('change-follower-order-label');
+        const followerSelect = document.getElementById('change-follower-select');
+        const followerDueAt = document.getElementById('change-follower-due-at');
         const base = '<?= site_url('admin/orders') ?>';
+        const defaultDueAt = '<?= date('Y-m-d\\T11:00', strtotime('+1 day')) ?>';
 
         document.addEventListener('click', function (event) {
             const target = event.target;
             if (!(target instanceof Element)) return;
             const btn = target.closest('.js-take-followup-btn');
-            if (!btn) return;
+            if (btn) {
+                const orderId = btn.getAttribute('data-order-id');
+                const orderNo = btn.getAttribute('data-order-no') || '';
+                const orderStatus = btn.getAttribute('data-order-status') || '';
 
-            const orderId = btn.getAttribute('data-order-id');
-            const orderNo = btn.getAttribute('data-order-no') || '';
-            const orderStatus = btn.getAttribute('data-order-status') || '';
+                if (form && orderId) form.setAttribute('action', base + '/' + orderId + '/followups');
+                if (orderLabel) orderLabel.textContent = orderNo;
+                if (stageSelect && orderStatus) stageSelect.value = orderStatus;
+                return;
+            }
 
-            if (form && orderId) {
-                form.setAttribute('action', base + '/' + orderId + '/followups');
-            }
-            if (orderLabel) {
-                orderLabel.textContent = orderNo;
-            }
-            if (stageSelect && orderStatus) {
-                stageSelect.value = orderStatus;
-            }
+            const followerBtn = target.closest('.js-change-follower-btn');
+            if (!followerBtn) return;
+            const followerOrderId = followerBtn.getAttribute('data-order-id');
+            if (followerForm && followerOrderId) followerForm.setAttribute('action', base + '/' + followerOrderId + '/follower');
+            if (followerOrderLabel) followerOrderLabel.textContent = followerBtn.getAttribute('data-order-no') || '';
+            if (followerSelect) followerSelect.value = followerBtn.getAttribute('data-follower-id') || '';
+            if (followerDueAt) followerDueAt.value = followerBtn.getAttribute('data-followup-due-at') || defaultDueAt;
         });
     })();
 </script>

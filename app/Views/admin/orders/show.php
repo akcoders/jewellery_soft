@@ -94,6 +94,8 @@ $diamondRequirements = is_array($diamondRequirements ?? null) ? $diamondRequirem
 $canRaiseDiamondRequirement = (bool) ($canRaiseDiamondRequirement ?? false);
 $canManageDiamondRequirements = (bool) ($canManageDiamondRequirements ?? false);
 $canDeleteOrder = (bool) ($canDeleteOrder ?? false);
+$canChangeFollower = (bool) ($canChangeFollower ?? false);
+$staffFollowers = is_array($staffFollowers ?? null) ? $staffFollowers : [];
 $photoGallery = [];
 $imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
 foreach ($attachments as $file) {
@@ -125,6 +127,7 @@ $photoGallery = array_values($photoGallery);
 $primaryPhoto = $photoGallery[0] ?? null;
 $status = (string) ($order['status'] ?? '');
 $canReceive = ! in_array($status, ['Cancelled', 'Completed'], true) && (int) ($order['assigned_karigar_id'] ?? 0) > 0;
+$followupClosed = in_array($status, ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'], true);
 $formatDate = static function (?string $value): string {
     $timestamp = strtotime(trim((string) $value));
     return $timestamp === false ? '-' : date('d M Y', $timestamp);
@@ -156,6 +159,7 @@ $statusClass = match ($status) {
                 </div>
             </div>
             <div class="order-detail-actions">
+                <?php if ($canChangeFollower): ?><button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#changeFollowerModal"><i class="fe fe-user-check me-1"></i>Change Follower</button><?php endif; ?>
                 <?php if ($canRaiseDiamondRequirement): ?><button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#diamondRequirementModal"><i class="fe fe-gem me-1"></i>Diamond Requirement</button><?php endif; ?>
                 <?php if (! in_array($status, ['Cancelled', 'Completed'], true)): ?><a href="<?= site_url('admin/orders/' . $order['id'] . '/edit') ?>" class="btn btn-light"><i class="fe fe-edit me-1"></i>Edit</a><?php endif; ?>
                 <?php if ($canReceive): ?><button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#receiveModal"><i class="fe fe-check-circle me-1"></i>Receive Jewellery</button><?php endif; ?>
@@ -291,6 +295,43 @@ $statusClass = match ($status) {
     <div class="modal-body"><div class="alert alert-light border mb-3">Order <strong><?= esc((string) $order['order_no']) ?></strong><br><span class="text-muted">Admin will approve this request and assign a staff member to prepare the size-wise diamond bag.</span></div><div class="mb-3"><label class="form-label">Requirement note *</label><textarea name="requirement_note" class="form-control" rows="4" required placeholder="Diamond quality, urgency or special instruction"></textarea></div><div><label class="form-label">Required by</label><input type="date" name="required_by" class="form-control" min="<?= date('Y-m-d') ?>"></div></div>
     <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary">Raise for Approval</button></div>
 </form></div></div>
+<?php endif; ?>
+
+<?php if ($canChangeFollower): ?>
+<div class="modal fade" id="changeFollowerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="post" action="<?= site_url('admin/orders/' . (int) $order['id'] . '/follower') ?>">
+            <?= csrf_field() ?>
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">Change Order Follower</h5>
+                    <div class="small text-muted"><?= esc((string) $order['order_no']) ?></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Order Follower <span class="text-danger">*</span></label>
+                    <select class="form-select" name="followup_assigned_to" required>
+                        <option value="">Select staff follower</option>
+                        <?php foreach ($staffFollowers as $person): ?>
+                            <option value="<?= (int) $person['id'] ?>" <?= (int) ($order['followup_assigned_to'] ?? 0) === (int) $person['id'] ? 'selected' : '' ?>><?= esc((string) $person['name']) ?> · <?= esc((string) ($person['role_label'] ?? 'Staff')) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Next Follow-up Date &amp; Time<?= $followupClosed ? '' : ' *' ?></label>
+                    <input type="datetime-local" class="form-control" name="followup_due_at" value="<?= ! empty($order['followup_due_at']) ? esc(date('Y-m-d\\TH:i', strtotime((string) $order['followup_due_at'])), 'attr') : ($followupClosed ? '' : esc(date('Y-m-d\\T11:00', strtotime('+1 day')), 'attr')) ?>" <?= $followupClosed ? 'disabled' : 'required' ?>>
+                    <div class="form-text"><?= $followupClosed ? 'This order is closed, so no pending follow-up will be scheduled.' : 'The pending follow-up will immediately move to the selected follower.' ?></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Follower</button>
+            </div>
+        </form>
+    </div>
+</div>
 <?php endif; ?>
 
 <?php if ($canDeleteOrder): ?>
