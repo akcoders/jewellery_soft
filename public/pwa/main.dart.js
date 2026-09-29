@@ -8834,7 +8834,7 @@ if(o){n=B.fT
 break A}if("followup"===i){n=B.ak
 break A}n=B.ak
 break A}B:{if(o){o=B.Nf
-break B}if("followup"===i){o=B.mM
+break B}if("followup"===i){o=B.mL
 break B}o=B.Ny
 break B}m=i.length===0?k:i[0].toUpperCase()+B.c.ci(i,1)
 l=a.h(0,"reference_table")
@@ -51083,7 +51083,7 @@ return new A.CF(o,r.gat1(),q)}},
 H(a){var s,r,q,p=this,o=null,n=A.I(p.a1_(0),o,o,o,o,o,o,o,o),m=t.p
 n=A.jG(A.b([new A.me($.Bl(),new A.av9(),o,o,t.D0),A.en(o,o,o,new A.a1k(p.y,o),o,o,new A.ava(p,a),o,o,o,o),new A.xV(new A.avb(p),new A.avc(p),B.NZ,o,t.iX)],m),n)
 s=p.a.c
-r=A.b([new A.aB(B.hb,A.I("Main".toUpperCase(),o,o,o,o,B.i7,o,o,o),o),p.iG("dashboard","Dashboard",B.Nq),p.iG("orders","Orders",B.Ng),p.iG("followups","Followups",B.jm),p.iG("issuements","Issuements",B.mK),new A.aB(B.hb,A.I("Diamond".toUpperCase(),o,o,o,o,B.i7,o,o,o),o),p.iG("diamond_requirements","Bag Requirements",B.No),p.iG("diamond_returns","Diamond Return",B.e3),p.iG("diamond_purchases","Diamond Purchase",B.f3),new A.aB(B.hb,A.I("Gold".toUpperCase(),o,o,o,o,B.i7,o,o,o),o),p.iG("gold_returns","Gold Return",B.hk),p.iG("gold_purchases","Gold Purchase",B.f3),new A.aB(B.hb,A.I("Stone".toUpperCase(),o,o,o,o,B.i7,o,o,o),o),p.iG("stone_returns","Stone Return",B.hj),p.iG("stone_purchases","Stone Purchase",B.f3),new A.aB(B.hb,A.I("Utility".toUpperCase(),o,o,o,o,B.i7,o,o,o),o),p.iG("inventory","Inventory",B.mL)],m)
+r=A.b([new A.aB(B.hb,A.I("Main".toUpperCase(),o,o,o,o,B.i7,o,o,o),o),p.iG("dashboard","Dashboard",B.Nq),p.iG("orders","Orders",B.Ng),p.iG("followups","Followups",B.jm),p.iG("issuements","Issuements",B.mM),new A.aB(B.hb,A.I("Diamond".toUpperCase(),o,o,o,o,B.i7,o,o,o),o),p.iG("diamond_requirements","Bag Requirements",B.No),p.iG("diamond_returns","Diamond Return",B.e3),p.iG("diamond_purchases","Diamond Purchase",B.f3),new A.aB(B.hb,A.I("Gold".toUpperCase(),o,o,o,o,B.i7,o,o,o),o),p.iG("gold_returns","Gold Return",B.hk),p.iG("gold_purchases","Gold Purchase",B.f3),new A.aB(B.hb,A.I("Stone".toUpperCase(),o,o,o,o,B.i7,o,o,o),o),p.iG("stone_returns","Stone Return",B.hj),p.iG("stone_purchases","Stone Purchase",B.f3),new A.aB(B.hb,A.I("Utility".toUpperCase(),o,o,o,o,B.i7,o,o,o),o),p.iG("inventory","Inventory",B.mK)],m)
 q=p.a.c
 if(J.fv(q.e)&&!q.ga5V())B.b.L(r,A.b([p.iG("tasks","My Tasks",B.ro),p.iG("performance","My Performance",B.Nu)],m))
 m=A.nB(!0,A.aV(A.b([new A.a__(s,o),A.bQ(A.fB(r,B.Z,o,o,B.R,!1),1)],m),B.p,B.k,B.l,0,B.o),B.Z,!0)
@@ -51365,7 +51365,7 @@ s=A.a_(a).i("a1<1,hz>")
 s=A.Z(new A.a1(a,new A.axi(this),s),s.i("an.E"))
 return A.aV(s,B.p,B.k,B.l,0,B.o)},
 aut(){var s=this,r=t.p
-return A.aV(A.b([B.FF,B.G,A.mf(A.b([s.w8(B.ak,B.Ne,"Add Order",s.gat0()),s.w8(B.ak,B.mK,"Combined Issuement",s.gat_()),s.w8(B.c7,B.e3,"Diamond Purchase",new A.axq(s)),s.w8(B.dm,B.hk,"Gold Purchase",new A.axr(s)),s.w8(B.cY,B.hj,"Stone Purchase",new A.axs(s))],r),8,8)],r),B.M,B.k,B.l,0,B.o)},
+return A.aV(A.b([B.FF,B.G,A.mf(A.b([s.w8(B.ak,B.Ne,"Add Order",s.gat0()),s.w8(B.ak,B.mM,"Combined Issuement",s.gat_()),s.w8(B.c7,B.e3,"Diamond Purchase",new A.axq(s)),s.w8(B.dm,B.hk,"Gold Purchase",new A.axr(s)),s.w8(B.cY,B.hj,"Stone Purchase",new A.axs(s))],r),8,8)],r),B.M,B.k,B.l,0,B.o)},
 t9(a,b){return this.at3(a,b)},
 at3(a,b){var s=0,r=A.u(t.H),q=this,p,o,n,m,l
 var $async$t9=A.p(function(c,d){if(c===1)return A.q(d,r)
@@ -51540,7 +51540,7 @@ $S:0}
 A.azd.prototype={
 $2(a,b){var s,r,q,p,o,n,m,l=null,k="can_prepare",j="preparation_due_at",i=this.a,h=J.bi(t.f.a(J.U(i.f,b)),t.N,t.z),g=h.h(0,"status"),f=J.V(g==null?"":g),e=J.c(h.h(0,k),!0)||J.c(h.h(0,k),1)
 g=A.b3(16)
-s=A.br(l,B.NT,B.n,l,l,new A.b1(B.c7.cK(0.16),l,l,A.b3(12),l,l,B.v),l,42,l,l,l,l,42)
+s=A.br(l,B.NS,B.n,l,l,new A.b1(B.c7.cK(0.16),l,l,A.b3(12),l,l,B.v),l,42,l,l,l,l,42)
 r=h.h(0,"requirement_no")
 r=A.I(J.V(r==null?"-":r),l,l,l,l,B.a3G,l,l,l)
 q=h.h(0,"order_no")
@@ -51560,7 +51560,7 @@ if(J.V(q==null?"":q).length!==0){q=A.h(h.h(0,"bag_no"))
 n=h.h(0,"pcs_balance")
 n=A.h(n==null?0:n)
 m=h.h(0,"cts_balance")
-r.push(A.aUw(B.mL,q+" \xb7 "+n+" pcs / "+A.h(m==null?0:m)+" cts"))}s=A.b([p,B.G,s,B.am,A.mf(r,8,8)],o)
+r.push(A.aUw(B.mK,q+" \xb7 "+n+" pcs / "+A.h(m==null?0:m)+" cts"))}s=A.b([p,B.G,s,B.am,A.mf(r,8,8)],o)
 if(e)B.b.L(s,A.b([B.G,B.XD],o))
 return A.lq(A.it(!1,g,!0,new A.aB(B.V,A.aV(s,B.M,B.k,B.l,0,B.o),l),l,!0,l,l,l,l,l,l,l,l,l,l,l,new A.azc(i,a,h),l,l,l,l,l,l,l),l,B.b7,l)},
 $S:658}
@@ -52633,7 +52633,7 @@ t.f.a(a)
 s=J.ae(a)
 r=t.g.a(s.h(a,"materials"))
 q=J.aW4(r==null?[]:r," + ")
-r=A.aWE(B.ak.cK(0.1),B.NS)
+r=A.aWE(B.ak.cK(0.1),B.NY)
 p=s.h(a,"voucher_no")
 p=A.I(A.h(p==null?"-":p),j,j,j,j,B.aR,j,j,j)
 if(q.length===0){o=s.h(a,"material_type")
@@ -53049,7 +53049,7 @@ break A}a4=k.cK(0.07)
 m=A.b3(16)
 g=A.cq(k.cK(0.35),1)
 f=k.cK(0.14)
-f=A.br(a1,A.ey(l?B.mM:B.Nx,k,a1,a1),B.n,a1,a1,new A.b1(f,a1,a1,a1,a1,a1,B.eF),a1,42,a1,a1,a1,a1,42)
+f=A.br(a1,A.ey(l?B.mL:B.Nx,k,a1,a1),B.n,a1,a1,new A.b1(f,a1,a1,a1,a1,a1,B.eF),a1,42,a1,a1,a1,a1,42)
 e=t.p
 d=A.bQ(A.aV(A.b([B.a4V,A.I(l?"Device and server are ready.":"Action is required for reliable alerts.",a1,a1,a1,a1,B.er,a1,a1,a1)],e),B.M,B.k,B.l,0,B.o),1)
 c=l?"Ready":"Check setup"
@@ -53930,7 +53930,7 @@ n=t.p
 r=A.jG(A.b([A.en(b,b,b,B.rt,b,b,d.d?b:d.gMm(),b,b,b,b)],n),r)
 m=d.d
 if(m)a5=b
-else a5=a5?b:A.adw(B.NV,B.E3,d.gax3())
+else a5=a5?b:A.adw(B.NU,B.E3,d.gax3())
 if(m){m=d.f
 m=m.gad(m)}else m=!1
 if(m)n=B.dt
@@ -53970,7 +53970,7 @@ if(l==null)l=a2
 m.push(d.Ly(B.Np,d.f.h(0,a3)==null?"No follow-up deadline":"Due "+A.a8C(d.f.h(0,a3)),"Order Follower",l))
 m.push(B.ah)
 if(J.fv(d.x)||d.y){l=A.b([B.Mj],n)
-if(d.y)l.push(A.eV(B.NY,B.a5H,d.gauv()))
+if(d.y)l.push(A.eV(B.NX,B.a5H,d.gauv()))
 l=A.b([A.bU(l,B.p,B.k,B.l,0,b),B.G],n)
 if(J.dU(d.x))l.push(B.Fh)
 else B.b.L(l,J.d0(d.x,new A.aFW(d,a7),t.l))
@@ -55496,7 +55496,7 @@ A.aM6.prototype={
 $0(){return this.a.f=!1},
 $S:0}
 A.aLZ.prototype={
-$1(a){return A.nB(!0,new A.aB(B.M7,A.aV(A.b([B.a5g,B.o1,B.a5J,B.ah,A.eV(B.O_,B.a5u,new A.aLX(a)),A.eV(B.NU,B.a50,new A.aLY(a))],t.p),B.bd,B.k,B.au,0,B.o),null),B.Z,!0)},
+$1(a){return A.nB(!0,new A.aB(B.M7,A.aV(A.b([B.a5g,B.o1,B.a5J,B.ah,A.eV(B.O_,B.a5u,new A.aLX(a)),A.eV(B.NT,B.a50,new A.aLY(a))],t.p),B.bd,B.k,B.au,0,B.o),null),B.Z,!0)},
 $S:359}
 A.aLX.prototype={
 $0(){A.ck(this.a,!1).fs(B.rB)
@@ -67217,7 +67217,7 @@ m=q.ay
 l=q.as
 q=q.ok
 q=q.p2
-if(q==null)q=B.NX
+if(q==null)q=B.NW
 k=A.t8(q,new A.d9(m,a2,a2,a2,a2,a3,a2,a2,a2),a2)
 if(a1.gpr()){a3=a1.gtA()
 a3.toString}else{a3=a1.gtA()
@@ -77646,7 +77646,7 @@ l=m==null
 k=l?o.$ti.i("af.T").a(m):m
 j=g.a
 if(k===B.bl){j.toString
-k=B.NW}else{j.toString
+k=B.NV}else{j.toString
 k=B.ru}if((l?o.$ti.i("af.T").a(m):m)===B.bl){A.bT(a,B.N,r).toString
 r="Switch to text input mode"}else{A.bT(a,B.N,r).toString
 r="Switch to dial picker mode"}p.push(A.en(f,f,f,k,f,f,g.gaxB(),f,f,n,r))}r=d.b
@@ -118564,7 +118564,6 @@ B.Nf=new A.b7(61030,"MaterialIcons",!1)
 B.Ng=new A.b7(61080,"MaterialIcons",!0)
 B.Nh=new A.b7(61112,"MaterialIcons",!1)
 B.rn=new A.b7(61201,"MaterialIcons",!1)
-B.mK=new A.b7(61206,"MaterialIcons",!0)
 B.Nk=new A.b7(61304,"MaterialIcons",!1)
 B.Nl=new A.b7(61453,"MaterialIcons",!1)
 B.Nm=new A.b7(61484,"MaterialIcons",!1)
@@ -118574,10 +118573,11 @@ B.No=new A.b7(61509,"MaterialIcons",!1)
 B.Np=new A.b7(61588,"MaterialIcons",!1)
 B.Nq=new A.b7(61703,"MaterialIcons",!1)
 B.Nu=new A.b7(61746,"MaterialIcons",!1)
-B.mL=new A.b7(61748,"MaterialIcons",!1)
-B.mM=new A.b7(62004,"MaterialIcons",!1)
+B.mK=new A.b7(61748,"MaterialIcons",!1)
+B.mL=new A.b7(62004,"MaterialIcons",!1)
 B.Nx=new A.b7(62006,"MaterialIcons",!1)
 B.Ny=new A.b7(62007,"MaterialIcons",!1)
+B.mM=new A.b7(62023,"MaterialIcons",!1)
 B.hj=new A.b7(62264,"MaterialIcons",!1)
 B.NA=new A.b7(62265,"MaterialIcons",!1)
 B.f3=new A.b7(62333,"MaterialIcons",!1)
@@ -118611,23 +118611,23 @@ B.NQ=new A.bV(B.mJ,null,B.bg,null,null)
 B.mO=new A.bV(B.mH,null,null,null,null)
 B.MT=new A.b7(57402,"MaterialIcons",!1)
 B.ru=new A.bV(B.MT,null,null,null,null)
-B.NS=new A.bV(B.mK,null,B.ak,null,null)
-B.NT=new A.bV(B.e3,null,B.ak,null,null)
+B.NS=new A.bV(B.e3,null,B.ak,null,null)
 B.Nz=new A.b7(62109,"MaterialIcons",!1)
-B.NU=new A.bV(B.Nz,null,null,null,null)
+B.NT=new A.bV(B.Nz,null,null,null,null)
 B.MU=new A.b7(57435,"MaterialIcons",!1)
-B.NV=new A.bV(B.MU,null,null,null,null)
+B.NU=new A.bV(B.MU,null,null,null,null)
 B.MW=new A.b7(57521,"MaterialIcons",!1)
 B.jn=new A.bV(B.MW,null,null,null,null)
 B.Nv=new A.b7(61764,"MaterialIcons",!1)
-B.NW=new A.bV(B.Nv,null,null,null,null)
-B.NX=new A.bV(B.re,null,null,null,null)
+B.NV=new A.bV(B.Nv,null,null,null,null)
+B.NW=new A.bV(B.re,null,null,null,null)
 B.rc=new A.b7(57415,"MaterialIcons",!1)
-B.NY=new A.bV(B.rc,18,null,null,null)
+B.NX=new A.bV(B.rc,18,null,null,null)
+B.NY=new A.bV(B.mM,null,B.ak,null,null)
 B.NZ=new A.bV(B.rm,null,null,null,null)
 B.Ni=new A.b7(61214,"MaterialIcons",!1)
 B.O_=new A.bV(B.Ni,null,null,null,null)
-B.rv=new A.bV(B.mL,null,null,null,null)
+B.rv=new A.bV(B.mK,null,null,null,null)
 B.N8=new A.b7(58704,"MaterialIcons",!1)
 B.rw=new A.bV(B.N8,null,null,null,null)
 B.rh=new A.b7(57787,"MaterialIcons",!1)
@@ -118651,7 +118651,7 @@ B.MZ=new A.b7(57857,"MaterialIcons",!1)
 B.O9=new A.bV(B.MZ,null,null,null,null)
 B.Ns=new A.b7(61734,"MaterialIcons",!1)
 B.Ob=new A.bV(B.Ns,42,B.b6,null,null)
-B.Oc=new A.bV(B.mM,null,null,null,null)
+B.Oc=new A.bV(B.mL,null,null,null,null)
 B.e4=new A.bV(B.rn,null,null,null,null)
 B.Od=new A.bV(B.ro,null,null,null,null)
 B.jo=new A.bV(B.rh,null,null,null,null)

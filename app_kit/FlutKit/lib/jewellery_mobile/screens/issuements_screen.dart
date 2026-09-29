@@ -98,7 +98,7 @@ class _IssuementsScreenState extends State<IssuementsScreen> {
                   leading: CircleAvatar(
                     backgroundColor: AppColors.brandRed.withValues(alpha: 0.1),
                     child: const Icon(
-                      Icons.call_made_outlined,
+                      Icons.outbox_outlined,
                       color: AppColors.brandRed,
                     ),
                   ),

@@ -265,7 +265,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             _actionChip(
               label: 'Combined Issuement',
-              icon: Icons.call_made_outlined,
+              icon: Icons.outbox_outlined,
               color: AppColors.brandRed,
               onTap: _openIssuement,
             ),

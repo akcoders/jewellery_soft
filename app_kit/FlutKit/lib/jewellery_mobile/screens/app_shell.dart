@@ -384,7 +384,7 @@ class _AppShellState extends State<AppShell> {
                       _drawerItem(
                         'issuements',
                         'Issuements',
-                        Icons.call_made_outlined,
+                        Icons.outbox_outlined,
                       ),
                       _drawerSection('Diamond'),
                       _drawerItem(
