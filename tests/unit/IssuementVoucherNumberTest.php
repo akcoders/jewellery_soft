@@ -76,7 +76,7 @@ final class IssuementVoucherNumberTest extends CIUnitTestCase
             ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/transaction_create_screen.dart'
         );
 
-        $this->assertSame(3, substr_count($controller, '->resolveForCreate('));
+        $this->assertSame(4, substr_count($controller, '->resolveForCreate('));
         $this->assertStringContainsString("payload['voucher_no'] = _voucherNo.trim()", $screen);
         $this->assertStringContainsString('Voucher Number (optional)', $screen);
     }

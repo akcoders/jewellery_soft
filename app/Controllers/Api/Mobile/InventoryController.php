@@ -324,4 +324,65 @@ class InventoryController extends MobileBaseController
 
         return $this->ok($rows);
     }
+
+    public function issuements()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $db = db_connect();
+        $sources = [
+            ['table' => 'gold_inventory_issue_headers', 'lines' => 'gold_inventory_issue_lines', 'material' => 'Gold', 'qty' => 'weight_gm'],
+            ['table' => 'issue_headers', 'lines' => 'issue_lines', 'material' => 'Diamond', 'qty' => 'carat'],
+            ['table' => 'stone_inventory_issue_headers', 'lines' => 'stone_inventory_issue_lines', 'material' => 'Stone', 'qty' => 'qty'],
+        ];
+        $grouped = [];
+
+        foreach ($sources as $source) {
+            $rows = $db->table($source['table'] . ' ih')
+                ->select('ih.id, ih.voucher_no, ih.issue_date, ih.issue_to, ih.purpose, ih.notes, ih.created_at, ih.karigar_id, k.name as karigar_name, iloc.name as warehouse_name, COUNT(il.id) as line_count, COALESCE(SUM(il.' . $source['qty'] . '),0) as total_qty, COALESCE(SUM(il.line_value),0) as total_value', false)
+                ->join($source['lines'] . ' il', 'il.issue_id = ih.id', 'left')
+                ->join('karigars k', 'k.id = ih.karigar_id', 'left')
+                ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
+                ->groupBy('ih.id')
+                ->orderBy('ih.id', 'DESC')
+                ->get(300)
+                ->getResultArray();
+
+            foreach ($rows as $row) {
+                $voucher = trim((string) ($row['voucher_no'] ?? ''));
+                $key = $voucher !== '' ? $voucher : $source['material'] . ':' . (int) $row['id'];
+                if (! isset($grouped[$key])) {
+                    $grouped[$key] = $row + [
+                        'materials' => [],
+                        'material_type' => $source['material'],
+                        'total_lines' => 0,
+                    ];
+                    $grouped[$key]['total_value'] = 0.0;
+                }
+                $grouped[$key]['materials'][] = $source['material'];
+                $grouped[$key]['total_lines'] += (int) ($row['line_count'] ?? 0);
+                $grouped[$key]['total_value'] += (float) ($row['total_value'] ?? 0);
+                if (strcmp((string) ($row['created_at'] ?? ''), (string) ($grouped[$key]['created_at'] ?? '')) > 0) {
+                    $grouped[$key]['created_at'] = $row['created_at'];
+                }
+            }
+        }
+
+        $result = array_values($grouped);
+        foreach ($result as &$row) {
+            $row['materials'] = array_values(array_unique($row['materials']));
+            $row['material_type'] = count($row['materials']) > 1 ? 'Mixed' : (string) ($row['materials'][0] ?? $row['material_type']);
+            unset($row['line_count'], $row['total_qty']);
+        }
+        unset($row);
+        usort($result, static fn(array $a, array $b): int => strcmp(
+            (string) ($b['issue_date'] ?? $b['created_at'] ?? ''),
+            (string) ($a['issue_date'] ?? $a['created_at'] ?? '')
+        ));
+
+        return $this->ok(array_slice($result, 0, 200));
+    }
 }

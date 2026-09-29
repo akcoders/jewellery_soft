@@ -80,6 +80,16 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<Map<String, dynamic>> fetchOrderFormOptions() async {
+    final res = await _get('/api/mobile/orders-form-options');
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> createOrder(Map<String, dynamic> payload) async {
+    final res = await _post('/api/mobile/orders', body: payload);
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<List<dynamic>> fetchOrderFollowups(int orderId) async {
     final res = await _get('/api/mobile/orders/$orderId/followups');
     return (res['data'] as List?) ?? <dynamic>[];
@@ -233,6 +243,26 @@ class MobileApiService {
     return (res['data'] as List?) ?? <dynamic>[];
   }
 
+  Future<List<dynamic>> fetchIssuements() async {
+    final res = await _get('/api/mobile/issuements');
+    return (res['data'] as List?) ?? <dynamic>[];
+  }
+
+  Future<Map<String, dynamic>> fetchIssuementDetail(String voucherNo) async {
+    final res = await _get(
+      '/api/mobile/issuements/detail',
+      query: {'voucher_no': voucherNo},
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> createIssuement(
+    Map<String, dynamic> payload,
+  ) async {
+    final res = await _post('/api/mobile/issuements', body: payload);
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<List<dynamic>> fetchKarigars() async {
     final res = await _get('/api/mobile/lookups/karigars');
     return (res['data'] as List?) ?? <dynamic>[];
@@ -275,6 +305,21 @@ class MobileApiService {
 
   Future<List<dynamic>> fetchStoneItems() async {
     final res = await _get('/api/mobile/lookups/stone-items');
+    return (res['data'] as List?) ?? <dynamic>[];
+  }
+
+  Future<List<dynamic>> fetchGoldPurities() async {
+    final res = await _get('/api/mobile/lookups/gold-purities');
+    return (res['data'] as List?) ?? <dynamic>[];
+  }
+
+  Future<List<dynamic>> fetchDiamondShapes() async {
+    final res = await _get('/api/mobile/lookups/diamond-shapes');
+    return (res['data'] as List?) ?? <dynamic>[];
+  }
+
+  Future<List<dynamic>> fetchDiamondChalniGroups() async {
+    final res = await _get('/api/mobile/lookups/diamond-chalni-groups');
     return (res['data'] as List?) ?? <dynamic>[];
   }
 

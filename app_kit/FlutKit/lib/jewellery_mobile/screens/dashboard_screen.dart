@@ -1,6 +1,9 @@
 import 'package:flutkit/jewellery_mobile/services/followup_notification_service.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
+import 'package:flutkit/jewellery_mobile/screens/issuement_create_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/order_create_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/purchase_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transaction_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
@@ -258,7 +261,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               label: 'Add Order',
               icon: Icons.add_box_outlined,
               color: AppColors.brandRed,
-              onTap: () => _showInfo('Order creation is not available yet.'),
+              onTap: _openOrder,
+            ),
+            _actionChip(
+              label: 'Combined Issuement',
+              icon: Icons.call_made_outlined,
+              color: AppColors.brandRed,
+              onTap: _openIssuement,
             ),
             _actionChip(
               label: 'Diamond Purchase',
@@ -289,21 +298,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'Create ${material[0].toUpperCase()}${material.substring(1)} ${action[0].toUpperCase()}${action.substring(1)}';
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => TransactionCreateScreen(
-          api: widget.api,
-          title: title,
-          material: material,
-          action: action,
-          accentColor: _accentFor(material),
-        ),
+        builder: (_) => action == 'purchase'
+            ? PurchaseCreateScreen(api: widget.api, material: material)
+            : TransactionCreateScreen(
+                api: widget.api,
+                title: title,
+                material: material,
+                action: action,
+                accentColor: _accentFor(material),
+              ),
       ),
     );
   }
 
-  void _showInfo(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+  Future<void> _openOrder() async {
+    final created = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => OrderCreateScreen(api: widget.api)),
+    );
+    if (created != null) await _load();
+  }
+
+  Future<void> _openIssuement() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => IssuementCreateScreen(api: widget.api)),
+    );
   }
 
   Widget _actionChip({

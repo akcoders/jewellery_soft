@@ -3,6 +3,7 @@
 namespace App\Controllers\Api\Mobile;
 
 use App\Models\CompanySettingModel;
+use App\Models\DiamondPurchaseAttachmentModel;
 use App\Models\InventoryLocationModel;
 use App\Models\IssueHeaderModel;
 use App\Models\IssueLineModel;
@@ -27,8 +28,10 @@ use App\Models\StoneInventoryPurchaseLineModel;
 use App\Models\StoneInventoryReturnHeaderModel;
 use App\Models\StoneInventoryReturnLineModel;
 use App\Models\StoneInventoryItemModel;
+use App\Models\StonePurchaseAttachmentModel;
 use App\Services\DiamondInventory\StockService as DiamondStockService;
 use App\Services\DiamondBagTraceService;
+use App\Services\DiamondChalniStockService;
 use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\StoneInventory\StockService as StoneStockService;
 use App\Services\KarigarMaterialAccountingService;
@@ -78,7 +81,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $linesPayload = $payload['lines'] ?? [];
-        $parsed = $this->parseDiamondLines($linesPayload);
+        $parsed = $this->parseDiamondLines($linesPayload, false, true);
         if ($parsed['error'] !== null) {
             return $this->fail($parsed['error'], 422);
         }
@@ -87,11 +90,11 @@ class TransactionsController extends MobileBaseController
         }
 
         $vendorId = (int) ($payload['vendor_id'] ?? 0);
-        $supplierName = trim((string) ($payload['supplier_name'] ?? ''));
-        if ($vendorId > 0 && $supplierName === '') {
-            $vendor = (new VendorModel())->find($vendorId);
-            $supplierName = $vendor ? (string) ($vendor['name'] ?? '') : '';
+        $vendor = (new VendorModel())->where('id', $vendorId)->where('is_active', 1)->first();
+        if (! $vendor) {
+            return $this->fail('Please select a valid active vendor.', 422);
         }
+        $supplierName = (string) ($vendor['name'] ?? '');
 
         $sumValue = array_sum(array_map(static fn(array $line): float => (float) ($line['line_value'] ?? 0), $parsed['lines']));
         try {
@@ -99,9 +102,9 @@ class TransactionsController extends MobileBaseController
         } catch (Throwable $e) {
             return $this->fail($e->getMessage(), 422);
         }
-
         $db = db_connect();
         $service = new DiamondStockService($db);
+        $savedFiles = [];
 
         try {
             $db->transException(true)->transStart();
@@ -110,6 +113,10 @@ class TransactionsController extends MobileBaseController
                 'purchase_date' => $purchaseDate,
                 'vendor_id' => $vendorId > 0 ? $vendorId : null,
                 'supplier_name' => $supplierName !== '' ? $supplierName : null,
+                'supplier_address' => $vendor['address'] ?? null,
+                'supplier_gstin' => $vendor['gstin'] ?? null,
+                'supplier_phone' => $vendor['phone'] ?? null,
+                'supplier_email' => $vendor['email'] ?? null,
                 'invoice_no' => trim((string) ($payload['invoice_no'] ?? '')) ?: null,
                 'payment_terms_days' => $paymentTerms['payment_terms_days'],
                 'due_date' => $paymentTerms['due_date'],
@@ -122,6 +129,10 @@ class TransactionsController extends MobileBaseController
                 'igst_rate' => $tax['igst_rate'], 'igst_amount' => $tax['igst_amount'],
                 'gst_amount' => $tax['gst_amount'], 'round_off_amount' => $tax['round_off_amount'],
                 'invoice_total' => $tax['invoice_total'],
+                'payment_status' => 'Pending',
+                'paid_amount' => 0,
+                'stock_posted' => 1,
+                'verification_status' => 'Manual Entry',
                 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
             ], true);
 
@@ -135,6 +146,8 @@ class TransactionsController extends MobileBaseController
                 $lineModel->insert([
                     'purchase_id' => $headerId,
                     'item_id' => $itemId,
+                    'shape_master_id' => $line['shape_master_id'],
+                    'chalni_group_id' => $line['chalni_group_id'],
                     'pcs' => $line['pcs'],
                     'carat' => $line['carat'],
                     'rate_per_carat' => $line['rate_per_carat'],
@@ -143,12 +156,15 @@ class TransactionsController extends MobileBaseController
             }
 
             $service->applyPurchase($headerId);
+            (new DiamondChalniStockService($db))->applyPurchase($headerId, (int) ($this->mobileAdmin['id'] ?? 0));
+            $savedFiles = $this->savePurchaseAttachments('diamond', $headerId, $payload['attachments'] ?? []);
             $db->transComplete();
             (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
                 'purchase', 'Diamond', 'purchase_headers', $headerId, 'mobile'
             );
         } catch (Throwable $e) {
             $db->transRollback();
+            $this->removeSavedFiles($savedFiles);
             return $this->fail('Unable to save purchase: ' . $e->getMessage(), 500);
         }
 
@@ -543,7 +559,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $linesPayload = $payload['lines'] ?? [];
-        $parsed = $this->parseGoldLines($linesPayload);
+        $parsed = $this->parseGoldLines($linesPayload, true);
         if ($parsed['error'] !== null) {
             return $this->fail($parsed['error'], 422);
         }
@@ -552,10 +568,22 @@ class TransactionsController extends MobileBaseController
         }
 
         $vendorId = (int) ($payload['vendor_id'] ?? 0);
+        $vendor = $vendorId > 0 ? (new VendorModel())->where('id', $vendorId)->where('is_active', 1)->first() : null;
+        if ($vendorId > 0 && ! $vendor) {
+            return $this->fail('Selected vendor was not found.', 422);
+        }
         $supplierName = trim((string) ($payload['supplier_name'] ?? ''));
-        if ($vendorId > 0 && $supplierName === '') {
-            $vendor = (new VendorModel())->find($vendorId);
-            $supplierName = $vendor ? (string) ($vendor['name'] ?? '') : '';
+        if ($supplierName === '' && $vendor) {
+            $supplierName = (string) ($vendor['name'] ?? '');
+        }
+        $locationId = (int) ($payload['location_id'] ?? 0);
+        $location = (new InventoryLocationModel())->where('id', $locationId)->where('is_active', 1)->first();
+        if (! $location) {
+            return $this->fail('Purchase location is required.', 422);
+        }
+        $dueDate = trim((string) ($payload['due_date'] ?? ''));
+        if ($dueDate !== '' && strtotime($dueDate) === false) {
+            return $this->fail('Enter a valid due date.', 422);
         }
 
         $sumValue = array_sum(array_map(static fn(array $line): float => (float) ($line['line_value'] ?? 0), $parsed['lines']));
@@ -563,6 +591,10 @@ class TransactionsController extends MobileBaseController
             $tax = (new TaxMasterService())->calculate((int) ($payload['gst_master_id'] ?? 0), $sumValue, (float) ($payload['round_off_amount'] ?? 0));
         } catch (Throwable $e) {
             return $this->fail($e->getMessage(), 422);
+        }
+        $payment = $this->purchasePaymentStatus($payload, (float) $tax['invoice_total']);
+        if ($payment['error'] !== null) {
+            return $this->fail($payment['error'], 422);
         }
 
         $db = db_connect();
@@ -575,7 +607,14 @@ class TransactionsController extends MobileBaseController
                 'purchase_date' => $purchaseDate,
                 'vendor_id' => $vendorId > 0 ? $vendorId : null,
                 'supplier_name' => $supplierName !== '' ? $supplierName : null,
+                'supplier_address' => trim((string) ($payload['supplier_address'] ?? '')) ?: ($vendor['address'] ?? null),
+                'supplier_gstin' => strtoupper(trim((string) ($payload['supplier_gstin'] ?? ''))) ?: ($vendor['gstin'] ?? null),
+                'supplier_phone' => trim((string) ($payload['supplier_phone'] ?? '')) ?: ($vendor['phone'] ?? null),
+                'supplier_email' => trim((string) ($payload['supplier_email'] ?? '')) ?: ($vendor['email'] ?? null),
                 'invoice_no' => trim((string) ($payload['invoice_no'] ?? '')) ?: null,
+                'due_date' => $dueDate !== '' ? date('Y-m-d', strtotime($dueDate)) : null,
+                'place_of_supply' => trim((string) ($payload['place_of_supply'] ?? '')) ?: null,
+                'purchase_description' => trim((string) ($payload['purchase_description'] ?? '')) ?: null,
                 'gst_master_id' => $tax['gst_master_id'], 'tax_breakup_json' => $tax['tax_breakup_json'],
                 'taxable_amount' => $tax['taxable_amount'],
                 'cgst_rate' => $tax['cgst_rate'], 'cgst_amount' => $tax['cgst_amount'],
@@ -583,22 +622,39 @@ class TransactionsController extends MobileBaseController
                 'igst_rate' => $tax['igst_rate'], 'igst_amount' => $tax['igst_amount'],
                 'gst_amount' => $tax['gst_amount'], 'round_off_amount' => $tax['round_off_amount'],
                 'invoice_total' => $tax['invoice_total'],
+                'payment_status' => $payment['status'],
+                'paid_amount' => $payment['paid'],
+                'payment_date' => $payment['date'],
+                'stock_posted' => 1,
+                'location_id' => $locationId,
                 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
             ], true);
 
             $lineModel = new GoldInventoryPurchaseLineModel();
             foreach ($parsed['lines'] as $line) {
+                $itemId = (int) ($line['item_id'] ?? 0);
+                if ($itemId <= 0) {
+                    $itemId = $service->upsertItemFromSignature((array) ($line['signature'] ?? []));
+                }
                 $lineModel->insert([
                     'purchase_id' => $headerId,
-                    'item_id' => $line['item_id'],
+                    'item_id' => $itemId,
+                    'description' => $line['description'],
+                    'hsn_sac' => $line['hsn_sac'],
+                    'unit' => $line['unit'],
                     'weight_gm' => $line['weight_gm'],
-                    'fine_weight_gm' => $line['fine_weight_gm'],
+                    'fine_weight_gm' => $service->calculateFineWeightForItem($itemId, (float) $line['weight_gm']),
                     'rate_per_gm' => $line['rate_per_gm'],
                     'line_value' => $line['line_value'],
                 ]);
             }
 
-            $service->applyPurchase($headerId);
+            $service->applyPurchase($headerId, [
+                'txn_date' => $purchaseDate,
+                'location_id' => $locationId,
+                'created_by' => (int) ($this->mobileAdmin['id'] ?? 0),
+                'notes' => 'Gold purchase posting from PWA',
+            ]);
             $db->transComplete();
             (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
                 'purchase', 'Gold', 'gold_inventory_purchase_headers', $headerId, 'mobile'
@@ -985,7 +1041,7 @@ class TransactionsController extends MobileBaseController
         }
 
         $linesPayload = $payload['lines'] ?? [];
-        $parsed = $this->parseStoneLines($linesPayload, false);
+        $parsed = $this->parseStoneLines($linesPayload, false, true);
         if ($parsed['error'] !== null) {
             return $this->fail($parsed['error'], 422);
         }
@@ -994,10 +1050,14 @@ class TransactionsController extends MobileBaseController
         }
 
         $vendorId = (int) ($payload['vendor_id'] ?? 0);
-        $supplierName = trim((string) ($payload['supplier_name'] ?? ''));
-        if ($vendorId > 0 && $supplierName === '') {
-            $vendor = (new VendorModel())->find($vendorId);
-            $supplierName = $vendor ? (string) ($vendor['name'] ?? '') : '';
+        $vendor = (new VendorModel())->where('id', $vendorId)->where('is_active', 1)->first();
+        if (! $vendor) {
+            return $this->fail('Please select a valid active vendor.', 422);
+        }
+        $supplierName = (string) ($vendor['name'] ?? '');
+        $dueDate = trim((string) ($payload['due_date'] ?? ''));
+        if ($dueDate !== '' && strtotime($dueDate) === false) {
+            return $this->fail('Enter a valid due date.', 422);
         }
 
         $sumValue = array_sum(array_map(static fn(array $line): float => (float) ($line['line_value'] ?? 0), $parsed['lines']));
@@ -1009,6 +1069,7 @@ class TransactionsController extends MobileBaseController
 
         $db = db_connect();
         $service = new StoneStockService($db);
+        $savedFiles = [];
 
         try {
             $db->transException(true)->transStart();
@@ -1017,7 +1078,12 @@ class TransactionsController extends MobileBaseController
                 'purchase_date' => $purchaseDate,
                 'vendor_id' => $vendorId > 0 ? $vendorId : null,
                 'supplier_name' => $supplierName !== '' ? $supplierName : null,
+                'supplier_address' => $vendor['address'] ?? null,
+                'supplier_gstin' => $vendor['gstin'] ?? null,
+                'supplier_phone' => $vendor['phone'] ?? null,
+                'supplier_email' => $vendor['email'] ?? null,
                 'invoice_no' => trim((string) ($payload['invoice_no'] ?? '')) ?: null,
+                'due_date' => $dueDate !== '' ? date('Y-m-d', strtotime($dueDate)) : null,
                 'gst_master_id' => $tax['gst_master_id'], 'tax_breakup_json' => $tax['tax_breakup_json'],
                 'taxable_amount' => $tax['taxable_amount'],
                 'tax_percentage' => $tax['cgst_rate'] + $tax['sgst_rate'] + $tax['igst_rate'],
@@ -1031,9 +1097,13 @@ class TransactionsController extends MobileBaseController
 
             $lineModel = new StoneInventoryPurchaseLineModel();
             foreach ($parsed['lines'] as $line) {
+                $itemId = (int) ($line['item_id'] ?? 0);
+                if ($itemId <= 0) {
+                    $itemId = $service->upsertItemFromSignature((array) ($line['signature'] ?? []));
+                }
                 $lineModel->insert([
                     'purchase_id' => $headerId,
-                    'item_id' => $line['item_id'],
+                    'item_id' => $itemId,
                     'qty' => $line['qty'],
                     'rate' => $line['rate'],
                     'line_value' => $line['line_value'],
@@ -1041,12 +1111,14 @@ class TransactionsController extends MobileBaseController
             }
 
             $service->applyPurchase($headerId);
+            $savedFiles = $this->savePurchaseAttachments('stone', $headerId, $payload['attachments'] ?? []);
             $db->transComplete();
             (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
                 'purchase', 'Stone', 'stone_inventory_purchase_headers', $headerId, 'mobile'
             );
         } catch (Throwable $e) {
             $db->transRollback();
+            $this->removeSavedFiles($savedFiles);
             return $this->fail('Unable to save purchase: ' . $e->getMessage(), 500);
         }
 
@@ -1409,11 +1481,252 @@ class TransactionsController extends MobileBaseController
             ->setBody($pdf);
     }
 
-    private function parseDiamondLines($linesPayload, bool $bagWiseIssue = false): array
+    public function createCombinedIssuement()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $payload = $this->payload();
+        $issueDate = trim((string) ($payload['issue_date'] ?? ''));
+        $karigarId = (int) ($payload['karigar_id'] ?? 0);
+        $locationId = (int) ($payload['location_id'] ?? 0);
+        $purpose = trim((string) ($payload['purpose'] ?? ''));
+        if ($issueDate === '' || strtotime($issueDate) === false) {
+            return $this->fail('Issue date is required.', 422);
+        }
+        if ($karigarId <= 0 || $locationId <= 0) {
+            return $this->fail('Karigar and warehouse are required.', 422);
+        }
+        if ($purpose === '' || mb_strlen($purpose) > 50) {
+            return $this->fail('Purpose is required and must not exceed 50 characters.', 422);
+        }
+
+        $karigar = (new KarigarModel())->where('id', $karigarId)->where('is_active', 1)->first();
+        if (! $karigar) {
+            return $this->fail('Selected karigar was not found or inactive.', 422);
+        }
+        $location = (new InventoryLocationModel())->where('id', $locationId)->where('is_active', 1)->first();
+        if (! $location) {
+            return $this->fail('Selected warehouse was not found.', 422);
+        }
+
+        $gold = $this->parseGoldLines($payload['gold_lines'] ?? []);
+        if ($gold['error'] !== null) {
+            return $this->fail($gold['error'], 422);
+        }
+        $diamond = $this->parseDiamondLines($payload['diamond_lines'] ?? [], true);
+        if ($diamond['error'] !== null) {
+            return $this->fail($diamond['error'], 422);
+        }
+        $stone = $this->parseStoneLines($payload['stone_lines'] ?? [], true);
+        if ($stone['error'] !== null) {
+            return $this->fail($stone['error'], 422);
+        }
+        if ($gold['lines'] === [] && $diamond['lines'] === [] && $stone['lines'] === []) {
+            return $this->fail('Add at least one Gold, Diamond, or Stone line.', 422);
+        }
+
+        $attachment = $this->saveBase64Attachment(
+            (string) ($payload['attachment_base64'] ?? ''),
+            FCPATH . 'uploads/issuements/common',
+            true,
+            'uploads/issuements/common'
+        );
+        if (! $attachment['ok']) {
+            return $this->fail((string) $attachment['message'], 422);
+        }
+
+        $db = db_connect();
+        try {
+            $voucherNo = (new IssuementVoucherNumberService($db))
+                ->resolveForCreate((string) ($payload['voucher_no'] ?? ''));
+        } catch (Throwable $e) {
+            $this->removeRelativeFile((string) ($attachment['path'] ?? ''));
+            return $this->fail($e->getMessage(), 422);
+        }
+
+        $issueTo = (string) ($karigar['name'] ?? '');
+        $notes = trim((string) ($payload['notes'] ?? '')) ?: null;
+        $createdBy = (int) ($this->mobileAdmin['id'] ?? 0);
+        $created = [];
+        $notificationTable = '';
+        $notificationId = 0;
+
+        try {
+            $db->transException(true)->transStart();
+
+            if ($gold['lines'] !== []) {
+                $issueId = (int) (new GoldInventoryIssueHeaderModel())->insert([
+                    'voucher_no' => $voucherNo, 'issue_date' => $issueDate,
+                    'karigar_id' => $karigarId, 'location_id' => $locationId,
+                    'issue_to' => $issueTo, 'purpose' => $purpose, 'notes' => $notes,
+                    'attachment_name' => $attachment['name'], 'attachment_path' => $attachment['path'],
+                    'created_by' => $createdBy,
+                ], true);
+                $lineModel = new GoldInventoryIssueLineModel();
+                foreach ($gold['lines'] as $line) {
+                    $lineModel->insert([
+                        'issue_id' => $issueId, 'item_id' => $line['item_id'],
+                        'weight_gm' => $line['weight_gm'], 'fine_weight_gm' => $line['fine_weight_gm'],
+                        'rate_per_gm' => $line['rate_per_gm'], 'line_value' => $line['line_value'],
+                    ]);
+                }
+                (new GoldStockService($db))->applyIssue($issueId, [
+                    'txn_date' => $issueDate, 'karigar_id' => $karigarId,
+                    'location_id' => $locationId, 'created_by' => $createdBy,
+                    'notes' => 'Common issuement from PWA - Gold',
+                ]);
+                (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'issue', $issueId);
+                $created['gold_issue_id'] = $issueId;
+                $notificationTable = 'gold_inventory_issue_headers';
+                $notificationId = $issueId;
+            }
+
+            if ($diamond['lines'] !== []) {
+                $issueId = (int) (new IssueHeaderModel())->insert([
+                    'voucher_no' => $voucherNo, 'issue_date' => $issueDate,
+                    'karigar_id' => $karigarId, 'location_id' => $locationId,
+                    'issue_to' => $issueTo, 'purpose' => $purpose, 'notes' => $notes,
+                    'attachment_name' => $attachment['name'], 'attachment_path' => $attachment['path'],
+                    'created_by' => $createdBy,
+                ], true);
+                $lineModel = new IssueLineModel();
+                foreach ($diamond['lines'] as $line) {
+                    $lineModel->insert([
+                        'issue_id' => $issueId, 'item_id' => $line['item_id'],
+                        'bag_id' => $line['bag_id'], 'bag_item_id' => $line['bag_item_id'],
+                        'allocation_order_id' => $line['allocation_order_id'],
+                        'pcs' => $line['pcs'], 'carat' => $line['carat'],
+                        'rate_per_carat' => $line['rate_per_carat'], 'line_value' => $line['line_value'],
+                    ]);
+                }
+                (new DiamondStockService($db))->applyIssue($issueId);
+                (new DiamondBagTraceService($db))->applyIssue($issueId);
+                (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $issueId);
+                $created['diamond_issue_id'] = $issueId;
+                if ($notificationTable === '') {
+                    $notificationTable = 'issue_headers';
+                    $notificationId = $issueId;
+                }
+            }
+
+            if ($stone['lines'] !== []) {
+                $issueId = (int) (new StoneInventoryIssueHeaderModel())->insert([
+                    'voucher_no' => $voucherNo, 'issue_date' => $issueDate,
+                    'karigar_id' => $karigarId, 'location_id' => $locationId,
+                    'issue_to' => $issueTo, 'purpose' => $purpose, 'notes' => $notes,
+                    'attachment_name' => $attachment['name'], 'attachment_path' => $attachment['path'],
+                    'created_by' => $createdBy,
+                ], true);
+                $lineModel = new StoneInventoryIssueLineModel();
+                foreach ($stone['lines'] as $line) {
+                    $lineModel->insert([
+                        'issue_id' => $issueId, 'item_id' => $line['item_id'],
+                        'pcs' => $line['pcs'], 'qty' => $line['qty'],
+                        'rate' => $line['rate'], 'line_value' => $line['line_value'],
+                    ]);
+                }
+                (new StoneStockService($db))->applyIssue($issueId);
+                (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'issue', $issueId);
+                $created['stone_issue_id'] = $issueId;
+                if ($notificationTable === '') {
+                    $notificationTable = 'stone_inventory_issue_headers';
+                    $notificationId = $issueId;
+                }
+            }
+
+            $db->transComplete();
+        } catch (Throwable $e) {
+            $db->transRollback();
+            $this->removeRelativeFile((string) ($attachment['path'] ?? ''));
+            return $this->fail('Unable to save issuement: ' . $e->getMessage(), 500);
+        }
+
+        $materials = array_map(
+            static fn(string $key): string => ucfirst(str_replace('_issue_id', '', $key)),
+            array_keys($created)
+        );
+        try {
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'issue', implode(' + ', $materials), $notificationTable, $notificationId, 'mobile',
+                ['voucher_no' => $voucherNo, 'issue_to' => $issueTo]
+            );
+        } catch (Throwable $e) {
+            log_message('error', 'Combined mobile issuement notification failed: {message}', [
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        return $this->ok(['voucher_no' => $voucherNo] + $created, 'Common issuement saved.', 201);
+    }
+
+    public function combinedIssuementDetail()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $voucherNo = trim((string) $this->request->getGet('voucher_no'));
+        if ($voucherNo === '') {
+            return $this->fail('Voucher number is required.', 422);
+        }
+        $db = db_connect();
+        $definitions = [
+            'gold' => ['headers' => 'gold_inventory_issue_headers', 'lines' => 'gold_inventory_issue_lines'],
+            'diamond' => ['headers' => 'issue_headers', 'lines' => 'issue_lines'],
+            'stone' => ['headers' => 'stone_inventory_issue_headers', 'lines' => 'stone_inventory_issue_lines'],
+        ];
+        $headers = [];
+        $lines = [];
+        foreach ($definitions as $material => $tables) {
+            $header = $db->table($tables['headers'] . ' ih')
+                ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name')
+                ->join('karigars k', 'k.id = ih.karigar_id', 'left')
+                ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
+                ->where('ih.voucher_no', $voucherNo)->orderBy('ih.id', 'DESC')->get()->getRowArray();
+            if (! $header) {
+                continue;
+            }
+            $headers[$material] = $header;
+            $headerId = (int) $header['id'];
+            $lines[$material] = match ($material) {
+                'gold' => $this->goldLineRows($tables['lines'], 'issue_id', $headerId),
+                'diamond' => $this->diamondLineRows($tables['lines'], 'issue_id', $headerId),
+                default => $this->stoneLineRows($tables['lines'], 'issue_id', $headerId),
+            };
+        }
+        if ($headers === []) {
+            return $this->fail('Issuement not found.', 404);
+        }
+
+        return $this->ok([
+            'voucher_no' => $voucherNo,
+            'header' => reset($headers),
+            'headers' => $headers,
+            'lines' => $lines,
+            'materials' => array_map('ucfirst', array_keys($headers)),
+        ]);
+    }
+
+    private function parseDiamondLines($linesPayload, bool $bagWiseIssue = false, bool $masterBasedPurchase = false): array
     {
         $lines = [];
         if (! is_array($linesPayload)) {
             return ['lines' => [], 'error' => 'Invalid lines payload.'];
+        }
+
+        $shapesById = [];
+        $groupsById = [];
+        if ($masterBasedPurchase) {
+            foreach (db_connect()->table('diamond_shape_masters')->select('id, name')->where('is_active', 1)->get()->getResultArray() as $row) {
+                $shapesById[(int) $row['id']] = $row;
+            }
+            foreach (db_connect()->table('diamond_chalni_groups')->select('id, name, range_label')->where('is_active', 1)->get()->getResultArray() as $row) {
+                $groupsById[(int) $row['id']] = $row;
+            }
         }
 
         foreach ($linesPayload as $line) {
@@ -1423,6 +1736,8 @@ class TransactionsController extends MobileBaseController
             $itemId = (int) ($line['item_id'] ?? 0);
             $bagItemId = (int) ($line['bag_item_id'] ?? 0);
             $allocationOrderId = (int) ($line['allocation_order_id'] ?? 0);
+            $shapeMasterId = (int) ($line['shape_master_id'] ?? 0);
+            $chalniGroupId = (int) ($line['chalni_group_id'] ?? 0);
             $bagId = 0;
             if ($bagWiseIssue) {
                 $bagItem = db_connect()->table('diamond_bag_items')
@@ -1449,19 +1764,30 @@ class TransactionsController extends MobileBaseController
             if (($bagWiseIssue && ($pcs <= 0 || floor($pcs) !== $pcs)) || (! $bagWiseIssue && $pcs < 0)) {
                 return ['lines' => [], 'error' => $bagWiseIssue ? 'Whole-number PCS is mandatory for diamond bag issue.' : 'PCS cannot be negative.'];
             }
+            if ($masterBasedPurchase && $rateValue === null) {
+                return ['lines' => [], 'error' => 'Rate per carat is required for purchase lines.'];
+            }
             if ($rateValue !== null && $rateValue < 0) {
                 return ['lines' => [], 'error' => 'Rate per carat cannot be negative.'];
             }
 
             $signature = [];
+            if ($masterBasedPurchase) {
+                if (! isset($shapesById[$shapeMasterId])) {
+                    return ['lines' => [], 'error' => 'Select a valid diamond shape for every purchase line.'];
+                }
+                if (! isset($groupsById[$chalniGroupId])) {
+                    return ['lines' => [], 'error' => 'Select a valid chalni group for every purchase line.'];
+                }
+            }
             if ($itemId <= 0) {
                 $diamondType = trim((string) ($line['diamond_type'] ?? ''));
                 if ($diamondType === '') {
                     return ['lines' => [], 'error' => 'Diamond type is required when item is not selected.'];
                 }
 
-                $chalniFromRaw = trim((string) ($line['chalni_from'] ?? ''));
-                $chalniToRaw = trim((string) ($line['chalni_to'] ?? ''));
+                $chalniFromRaw = $masterBasedPurchase ? '' : trim((string) ($line['chalni_from'] ?? ''));
+                $chalniToRaw = $masterBasedPurchase ? '' : trim((string) ($line['chalni_to'] ?? ''));
                 $from = $chalniFromRaw === '' ? null : $chalniFromRaw;
                 $to = $chalniToRaw === '' ? null : $chalniToRaw;
                 if (($from === null && $to !== null) || ($from !== null && $to === null)) {
@@ -1479,7 +1805,9 @@ class TransactionsController extends MobileBaseController
 
                 $signature = [
                     'diamond_type' => $diamondType,
-                    'shape' => trim((string) ($line['shape'] ?? '')),
+                    'shape' => $masterBasedPurchase
+                        ? (string) ($shapesById[$shapeMasterId]['name'] ?? '')
+                        : trim((string) ($line['shape'] ?? '')),
                     'chalni_from' => $from,
                     'chalni_to' => $to,
                     'color' => trim((string) ($line['color'] ?? '')),
@@ -1498,6 +1826,8 @@ class TransactionsController extends MobileBaseController
                 'bag_id' => $bagWiseIssue ? $bagId : null,
                 'bag_item_id' => $bagWiseIssue ? $bagItemId : null,
                 'allocation_order_id' => $bagWiseIssue && $allocationOrderId > 0 ? $allocationOrderId : null,
+                'shape_master_id' => $masterBasedPurchase ? $shapeMasterId : null,
+                'chalni_group_id' => $masterBasedPurchase ? $chalniGroupId : null,
                 'pcs' => $bagWiseIssue ? (int) $pcs : round($pcs, 3),
                 'carat' => round($carat, 3),
                 'rate_per_carat' => $rateValue === null ? null : round($rateValue, 2),
@@ -1564,7 +1894,7 @@ class TransactionsController extends MobileBaseController
         return ['lines' => $lines, 'error' => null];
     }
 
-    private function parseGoldLines($linesPayload): array
+    private function parseGoldLines($linesPayload, bool $allowCustom = false): array
     {
         $lines = [];
         if (! is_array($linesPayload)) {
@@ -1588,6 +1918,14 @@ class TransactionsController extends MobileBaseController
                 $purityMap[(int) ($row['id'] ?? 0)] = (float) ($row['purity_percent'] ?? 0);
             }
         }
+        $purityOptions = [];
+        if ($allowCustom) {
+            foreach (db_connect()->table('gold_purities')
+                ->select('id, purity_code, purity_percent, color_name')
+                ->where('is_active', 1)->get()->getResultArray() as $row) {
+                $purityOptions[(int) $row['id']] = $row;
+            }
+        }
 
         foreach ($linesPayload as $line) {
             if (! is_array($line)) {
@@ -1595,11 +1933,15 @@ class TransactionsController extends MobileBaseController
             }
 
             $itemId = (int) ($line['item_id'] ?? 0);
-            if ($itemId <= 0) {
+            $purityId = (int) ($line['gold_purity_id'] ?? 0);
+            if ($itemId <= 0 && ! $allowCustom) {
                 return ['lines' => [], 'error' => 'Gold item is required.'];
             }
-            if (! isset($purityMap[$itemId])) {
+            if ($itemId > 0 && ! isset($purityMap[$itemId])) {
                 return ['lines' => [], 'error' => 'Selected gold item not found.'];
+            }
+            if ($itemId <= 0 && ! isset($purityOptions[$purityId])) {
+                return ['lines' => [], 'error' => 'Select gold purity when an existing item is not selected.'];
             }
 
             $weight = (float) ($line['weight_gm'] ?? 0);
@@ -1609,27 +1951,47 @@ class TransactionsController extends MobileBaseController
 
             $rateRaw = $line['rate_per_gm'] ?? null;
             $rateValue = $rateRaw === null || $rateRaw === '' ? null : (float) $rateRaw;
+            if ($allowCustom && $rateValue === null) {
+                return ['lines' => [], 'error' => 'Rate per gram is required for purchase lines.'];
+            }
             if ($rateValue !== null && $rateValue < 0) {
                 return ['lines' => [], 'error' => 'Rate per gm cannot be negative.'];
             }
 
-            $purity = (float) $purityMap[$itemId];
+            $purity = $itemId > 0
+                ? (float) $purityMap[$itemId]
+                : (float) ($purityOptions[$purityId]['purity_percent'] ?? 0);
             $fine = round($weight * $purity / 100, 3);
             $lineValue = $rateValue === null ? null : round($weight * $rateValue, 2);
+            $signature = [];
+            if ($itemId <= 0) {
+                $purityRow = $purityOptions[$purityId];
+                $signature = [
+                    'gold_purity_id' => $purityId,
+                    'purity_code' => (string) ($purityRow['purity_code'] ?? ''),
+                    'purity_percent' => $purity,
+                    'color_name' => trim((string) ($line['color_name'] ?? '')) ?: ((string) ($purityRow['color_name'] ?? '') ?: null),
+                    'form_type' => trim((string) ($line['form_type'] ?? '')) ?: null,
+                ];
+            }
 
             $lines[] = [
                 'item_id' => $itemId,
+                'description' => trim((string) ($line['description'] ?? '')) ?: null,
+                'hsn_sac' => trim((string) ($line['hsn_sac'] ?? '')) ?: null,
+                'unit' => strtoupper(trim((string) ($line['unit'] ?? 'GMS'))) ?: 'GMS',
                 'weight_gm' => round($weight, 3),
                 'fine_weight_gm' => $fine,
                 'rate_per_gm' => $rateValue === null ? null : round($rateValue, 2),
                 'line_value' => $lineValue,
+                'signature' => $signature,
             ];
         }
 
         return ['lines' => $lines, 'error' => null];
     }
 
-    private function parseStoneLines($linesPayload, bool $includePcs): array
+    private function parseStoneLines($linesPayload, bool $includePcs, bool $allowCustom = false): array
     {
         $lines = [];
         if (! is_array($linesPayload)) {
@@ -1642,11 +2004,16 @@ class TransactionsController extends MobileBaseController
             }
 
             $itemId = (int) ($line['item_id'] ?? 0);
-            if ($itemId <= 0) {
+            if ($itemId <= 0 && ! $allowCustom) {
                 return ['lines' => [], 'error' => 'Stone item is required.'];
             }
-            if (! $this->stoneItemModel->find($itemId)) {
+            if ($itemId > 0 && ! $this->stoneItemModel->find($itemId)) {
                 return ['lines' => [], 'error' => 'Selected stone item not found.'];
+            }
+            $productName = trim((string) ($line['product_name'] ?? ''));
+            $stoneType = trim((string) ($line['stone_type'] ?? ''));
+            if ($itemId <= 0 && $productName === '') {
+                return ['lines' => [], 'error' => 'Product name is required when an existing stone item is not selected.'];
             }
 
             $qty = (float) ($line['qty'] ?? 0);
@@ -1656,6 +2023,9 @@ class TransactionsController extends MobileBaseController
 
             $rateRaw = $line['rate'] ?? null;
             $rateValue = $rateRaw === null || $rateRaw === '' ? null : (float) $rateRaw;
+            if ($allowCustom && $rateValue === null) {
+                return ['lines' => [], 'error' => 'Rate is required for purchase lines.'];
+            }
             if ($rateValue !== null && $rateValue < 0) {
                 return ['lines' => [], 'error' => 'Rate cannot be negative.'];
             }
@@ -1667,6 +2037,11 @@ class TransactionsController extends MobileBaseController
                 'qty' => round($qty, 3),
                 'rate' => $rateValue === null ? null : round($rateValue, 2),
                 'line_value' => $lineValue,
+                'signature' => $itemId <= 0 ? [
+                    'product_name' => $productName,
+                    'stone_type' => $stoneType,
+                    'default_rate' => $rateValue ?? 0,
+                ] : [],
             ];
 
             if ($includePcs) {
@@ -1777,6 +2152,123 @@ class TransactionsController extends MobileBaseController
         ];
     }
 
+    /** @return array{status:string,paid:float,date:?string,error:?string} */
+    private function purchasePaymentStatus(array $payload, float $invoiceTotal): array
+    {
+        $status = trim((string) ($payload['payment_status'] ?? 'Pending')) ?: 'Pending';
+        if (! in_array($status, ['Pending', 'Partial', 'Paid'], true)) {
+            return ['status' => 'Pending', 'paid' => 0.0, 'date' => null, 'error' => 'Select a valid payment status.'];
+        }
+        $paid = max(0, round((float) ($payload['paid_amount'] ?? 0), 2));
+        if ($status === 'Paid' && $paid <= 0) {
+            $paid = $invoiceTotal;
+        }
+        $paid = min($paid, $invoiceTotal);
+        $status = $paid >= $invoiceTotal && $invoiceTotal > 0 ? 'Paid' : ($paid > 0 ? 'Partial' : 'Pending');
+        $date = trim((string) ($payload['payment_date'] ?? ''));
+        if ($date !== '' && strtotime($date) === false) {
+            return ['status' => $status, 'paid' => $paid, 'date' => null, 'error' => 'Enter a valid payment date.'];
+        }
+
+        return [
+            'status' => $status,
+            'paid' => $paid,
+            'date' => $date !== '' ? date('Y-m-d', strtotime($date)) : null,
+            'error' => null,
+        ];
+    }
+
+    /** @return list<string> absolute file paths */
+    private function savePurchaseAttachments(string $material, int $purchaseId, $attachments): array
+    {
+        if (! is_array($attachments) || $attachments === []) {
+            return [];
+        }
+        if (! in_array($material, ['diamond', 'stone'], true)) {
+            return [];
+        }
+
+        $table = $material === 'diamond' ? 'diamond_purchase_attachments' : 'stone_purchase_attachments';
+        if (! db_connect()->tableExists($table)) {
+            throw new \RuntimeException('Purchase attachment table is missing. Run all database updates.');
+        }
+        $relativeRoot = $material === 'diamond' ? 'uploads/diamond-purchases' : 'uploads/stone-purchases';
+        $uploadDir = FCPATH . $relativeRoot;
+        if (! is_dir($uploadDir) && ! mkdir($uploadDir, 0775, true) && ! is_dir($uploadDir)) {
+            throw new \RuntimeException('Unable to create the purchase upload directory.');
+        }
+
+        $allowed = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'];
+        $model = $material === 'diamond' ? new DiamondPurchaseAttachmentModel() : new StonePurchaseAttachmentModel();
+        $saved = [];
+        foreach ($attachments as $attachment) {
+            if (! is_array($attachment)) {
+                continue;
+            }
+            $raw = trim((string) ($attachment['base64'] ?? ''));
+            if ($raw === '') {
+                continue;
+            }
+            $mime = strtolower(trim((string) ($attachment['mime_type'] ?? 'application/octet-stream')));
+            $extension = strtolower(trim((string) ($attachment['extension'] ?? '')));
+            if (preg_match('/^data:([^;]+);base64,/', $raw, $matches)) {
+                $mime = strtolower((string) ($matches[1] ?? $mime));
+                $raw = substr($raw, strpos($raw, ',') + 1);
+            }
+            if ($extension === '') {
+                $extension = match ($mime) {
+                    'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp',
+                    'application/pdf' => 'pdf', 'text/csv' => 'csv', 'text/plain' => 'txt',
+                    default => '',
+                };
+            }
+            if (! in_array($extension, $allowed, true)) {
+                throw new \RuntimeException('Purchase attachment type is not allowed.');
+            }
+            $binary = base64_decode(str_replace(' ', '+', $raw), true);
+            if ($binary === false || strlen($binary) > 10 * 1024 * 1024) {
+                throw new \RuntimeException('Each purchase attachment must be valid and 10MB or less.');
+            }
+            $storedName = date('YmdHis') . '_' . bin2hex(random_bytes(5)) . '.' . $extension;
+            $absolute = $uploadDir . DIRECTORY_SEPARATOR . $storedName;
+            if (file_put_contents($absolute, $binary) === false) {
+                throw new \RuntimeException('Unable to save a purchase attachment.');
+            }
+            $saved[] = $absolute;
+            $model->insert([
+                'purchase_id' => $purchaseId,
+                'file_name' => trim((string) ($attachment['name'] ?? '')) ?: $storedName,
+                'file_path' => $relativeRoot . '/' . $storedName,
+                'mime_type' => $mime,
+                'file_size' => strlen($binary),
+                'uploaded_by' => (int) ($this->mobileAdmin['id'] ?? 0),
+            ]);
+        }
+
+        return $saved;
+    }
+
+    /** @param list<string> $paths */
+    private function removeSavedFiles(array $paths): void
+    {
+        foreach ($paths as $path) {
+            if (is_file($path)) {
+                @unlink($path);
+            }
+        }
+    }
+
+    private function removeRelativeFile(string $path): void
+    {
+        if ($path === '') {
+            return;
+        }
+        $absolute = FCPATH . ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path), DIRECTORY_SEPARATOR);
+        if (is_file($absolute)) {
+            @unlink($absolute);
+        }
+    }
+
     private function saveBase64Attachment(string $input, string $uploadDir, bool $required, string $relativeRoot): array
     {
         $raw = trim($input);
@@ -1799,8 +2291,8 @@ class TransactionsController extends MobileBaseController
         }
 
         $binary = base64_decode(str_replace(' ', '+', $raw), true);
-        if ($binary === false) {
-            return ['ok' => false, 'message' => 'Invalid attachment payload.'];
+        if ($binary === false || strlen($binary) > 10 * 1024 * 1024) {
+            return ['ok' => false, 'message' => 'Attachment must be valid and 10MB or less.'];
         }
 
         if (! is_dir($uploadDir)) {

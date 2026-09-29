@@ -432,6 +432,8 @@ $routes->group('api', static function ($routes): void {
         $routes->post('notifications/(:num)/done', 'Api\Mobile\NotificationsController::done/$1');
 
         $routes->get('orders', 'Api\Mobile\OrdersController::index');
+        $routes->post('orders', 'Api\Mobile\OrdersController::create');
+        $routes->get('orders-form-options', 'Api\Mobile\OrdersController::formOptions');
         $routes->get('orders/(:num)', 'Api\Mobile\OrdersController::show/$1');
         $routes->get('orders/(:num)/followups', 'Api\Mobile\OrdersController::followups/$1');
         $routes->post('orders/(:num)/followups', 'Api\Mobile\OrdersController::addFollowup/$1');
@@ -457,6 +459,10 @@ $routes->group('api', static function ($routes): void {
         $routes->get('stone/returns', 'Api\Mobile\InventoryController::stoneReturns');
         $routes->get('stone/purchases', 'Api\Mobile\InventoryController::stonePurchases');
 
+        $routes->get('issuements', 'Api\Mobile\InventoryController::issuements');
+        $routes->get('issuements/detail', 'Api\Mobile\TransactionsController::combinedIssuementDetail');
+        $routes->post('issuements', 'Api\Mobile\TransactionsController::createCombinedIssuement');
+
         $routes->get('lookups/karigars', 'Api\Mobile\LookupsController::karigars');
         $routes->get('lookups/vendors', 'Api\Mobile\LookupsController::vendors');
         $routes->get('lookups/gst-masters', 'Api\Mobile\LookupsController::gstMasters');
@@ -466,6 +472,9 @@ $routes->group('api', static function ($routes): void {
         $routes->get('lookups/diamond-order-allocations', 'Api\Mobile\LookupsController::diamondOrderAllocations');
         $routes->get('lookups/gold-items', 'Api\Mobile\LookupsController::goldItems');
         $routes->get('lookups/stone-items', 'Api\Mobile\LookupsController::stoneItems');
+        $routes->get('lookups/gold-purities', 'Api\Mobile\LookupsController::goldPurities');
+        $routes->get('lookups/diamond-shapes', 'Api\Mobile\LookupsController::diamondShapes');
+        $routes->get('lookups/diamond-chalni-groups', 'Api\Mobile\LookupsController::diamondChalniGroups');
         $routes->get('lookups/diamond-issues', 'Api\Mobile\LookupsController::diamondIssues');
         $routes->get('lookups/diamond-issues/(:num)/lines', 'Api\Mobile\LookupsController::diamondIssueLines/$1');
         $routes->get('lookups/gold-issues', 'Api\Mobile\LookupsController::goldIssues');

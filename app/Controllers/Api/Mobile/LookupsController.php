@@ -32,7 +32,7 @@ class LookupsController extends MobileBaseController
         }
 
         $rows = db_connect()->table('vendors')
-            ->select('id, name, phone')
+            ->select('id, name, address, gstin, phone, email')
             ->where('is_active', 1)
             ->orderBy('name', 'ASC')
             ->get()
@@ -144,6 +144,57 @@ class LookupsController extends MobileBaseController
             ->join('stone_inventory_stock s', 's.item_id = si.id', 'left')
             ->orderBy('si.product_name', 'ASC')
             ->orderBy('si.id', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+
+    public function goldPurities()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('gold_purities')
+            ->select('id, purity_code, purity_percent, color_name')
+            ->where('is_active', 1)
+            ->orderBy('purity_percent', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+
+    public function diamondShapes()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('diamond_shape_masters')
+            ->select('id, code, name')
+            ->where('is_active', 1)
+            ->orderBy('name', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        return $this->ok($rows);
+    }
+
+    public function diamondChalniGroups()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $rows = db_connect()->table('diamond_chalni_groups')
+            ->select('id, code, name, range_label')
+            ->where('is_active', 1)
+            ->orderBy('name', 'ASC')
             ->get()
             ->getResultArray();
 

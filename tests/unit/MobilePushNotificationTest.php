@@ -110,7 +110,7 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString("'permission' => 'accounts.read'", $events);
         $this->assertStringContainsString("'permission' => 'issuements.read'", $events);
         $this->assertSame(9, substr_count($adminInventory, 'notifyInventoryTransactionCreated('));
-        $this->assertSame(9, substr_count($mobileTransactions, 'notifyInventoryTransactionCreated('));
+        $this->assertSame(10, substr_count($mobileTransactions, 'notifyInventoryTransactionCreated('));
         $this->assertStringContainsString('notifyInventoryTransactionCreated(', $combinedIssuement);
         $this->assertStringContainsString('notifyInventoryTransactionCreated(', $legacyPurchase);
         $this->assertStringContainsString('Inventory transaction notification failed', $events);

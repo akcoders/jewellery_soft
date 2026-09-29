@@ -2,8 +2,16 @@
 
 namespace App\Controllers\Api\Mobile;
 
+use App\Models\JobCardModel;
+use App\Models\OrderAttachmentModel;
+use App\Models\OrderItemModel;
+use App\Models\OrderModel;
+use App\Models\OrderStatusHistoryModel;
 use App\Services\MobileNotificationEventService;
 use App\Services\DiamondRequirementService;
+use App\Services\OrderCategoryService;
+use App\Services\OrderNumberService;
+use App\Services\OrderWhatsAppService;
 use App\Services\RbacService;
 use App\Services\StaffPerformanceService;
 use Config\Jewellery;
@@ -75,6 +83,278 @@ class OrdersController extends MobileBaseController
                 'total_pages' => $limit > 0 ? (int) ceil($total / $limit) : 1,
             ],
         ]);
+    }
+
+    public function formOptions()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $db = db_connect();
+
+        return $this->ok([
+            'customers' => $db->table('customers')
+                ->select('id, customer_code, name, phone, email')
+                ->where('is_active', 1)
+                ->orderBy('name', 'ASC')->get()->getResultArray(),
+            'sales_people' => $db->table('customer_users')
+                ->select('id, customer_id, name, mobile')
+                ->where('role', 'sales_person')->where('is_active', 1)
+                ->orderBy('name', 'ASC')->get()->getResultArray(),
+            'designs' => $db->table('design_masters')
+                ->select('id, design_code, name')
+                ->where('is_active', 1)
+                ->orderBy('name', 'ASC')->get()->getResultArray(),
+            'gold_purities' => $db->table('gold_purities')
+                ->select('id, purity_code, purity_percent, color_name')
+                ->where('is_active', 1)
+                ->orderBy('purity_percent', 'DESC')->get()->getResultArray(),
+            'order_categories' => (new OrderCategoryService($db))->options(),
+            'priorities' => $this->jewelleryConfig->orderPriorities,
+            'statuses' => $this->jewelleryConfig->orderStatuses,
+            'material_categories' => ['Gold', 'Diamond', 'Jadau', 'Silver'],
+            'certificate_requirements' => ['', 'IGI', 'Kalasha', 'IGI / Kalasha', 'Other'],
+        ]);
+    }
+
+    public function create()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $payload = $this->payload();
+        $orderName = trim((string) ($payload['order_name'] ?? ''));
+        $orderType = trim((string) ($payload['order_type'] ?? ''));
+        $designType = trim((string) ($payload['order_design_type'] ?? ''));
+        $receivedDate = trim((string) ($payload['order_received_date'] ?? ''));
+        $materialCategory = trim((string) ($payload['material_category'] ?? ''));
+        $priority = trim((string) ($payload['priority'] ?? ''));
+        $status = trim((string) ($payload['status'] ?? ''));
+        $goldRateStatus = trim((string) ($payload['gold_rate_block_status'] ?? '')) === 'Fixed' ? 'Fixed' : 'Not Fixed';
+        $isRepair = strcasecmp($orderType, 'Repair') === 0;
+
+        if ($orderName === '' || mb_strlen($orderName) > 180) {
+            return $this->fail('Order name is required and must not exceed 180 characters.', 422);
+        }
+        if (! in_array($orderType, ['Sales', 'Manufacturing', 'Repair'], true)) {
+            return $this->fail('Select a valid order type.', 422);
+        }
+        if (! in_array($designType, ['Fresh', 'Repeat'], true)) {
+            return $this->fail('Select Fresh or Repeat order design type.', 422);
+        }
+        if ($receivedDate === '' || strtotime($receivedDate) === false) {
+            return $this->fail('Order received date is required.', 422);
+        }
+        if (! in_array($materialCategory, ['Gold', 'Diamond', 'Jadau', 'Silver'], true)) {
+            return $this->fail('Select a valid material category.', 422);
+        }
+        if (! in_array($priority, $this->jewelleryConfig->orderPriorities, true)) {
+            return $this->fail('Select a valid priority.', 422);
+        }
+        if (! in_array($status, $this->jewelleryConfig->orderStatuses, true)) {
+            return $this->fail('Select a valid order status.', 422);
+        }
+
+        $dueDate = $this->validOptionalDate($payload['due_date'] ?? null);
+        if ($dueDate === false) {
+            return $this->fail('Enter a valid client delivery date.', 422);
+        }
+        $repairReceivedAt = $this->validOptionalDate($payload['repair_received_at'] ?? null);
+        if ($repairReceivedAt === false) {
+            return $this->fail('Enter a valid repair received date.', 422);
+        }
+
+        $goldRate = $this->optionalDecimal($payload['gold_rate_per_gm'] ?? null);
+        $approximatePrice = $this->optionalDecimal($payload['approximate_price'] ?? null);
+        $advanceAmount = max(0, (float) ($payload['advance_amount'] ?? 0));
+        if ($goldRateStatus === 'Fixed' && ($goldRate === null || $goldRate <= 0)) {
+            return $this->fail('Enter the fixed gold rate per gram.', 422);
+        }
+        if ($approximatePrice !== null && $approximatePrice < 0) {
+            return $this->fail('Approximate price cannot be negative.', 422);
+        }
+        if ($approximatePrice !== null && $advanceAmount > $approximatePrice) {
+            return $this->fail('Advance amount cannot exceed the approximate price.', 422);
+        }
+
+        $repairOrnament = trim((string) ($payload['repair_ornament_details'] ?? ''));
+        $repairWork = trim((string) ($payload['repair_work_details'] ?? ''));
+        $repairWeight = (float) ($payload['repair_receive_weight_gm'] ?? 0);
+        if ($isRepair && ($repairOrnament === '' || $repairWork === '' || $repairWeight <= 0 || $repairReceivedAt === null)) {
+            return $this->fail('Repair ornament, work, receive weight and received date are required.', 422);
+        }
+
+        $db = db_connect();
+        $customerId = max(0, (int) ($payload['customer_id'] ?? 0));
+        $salesPersonId = max(0, (int) ($payload['sales_person_user_id'] ?? 0));
+        $customer = $customerId > 0
+            ? $db->table('customers')->select('id, phone')->where('id', $customerId)->where('is_active', 1)->get()->getRowArray()
+            : null;
+        if ($customerId > 0 && ! $customer) {
+            return $this->fail('Selected customer was not found.', 422);
+        }
+        if ($salesPersonId > 0) {
+            $salesPerson = $db->table('customer_users')->select('id')->where([
+                'id' => $salesPersonId,
+                'customer_id' => $customerId,
+                'role' => 'sales_person',
+                'is_active' => 1,
+            ])->get()->getRowArray();
+            if (! $salesPerson) {
+                return $this->fail('Selected sales person does not belong to the selected customer.', 422);
+            }
+        }
+
+        $itemsResult = $this->parseOrderItems($payload['items'] ?? [], $designType);
+        if ($itemsResult['error'] !== null) {
+            return $this->fail($itemsResult['error'], 422);
+        }
+        $items = $itemsResult['items'];
+        if ($items === [] && ! $isRepair) {
+            return $this->fail('At least one order item is required.', 422);
+        }
+        if ($items === []) {
+            $items[] = [
+                'design_id' => null,
+                'gold_purity_id' => null,
+                'item_description' => $repairWork,
+                'size_label' => null,
+                'qty' => 1,
+                'gold_required_gm' => 0.0,
+                'diamond_required_cts' => 0.0,
+            ];
+        }
+
+        $contactNumber = trim((string) ($payload['contact_number'] ?? ''));
+        if ($contactNumber === '' && $customer) {
+            $contactNumber = trim((string) ($customer['phone'] ?? ''));
+        }
+        $whatsappNumber = preg_replace('/\D+/', '', (string) ($payload['whatsapp_notification_number'] ?? '')) ?: '';
+        $notifyWhatsapp = ! empty($payload['whatsapp_notify_order_created']);
+        $savedFiles = [];
+        $orderId = 0;
+
+        try {
+            $db->transException(true)->transStart();
+            $category = (new OrderCategoryService($db))->resolve(
+                (int) ($payload['order_category_id'] ?? 0),
+                (string) ($payload['new_order_category'] ?? '')
+            );
+            $orderNo = (new OrderNumberService($db))->generate(
+                $customerId,
+                (string) $category['code'],
+                $salesPersonId,
+                trim((string) ($payload['order_from'] ?? ''))
+            );
+
+            $orderId = (int) (new OrderModel())->insert([
+                'order_no' => $orderNo,
+                'order_name' => $orderName,
+                'order_category_id' => (int) $category['id'],
+                'order_type' => $isRepair ? 'Repair' : $orderType,
+                'order_design_type' => $designType,
+                'order_from' => trim((string) ($payload['order_from'] ?? '')) ?: null,
+                'order_received_date' => date('Y-m-d', strtotime($receivedDate)),
+                'contact_number' => $contactNumber !== '' ? $contactNumber : null,
+                'material_category' => $materialCategory,
+                'certificate_requirement' => trim((string) ($payload['certificate_requirement'] ?? '')) ?: null,
+                'additional_details' => trim((string) ($payload['additional_details'] ?? '')) ?: null,
+                'gold_rate_block_status' => $goldRateStatus,
+                'gold_rate_per_gm' => $goldRateStatus === 'Fixed' ? $goldRate : null,
+                'approximate_price' => $approximatePrice,
+                'advance_amount' => round($advanceAmount, 2),
+                'customer_id' => $customerId > 0 ? $customerId : null,
+                'sales_person_user_id' => $salesPersonId > 0 ? $salesPersonId : null,
+                'status' => $status,
+                'priority' => $priority,
+                'due_date' => $dueDate,
+                'order_notes' => trim((string) ($payload['order_notes'] ?? '')),
+                'whatsapp_notification_number' => $whatsappNumber !== '' ? $whatsappNumber : null,
+                'whatsapp_notify_order_created' => $notifyWhatsapp ? 1 : 0,
+                'expected_diamond_spec' => trim((string) ($payload['expected_diamond_spec'] ?? '')) ?: null,
+                'expected_stone_spec' => trim((string) ($payload['expected_stone_spec'] ?? '')) ?: null,
+                'priority_level' => max(0, min(10, (int) ($payload['priority_level'] ?? 0))),
+                'repair_ornament_details' => $isRepair ? $repairOrnament : null,
+                'repair_work_details' => $isRepair ? $repairWork : null,
+                'repair_receive_weight_gm' => $isRepair ? round($repairWeight, 3) : null,
+                'repair_received_at' => $isRepair ? $repairReceivedAt : null,
+                'created_by' => (int) ($this->mobileAdmin['id'] ?? 0),
+            ], true);
+            if ($orderId <= 0) {
+                throw new \RuntimeException('The order header could not be saved.');
+            }
+
+            $itemModel = new OrderItemModel();
+            $jobCardModel = new JobCardModel();
+            foreach ($items as $index => $item) {
+                $itemId = (int) $itemModel->insert([
+                    'order_id' => $orderId,
+                    'design_id' => $item['design_id'],
+                    'gold_purity_id' => $item['gold_purity_id'],
+                    'item_description' => $item['item_description'],
+                    'size_label' => $item['size_label'],
+                    'qty' => $item['qty'],
+                    'gold_required_gm' => $item['gold_required_gm'],
+                    'diamond_required_cts' => $item['diamond_required_cts'],
+                    'item_status' => $status,
+                ], true);
+                if ($itemId <= 0) {
+                    throw new \RuntimeException('An order item could not be saved.');
+                }
+                $jobCardId = (int) $jobCardModel->insert([
+                    'job_card_no' => 'JC' . date('ymdHis') . random_int(10, 99) . $index,
+                    'order_id' => $orderId,
+                    'order_item_id' => $itemId,
+                    'status' => 'Pending',
+                    'priority' => $priority,
+                    'due_date' => $dueDate,
+                    'qc_status' => 'Pending',
+                    'created_by' => (int) ($this->mobileAdmin['id'] ?? 0),
+                ], true);
+                if ($jobCardId <= 0) {
+                    throw new \RuntimeException('The order job card could not be saved.');
+                }
+            }
+
+            (new OrderStatusHistoryModel())->insert([
+                'order_id' => $orderId,
+                'from_status' => null,
+                'to_status' => $status,
+                'remarks' => 'Order created from PWA.',
+                'changed_by' => (int) ($this->mobileAdmin['id'] ?? 0),
+            ]);
+
+            $savedFiles = $this->saveOrderAttachments($orderId, $payload['attachments'] ?? []);
+            $db->transComplete();
+        } catch (Throwable $e) {
+            $db->transRollback();
+            foreach ($savedFiles as $savedFile) {
+                if (is_file($savedFile)) {
+                    @unlink($savedFile);
+                }
+            }
+            log_message('error', 'Mobile order creation failed: {message}', ['message' => $e->getMessage()]);
+            return $this->fail('Could not create the order: ' . $e->getMessage(), 500);
+        }
+
+        if ($notifyWhatsapp) {
+            try {
+                (new OrderWhatsAppService())->notifyOrderCreated($orderId);
+            } catch (Throwable $e) {
+                log_message('error', 'Mobile order WhatsApp notification failed: {message}', ['message' => $e->getMessage()]);
+            }
+        }
+        try {
+            $this->mobileNotificationEvents->notifyOrderCreated($orderId, 'mobile');
+        } catch (Throwable $e) {
+            log_message('error', 'Mobile order push notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+
+        return $this->ok(['order_id' => $orderId, 'order_no' => $orderNo], 'Order created.', 201);
     }
 
     public function show(int $id)
@@ -274,6 +554,138 @@ class OrdersController extends MobileBaseController
             'followups' => $this->followupRows($id),
             'notification' => $push,
         ], 'Followup saved and order status synced.');
+    }
+
+    /** @return array{items:list<array<string,mixed>>,error:?string} */
+    private function parseOrderItems($rawItems, string $designType): array
+    {
+        if (! is_array($rawItems)) {
+            return ['items' => [], 'error' => 'Invalid order items payload.'];
+        }
+
+        $db = db_connect();
+        $items = [];
+        foreach ($rawItems as $raw) {
+            if (! is_array($raw)) {
+                continue;
+            }
+            $designId = (int) ($raw['design_id'] ?? 0);
+            $purityId = (int) ($raw['gold_purity_id'] ?? 0);
+            $description = trim((string) ($raw['item_description'] ?? ''));
+            $qty = (int) ($raw['qty'] ?? 0);
+            if ($qty <= 0 || ($designId <= 0 && $description === '')) {
+                continue;
+            }
+            if ($designType === 'Repeat') {
+                if ($designId <= 0) {
+                    return ['items' => [], 'error' => 'Every repeat-order item must have a unique design code selected.'];
+                }
+                if ($db->table('design_masters')->where('id', $designId)->where('is_active', 1)->countAllResults() === 0) {
+                    return ['items' => [], 'error' => 'One or more repeat designs are not available.'];
+                }
+            } else {
+                $designId = 0;
+            }
+            if ($purityId > 0 && $db->table('gold_purities')->where('id', $purityId)->where('is_active', 1)->countAllResults() === 0) {
+                return ['items' => [], 'error' => 'One or more selected gold purities are not available.'];
+            }
+
+            $items[] = [
+                'design_id' => $designId > 0 ? $designId : null,
+                'gold_purity_id' => $purityId > 0 ? $purityId : null,
+                'item_description' => $description,
+                'size_label' => trim((string) ($raw['size_label'] ?? '')) ?: null,
+                'qty' => $qty,
+                'gold_required_gm' => round(max(0, (float) ($raw['gold_required_gm'] ?? 0)), 3),
+                'diamond_required_cts' => round(max(0, (float) ($raw['diamond_required_cts'] ?? 0)), 3),
+            ];
+        }
+
+        return ['items' => $items, 'error' => null];
+    }
+
+    /** @return string|null|false */
+    private function validOptionalDate($value)
+    {
+        $date = trim((string) $value);
+        if ($date === '') {
+            return null;
+        }
+        $timestamp = strtotime($date);
+        return $timestamp === false ? false : date('Y-m-d', $timestamp);
+    }
+
+    private function optionalDecimal($value): ?float
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+        if (! is_numeric($value)) {
+            return null;
+        }
+        return round((float) $value, 2);
+    }
+
+    /** @return list<string> absolute paths written during the transaction */
+    private function saveOrderAttachments(int $orderId, $attachments): array
+    {
+        if (! is_array($attachments) || $attachments === []) {
+            return [];
+        }
+
+        $uploadDir = FCPATH . 'uploads/orders';
+        if (! is_dir($uploadDir) && ! mkdir($uploadDir, 0775, true) && ! is_dir($uploadDir)) {
+            throw new \RuntimeException('Unable to create the order upload directory.');
+        }
+
+        $allowed = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'dwg', 'dxf'];
+        $saved = [];
+        $model = new OrderAttachmentModel();
+        foreach ($attachments as $attachment) {
+            if (! is_array($attachment)) {
+                continue;
+            }
+            $base64 = trim((string) ($attachment['base64'] ?? ''));
+            if ($base64 === '') {
+                continue;
+            }
+            $extension = strtolower(trim((string) ($attachment['extension'] ?? '')));
+            if (preg_match('/^data:([^;]+);base64,/', $base64, $matches)) {
+                $mime = strtolower((string) ($matches[1] ?? ''));
+                $extension = match ($mime) {
+                    'image/jpeg' => 'jpg',
+                    'image/png' => 'png',
+                    'image/webp' => 'webp',
+                    'application/pdf' => 'pdf',
+                    default => $extension,
+                };
+                $base64 = substr($base64, strpos($base64, ',') + 1);
+            }
+            if (! in_array($extension, $allowed, true)) {
+                throw new \RuntimeException('Order attachment type is not allowed.');
+            }
+            $binary = base64_decode(str_replace(' ', '+', $base64), true);
+            if ($binary === false || strlen($binary) > 10 * 1024 * 1024) {
+                throw new \RuntimeException('Each order attachment must be valid and 10MB or less.');
+            }
+
+            $storedName = date('YmdHis') . '_' . bin2hex(random_bytes(5)) . '.' . $extension;
+            $absolute = $uploadDir . DIRECTORY_SEPARATOR . $storedName;
+            if (file_put_contents($absolute, $binary) === false) {
+                throw new \RuntimeException('Could not save an order attachment.');
+            }
+            $saved[] = $absolute;
+            $model->insert([
+                'order_id' => $orderId,
+                'order_item_id' => null,
+                'file_type' => trim((string) ($attachment['file_type'] ?? 'reference')) ?: 'reference',
+                'file_name' => trim((string) ($attachment['name'] ?? '')) ?: $storedName,
+                'file_path' => 'uploads/orders/' . $storedName,
+                'uploaded_by' => (int) ($this->mobileAdmin['id'] ?? 0),
+            ]);
+        }
+
+        return $saved;
     }
 
     private function followupRows(int $orderId): array

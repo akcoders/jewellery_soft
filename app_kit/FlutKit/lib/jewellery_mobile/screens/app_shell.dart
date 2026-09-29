@@ -2,10 +2,14 @@ import 'package:flutkit/jewellery_mobile/screens/dashboard_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/followups_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/inventory_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/issuement_create_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/issuements_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/notification_center_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/order_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/orders_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/performance_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/purchase_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/task_scheduler_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transactions_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transaction_create_screen.dart';
@@ -199,14 +203,9 @@ class _AppShellState extends State<AppShell> {
           key: ValueKey('diamond_requirements_$_refreshTick'),
           api: _api,
         );
-      case 'diamond_issues':
-        return TransactionsScreen(
-          key: ValueKey('diamond_issues_$_refreshTick'),
-          title: 'Diamond Issues',
-          loader: _api.fetchDiamondIssues,
-          icon: Icons.diamond_outlined,
-          accentColor: AppColors.diamond,
-          transactionKey: 'diamond_issue',
+      case 'issuements':
+        return IssuementsScreen(
+          key: ValueKey('issuements_$_refreshTick'),
           api: _api,
         );
       case 'diamond_returns':
@@ -229,16 +228,6 @@ class _AppShellState extends State<AppShell> {
           transactionKey: 'diamond_purchase',
           api: _api,
         );
-      case 'gold_issues':
-        return TransactionsScreen(
-          key: ValueKey('gold_issues_$_refreshTick'),
-          title: 'Gold Issues',
-          loader: _api.fetchGoldIssues,
-          icon: Icons.workspace_premium_outlined,
-          accentColor: AppColors.gold,
-          transactionKey: 'gold_issue',
-          api: _api,
-        );
       case 'gold_returns':
         return TransactionsScreen(
           key: ValueKey('gold_returns_$_refreshTick'),
@@ -257,16 +246,6 @@ class _AppShellState extends State<AppShell> {
           icon: Icons.shopping_bag_outlined,
           accentColor: AppColors.gold,
           transactionKey: 'gold_purchase',
-          api: _api,
-        );
-      case 'stone_issues':
-        return TransactionsScreen(
-          key: ValueKey('stone_issues_$_refreshTick'),
-          title: 'Stone Issues',
-          loader: _api.fetchStoneIssues,
-          icon: Icons.scatter_plot_outlined,
-          accentColor: AppColors.stone,
-          transactionKey: 'stone_issue',
           api: _api,
         );
       case 'stone_returns':
@@ -402,16 +381,16 @@ class _AppShellState extends State<AppShell> {
                         'Followups',
                         Icons.event_note_outlined,
                       ),
+                      _drawerItem(
+                        'issuements',
+                        'Issuements',
+                        Icons.call_made_outlined,
+                      ),
                       _drawerSection('Diamond'),
                       _drawerItem(
                         'diamond_requirements',
                         'Bag Requirements',
                         Icons.fact_check_outlined,
-                      ),
-                      _drawerItem(
-                        'diamond_issues',
-                        'Diamond Issue',
-                        Icons.diamond_outlined,
                       ),
                       _drawerItem(
                         'diamond_returns',
@@ -425,11 +404,6 @@ class _AppShellState extends State<AppShell> {
                       ),
                       _drawerSection('Gold'),
                       _drawerItem(
-                        'gold_issues',
-                        'Gold Issue',
-                        Icons.workspace_premium_outlined,
-                      ),
-                      _drawerItem(
                         'gold_returns',
                         'Gold Return',
                         Icons.workspace_premium_outlined,
@@ -440,11 +414,6 @@ class _AppShellState extends State<AppShell> {
                         Icons.shopping_bag_outlined,
                       ),
                       _drawerSection('Stone'),
-                      _drawerItem(
-                        'stone_issues',
-                        'Stone Issue',
-                        Icons.scatter_plot_outlined,
-                      ),
                       _drawerItem(
                         'stone_returns',
                         'Stone Return',
@@ -490,19 +459,45 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget? _fab(BuildContext context) {
+    if (_section == 'orders') {
+      return FloatingActionButton.extended(
+        onPressed: () async {
+          final created = await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => OrderCreateScreen(api: _api)),
+          );
+          if (created != null && mounted) setState(() => _refreshTick++);
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Create'),
+      );
+    }
+    if (_section == 'issuements') {
+      return FloatingActionButton.extended(
+        onPressed: () async {
+          final created = await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => IssuementCreateScreen(api: _api)),
+          );
+          if (created != null && mounted) setState(() => _refreshTick++);
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Create'),
+      );
+    }
     final config = _transactionConfig();
     if (config == null) return null;
     return FloatingActionButton.extended(
       onPressed: () async {
         final created = await Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => TransactionCreateScreen(
-              api: _api,
-              title: 'Create ${_title()}',
-              material: config['material']!,
-              action: config['action']!,
-              accentColor: _accentForSection(),
-            ),
+            builder: (_) => config['action'] == 'purchase'
+                ? PurchaseCreateScreen(api: _api, material: config['material']!)
+                : TransactionCreateScreen(
+                    api: _api,
+                    title: 'Create ${_title()}',
+                    material: config['material']!,
+                    action: config['action']!,
+                    accentColor: _accentForSection(),
+                  ),
           ),
         );
         if (created == true && mounted) {
@@ -516,20 +511,14 @@ class _AppShellState extends State<AppShell> {
 
   Map<String, String>? _transactionConfig() {
     switch (_section) {
-      case 'diamond_issues':
-        return {'material': 'diamond', 'action': 'issue'};
       case 'diamond_returns':
         return {'material': 'diamond', 'action': 'return'};
       case 'diamond_purchases':
         return {'material': 'diamond', 'action': 'purchase'};
-      case 'gold_issues':
-        return {'material': 'gold', 'action': 'issue'};
       case 'gold_returns':
         return {'material': 'gold', 'action': 'return'};
       case 'gold_purchases':
         return {'material': 'gold', 'action': 'purchase'};
-      case 'stone_issues':
-        return {'material': 'stone', 'action': 'issue'};
       case 'stone_returns':
         return {'material': 'stone', 'action': 'return'};
       case 'stone_purchases':
@@ -542,15 +531,12 @@ class _AppShellState extends State<AppShell> {
   Color _accentForSection() {
     switch (_section) {
       case 'diamond_requirements':
-      case 'diamond_issues':
       case 'diamond_returns':
       case 'diamond_purchases':
         return AppColors.diamond;
-      case 'gold_issues':
       case 'gold_returns':
       case 'gold_purchases':
         return AppColors.gold;
-      case 'stone_issues':
       case 'stone_returns':
       case 'stone_purchases':
         return AppColors.stone;
@@ -565,22 +551,18 @@ class _AppShellState extends State<AppShell> {
         return 'Orders';
       case 'followups':
         return 'Order Followups';
-      case 'diamond_issues':
-        return 'Diamond Issues';
+      case 'issuements':
+        return 'Issuements';
       case 'diamond_requirements':
         return 'Diamond Requirements';
       case 'diamond_returns':
         return 'Diamond Returns';
       case 'diamond_purchases':
         return 'Diamond Purchases';
-      case 'gold_issues':
-        return 'Gold Issues';
       case 'gold_returns':
         return 'Gold Returns';
       case 'gold_purchases':
         return 'Gold Purchases';
-      case 'stone_issues':
-        return 'Stone Issues';
       case 'stone_returns':
         return 'Stone Returns';
       case 'stone_purchases':
