@@ -1,7 +1,7 @@
 "use strict";
 
 const CACHE_PREFIX = "aabhushan-pwa-";
-const CACHE_NAME = CACHE_PREFIX + "20261001051807";
+const CACHE_NAME = CACHE_PREFIX + "20261001134146";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -9,7 +9,15 @@ const APP_SHELL = [
   "./main.dart.js",
   "./manifest.json",
   "./assets/FontManifest.json",
+  "./assets/AssetManifest.bin.json",
   "./assets/fonts/MaterialIcons-Regular.otf",
+  "./assets/packages/flutter_lucide/lib/fonts/lucide.ttf",
+  "./fonts/manrope/Manrope.ttf",
+  "./fonts/cormorant/CormorantGaramond.ttf",
+  "./fonts/manrope/OFL.txt",
+  "./fonts/cormorant/OFL.txt",
+  "./assets/assets/images/brand/aabhushan_mark.png",
+  "./aabhushan_pwa_bridge.js",
   "./favicon.png",
   "./icons/Icon-192.png",
   "./icons/Icon-512.png",
