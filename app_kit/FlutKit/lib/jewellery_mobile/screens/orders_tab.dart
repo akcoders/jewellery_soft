@@ -1,5 +1,6 @@
 import 'package:flutkit/jewellery_mobile/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutter/material.dart';
 
 class OrdersTab extends StatefulWidget {
@@ -124,7 +125,7 @@ class _OrdersTabState extends State<OrdersTab> {
           child: RefreshIndicator(
             onRefresh: _load,
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const FullScreenLoader()
                 : _error.isNotEmpty
                 ? ListView(
                     children: [
@@ -154,7 +155,8 @@ class _OrdersTabState extends State<OrdersTab> {
                               MaterialPageRoute(
                                 builder: (_) => OrderDetailScreen(
                                   api: widget.api,
-                                  orderId: int.tryParse(
+                                  orderId:
+                                      int.tryParse(
                                         (row['id'] ?? row['order_id'] ?? '')
                                             .toString(),
                                       ) ??

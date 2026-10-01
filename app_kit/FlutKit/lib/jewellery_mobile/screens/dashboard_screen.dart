@@ -85,8 +85,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
+          _welcomeCard(),
+          const SizedBox(height: AppSpacing.xl),
+          const AppSectionTitle('Order Overview'),
+          const SizedBox(height: AppSpacing.md),
           _statsHeader(stats),
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.xl),
           _quickActions(),
           const SizedBox(height: AppSpacing.lg),
           const AppSectionTitle('Today Followups'),
@@ -96,6 +100,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const AppSectionTitle('Upcoming / Overdue Followups'),
           const SizedBox(height: AppSpacing.md),
           _followupList(followupGroups['other'] ?? []),
+        ],
+      ),
+    );
+  }
+
+  Widget _welcomeCard() {
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'Good morning'
+        : hour < 17
+        ? 'Good afternoon'
+        : 'Good evening';
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF351727), AppColors.plum, Color(0xFF762C39)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  greeting,
+                  style: const TextStyle(
+                    color: AppColors.brandGold,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.7,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                const Text(
+                  'Your workspace',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Orders, followups and craft in one place',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.brandGold.withValues(alpha: 0.5),
+              ),
+            ),
+            child: const Icon(
+              Icons.diamond_outlined,
+              color: AppColors.brandGold,
+            ),
+          ),
         ],
       ),
     );
@@ -137,7 +211,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
-      childAspectRatio: 1.25,
+      mainAxisExtent: 156,
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
       children: cards,
@@ -332,25 +406,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.md),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
+          vertical: 10,
         ),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 6),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: color, size: 17),
+            ),
+            const SizedBox(width: 8),
             Text(
               label,
-              style: TextStyle(fontWeight: FontWeight.w600, color: color),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
             ),
           ],
         ),

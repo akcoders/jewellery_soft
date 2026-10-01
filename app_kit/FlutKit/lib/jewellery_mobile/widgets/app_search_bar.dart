@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
 
 class AppSearchBar extends StatefulWidget {
   const AppSearchBar({
@@ -21,6 +22,7 @@ class AppSearchBar extends StatefulWidget {
 
 class _AppSearchBarState extends State<AppSearchBar> {
   Timer? _debounce;
+  bool _focused = false;
 
   @override
   void dispose() {
@@ -38,34 +40,46 @@ class _AppSearchBarState extends State<AppSearchBar> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.soft,
-      ),
-      child: TextField(
-        controller: widget.controller,
-        onChanged: _handleChanged,
-        decoration: InputDecoration(
-          hintText: widget.hintText,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
+    return Focus(
+      onFocusChange: (focused) => setState(() => _focused = focused),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+            color: _focused ? AppColors.brandRed : AppColors.border,
+            width: _focused ? 1.5 : 1,
           ),
-          prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-          suffixIcon: widget.controller.text.isEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    widget.controller.clear();
-                    widget.onChanged('');
-                    setState(() {});
-                  },
-                ),
+          boxShadow: AppShadows.soft,
+        ),
+        child: TextField(
+          controller: widget.controller,
+          onChanged: _handleChanged,
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            filled: false,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            prefixIcon: const Icon(LucideIcons.search, size: 20),
+            suffixIcon: widget.controller.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Clear search',
+                    icon: const Icon(LucideIcons.x, size: 18),
+                    onPressed: () {
+                      _debounce?.cancel();
+                      widget.controller.clear();
+                      widget.onChanged('');
+                      setState(() {});
+                    },
+                  ),
+          ),
         ),
       ),
     );

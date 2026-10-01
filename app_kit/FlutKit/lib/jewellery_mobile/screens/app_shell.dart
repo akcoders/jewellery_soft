@@ -27,6 +27,7 @@ import 'package:flutkit/jewellery_mobile/session/mobile_session_store.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/pwa_install_prompt.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.session, required this.onLogout});
@@ -431,32 +432,28 @@ class _AppShellState extends State<AppShell> {
                     padding: EdgeInsets.zero,
                     children: [
                       _drawerSection('Main'),
-                      _drawerItem(
-                        'dashboard',
-                        'Dashboard',
-                        Icons.home_outlined,
-                      ),
+                      _drawerItem('dashboard', 'Dashboard', LucideIcons.house),
                       _drawerItem(
                         'orders',
                         'Orders',
-                        Icons.assignment_outlined,
+                        LucideIcons.clipboard_list,
                       ),
                       _drawerItem(
                         'followups',
                         'Followups',
-                        Icons.event_note_outlined,
+                        LucideIcons.calendar_clock,
                       ),
                       if (widget.session.isAdmin)
                         _drawerItem(
                           'order_requests',
                           'Order Requests',
-                          Icons.fact_check_outlined,
+                          LucideIcons.badge_check,
                         ),
                       if (widget.session.isAdmin)
                         _drawerItem(
                           'admin_tasks',
                           'Staff Tasks',
-                          Icons.assignment_turned_in_outlined,
+                          LucideIcons.list_todo,
                         ),
                       _drawerItem(
                         'issuements',
@@ -468,56 +465,52 @@ class _AppShellState extends State<AppShell> {
                       _drawerItem(
                         'diamond_requirements',
                         'Diamond Bags',
-                        Icons.inventory_2_outlined,
+                        LucideIcons.package,
                       ),
                       _drawerItem(
                         'diamond_returns',
                         'Diamond Return',
-                        Icons.diamond_outlined,
+                        LucideIcons.diamond,
                       ),
                       _drawerItem(
                         'diamond_purchases',
                         'Diamond Purchase',
-                        Icons.shopping_bag_outlined,
+                        LucideIcons.shopping_bag,
                       ),
                       _drawerSection('Gold'),
                       _drawerItem(
                         'gold_returns',
                         'Gold Return',
-                        Icons.workspace_premium_outlined,
+                        LucideIcons.gem,
                       ),
                       _drawerItem(
                         'gold_purchases',
                         'Gold Purchase',
-                        Icons.shopping_bag_outlined,
+                        LucideIcons.shopping_bag,
                       ),
                       _drawerSection('Stone'),
                       _drawerItem(
                         'stone_returns',
                         'Stone Return',
-                        Icons.scatter_plot_outlined,
+                        LucideIcons.sparkles,
                       ),
                       _drawerItem(
                         'stone_purchases',
                         'Stone Purchase',
-                        Icons.shopping_bag_outlined,
+                        LucideIcons.shopping_bag,
                       ),
                       _drawerSection('Utility'),
-                      _drawerItem(
-                        'inventory',
-                        'Inventory',
-                        Icons.inventory_2_outlined,
-                      ),
+                      _drawerItem('inventory', 'Inventory', LucideIcons.boxes),
                       if (widget.session.canUsePerformance) ...[
                         _drawerItem(
                           'tasks',
                           'My Tasks',
-                          Icons.task_alt_outlined,
+                          LucideIcons.circle_check,
                         ),
                         _drawerItem(
                           'performance',
                           'My Performance',
-                          Icons.insights_outlined,
+                          LucideIcons.chart_no_axes_combined,
                         ),
                       ],
                     ],
@@ -667,25 +660,41 @@ class _AppShellState extends State<AppShell> {
     Widget? leading,
   }) {
     final selected = _section == key;
-    return ListTile(
-      selected: selected,
-      selectedTileColor: AppColors.brandRed.withValues(alpha: 0.12),
-      leading: leading ?? Icon(icon),
-      title: Text(label),
-      onTap: () => _select(key),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      child: ListTile(
+        dense: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        selected: selected,
+        selectedColor: AppColors.brandRed,
+        selectedTileColor: AppColors.brandRed.withValues(alpha: 0.09),
+        leading: leading ?? Icon(icon, size: 21),
+        title: Text(
+          label,
+          style: TextStyle(
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+        trailing: selected
+            ? const Icon(Icons.chevron_right_rounded, size: 18)
+            : null,
+        onTap: () => _select(key),
+      ),
     );
   }
 
   Widget _drawerSection(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+      padding: const EdgeInsets.fromLTRB(22, 20, 16, 7),
       child: Text(
         title.toUpperCase(),
         style: const TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: AppColors.textSecondary,
-          letterSpacing: 0.6,
+          letterSpacing: 1.3,
         ),
       ),
     );
@@ -800,10 +809,10 @@ class _DrawerHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFB81D24), Color(0xFFD4AF37)],
+          colors: [Color(0xFF351727), AppColors.plum, Color(0xFF702A37)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -811,26 +820,76 @@ class _DrawerHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
-            radius: 26,
-            backgroundColor: Colors.white,
-            child: Icon(
-              Icons.account_circle_outlined,
-              size: 34,
-              color: Color(0xFFB81D24),
-            ),
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFFFFBF4),
+                  border: Border.all(color: AppColors.brandGold),
+                ),
+                child: Image.asset(
+                  'assets/images/brand/aabhushan_mark.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AABHUSHAN',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        letterSpacing: 1.3,
+                      ),
+                    ),
+                    Text(
+                      'JEWELLERY WORKSPACE',
+                      style: TextStyle(
+                        color: AppColors.brandGold,
+                        fontSize: 8,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            session.userName,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.09),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.13)),
             ),
-          ),
-          Text(
-            session.userEmail,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  session.userName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  session.userEmail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
+            ),
           ),
         ],
       ),

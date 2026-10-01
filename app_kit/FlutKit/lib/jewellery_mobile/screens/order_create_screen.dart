@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
+import 'package:flutkit/jewellery_mobile/widgets/app_form_section.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
+import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -310,7 +312,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Create Order')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const FullScreenLoader()
           : _error.isNotEmpty
           ? AppErrorState(message: _error, onRetry: _load)
           : Form(
@@ -616,10 +618,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
                   FilledButton.icon(
                     onPressed: _saving ? null : _submit,
                     icon: _saving
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const AppLoadingIndicator(size: 18, light: true)
                         : const Icon(Icons.check_circle_outline),
                     label: const Text('Save Order'),
                   ),
@@ -732,33 +731,8 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
     ]);
   }
 
-  Widget _section(String title, List<Widget> children) => Container(
-    margin: const EdgeInsets.only(bottom: AppSpacing.xl),
-    padding: const EdgeInsets.all(AppSpacing.xl),
-    decoration: BoxDecoration(
-      color: AppColors.card,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      border: Border.all(color: AppColors.border),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        ...children.map(
-          (child) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-            child: child,
-          ),
-        ),
-      ],
-    ),
-  );
+  Widget _section(String title, List<Widget> children) =>
+      AppFormSection(title: title, children: children);
 
   Widget _text(
     TextEditingController controller,

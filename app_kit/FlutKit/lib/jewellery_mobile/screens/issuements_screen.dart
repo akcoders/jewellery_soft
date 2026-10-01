@@ -2,6 +2,7 @@ import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
+import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutter/material.dart';
 
 class IssuementsScreen extends StatefulWidget {
@@ -50,7 +51,7 @@ class _IssuementsScreenState extends State<IssuementsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const FullScreenLoader();
     if (_error.isNotEmpty)
       return AppErrorState(message: _error, onRetry: _load);
     final query = _search.text.trim().toLowerCase();
@@ -186,7 +187,7 @@ class _IssuementDetailScreenState extends State<IssuementDetailScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(widget.voucherNo)),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const FullScreenLoader()
           : _error.isNotEmpty
           ? AppErrorState(message: _error, onRetry: _load)
           : ListView(

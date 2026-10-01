@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
@@ -284,7 +285,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const FullScreenLoader()
           : _error.isNotEmpty
           ? AppErrorState(message: _error, onRetry: _loadLookups)
           : Padding(
@@ -311,14 +312,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                           ),
                           onPressed: _saving ? null : _submit,
                           icon: _saving
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
+                              ? const AppLoadingIndicator(size: 18, light: true)
                               : const Icon(Icons.save),
                           label: Text(_saving ? 'Saving...' : 'Save'),
                         ),

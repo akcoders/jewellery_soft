@@ -2,6 +2,7 @@ import 'package:flutkit/jewellery_mobile/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
+import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutter/material.dart';
 
 class OrderWorkRequestsScreen extends StatefulWidget {
@@ -44,7 +45,7 @@ class _OrderWorkRequestsScreenState extends State<OrderWorkRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const FullScreenLoader();
     if (_error.isNotEmpty)
       return AppErrorState(message: _error, onRetry: _load);
     final pending = _requests

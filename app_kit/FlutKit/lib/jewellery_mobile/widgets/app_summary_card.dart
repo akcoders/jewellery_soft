@@ -24,38 +24,54 @@ class AppSummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.lg),
         gradient: LinearGradient(
-          colors: [color.withValues(alpha: 0.18), Colors.white],
+          colors: [Colors.white, color.withValues(alpha: 0.07)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+        boxShadow: AppShadows.soft,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
+              color: color.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
-            child: Icon(icon, color: color),
+            child: Icon(icon, color: color, size: 21),
           ),
           const Spacer(),
           Text(
             title,
-            style: TextStyle(fontWeight: FontWeight.w700, color: color),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
           ),
           Text(
             value,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+              color: AppColors.plum,
+            ),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(
               subtitle!,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
             ),
           ],
         ],
@@ -63,4 +79,3 @@ class AppSummaryCard extends StatelessWidget {
     );
   }
 }
-

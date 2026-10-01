@@ -12,7 +12,7 @@ if [[ "$base_href" != /*/ ]]; then
 fi
 
 cd "$project_dir"
-flutter build web --release --base-href "$base_href"
+flutter build web --release --no-wasm-dry-run --base-href "$base_href"
 cp web/.htaccess build/web/.htaccess
 
 # Flutter's generated worker unregisters itself on current stable releases.

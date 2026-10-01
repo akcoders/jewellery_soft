@@ -1,5 +1,6 @@
 import 'package:flutkit/jewellery_mobile/screens/app_shell.dart';
 import 'package:flutkit/jewellery_mobile/screens/login_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/royal_splash_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/services/onesignal_service.dart';
 import 'package:flutkit/jewellery_mobile/session/mobile_session_store.dart';
@@ -16,6 +17,7 @@ class JewelleryMobileApp extends StatefulWidget {
 
 class _JewelleryMobileAppState extends State<JewelleryMobileApp> {
   MobileSession? _session;
+  bool _showSplash = true;
 
   @override
   void initState() {
@@ -98,6 +100,11 @@ class _JewelleryMobileAppState extends State<JewelleryMobileApp> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showSplash) {
+      return RoyalSplashScreen(
+        onFinished: () => setState(() => _showSplash = false),
+      );
+    }
     final session = _session;
     if (session == null || !session.isValid) {
       return LoginScreen(onLoginSuccess: _onLoginSuccess);

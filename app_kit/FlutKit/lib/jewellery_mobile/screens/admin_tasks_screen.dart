@@ -2,6 +2,7 @@ import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
+import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutter/material.dart';
 
 class AdminTasksScreen extends StatefulWidget {
@@ -243,7 +244,7 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const FullScreenLoader();
     if (_error.isNotEmpty)
       return AppErrorState(message: _error, onRetry: _load);
     return RefreshIndicator(

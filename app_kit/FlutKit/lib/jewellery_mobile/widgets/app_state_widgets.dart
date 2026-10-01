@@ -10,19 +10,35 @@ class AppEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
+      child: Container(
+        margin: const EdgeInsets.all(AppSpacing.xl),
+        constraints: const BoxConstraints(maxWidth: 340),
         padding: const EdgeInsets.all(AppSpacing.xl),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(color: AppColors.border),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.inbox_outlined, size: 42, color: AppColors.textSecondary),
+            Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                color: AppColors.paleGold,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.inbox_outlined,
+                size: 30,
+                color: AppColors.plum,
+              ),
+            ),
             const SizedBox(height: AppSpacing.md),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             if (message != null) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -52,12 +68,31 @@ class AppErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
+      child: Container(
+        margin: const EdgeInsets.all(AppSpacing.xl),
+        constraints: const BoxConstraints(maxWidth: 340),
         padding: const EdgeInsets.all(AppSpacing.xl),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(color: AppColors.border),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 42, color: AppColors.danger),
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.error_outline,
+                size: 30,
+                color: AppColors.danger,
+              ),
+            ),
             const SizedBox(height: AppSpacing.md),
             Text(
               message,
@@ -76,4 +111,3 @@ class AppErrorState extends StatelessWidget {
     );
   }
 }
-

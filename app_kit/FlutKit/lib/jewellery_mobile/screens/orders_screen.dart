@@ -229,26 +229,49 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: AppSpacing.sm),
-                                Text(
-                                  'Customer: ${row['customer_name'] ?? '-'}',
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                  ),
+                                const SizedBox(height: AppSpacing.md),
+                                const Divider(height: 1),
+                                const SizedBox(height: AppSpacing.md),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.person_outline_rounded,
+                                      size: 18,
+                                      color: AppColors.brandRed,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        (row['customer_name'] ?? '-')
+                                            .toString(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  'Karigar: ${row['karigar_name'] ?? 'Not Assigned'}',
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                  ),
+                                const SizedBox(height: AppSpacing.md),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _assignmentChip(
+                                      Icons.handyman_outlined,
+                                      'Karigar',
+                                      row['karigar_name'],
+                                    ),
+                                    _assignmentChip(
+                                      Icons.record_voice_over_outlined,
+                                      'Follower',
+                                      row['follower_name'],
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  'Follower: ${row['follower_name'] ?? 'Not Assigned'}',
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: AppSpacing.sm),
+                                const SizedBox(height: AppSpacing.md),
                                 Wrap(
                                   spacing: AppSpacing.sm,
                                   runSpacing: AppSpacing.sm,
@@ -298,6 +321,44 @@ class _OrdersScreenState extends State<OrdersScreen> {
             style: const TextStyle(
               fontSize: 12,
               color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _assignmentChip(IconData icon, String role, dynamic name) {
+    final value = (name ?? '').toString().trim();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.paleGold.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: AppColors.plum),
+          const SizedBox(width: 6),
+          Text(
+            '$role: ',
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 110),
+            child: Text(
+              value.isEmpty ? 'Unassigned' : value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.plum,
+              ),
             ),
           ),
         ],

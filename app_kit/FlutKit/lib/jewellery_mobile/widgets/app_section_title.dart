@@ -12,23 +12,25 @@ class AppSectionTitle extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 6,
-          height: 18,
-          decoration: BoxDecoration(
-            color: AppColors.brandRed,
-            borderRadius: BorderRadius.circular(4),
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(
+            color: AppColors.brandGold,
+            shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Text(
-          text,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.plum,
+              letterSpacing: -0.2,
+            ),
           ),
         ),
-        const Spacer(),
         if (trailing != null) trailing!,
       ],
     );

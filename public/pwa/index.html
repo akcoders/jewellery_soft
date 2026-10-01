@@ -19,7 +19,7 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Aabhushan ERP for orders, follow-ups, tasks and jewellery inventory.">
-  <meta name="theme-color" content="#B81D24">
+  <meta name="theme-color" content="#421D32">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 
   <!-- iOS meta tags & icons -->
@@ -33,11 +33,57 @@
 
   <title>Aabhushan ERP</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #421d32; }
+    #pwa-splash {
+      position: fixed; inset: 0; z-index: 10000; display: flex;
+      flex-direction: column; align-items: center; justify-content: center;
+      overflow: hidden; color: #fffaf0; font-family: Georgia, serif;
+      background: linear-gradient(145deg, #351727 0%, #421d32 55%, #6c2634 100%);
+      transition: opacity .45s ease, visibility .45s ease;
+    }
+    #pwa-splash::before, #pwa-splash::after {
+      content: ""; position: absolute; width: 420px; height: 420px;
+      border: 1px solid rgba(198,154,66,.18); border-radius: 50%;
+      pointer-events: none;
+    }
+    #pwa-splash::before { top: -210px; right: -160px; }
+    #pwa-splash::after { bottom: -240px; left: -180px; }
+    #pwa-splash.done { opacity: 0; visibility: hidden; }
+    .pwa-splash-mark {
+      width: 132px; height: 132px; border-radius: 50%;
+      box-shadow: 0 0 70px rgba(198,154,66,.24);
+      animation: pwa-mark-enter .9s cubic-bezier(.2,.8,.2,1) both,
+                 pwa-mark-breathe 2.4s ease-in-out 1s infinite;
+    }
+    .pwa-splash-name { margin-top: 24px; font-size: 26px; letter-spacing: 5px; animation: pwa-reveal .8s .25s both; }
+    .pwa-splash-caption { margin-top: 8px; color: #c69a42; font: 600 10px Arial, sans-serif; letter-spacing: 3px; animation: pwa-reveal .8s .42s both; }
+    .pwa-splash-rule { width: 84px; height: 2px; margin-top: 38px; background: rgba(198,154,66,.25); overflow: hidden; }
+    .pwa-splash-rule::after { content: ""; display: block; width: 40%; height: 100%; background: #c69a42; animation: pwa-progress 1.4s ease-in-out infinite alternate; }
+    @keyframes pwa-mark-enter { from { opacity: 0; transform: translateY(15px) scale(.83); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes pwa-mark-breathe { 50% { box-shadow: 0 0 95px rgba(198,154,66,.38); transform: scale(1.035); } }
+    @keyframes pwa-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pwa-progress { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+    @media (prefers-reduced-motion: reduce) { #pwa-splash *, #pwa-splash *::after { animation: none !important; } }
+  </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
 <body>
-  <noscript>Aabhushan ERP requires JavaScript to run.</noscript>
+  <div id="pwa-splash" aria-label="Loading Aabhushan ERP">
+    <img class="pwa-splash-mark" src="icons/Icon-192.png" alt="Aabhushan">
+    <div class="pwa-splash-name">AABHUSHAN</div>
+    <div class="pwa-splash-caption">JEWELLERY WORKSPACE</div>
+    <div class="pwa-splash-rule" aria-hidden="true"></div>
+  </div>
+  <noscript><style>#pwa-splash { display: none; }</style>Aabhushan ERP requires JavaScript to run.</noscript>
   <script>
+    window.addEventListener("flutter-first-frame", function () {
+      var splash = document.getElementById("pwa-splash");
+      if (!splash) return;
+      splash.classList.add("done");
+      window.setTimeout(function () { splash.remove(); }, 500);
+    }, { once: true });
+
     if ("serviceWorker" in navigator) {
       var aabhushanPwaReloading = false;
       var aabhushanPwaHadController = Boolean(navigator.serviceWorker.controller);

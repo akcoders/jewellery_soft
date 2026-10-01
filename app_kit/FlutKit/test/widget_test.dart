@@ -10,6 +10,10 @@ void main() {
   ) async {
     await tester.pumpWidget(const MyApp(initialSession: null));
 
+    expect(find.text('JEWELLERY WORKSPACE'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pump();
+
     expect(find.text('Aabhushan ERP'), findsOneWidget);
     expect(find.text('Email'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
