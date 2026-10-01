@@ -733,8 +733,8 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
   }
 
   Widget _section(String title, List<Widget> children) => Container(
-    margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-    padding: const EdgeInsets.all(AppSpacing.lg),
+    margin: const EdgeInsets.only(bottom: AppSpacing.xl),
+    padding: const EdgeInsets.all(AppSpacing.xl),
     decoration: BoxDecoration(
       color: AppColors.card,
       borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -749,10 +749,10 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
             context,
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.lg),
         ...children.map(
           (child) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
             child: child,
           ),
         ),

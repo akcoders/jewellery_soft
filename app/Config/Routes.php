@@ -429,6 +429,9 @@ $routes->group('api', static function ($routes): void {
         $routes->post('logout', 'Api\Mobile\AuthController::logout');
         $routes->get('tasks', 'Api\Mobile\TasksController::index');
         $routes->post('tasks/(:num)/complete', 'Api\Mobile\TasksController::complete/$1');
+        $routes->get('admin-tasks', 'Api\Mobile\AdminTasksController::index');
+        $routes->post('admin-tasks', 'Api\Mobile\AdminTasksController::create');
+        $routes->post('admin-tasks/(:num)/cancel', 'Api\Mobile\AdminTasksController::cancel/$1');
         $routes->get('performance', 'Api\Mobile\PerformanceController::index');
         $routes->get('notifications', 'Api\Mobile\NotificationsController::index');
         $routes->get('notifications/status', 'Api\Mobile\NotificationsController::status');
@@ -443,6 +446,10 @@ $routes->group('api', static function ($routes): void {
         $routes->get('orders/(:num)/followups', 'Api\Mobile\OrdersController::followups/$1');
         $routes->post('orders/(:num)/followups', 'Api\Mobile\OrdersController::addFollowup/$1');
         $routes->post('orders/(:num)/follower', 'Api\Mobile\OrdersController::updateFollower/$1');
+        $routes->post('orders/(:num)/assign', 'Api\Mobile\OrdersController::assignKarigar/$1');
+        $routes->get('order-work-requests', 'Api\Mobile\OrderWorkRequestsController::index');
+        $routes->post('orders/(:num)/work-requests', 'Api\Mobile\OrderWorkRequestsController::create/$1');
+        $routes->post('order-work-requests/(:num)/review', 'Api\Mobile\OrderWorkRequestsController::review/$1');
         $routes->get('diamond-requirements', 'Api\Mobile\DiamondRequirementsController::index');
         $routes->get('diamond-requirements/(:num)', 'Api\Mobile\DiamondRequirementsController::show/$1');
         $routes->get('diamond-bags', 'Api\Mobile\DiamondBagsController::index');

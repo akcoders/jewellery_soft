@@ -226,7 +226,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             const AppEmptyState(
               title: 'No scored activity',
               message:
-                  'Tasks and assigned order follow-ups for this month will appear here.',
+                  'Completed tasks and order follow-ups for this month will appear here.',
             ),
           ..._events.map((event) => _eventCard(event, scoreColor)),
         ],
@@ -279,22 +279,22 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           AppColors.success,
         ),
         _breakdownRow(
-          'Tasks late / overdue',
-          _integer(_summary['task_late']) + _integer(_summary['task_overdue']),
+          'Tasks completed late',
+          _integer(_summary['task_late']),
           '−2 each',
           AppColors.danger,
         ),
         _breakdownRow(
           'Follow-ups on time',
           _integer(_summary['followup_on_time']),
-          '+1 each',
+          'task scored',
           AppColors.success,
         ),
         _breakdownRow(
           'Follow-ups late / overdue',
           _integer(_summary['followup_late']) +
               _integer(_summary['followup_overdue']),
-          '−1 each',
+          'task scored',
           AppColors.danger,
           divider: false,
         ),

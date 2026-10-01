@@ -135,6 +135,9 @@ class PerformanceController extends BaseController
         if (! $task || (int) ($task['is_done'] ?? 0) === 1) {
             return redirect()->back()->with('error', 'Pending task not found.');
         }
+        if (! empty($task['reference_type'])) {
+            return redirect()->back()->with('error', 'This task is linked to a workflow. Complete or close the linked work instead.');
+        }
         $this->taskModel->update($id, ['status' => 'cancelled', 'is_done' => 1, 'score_delta' => 0]);
         $this->pushService->cancelByReference('mobile_tasks', $id);
         return redirect()->back()->with('success', 'Task cancelled. It will not affect performance.');

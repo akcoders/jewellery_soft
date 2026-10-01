@@ -17,13 +17,13 @@ $statusClass = static function (float $score): string {
 };
 ?>
 <div class="card performance-hero mb-4"><div class="card-body">
-    <div class="d-flex flex-column flex-xl-row align-items-xl-center justify-content-between gap-4"><div><span class="text-uppercase fw-bold small opacity-75">People intelligence</span><h2 class="text-white mb-2 mt-1">Staff Performance</h2><p class="mb-0 opacity-75">Due-date based scores for non-admin staff. Every point is traceable to a task or assigned order follow-up.</p></div><a href="<?= site_url('admin/performance/tasks') ?>" class="btn btn-light"><i class="fe fe-check-square me-1"></i> Assign & Review Tasks</a></div>
+    <div class="d-flex flex-column flex-xl-row align-items-xl-center justify-content-between gap-4"><div><span class="text-uppercase fw-bold small opacity-75">People intelligence</span><h2 class="text-white mb-2 mt-1">Staff Performance</h2><p class="mb-0 opacity-75">Points are recorded only when assigned tasks are completed. Follow-up activity is shown separately.</p></div><a href="<?= site_url('admin/performance/tasks') ?>" class="btn btn-light"><i class="fe fe-check-square me-1"></i> Assign & Review Tasks</a></div>
     <div class="row g-2 mt-3">
         <div class="col-6 col-lg"><div class="performance-rule"><span>Start</span><strong><?= number_format((float) ($rules['base_score'] ?? 100), 0) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Task on time</span><strong>+<?= number_format((float) ($rules['task_on_time'] ?? 2), 0) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Task late</span><strong><?= number_format((float) ($rules['task_late_or_overdue'] ?? -2), 0) ?></strong></div></div>
-        <div class="col-6 col-lg"><div class="performance-rule"><span>Follow-up on time</span><strong>+<?= number_format((float) ($rules['followup_on_time'] ?? 1), 0) ?></strong></div></div>
-        <div class="col-6 col-lg"><div class="performance-rule"><span>Follow-up late</span><strong><?= number_format((float) ($rules['followup_late_or_overdue'] ?? -1), 0) ?></strong></div></div>
+        <div class="col-6 col-lg"><div class="performance-rule"><span>Follow-up on time</span><strong>Task</strong></div></div>
+        <div class="col-6 col-lg"><div class="performance-rule"><span>Follow-up late</span><strong>Task</strong></div></div>
     </div>
 </div></div>
 

@@ -6,6 +6,14 @@ The Flutter PWA is built for this public path:
 
 ## Upload
 
+Deploy the PHP changes and run the database migrations before replacing the
+PWA files. The order request inbox and linked tasks need the
+`order_work_requests` table and the existing task reference columns:
+
+```bash
+php spark migrate
+```
+
 Generate the upload-ready build and ZIP with:
 
 ```bash

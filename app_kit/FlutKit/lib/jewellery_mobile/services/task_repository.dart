@@ -36,6 +36,8 @@ class TaskItem {
     required this.scoreDelta,
     required this.referenceType,
     required this.referenceId,
+    required this.orderId,
+    required this.requestKarigarId,
   });
 
   final int id;
@@ -51,9 +53,15 @@ class TaskItem {
   final double scoreDelta;
   final String referenceType;
   final int referenceId;
+  final int orderId;
+  final int requestKarigarId;
 
   bool get isDiamondBagTask =>
       referenceType == 'diamond_requirement' && referenceId > 0;
+  bool get isOrderFollowupTask =>
+      referenceType == 'order_followup' && orderId > 0;
+  bool get isGoldRequestTask =>
+      referenceType == 'order_gold_request' && referenceId > 0;
   factory TaskItem.fromApi(Map<String, dynamic> json) {
     return TaskItem(
       id: _safeInt(json['id']),
@@ -69,6 +77,8 @@ class TaskItem {
       scoreDelta: double.tryParse((json['score_delta'] ?? 0).toString()) ?? 0,
       referenceType: (json['reference_type'] ?? '').toString(),
       referenceId: _safeInt(json['reference_id']),
+      orderId: _safeInt(json['order_id']),
+      requestKarigarId: _safeInt(json['request_karigar_id']),
     );
   }
 

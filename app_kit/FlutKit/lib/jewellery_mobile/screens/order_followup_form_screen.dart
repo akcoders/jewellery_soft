@@ -122,7 +122,7 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Take Followup')),
       body: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Form(
           key: _formKey,
           child: Column(

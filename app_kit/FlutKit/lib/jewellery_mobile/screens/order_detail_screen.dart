@@ -33,6 +33,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   List<dynamic> _items = [];
   List<dynamic> _followups = [];
   List<dynamic> _diamondRequirements = [];
+  List<dynamic> _workRequests = [];
+  List<dynamic> _karigars = [];
+  List<dynamic> _assignmentCustomers = [];
+  bool _canAssignKarigar = false;
   bool _canRaiseDiamondRequirement = false;
   bool _canTakeOrderFollowup = false;
   bool _canChangeFollower = false;
@@ -70,6 +74,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
     try {
       final data = await widget.api.fetchOrderDetail(widget.orderId);
+      final requests = await widget.api.fetchOrderWorkRequests(
+        orderId: widget.orderId,
+      );
       if (!mounted) return;
       final orderMap = (data['order'] as Map?)?.cast<String, dynamic>();
       setState(() {
@@ -78,6 +85,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _followups = (data['followups'] as List?) ?? <dynamic>[];
         _diamondRequirements =
             (data['diamond_requirements'] as List?) ?? <dynamic>[];
+        _workRequests = requests;
+        _karigars = (data['karigars'] as List?) ?? <dynamic>[];
+        _assignmentCustomers =
+            (data['assignment_customers'] as List?) ?? <dynamic>[];
+        _canAssignKarigar =
+            data['can_assign_karigar'] == true ||
+            data['can_assign_karigar'] == 1;
         _canRaiseDiamondRequirement =
             data['can_raise_diamond_requirement'] == true ||
             data['can_raise_diamond_requirement'] == 1;
@@ -324,6 +338,518 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       await _load();
     }
   }
+
+  Future<void> _assignKarigar() async {
+    int? karigarId;
+    int? customerId;
+    int? followerId;
+    DateTime dueAt = DateTime.now().add(const Duration(days: 1));
+    var saving = false;
+    String error = '';
+    final karigars = _karigars
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    final customers = _assignmentCustomers
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    final followers = _staffFollowers
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Assign order'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (customers.isNotEmpty) ...[
+                    DropdownButtonFormField<int>(
+                      initialValue: customerId,
+                      decoration: const InputDecoration(
+                        labelText: 'Customer *',
+                      ),
+                      items: customers
+                          .map(
+                            (row) => DropdownMenuItem<int>(
+                              value: int.tryParse('${row['id']}'),
+                              child: Text('${row['name']}'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: saving
+                          ? null
+                          : (value) => update(() => customerId = value),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  DropdownButtonFormField<int>(
+                    initialValue: karigarId,
+                    decoration: const InputDecoration(labelText: 'Karigar *'),
+                    items: karigars
+                        .map(
+                          (row) => DropdownMenuItem<int>(
+                            value: int.tryParse('${row['id']}'),
+                            child: Text('${row['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: saving
+                        ? null
+                        : (value) => update(() => karigarId = value),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  DropdownButtonFormField<int>(
+                    initialValue: followerId,
+                    decoration: const InputDecoration(
+                      labelText: 'Order follower *',
+                    ),
+                    items: followers
+                        .map(
+                          (row) => DropdownMenuItem<int>(
+                            value: int.tryParse('${row['id']}'),
+                            child: Text('${row['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: saving
+                        ? null
+                        : (value) => update(() => followerId = value),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  OutlinedButton.icon(
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            final day = await showDatePicker(
+                              context: dialogContext,
+                              initialDate: dueAt,
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 730),
+                              ),
+                            );
+                            if (day == null || !dialogContext.mounted) return;
+                            final time = await showTimePicker(
+                              context: dialogContext,
+                              initialTime: TimeOfDay.fromDateTime(dueAt),
+                            );
+                            if (time == null) return;
+                            update(
+                              () => dueAt = DateTime(
+                                day.year,
+                                day.month,
+                                day.day,
+                                time.hour,
+                                time.minute,
+                              ),
+                            );
+                          },
+                    icon: const Icon(Icons.event_outlined),
+                    label: Text(
+                      'First follow-up: ${AppFormatters.dateTime(dueAt)}',
+                    ),
+                  ),
+                  if (error.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      error,
+                      style: const TextStyle(color: AppColors.danger),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if ((customers.isNotEmpty && customerId == null) ||
+                          karigarId == null ||
+                          followerId == null ||
+                          !dueAt.isAfter(DateTime.now())) {
+                        update(
+                          () => error =
+                              'Select customer, karigar, follower and a future follow-up time.',
+                        );
+                        return;
+                      }
+                      update(() {
+                        saving = true;
+                        error = '';
+                      });
+                      try {
+                        await widget.api.assignOrder(
+                          orderId: widget.orderId,
+                          customerId: customerId,
+                          karigarId: karigarId!,
+                          followerId: followerId!,
+                          followupDueAt: _dateTimeValue(dueAt),
+                        );
+                        if (dialogContext.mounted)
+                          Navigator.pop(dialogContext, true);
+                      } catch (e) {
+                        update(() {
+                          saving = false;
+                          error = e.toString().replaceFirst('Exception: ', '');
+                        });
+                      }
+                    },
+              child: const Text('Assign'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (saved == true) await _load();
+  }
+
+  Future<void> _raiseWorkRequest() async {
+    String type = 'order_delay';
+    DateTime? dueAt;
+    final details = TextEditingController();
+    final grams = TextEditingController();
+    String error = '';
+    var saving = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Request admin action'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: type,
+                    decoration: const InputDecoration(
+                      labelText: 'Request type',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'order_delay',
+                        child: Text('Order delay'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'gold_requirement',
+                        child: Text('Gold requirement'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'follower_change',
+                        child: Text('Follower change'),
+                      ),
+                    ],
+                    onChanged: saving
+                        ? null
+                        : (value) => update(() => type = value ?? type),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  TextField(
+                    controller: details,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Reason and details *',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  if (type == 'order_delay') ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final day = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: DateTime.now().add(
+                            const Duration(days: 1),
+                          ),
+                          firstDate: DateTime.now().add(
+                            const Duration(days: 1),
+                          ),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 730),
+                          ),
+                        );
+                        if (day != null) update(() => dueAt = day);
+                      },
+                      icon: const Icon(Icons.calendar_today_outlined),
+                      label: Text(
+                        dueAt == null
+                            ? 'Requested delivery date *'
+                            : _dateValue(dueAt!),
+                      ),
+                    ),
+                  ],
+                  if (type == 'gold_requirement') ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    TextField(
+                      controller: grams,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Gold required (gm) *',
+                      ),
+                    ),
+                  ],
+                  if (error.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      error,
+                      style: const TextStyle(color: AppColors.danger),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (details.text.trim().isEmpty ||
+                          (type == 'order_delay' && dueAt == null) ||
+                          (type == 'gold_requirement' &&
+                              (double.tryParse(grams.text) ?? 0) <= 0)) {
+                        update(() => error = 'Complete all required fields.');
+                        return;
+                      }
+                      update(() {
+                        saving = true;
+                        error = '';
+                      });
+                      try {
+                        await widget.api
+                            .createOrderWorkRequest(widget.orderId, {
+                              'request_type': type,
+                              'details': details.text.trim(),
+                              if (dueAt != null && type == 'order_delay')
+                                'requested_due_at': _dateValue(dueAt!),
+                              if (type == 'gold_requirement')
+                                'gold_quantity_gm': double.parse(grams.text),
+                            });
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
+                        await _load();
+                      } catch (e) {
+                        update(() {
+                          saving = false;
+                          error = e.toString().replaceFirst('Exception: ', '');
+                        });
+                      }
+                    },
+              child: const Text('Send request'),
+            ),
+          ],
+        ),
+      ),
+    );
+    details.dispose();
+    grams.dispose();
+  }
+
+  Future<void> _reviewWorkRequest(Map<String, dynamic> row) async {
+    final type = '${row['request_type']}';
+    int? assignee;
+    DateTime dueAt = DateTime.now().add(const Duration(days: 1));
+    final note = TextEditingController();
+    final staff = _staffFollowers
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    String error = '';
+    var saving = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: Text('Review ${_requestLabel(type)}'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('${row['details']}'),
+                  if (type == 'gold_requirement' ||
+                      type == 'follower_change') ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    DropdownButtonFormField<int>(
+                      initialValue: assignee,
+                      decoration: InputDecoration(
+                        labelText: type == 'follower_change'
+                            ? 'New follower *'
+                            : 'Issue gold by *',
+                      ),
+                      items: staff
+                          .map(
+                            (user) => DropdownMenuItem<int>(
+                              value: int.tryParse('${user['id']}'),
+                              child: Text('${user['name']}'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: saving
+                          ? null
+                          : (value) => update(() => assignee = value),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    OutlinedButton.icon(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              final day = await showDatePicker(
+                                context: dialogContext,
+                                initialDate: dueAt,
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime.now().add(
+                                  const Duration(days: 730),
+                                ),
+                              );
+                              if (day == null || !dialogContext.mounted) return;
+                              final time = await showTimePicker(
+                                context: dialogContext,
+                                initialTime: TimeOfDay.fromDateTime(dueAt),
+                              );
+                              if (time != null)
+                                update(
+                                  () => dueAt = DateTime(
+                                    day.year,
+                                    day.month,
+                                    day.day,
+                                    time.hour,
+                                    time.minute,
+                                  ),
+                                );
+                            },
+                      icon: const Icon(Icons.event_outlined),
+                      label: Text(
+                        '${type == 'follower_change' ? 'Next follow-up' : 'Task due'}: ${AppFormatters.dateTime(dueAt)}',
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  TextField(
+                    controller: note,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Decision note (required to reject)',
+                    ),
+                  ),
+                  if (error.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      error,
+                      style: const TextStyle(color: AppColors.danger),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (note.text.trim().isEmpty) {
+                        update(() => error = 'Enter a rejection reason.');
+                        return;
+                      }
+                      update(() => saving = true);
+                      try {
+                        await widget.api.reviewOrderWorkRequest(
+                          int.parse('${row['id']}'),
+                          {
+                            'decision': 'reject',
+                            'review_note': note.text.trim(),
+                          },
+                        );
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
+                        await _load();
+                      } catch (e) {
+                        update(() {
+                          saving = false;
+                          error = e.toString().replaceFirst('Exception: ', '');
+                        });
+                      }
+                    },
+              child: const Text('Reject'),
+            ),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if ((type == 'gold_requirement' ||
+                              type == 'follower_change') &&
+                          (assignee == null ||
+                              !dueAt.isAfter(DateTime.now()))) {
+                        update(
+                          () => error = 'Select staff and a future deadline.',
+                        );
+                        return;
+                      }
+                      update(() => saving = true);
+                      try {
+                        await widget.api
+                            .reviewOrderWorkRequest(int.parse('${row['id']}'), {
+                              'decision': 'approve',
+                              'review_note': note.text.trim(),
+                              if (assignee != null) 'assigned_to': assignee,
+                              if (type == 'gold_requirement')
+                                'task_due_at': _dateTimeValue(dueAt),
+                              if (type == 'follower_change')
+                                'followup_due_at': _dateTimeValue(dueAt),
+                            });
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
+                        await _load();
+                      } catch (e) {
+                        update(() {
+                          saving = false;
+                          error = e.toString().replaceFirst('Exception: ', '');
+                        });
+                      }
+                    },
+              child: const Text('Approve'),
+            ),
+          ],
+        ),
+      ),
+    );
+    note.dispose();
+  }
+
+  String _requestLabel(String type) => switch (type) {
+    'order_delay' => 'Order delay',
+    'gold_requirement' => 'Gold requirement',
+    'follower_change' => 'Follower change',
+    _ => type,
+  };
 
   Future<void> _raiseDiamondRequirement() async {
     final note = TextEditingController();
@@ -602,13 +1128,30 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ),
                   if (_canChangeFollower) ...[
                     const SizedBox(height: AppSpacing.sm),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: OutlinedButton.icon(
-                        onPressed: _changeFollower,
-                        icon: const Icon(Icons.manage_accounts_outlined),
-                        label: const Text('Change Follower'),
-                      ),
+                    Wrap(
+                      spacing: AppSpacing.md,
+                      runSpacing: AppSpacing.md,
+                      children: [
+                        if (_canAssignKarigar)
+                          FilledButton.icon(
+                            onPressed: _assignKarigar,
+                            icon: const Icon(Icons.assignment_ind_outlined),
+                            label: const Text('Assign karigar & follower'),
+                          ),
+                        OutlinedButton.icon(
+                          onPressed: _changeFollower,
+                          icon: const Icon(Icons.manage_accounts_outlined),
+                          label: const Text('Change Follower'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (canTakeFollowup) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    OutlinedButton.icon(
+                      onPressed: _raiseWorkRequest,
+                      icon: const Icon(Icons.add_circle_outline),
+                      label: const Text('Request admin action'),
                     ),
                   ],
                   if (!canTakeFollowup &&
@@ -631,6 +1174,51 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
+                  if (_workRequests.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    const AppSectionTitle('Order requests'),
+                    const SizedBox(height: AppSpacing.md),
+                    ..._workRequests.whereType<Map>().map((raw) {
+                      final row = raw.cast<String, dynamic>();
+                      final type = '${row['request_type']}';
+                      final state = '${row['status']}';
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${_requestLabel(type)} · $state',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              Text('${row['details']}'),
+                              if (type == 'gold_requirement')
+                                Text('${row['gold_quantity_gm']} gm required'),
+                              if (row['review_note'] != null)
+                                Text('Admin: ${row['review_note']}'),
+                              if (row['assignee_name'] != null)
+                                Text('Assigned to: ${row['assignee_name']}'),
+                              if (row['voucher_no'] != null)
+                                Text('Voucher: ${row['voucher_no']}'),
+                              if (_canChangeFollower && state == 'pending') ...[
+                                const SizedBox(height: AppSpacing.md),
+                                OutlinedButton.icon(
+                                  onPressed: () => _reviewWorkRequest(row),
+                                  icon: const Icon(Icons.fact_check_outlined),
+                                  label: const Text('Review request'),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
                   if (_diamondRequirements.isNotEmpty ||
                       _canRaiseDiamondRequirement) ...[
                     Row(

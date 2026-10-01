@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/order_detail_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/issuement_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
 import 'package:flutkit/jewellery_mobile/services/task_repository.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
@@ -153,15 +155,23 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
   }
 
   Future<void> _openWorkflowTask(TaskItem task) async {
-    final changed = await Navigator.of(context).push<bool>(
+    final changed = await Navigator.of(context).push<Object?>(
       MaterialPageRoute(
-        builder: (_) => DiamondRequirementDetailScreen(
-          api: widget.api,
-          requirementId: task.referenceId,
-        ),
+        builder: (_) => task.isGoldRequestTask
+            ? IssuementCreateScreen(
+                api: widget.api,
+                workRequestId: task.referenceId,
+                initialKarigarId: task.requestKarigarId,
+              )
+            : task.isOrderFollowupTask
+            ? OrderDetailScreen(api: widget.api, orderId: task.orderId)
+            : DiamondRequirementDetailScreen(
+                api: widget.api,
+                requirementId: task.referenceId,
+              ),
       ),
     );
-    if (changed == true) {
+    if (changed == true || task.isOrderFollowupTask || task.isGoldRequestTask) {
       await _load();
       TaskRefreshBus.notify();
     }
@@ -199,7 +209,7 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
                 ),
                 SizedBox(height: 5),
                 Text(
-                  'Complete each task with proof. On time +2 · Late −2',
+                  'Points update when the assigned work is completed. On time +2 · Late −2',
                   style: TextStyle(color: Colors.white70),
                 ),
               ],
@@ -223,10 +233,12 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
         ? AppColors.success
         : (task.isOverdue ? AppColors.danger : AppColors.brandGold);
     final status = completed
-        ? (task.status == 'completed_on_time'
-              ? 'Completed on time · +2'
-              : 'Completed late · −2')
-        : (task.isOverdue ? 'Overdue · −2' : 'Pending');
+        ? task.scoreDelta == 0
+              ? 'Completed · 0'
+              : task.scoreDelta > 0
+              ? 'Completed on time · +${task.scoreDelta.toStringAsFixed(0)}'
+              : 'Completed late · ${task.scoreDelta.toStringAsFixed(0)}'
+        : (task.isOverdue ? 'Overdue' : 'Pending');
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -329,17 +341,26 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
                 child: FilledButton.icon(
                   onPressed: _submitting
                       ? null
-                      : () => task.isDiamondBagTask
+                      : () =>
+                            (task.isDiamondBagTask ||
+                                task.isOrderFollowupTask ||
+                                task.isGoldRequestTask)
                             ? _openWorkflowTask(task)
                             : _completeTask(task),
                   icon: Icon(
-                    task.isDiamondBagTask
+                    (task.isDiamondBagTask ||
+                            task.isOrderFollowupTask ||
+                            task.isGoldRequestTask)
                         ? Icons.inventory_2_outlined
                         : Icons.verified_outlined,
                   ),
                   label: Text(
                     task.isDiamondBagTask
                         ? 'Open Bag Creation Request'
+                        : task.isOrderFollowupTask
+                        ? 'Open order follow-up'
+                        : task.isGoldRequestTask
+                        ? 'Create gold issuement'
                         : 'Complete With Proof',
                   ),
                 ),

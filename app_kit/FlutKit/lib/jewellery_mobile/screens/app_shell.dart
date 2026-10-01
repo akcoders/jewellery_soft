@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutkit/jewellery_mobile/screens/admin_tasks_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/dashboard_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_bags_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
@@ -10,6 +11,7 @@ import 'package:flutkit/jewellery_mobile/screens/issuements_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/notification_center_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_detail_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/order_work_requests_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/orders_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/performance_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/purchase_create_screen.dart';
@@ -257,6 +259,8 @@ class _AppShellState extends State<AppShell> {
         );
       case 'followups':
         return FollowupsScreen(api: _api);
+      case 'order_requests':
+        return OrderWorkRequestsScreen(api: _api);
       case 'diamond_requirements':
         return DiamondBagsScreen(
           key: ValueKey('diamond_requirements_$_refreshTick'),
@@ -331,6 +335,8 @@ class _AppShellState extends State<AppShell> {
         return InventoryScreen(api: _api);
       case 'tasks':
         return TaskSchedulerScreen(api: _api);
+      case 'admin_tasks':
+        return AdminTasksScreen(api: _api);
       case 'performance':
         return PerformanceScreen(api: _api);
       default:
@@ -440,6 +446,18 @@ class _AppShellState extends State<AppShell> {
                         'Followups',
                         Icons.event_note_outlined,
                       ),
+                      if (widget.session.isAdmin)
+                        _drawerItem(
+                          'order_requests',
+                          'Order Requests',
+                          Icons.fact_check_outlined,
+                        ),
+                      if (widget.session.isAdmin)
+                        _drawerItem(
+                          'admin_tasks',
+                          'Staff Tasks',
+                          Icons.assignment_turned_in_outlined,
+                        ),
                       _drawerItem(
                         'issuements',
                         'Issuements',
@@ -611,6 +629,10 @@ class _AppShellState extends State<AppShell> {
         return 'Orders';
       case 'followups':
         return 'Order Followups';
+      case 'order_requests':
+        return 'Order Requests';
+      case 'admin_tasks':
+        return 'Staff Tasks';
       case 'issuements':
         return 'Issuements';
       case 'diamond_requirements':

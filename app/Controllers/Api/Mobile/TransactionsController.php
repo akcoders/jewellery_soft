@@ -1528,6 +1528,22 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Add at least one Gold, Diamond, or Stone line.', 422);
         }
 
+        $workRequestId = (int) ($payload['work_request_id'] ?? 0);
+        $workRequest = null;
+        if ($workRequestId > 0) {
+            $workRequest = db_connect()->table('order_work_requests')->where('id', $workRequestId)->get()->getRowArray();
+            $linkedOrder = $workRequest ? db_connect()->table('orders')->where('id', (int) $workRequest['order_id'])->get()->getRowArray() : null;
+            if (! $workRequest || $workRequest['request_type'] !== 'gold_requirement' || $workRequest['status'] !== 'approved'
+                || (int) $workRequest['assigned_to'] !== (int) ($this->mobileAdmin['id'] ?? 0)
+                || (int) ($linkedOrder['assigned_karigar_id'] ?? 0) !== $karigarId) {
+                return $this->fail('Select an approved gold request assigned to you and its order karigar.', 422);
+            }
+            $issuedGold = array_sum(array_map(static fn(array $line): float => (float) $line['weight_gm'], $gold['lines']));
+            if (abs($issuedGold - (float) $workRequest['gold_quantity_gm']) > 0.001) {
+                return $this->fail('Gold issuement weight must match the approved request quantity.', 422);
+            }
+        }
+
         $attachment = $this->saveBase64Attachment(
             (string) ($payload['attachment_base64'] ?? ''),
             FCPATH . 'uploads/issuements/common',
@@ -1637,6 +1653,17 @@ class TransactionsController extends MobileBaseController
                 }
             }
 
+            if ($workRequestId > 0) {
+                $db->table('order_work_requests')->where('id', $workRequestId)->where('status', 'approved')->update([
+                    'status' => 'completed',
+                    'completed_at' => date('Y-m-d H:i:s'),
+                    'voucher_no' => $voucherNo,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+                if ($db->affectedRows() !== 1) throw new \RuntimeException('Gold request was already completed.');
+                (new \App\Services\WorkflowTaskService())->complete('order_gold_request', $workRequestId, $createdBy);
+            }
+
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
@@ -1651,7 +1678,7 @@ class TransactionsController extends MobileBaseController
         try {
             (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
                 'issue', implode(' + ', $materials), $notificationTable, $notificationId, 'mobile',
-                ['voucher_no' => $voucherNo, 'issue_to' => $issueTo]
+                ['voucher_no' => $voucherNo, 'issue_to' => $issueTo, 'work_request_id' => $workRequestId]
             );
         } catch (Throwable $e) {
             log_message('error', 'Combined mobile issuement notification failed: {message}', [

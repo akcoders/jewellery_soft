@@ -405,6 +405,12 @@ class OrdersController extends MobileBaseController
             return $this->fail('Order not found.', 404);
         }
 
+        $viewerId = (int) ($this->mobileAdmin['id'] ?? 0);
+        if (! $this->rbacService->userCan($viewerId, 'orders.assign')
+            && (int) ($order['followup_assigned_to'] ?? 0) !== $viewerId) {
+            return $this->fail('You cannot view this order.', 403);
+        }
+
         $items = $db->table('order_items oi')
             ->select('oi.*, dm.design_code, dm.name as design_name, gp.purity_code, gp.color_name')
             ->join('design_masters dm', 'dm.id = oi.design_id', 'left')
@@ -435,7 +441,12 @@ class OrdersController extends MobileBaseController
                 && (int) ($order['followup_assigned_to'] ?? 0) === $mobileUserId,
             'can_view_followups' => $canViewFollowups,
             'can_change_follower' => $canChangeFollower,
+            'can_assign_karigar' => $canChangeFollower && empty($order['assigned_karigar_id']),
             'staff_followers' => $canChangeFollower ? $this->staffPerformanceService->staffOptions() : [],
+            'karigars' => $canChangeFollower ? $db->table('karigars')->select('id, name')->where('is_active', 1)->orderBy('name')->get()->getResultArray() : [],
+            'assignment_customers' => $canChangeFollower && empty($order['customer_id'])
+                ? $db->table('customers')->select('id, name')->where('is_active', 1)->orderBy('name')->get()->getResultArray()
+                : [],
             'diamond_requirements' => $this->diamondRequirementService->forOrder($id),
             'can_raise_diamond_requirement' => $this->diamondRequirementService->canRaise(
                 $id,
@@ -677,6 +688,51 @@ class OrdersController extends MobileBaseController
             'followup_assigned_to' => $followerId,
             'followup_due_at' => $followupDueAt,
         ], 'Order follower updated successfully.');
+    }
+
+    public function assignKarigar(int $id)
+    {
+        if ($failure = $this->requireMobileAuth()) return $failure;
+        $adminId = (int) $this->mobileAdmin['id'];
+        if (! $this->rbacService->userCan($adminId, 'orders.assign')) return $this->fail('Order assignment requires admin permission.', 403);
+        $db = db_connect();
+        $order = $db->table('orders')->where('id', $id)->get()->getRowArray();
+        if (! $order) return $this->fail('Order not found.', 404);
+        if ((int) ($order['assigned_karigar_id'] ?? 0) > 0) return $this->fail('Order already has a karigar.', 422);
+        if (in_array((string) $order['status'], ['Completed', 'Complete', 'Cancelled'], true)) return $this->fail('Closed order cannot be assigned.', 422);
+
+        $payload = $this->payload();
+        $karigarId = (int) ($payload['karigar_id'] ?? 0);
+        $customerId = (int) ($order['customer_id'] ?: ($payload['customer_id'] ?? 0));
+        $followerId = (int) ($payload['followup_assigned_to'] ?? 0);
+        $dueValue = trim((string) ($payload['followup_due_at'] ?? ''));
+        $dueStamp = strtotime($dueValue);
+        if (! $db->table('karigars')->where('id', $karigarId)->where('is_active', 1)->countAllResults()) return $this->fail('Select an active karigar.', 422);
+        if (! $db->table('customers')->where('id', $customerId)->where('is_active', 1)->countAllResults()) return $this->fail('Select an active customer.', 422);
+        if (! $this->staffPerformanceService->isStaffUser($followerId)) return $this->fail('Select an active staff follower.', 422);
+        if ($dueValue === '' || $dueStamp === false || $dueStamp <= time()) return $this->fail('Select a future first follow-up time.', 422);
+        $dueAt = date('Y-m-d H:i:s', $dueStamp);
+        try {
+            $db->transException(true)->transStart();
+            $db->table('orders')->where('id', $id)->where('assigned_karigar_id', null)->update([
+                'customer_id' => $customerId,
+                'assigned_karigar_id' => $karigarId,
+                'assigned_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+            if ($db->affectedRows() !== 1) throw new \RuntimeException('Order was already assigned.');
+            $this->staffPerformanceService->syncOrderAssignment($id, $followerId, $dueAt, $adminId);
+            $db->transComplete();
+        } catch (Throwable $e) {
+            $db->transRollback();
+            return $this->fail('Could not assign order: ' . $e->getMessage(), 422);
+        }
+        try {
+            $this->mobileNotificationEvents->notifyFollowerAssigned($id);
+        } catch (Throwable $e) {
+            log_message('error', 'Mobile order assignment push failed: {message}', ['message' => $e->getMessage()]);
+        }
+        return $this->ok(['order_id' => $id], 'Karigar and follower assigned.');
     }
 
     /** @return array{items:list<array<string,mixed>>,error:?string} */

@@ -91,6 +91,9 @@ class StaffPerformanceService
             ->get()->getRowArray();
 
         if ($assignedTo === null || $normalizedDueAt === null) {
+            foreach ($db->table('order_followup_schedules')->select('id')->where('order_id', $orderId)->where('status', 'pending')->get()->getResultArray() as $row) {
+                (new WorkflowTaskService())->cancel('order_followup', (int) $row['id']);
+            }
             $db->table('order_followup_schedules')->where('order_id', $orderId)->where('status', 'pending')->update([
                 'status' => 'cancelled',
                 'updated_at' => $now,
@@ -104,6 +107,10 @@ class StaffPerformanceService
         }
 
         if ($pending) {
+            foreach ($db->table('order_followup_schedules')->select('id')->where('order_id', $orderId)
+                ->where('status', 'pending')->where('id !=', (int) $pending['id'])->get()->getResultArray() as $row) {
+                (new WorkflowTaskService())->cancel('order_followup', (int) $row['id']);
+            }
             $db->table('order_followup_schedules')->where('id', (int) $pending['id'])->update([
                 'assigned_to' => $assignedTo,
                 'due_at' => $normalizedDueAt,
@@ -114,15 +121,20 @@ class StaffPerformanceService
                 ->where('status', 'pending')
                 ->where('id !=', (int) $pending['id'])
                 ->update(['status' => 'cancelled', 'updated_at' => $now]);
+            $scheduleId = (int) $pending['id'];
         } else {
-            (new OrderFollowupScheduleModel())->insert([
+            $scheduleId = (int) (new OrderFollowupScheduleModel())->insert([
                 'order_id' => $orderId,
                 'assigned_to' => $assignedTo,
                 'due_at' => $normalizedDueAt,
                 'status' => 'pending',
                 'created_by' => $createdBy,
-            ]);
+            ], true);
         }
+
+        $orderNo = (string) ($db->table('orders')->select('order_no')->where('id', $orderId)->get()->getRowArray()['order_no'] ?? ('#' . $orderId));
+        (new WorkflowTaskService())->assign('order_followup', $scheduleId, $assignedTo,
+            'Follow up order ' . $orderNo, $normalizedDueAt, $createdBy);
 
         $db->table('orders')->where('id', $orderId)->update([
             'followup_assigned_to' => $assignedTo,
@@ -151,17 +163,15 @@ class StaffPerformanceService
             $status = $completedByAssignee
                 ? ($onTime ? 'completed_on_time' : 'completed_late')
                 : 'completed_by_other';
-            $scoreDelta = $completedByAssignee && $onTime
-                ? self::FOLLOWUP_ON_TIME_POINTS
-                : self::FOLLOWUP_LATE_POINTS;
             $db->table('order_followup_schedules')->where('id', (int) $schedule['id'])->update([
                 'status' => $status,
                 'completed_followup_id' => $followupId,
                 'completed_by' => $completedBy,
                 'completed_at' => $now,
-                'score_delta' => $scoreDelta,
+                'score_delta' => 0,
                 'updated_at' => $now,
             ]);
+            (new WorkflowTaskService())->complete('order_followup', (int) $schedule['id'], $completedBy);
         }
 
         $order = $db->table('orders')->select('followup_assigned_to, status')->where('id', $orderId)->get()->getRowArray();
@@ -169,13 +179,16 @@ class StaffPerformanceService
         $terminal = in_array((string) ($order['status'] ?? ''), ['Ready', 'Packed', 'Dispatched', 'Completed', 'Cancelled'], true);
         $normalizedNextDue = $terminal ? null : $this->normalizeDateTime($nextDueAt);
         if ($assignedTo > 0 && $normalizedNextDue !== null) {
-            (new OrderFollowupScheduleModel())->insert([
+            $newScheduleId = (int) (new OrderFollowupScheduleModel())->insert([
                 'order_id' => $orderId,
                 'assigned_to' => $assignedTo,
                 'due_at' => $normalizedNextDue,
                 'status' => 'pending',
                 'created_by' => $completedBy,
-            ]);
+            ], true);
+            $orderNo = (string) ($db->table('orders')->select('order_no')->where('id', $orderId)->get()->getRowArray()['order_no'] ?? ('#' . $orderId));
+            (new WorkflowTaskService())->assign('order_followup', $newScheduleId, $assignedTo,
+                'Follow up order ' . $orderNo, $normalizedNextDue, $completedBy);
         }
         $db->table('orders')->where('id', $orderId)->update([
             'followup_due_at' => $normalizedNextDue,
@@ -191,6 +204,9 @@ class StaffPerformanceService
         }
 
         $now = $this->now();
+        foreach ($db->table('order_followup_schedules')->select('id')->where('order_id', $orderId)->where('status', 'pending')->get()->getResultArray() as $row) {
+            (new WorkflowTaskService())->cancel('order_followup', (int) $row['id']);
+        }
         $db->table('order_followup_schedules')
             ->where('order_id', $orderId)
             ->where('status', 'pending')
@@ -293,8 +309,8 @@ class StaffPerformanceService
             'base_score' => self::BASE_SCORE,
             'task_on_time' => self::TASK_ON_TIME_POINTS,
             'task_late_or_overdue' => self::TASK_LATE_POINTS,
-            'followup_on_time' => self::FOLLOWUP_ON_TIME_POINTS,
-            'followup_late_or_overdue' => self::FOLLOWUP_LATE_POINTS,
+            'followup_on_time' => 0,
+            'followup_late_or_overdue' => 0,
         ];
     }
 
@@ -310,8 +326,10 @@ class StaffPerformanceService
             ->join('admin_users creator', 'creator.id = t.created_by', 'left')
             ->whereIn('t.admin_user_id', $staffIds)
             ->where('t.counts_for_performance', 1)
-            ->where('t.scheduled_at >=', $start)
-            ->where('t.scheduled_at <', $end)
+            ->groupStart()
+                ->groupStart()->where('t.is_done', 1)->where('t.completed_at >=', $start)->where('t.completed_at <', $end)->groupEnd()
+                ->orGroupStart()->where('t.is_done', 0)->where('t.scheduled_at >=', $start)->where('t.scheduled_at <', $end)->groupEnd()
+            ->groupEnd()
             ->where('t.status !=', 'cancelled')
             ->orderBy('t.scheduled_at', 'DESC')
             ->get()->getResultArray();
@@ -347,10 +365,10 @@ class StaffPerformanceService
             $done = (int) ($task['is_done'] ?? 0) === 1 || str_starts_with($status, 'completed');
             if ($done) {
                 $onTime = $status === 'completed_on_time' || (float) ($task['score_delta'] ?? 0) > 0;
-                $delta = $onTime ? self::TASK_ON_TIME_POINTS : self::TASK_LATE_POINTS;
+                $delta = (float) ($task['score_delta'] ?? 0);
                 $onTime ? $taskOnTime++ : $taskLate++;
             } elseif ((string) ($task['scheduled_at'] ?? '') < $now) {
-                $delta = self::TASK_LATE_POINTS;
+                $delta = 0.0;
                 $taskOverdue++;
             } else {
                 $delta = 0.0;
@@ -362,10 +380,10 @@ class StaffPerformanceService
             $status = strtolower((string) ($followup['status'] ?? 'pending'));
             if (str_starts_with($status, 'completed')) {
                 $onTime = $status === 'completed_on_time' || (float) ($followup['score_delta'] ?? 0) > 0;
-                $delta = $onTime ? self::FOLLOWUP_ON_TIME_POINTS : self::FOLLOWUP_LATE_POINTS;
+                $delta = 0.0;
                 $onTime ? $followupOnTime++ : $followupLate++;
             } elseif ((string) ($followup['due_at'] ?? '') < $now) {
-                $delta = self::FOLLOWUP_LATE_POINTS;
+                $delta = 0.0;
                 $followupOverdue++;
             } else {
                 $delta = 0.0;
@@ -373,9 +391,9 @@ class StaffPerformanceService
             $delta >= 0 ? $earned += $delta : $lost += abs($delta);
         }
 
-        $completed = $taskOnTime + $taskLate + $followupOnTime + $followupLate;
-        $onTime = $taskOnTime + $followupOnTime;
-        $overdue = $taskOverdue + $followupOverdue;
+        $completed = $taskOnTime + $taskLate;
+        $onTime = $taskOnTime;
+        $overdue = $taskOverdue;
         $dueActions = $completed + $overdue;
         return [
             'score' => max(0, round(self::BASE_SCORE + $earned - $lost, 1)),
@@ -403,8 +421,8 @@ class StaffPerformanceService
             $done = (int) ($task['is_done'] ?? 0) === 1 || str_starts_with($status, 'completed');
             $overdue = ! $done && (string) ($task['scheduled_at'] ?? '') < $now;
             $delta = $done
-                ? ($status === 'completed_on_time' || (float) ($task['score_delta'] ?? 0) > 0 ? self::TASK_ON_TIME_POINTS : self::TASK_LATE_POINTS)
-                : ($overdue ? self::TASK_LATE_POINTS : 0.0);
+                ? (float) ($task['score_delta'] ?? 0)
+                : 0.0;
             $events[] = [
                 'type' => 'Task',
                 'title' => (string) ($task['title'] ?? 'Task'),
@@ -419,9 +437,7 @@ class StaffPerformanceService
         foreach ($followups as $followup) {
             $status = strtolower((string) ($followup['status'] ?? 'pending'));
             $overdue = $status === 'pending' && (string) ($followup['due_at'] ?? '') < $now;
-            $delta = str_starts_with($status, 'completed')
-                ? ($status === 'completed_on_time' ? self::FOLLOWUP_ON_TIME_POINTS : self::FOLLOWUP_LATE_POINTS)
-                : ($overdue ? self::FOLLOWUP_LATE_POINTS : 0.0);
+            $delta = 0.0;
             $events[] = [
                 'type' => 'Follow-up',
                 'title' => 'Order ' . (string) (($followup['order_no'] ?? '') ?: ('#' . ($followup['order_id'] ?? ''))),

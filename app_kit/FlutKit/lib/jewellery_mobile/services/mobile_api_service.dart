@@ -142,6 +142,44 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<Map<String, dynamic>> assignOrder({
+    required int orderId,
+    required int karigarId,
+    int? customerId,
+    required int followerId,
+    required String followupDueAt,
+  }) async {
+    final res = await _post(
+      '/api/mobile/orders/$orderId/assign',
+      body: {
+        'karigar_id': karigarId,
+        if (customerId != null) 'customer_id': customerId,
+        'followup_assigned_to': followerId,
+        'followup_due_at': followupDueAt,
+      },
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<List<dynamic>> fetchOrderWorkRequests({int? orderId}) async {
+    final res = await _get(
+      '/api/mobile/order-work-requests',
+      query: {if (orderId != null) 'order_id': '$orderId'},
+    );
+    return (res['data'] as List?) ?? <dynamic>[];
+  }
+
+  Future<void> createOrderWorkRequest(
+    int orderId,
+    Map<String, dynamic> data,
+  ) async {
+    await _post('/api/mobile/orders/$orderId/work-requests', body: data);
+  }
+
+  Future<void> reviewOrderWorkRequest(int id, Map<String, dynamic> data) async {
+    await _post('/api/mobile/order-work-requests/$id/review', body: data);
+  }
+
   Future<List<dynamic>> fetchTasks({String query = ''}) async {
     final q = <String, String>{};
     if (query.trim().isNotEmpty) {
@@ -149,6 +187,19 @@ class MobileApiService {
     }
     final res = await _get('/api/mobile/tasks', query: q);
     return (res['data'] as List?) ?? <dynamic>[];
+  }
+
+  Future<Map<String, dynamic>> fetchAdminTasks() async {
+    final res = await _get('/api/mobile/admin-tasks');
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<void> createAdminTask(Map<String, dynamic> data) async {
+    await _post('/api/mobile/admin-tasks', body: data);
+  }
+
+  Future<void> cancelAdminTask(int id) async {
+    await _post('/api/mobile/admin-tasks/$id/cancel', body: const {});
   }
 
   Future<Map<String, dynamic>> completeTask({

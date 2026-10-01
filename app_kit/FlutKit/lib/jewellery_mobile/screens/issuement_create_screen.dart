@@ -7,9 +7,16 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 class IssuementCreateScreen extends StatefulWidget {
-  const IssuementCreateScreen({super.key, required this.api});
+  const IssuementCreateScreen({
+    super.key,
+    required this.api,
+    this.workRequestId,
+    this.initialKarigarId,
+  });
 
   final MobileApiService api;
+  final int? workRequestId;
+  final int? initialKarigarId;
 
   @override
   State<IssuementCreateScreen> createState() => _IssuementCreateScreenState();
@@ -40,6 +47,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   @override
   void initState() {
     super.initState();
+    _karigarId = widget.initialKarigarId;
     _load();
   }
 
@@ -112,6 +120,8 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
     setState(() => _saving = true);
     try {
       final result = await widget.api.createIssuement({
+        if (widget.workRequestId != null)
+          'work_request_id': widget.workRequestId,
         'voucher_no': _voucher.text.trim(),
         'issue_date': _date(_issueDate),
         'karigar_id': _karigarId,
@@ -172,6 +182,17 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
+                  if (widget.workRequestId != null) ...[
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Text(
+                          'Gold request #${widget.workRequestId} · save a gold issuement to complete your assigned task.',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
                   _section('Issuement Details', [
                     _text(_voucher, 'Voucher No (leave blank for automatic)'),
                     _dateField(),
@@ -373,8 +394,8 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   );
 
   Widget _section(String title, List<Widget> children) => Container(
-    margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-    padding: const EdgeInsets.all(AppSpacing.lg),
+    margin: const EdgeInsets.only(bottom: AppSpacing.xl),
+    padding: const EdgeInsets.all(AppSpacing.xl),
     decoration: BoxDecoration(
       color: AppColors.card,
       borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -387,10 +408,10 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
           title,
           style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.lg),
         ...children.map(
           (child) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
             child: child,
           ),
         ),

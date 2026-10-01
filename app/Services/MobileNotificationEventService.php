@@ -78,6 +78,24 @@ class MobileNotificationEventService
         ]);
     }
 
+    public function notifyOrderWorkRequestRaised(int $requestId): array
+    {
+        $row = db_connect()->table('order_work_requests r')
+            ->select('r.id, r.order_id, r.request_type, o.order_no')
+            ->join('orders o', 'o.id = r.order_id', 'inner')
+            ->where('r.id', $requestId)->get()->getRowArray();
+        if (! $row) return $this->emptySummary('Request not found.');
+        return $this->queueForPermission('orders.assign', [
+            'type' => 'order_work_request',
+            'reference_table' => 'order_work_requests',
+            'reference_id' => $requestId,
+            'dedupe_key' => 'order-work-request:' . $requestId,
+            'title' => 'Order request needs approval',
+            'message' => 'Order ' . $row['order_no'] . ': ' . str_replace('_', ' ', (string) $row['request_type']),
+            'payload' => ['screen' => 'order_requests', 'order_id' => (int) $row['order_id'], 'request_id' => $requestId],
+        ]);
+    }
+
     public function notifyFollowupAdded(int $orderId, int $followupId): array
     {
         if ($orderId <= 0 || $followupId <= 0) {
@@ -378,6 +396,20 @@ class MobileNotificationEventService
                 }
             }
             $details = array_replace($row, $context);
+
+            // Stock has already been posted. Record the completed staff work once,
+            // while a linked gold request keeps its own assigned task.
+            if ($row !== [] && empty($context['work_request_id']) && $db->tableExists('mobile_tasks')
+                && $db->fieldExists('reference_type', 'mobile_tasks')) {
+                try {
+                    (new WorkflowTaskService())->recordCompletedInventoryWork(
+                        $referenceTable, $referenceId, (int) ($row['created_by'] ?? 0),
+                        ucfirst($materialType) . ' ' . $transactionType . ' #' . $referenceId
+                    );
+                } catch (\Throwable $e) {
+                    log_message('error', 'Inventory work task failed: {message}', ['message' => $e->getMessage()]);
+                }
+            }
 
             $referenceNo = $this->firstText($details, ['voucher_no', 'invoice_no', 'purchase_no', 'reference_no']);
             $partyName = $this->firstText($details, ['issue_to', 'return_from', 'supplier_name', 'party_name']);

@@ -47,11 +47,7 @@ class AppShadows {
   AppShadows._();
 
   static const List<BoxShadow> soft = [
-    BoxShadow(
-      color: Color(0x14000000),
-      blurRadius: 18,
-      offset: Offset(0, 8),
-    ),
+    BoxShadow(color: Color(0x14000000), blurRadius: 18, offset: Offset(0, 8)),
   ];
 }
 
@@ -117,8 +113,8 @@ class AppTheme {
           borderSide: const BorderSide(color: AppColors.brandRed, width: 1.4),
         ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.lg,
         ),
       ),
       chipTheme: ChipThemeData(
