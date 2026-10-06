@@ -85,6 +85,7 @@ class _OrderWorkRequestsScreenState extends State<OrderWorkRequestsScreen> {
     final type = switch ('${row['request_type']}') {
       'order_delay' => 'Order delay',
       'gold_requirement' => 'Gold requirement',
+      'diamond_requirement' => 'Diamond requirement',
       'follower_change' => 'Follower change',
       _ => '${row['request_type']}',
     };

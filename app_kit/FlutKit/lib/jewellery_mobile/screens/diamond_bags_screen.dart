@@ -1,4 +1,4 @@
-import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
@@ -13,33 +13,7 @@ class DiamondBagsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          const Material(
-            color: AppColors.background,
-            child: TabBar(
-              tabs: [
-                Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Bags'),
-                Tab(
-                  icon: Icon(Icons.fact_check_outlined),
-                  text: 'Creation Requests',
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _DiamondBagRegister(api: api),
-                DiamondRequirementsScreen(api: api),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    return _DiamondBagRegister(api: api);
   }
 }
 
@@ -80,6 +54,15 @@ class _DiamondBagRegisterState extends State<_DiamondBagRegister> {
     }
   }
 
+  Future<void> _createBag() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => DiamondBagCreateScreen(api: widget.api),
+      ),
+    );
+    if (changed == true) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading && _bags.isEmpty) {
@@ -92,19 +75,36 @@ class _DiamondBagRegisterState extends State<_DiamondBagRegister> {
       onRefresh: _load,
       child: _bags.isEmpty
           ? ListView(
-              children: const [
-                SizedBox(height: 120),
-                AppEmptyState(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              children: [
+                FilledButton.icon(
+                  onPressed: _createBag,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create Diamond Bag'),
+                ),
+                const SizedBox(height: 80),
+                const AppEmptyState(
                   title: 'No diamond bags',
-                  message: 'Prepared diamond bags will appear here.',
+                  message:
+                      'Create a size-wise bag for a Diamond or Jadau order.',
                 ),
               ],
             )
           : ListView.builder(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              itemCount: _bags.length,
+              itemCount: _bags.length + 1,
               itemBuilder: (context, index) {
-                final bag = _map(_bags[index]);
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                    child: FilledButton.icon(
+                      onPressed: _createBag,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Create Diamond Bag'),
+                    ),
+                  );
+                }
+                final bag = _map(_bags[index - 1]);
                 final status = (bag['status'] ?? 'ready').toString();
                 return Card(
                   margin: const EdgeInsets.only(bottom: AppSpacing.md),

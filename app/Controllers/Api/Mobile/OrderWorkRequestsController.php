@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Api\Mobile;
 
+use App\Services\DiamondBagService;
 use App\Services\RbacService;
 use App\Services\MobileNotificationEventService;
 use App\Services\MobilePushService;
@@ -11,7 +12,7 @@ use Throwable;
 
 class OrderWorkRequestsController extends MobileBaseController
 {
-    private const TYPES = ['order_delay', 'gold_requirement', 'follower_change'];
+    private const TYPES = ['order_delay', 'gold_requirement', 'diamond_requirement', 'follower_change'];
 
     public function index()
     {
@@ -49,6 +50,9 @@ class OrderWorkRequestsController extends MobileBaseController
         $details = trim((string) ($payload['details'] ?? ''));
         if (! in_array($type, self::TYPES, true) || $details === '') {
             return $this->fail('Select a request type and enter details.', 422);
+        }
+        if ($type === 'diamond_requirement' && ! (new DiamondBagService($db))->supportsOrder($orderId)) {
+            return $this->fail('Diamond bags can be requested only for Diamond or Jadau orders.', 422);
         }
         if ($db->table('order_work_requests')->where('order_id', $orderId)
             ->where('request_type', $type)->where('status', 'pending')->countAllResults() > 0) {
@@ -114,11 +118,16 @@ class OrderWorkRequestsController extends MobileBaseController
             }
             $followupDueAt = date('Y-m-d H:i:s', $stamp);
         }
-        if ($decision === 'approve' && $request['request_type'] === 'gold_requirement' && ! $staff->isStaffUser($assignedTo)) {
-            return $this->fail('Assign the gold issuement to an active staff user.', 422);
+        $isMaterialRequest = in_array(
+            (string) $request['request_type'],
+            ['gold_requirement', 'diamond_requirement'],
+            true
+        );
+        if ($decision === 'approve' && $isMaterialRequest && ! $staff->isStaffUser($assignedTo)) {
+            return $this->fail('Assign this material task to an active staff user.', 422);
         }
         $taskDueAt = null;
-        if ($decision === 'approve' && $request['request_type'] === 'gold_requirement') {
+        if ($decision === 'approve' && $isMaterialRequest) {
             $stamp = strtotime(trim((string) ($payload['task_due_at'] ?? '')));
             if ($stamp === false || $stamp <= time()) return $this->fail('Select a future task deadline.', 422);
             $taskDueAt = date('Y-m-d H:i:s', $stamp);
@@ -148,10 +157,20 @@ class OrderWorkRequestsController extends MobileBaseController
                 } elseif ($request['request_type'] === 'follower_change') {
                     $staff->syncOrderAssignment((int) $order['id'], $assignedTo, $followupDueAt, $adminId);
                 } else {
-                    if ((int) ($order['assigned_karigar_id'] ?? 0) <= 0) throw new \RuntimeException('Assign a karigar to the order first.');
-                    (new WorkflowTaskService())->assign('order_gold_request', $id, $assignedTo,
-                        'Issue gold for order ' . $order['order_no'], $taskDueAt, $adminId,
-                        (string) $request['gold_quantity_gm'] . ' gm · ' . (string) $request['details']);
+                    if ($request['request_type'] === 'gold_requirement'
+                        && (int) ($order['assigned_karigar_id'] ?? 0) <= 0) {
+                        throw new \RuntimeException('Assign a karigar to the order first.');
+                    }
+                    $diamond = $request['request_type'] === 'diamond_requirement';
+                    (new WorkflowTaskService())->assign(
+                        $diamond ? 'order_diamond_bag' : 'order_gold_request',
+                        $id,
+                        $assignedTo,
+                        ($diamond ? 'Create diamond bag for order ' : 'Issue gold for order ') . $order['order_no'],
+                        $taskDueAt,
+                        $adminId,
+                        ($diamond ? '' : (string) $request['gold_quantity_gm'] . ' gm · ') . (string) $request['details']
+                    );
                 }
             }
             $db->transComplete();
@@ -166,18 +185,21 @@ class OrderWorkRequestsController extends MobileBaseController
                 log_message('error', 'Follower request approval notification failed: {message}', ['message' => $e->getMessage()]);
             }
         }
-        if ($decision === 'approve' && $request['request_type'] === 'gold_requirement') {
-            $task = $db->table('mobile_tasks')->select('id')->where('reference_type', 'order_gold_request')->where('reference_id', $id)->get()->getRowArray();
+        if ($decision === 'approve' && $isMaterialRequest) {
+            $diamond = $request['request_type'] === 'diamond_requirement';
+            $referenceType = $diamond ? 'order_diamond_bag' : 'order_gold_request';
+            $task = $db->table('mobile_tasks')->select('id')->where('reference_type', $referenceType)->where('reference_id', $id)->get()->getRowArray();
             if ($task) {
                 try {
                     (new MobilePushService())->queueForAdmin($assignedTo, [
                         'type' => 'task_assigned', 'reference_table' => 'mobile_tasks', 'reference_id' => (int) $task['id'],
-                        'dedupe_key' => 'gold-request-task:' . $id, 'title' => 'Gold issuement assigned',
-                        'message' => 'Issue gold for order #' . (int) $request['order_id'] . ' by ' . $taskDueAt,
+                        'dedupe_key' => ($diamond ? 'diamond-bag-task:' : 'gold-request-task:') . $id,
+                        'title' => $diamond ? 'Diamond bag assigned' : 'Gold issuement assigned',
+                        'message' => ($diamond ? 'Create diamond bag for order #' : 'Issue gold for order #') . (int) $request['order_id'] . ' by ' . $taskDueAt,
                         'payload' => ['screen' => 'tasks', 'task_id' => (int) $task['id']],
                     ]);
                 } catch (Throwable $e) {
-                    log_message('error', 'Gold task notification failed: {message}', ['message' => $e->getMessage()]);
+                    log_message('error', 'Material task notification failed: {message}', ['message' => $e->getMessage()]);
                 }
             }
         }

@@ -5,7 +5,6 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Services\DiamondRequirementService;
 use App\Services\MobileNotificationEventService;
-use App\Services\RbacService;
 use App\Services\StaffPerformanceService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use Throwable;
@@ -14,14 +13,12 @@ class DiamondRequirementController extends BaseController
 {
     private DiamondRequirementService $requirements;
     private MobileNotificationEventService $notifications;
-    private RbacService $rbac;
 
     public function __construct()
     {
         helper(['form', 'url']);
         $this->requirements = new DiamondRequirementService();
         $this->notifications = new MobileNotificationEventService();
-        $this->rbac = new RbacService();
     }
 
     public function index(): string
@@ -35,25 +32,10 @@ class DiamondRequirementController extends BaseController
 
     public function store(int $orderId)
     {
-        $userId = (int) session('admin_id');
-        $canManage = $this->rbac->userCan($userId, 'diamond.inventory.manage');
-        try {
-            $row = $this->requirements->raise(
-                $orderId,
-                $userId,
-                (string) $this->request->getPost('requirement_note'),
-                (string) $this->request->getPost('required_by'),
-                $canManage
-            );
-            try {
-                $this->notifications->notifyDiamondRequirementRaised((int) ($row['id'] ?? 0));
-            } catch (Throwable $e) {
-                log_message('error', 'Diamond requirement notification failed: {message}', ['message' => $e->getMessage()]);
-            }
-            return redirect()->back()->with('success', 'Diamond requirement raised for admin approval.');
-        } catch (Throwable $e) {
-            return redirect()->back()->withInput()->with('error', $e->getMessage());
-        }
+        return redirect()->back()->with(
+            'error',
+            'Diamond requirement creation has been retired. Create an order-linked diamond bag directly.'
+        );
     }
 
     public function approve(int $id)

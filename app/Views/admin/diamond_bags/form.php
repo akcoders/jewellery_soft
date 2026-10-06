@@ -17,18 +17,20 @@ if ($rows === []) {
     $rows[] = ['inventory_item_id' => '', 'shape_master_id' => '', 'size_master_id' => '', 'pcs_total' => '', 'weight_cts_total' => ''];
 }
 $selectedLocation = (string) old('location_id', (string) ($selectedLocationId ?? ''));
+$selectedOrder = (string) old('order_id', (string) ($selectedOrderId ?? ''));
 ?>
 <div class="card erp-form-shell mb-3">
     <div class="card-header"><h6 class="mb-0">Bag Header</h6></div>
     <div class="card-body"><div class="row g-3">
         <div class="col-md-3"><label class="form-label">Prepared Date *</label><input type="date" name="prepared_date" class="form-control" required value="<?= esc((string) old('prepared_date', (string) ($bag['prepared_date'] ?? date('Y-m-d')))) ?>"></div>
+        <div class="col-md-4"><label class="form-label">Diamond / Jadau Order *</label><select name="order_id" class="form-select js-select2" required><option value="">Select order</option><?php foreach (($orders ?? []) as $order): ?><option value="<?= (int) $order['id'] ?>" <?= $selectedOrder === (string) $order['id'] ? 'selected' : '' ?>><?= esc(trim((string) ($order['order_no'] ?? '-') . ' · ' . (string) ($order['order_name'] ?? '') . ' · ' . (string) (($order['material_category'] ?? '') ?: ($order['order_category_name'] ?? '')))) ?></option><?php endforeach; ?></select></div>
         <div class="col-md-4"><label class="form-label">Inventory Location *</label><select name="location_id" class="form-select js-select2" required><option value="">Select location</option><?php foreach (($locations ?? []) as $location): ?><option value="<?= (int) $location['id'] ?>" <?= $selectedLocation === (string) $location['id'] ? 'selected' : '' ?>><?= esc((string) $location['name']) ?></option><?php endforeach; ?></select></div>
-        <div class="col-md-5"><label class="form-label">Bag Photo</label><input type="file" name="audit_image" class="form-control" accept="image/*"><?php if (! empty($bag['audit_image_path'])): ?><a class="small" target="_blank" href="<?= base_url((string) $bag['audit_image_path']) ?>">Open current photo</a><?php endif; ?></div>
+        <div class="col-md-4"><label class="form-label">Bag Photo</label><input type="file" name="audit_image" class="form-control" accept="image/*"><?php if (! empty($bag['audit_image_path'])): ?><a class="small" target="_blank" href="<?= base_url((string) $bag['audit_image_path']) ?>">Open current photo</a><?php endif; ?></div>
         <div class="col-12"><label class="form-label">Notes</label><input name="notes" class="form-control" maxlength="500" value="<?= esc((string) old('notes', (string) ($bag['notes'] ?? ''))) ?>" placeholder="Packet seal, sorter or identification remarks"></div>
     </div></div>
 </div>
 
-<div class="alert alert-info d-flex gap-2 align-items-start"><i class="fe fe-info mt-1"></i><div><strong>Bag is not tied to one order.</strong> Select this bag during issuement and split its PCS/CTS into as many order rows as needed.</div></div>
+<div class="alert alert-info d-flex gap-2 align-items-start"><i class="fe fe-info mt-1"></i><div><strong>This bag stays linked to its selected order.</strong> During issuement, all chalni-size rows are allocated to that order.</div></div>
 <div class="card erp-form-shell mb-3">
     <div class="card-header d-flex justify-content-between align-items-center"><div><h6 class="mb-1">Calibrated Bag Rows</h6><small class="text-muted">Shape, size, PCS and CTS are mandatory.</small></div><button type="button" class="btn btn-sm btn-primary" id="add-bag-row"><i class="fe fe-plus me-1"></i>Add Size Row</button></div>
     <div class="table-responsive"><table class="table table-bordered align-middle mb-0" data-dt-skip="true"><thead><tr><th style="min-width:280px">Diamond Inventory Item *</th><th style="min-width:150px">Shape *</th><th style="min-width:180px">Size *</th><th style="min-width:110px">PCS *</th><th style="min-width:120px">CTS *</th><th style="width:65px"></th></tr></thead><tbody id="bag-lines-body">

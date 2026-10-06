@@ -111,6 +111,128 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
     }
   }
 
+  Future<void> _addCompleteDiamondBag() async {
+    final bags = <int, dynamic>{};
+    for (final row in _diamondItems) {
+      final bagId = _intValue(row['bag_id']);
+      if (bagId > 0) bags.putIfAbsent(bagId, () => row);
+    }
+    if (bags.isEmpty) {
+      _show('No complete diamond bag is available to issue.');
+      return;
+    }
+    int? bagId;
+    int? orderId;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) {
+          final selected = bagId == null ? null : bags[bagId];
+          final linkedOrderId = selected == null
+              ? 0
+              : _intValue(
+                  selected['bag_order_id'] ?? selected['requirement_order_id'],
+                );
+          if (linkedOrderId > 0) orderId = linkedOrderId;
+          return AlertDialog(
+            title: const Text('Issue Complete Diamond Bag'),
+            content: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    isExpanded: true,
+                    initialValue: bagId,
+                    decoration: const InputDecoration(
+                      labelText: 'Select Bag',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: bags.entries.map((entry) {
+                      final rows = _diamondItems.where(
+                        (row) => _intValue(row['bag_id']) == entry.key,
+                      );
+                      return DropdownMenuItem<int>(
+                        value: entry.key,
+                        child: Text(
+                          'Bag #${entry.key} · ${rows.length} chalni size(s) · ${entry.value['bag_no'] ?? ''}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) => update(() {
+                      bagId = value;
+                      final row = value == null ? null : bags[value];
+                      orderId = row == null
+                          ? null
+                          : _nullableId(
+                              row['bag_order_id'] ??
+                                  row['requirement_order_id'],
+                            );
+                    }),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  if (linkedOrderId > 0)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Allocated to ${selected?['bag_order_no'] ?? selected?['requirement_order_no'] ?? 'linked order'}',
+                      ),
+                    )
+                  else
+                    _optionalItemDropdown(
+                      'Allocate to Order',
+                      orderId,
+                      _orders,
+                      (row) => '${row['order_no']} · ${row['order_name']}',
+                      (value) => update(() => orderId = value),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: bagId == null
+                    ? null
+                    : () => Navigator.pop(dialogContext, true),
+                child: const Text('Add Complete Bag'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (accepted != true || bagId == null) return;
+
+    final rows = _diamondItems.where(
+      (row) =>
+          _intValue(row['bag_id']) == bagId &&
+          _numberValue(row['pcs_available']) > 0 &&
+          _numberValue(row['weight_cts_available']) > 0,
+    );
+    final existing = _diamondLines.map((line) => line.itemId).toSet();
+    if (rows.any((row) => existing.contains(_intValue(row['id'])))) {
+      _show(
+        'This bag already has a line in the form. Remove it before adding the complete bag.',
+      );
+      return;
+    }
+    setState(() {
+      for (final row in rows) {
+        final line = _IssueLine()
+          ..itemId = _intValue(row['id'])
+          ..orderId = orderId;
+        line.pcs.text = _wholeNumberText(row['pcs_available']);
+        line.quantity.text = _decimalText(row['weight_cts_available']);
+        _diamondLines.add(line);
+      }
+    });
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false) ||
         _saving ||
@@ -246,6 +368,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
                     icon: Icons.diamond_outlined,
                     lines: _diamondLines,
                     add: () => setState(() => _diamondLines.add(_IssueLine())),
+                    addComplete: _addCompleteDiamondBag,
                     builder: _diamondLine,
                   ),
                   _materialSection(
@@ -292,8 +415,20 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
         line.itemId,
         _diamondItems,
         (row) =>
-            '${row['bag_no']} · ${row['shape_name'] ?? row['item_shape'] ?? ''} · ${row['size_label'] ?? row['size_code'] ?? ''} · ${row['pcs_available'] ?? 0} PCS / ${row['weight_cts_available'] ?? 0} CTS',
-        (value) => setState(() => line.itemId = value),
+            'Bag #${row['bag_id']} · ${_diamondSize(row)} · ${row['shape_name'] ?? row['item_shape'] ?? ''} · ${row['pcs_available'] ?? 0} PCS / ${row['weight_cts_available'] ?? 0} CTS · ${row['bag_no'] ?? ''}',
+        (value) => setState(() {
+          line.itemId = value;
+          final selected = _diamondItems.cast<dynamic>().firstWhere(
+            (row) => _intValue(row?['id']) == value,
+            orElse: () => null,
+          );
+          final linkedOrderId = selected == null
+              ? 0
+              : _intValue(
+                  selected['bag_order_id'] ?? selected['requirement_order_id'],
+                );
+          if (linkedOrderId > 0) line.orderId = linkedOrderId;
+        }),
       ),
       _optionalItemDropdown(
         'Allocate to Order',
@@ -301,6 +436,9 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
         _orders,
         (row) => '${row['order_no']} · ${row['order_name']}',
         (value) => setState(() => line.orderId = value),
+        fieldKey: ValueKey(
+          'diamond_order_${identityHashCode(line)}_${line.orderId ?? 0}',
+        ),
       ),
       _positive(line.pcs, 'PCS', whole: true),
       _positive(line.quantity, 'Carat'),
@@ -330,6 +468,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
     required IconData icon,
     required List<_IssueLine> lines,
     required VoidCallback add,
+    VoidCallback? addComplete,
     required Widget Function(_IssueLine) builder,
   }) => Container(
     margin: const EdgeInsets.only(bottom: AppSpacing.lg),
@@ -400,6 +539,14 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
           icon: const Icon(Icons.add),
           label: Text('Add $title Line'),
         ),
+        if (addComplete != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          FilledButton.icon(
+            onPressed: addComplete,
+            icon: const Icon(Icons.inventory_2_outlined),
+            label: const Text('Issue Complete Bag'),
+          ),
+        ],
       ],
     ),
   );
@@ -522,8 +669,10 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
     int? value,
     List<dynamic> rows,
     String Function(dynamic) display,
-    ValueChanged<int?> changed,
-  ) => DropdownButtonFormField<int?>(
+    ValueChanged<int?> changed, {
+    Key? fieldKey,
+  }) => DropdownButtonFormField<int?>(
+    key: fieldKey,
     initialValue: value,
     isExpanded: true,
     decoration: InputDecoration(
@@ -565,6 +714,32 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   int _id(dynamic row) => row['id'] is num
       ? (row['id'] as num).toInt()
       : int.tryParse('${row['id']}') ?? 0;
+  int _intValue(dynamic value) =>
+      value is num ? value.toInt() : int.tryParse('${value ?? ''}') ?? 0;
+  int? _nullableId(dynamic value) {
+    final id = _intValue(value);
+    return id > 0 ? id : null;
+  }
+
+  double _numberValue(dynamic value) =>
+      value is num ? value.toDouble() : double.tryParse('${value ?? ''}') ?? 0;
+  String _wholeNumberText(dynamic value) =>
+      _numberValue(value).round().toString();
+  String _decimalText(dynamic value) => _numberValue(value).toStringAsFixed(3);
+  String _chalniRange(dynamic row) {
+    final from = '${row['chalni_from'] ?? ''}'.trim();
+    final to = '${row['chalni_to'] ?? ''}'.trim();
+    return from.isEmpty && to.isEmpty ? 'No chalni' : 'Chalni $from-$to';
+  }
+
+  String _diamondSize(dynamic row) {
+    final size = '${row['size_label'] ?? ''}'.trim().isNotEmpty
+        ? '${row['size_label']}'.trim()
+        : '${row['size_code'] ?? ''}'.trim();
+    if (size.isEmpty) return _chalniRange(row);
+    return size.toLowerCase().contains('chalni') ? size : 'Chalni $size';
+  }
+
   double _number(String value) => double.tryParse(value.trim()) ?? 0;
   double? _optionalNumber(String value) =>
       value.trim().isEmpty ? null : double.tryParse(value.trim());

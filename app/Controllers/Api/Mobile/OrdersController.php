@@ -7,8 +7,8 @@ use App\Models\OrderAttachmentModel;
 use App\Models\OrderItemModel;
 use App\Models\OrderModel;
 use App\Models\OrderStatusHistoryModel;
+use App\Services\DiamondBagService;
 use App\Services\MobileNotificationEventService;
-use App\Services\DiamondRequirementService;
 use App\Services\OrderCategoryService;
 use App\Services\OrderNumberService;
 use App\Services\OrderWhatsAppService;
@@ -22,7 +22,7 @@ class OrdersController extends MobileBaseController
     private Jewellery $jewelleryConfig;
     private MobileNotificationEventService $mobileNotificationEvents;
     private StaffPerformanceService $staffPerformanceService;
-    private DiamondRequirementService $diamondRequirementService;
+    private DiamondBagService $diamondBagService;
     private RbacService $rbacService;
 
     public function __construct()
@@ -30,7 +30,7 @@ class OrdersController extends MobileBaseController
         $this->jewelleryConfig = config(Jewellery::class);
         $this->mobileNotificationEvents = new MobileNotificationEventService();
         $this->staffPerformanceService = new StaffPerformanceService();
-        $this->diamondRequirementService = new DiamondRequirementService();
+        $this->diamondBagService = new DiamondBagService();
         $this->rbacService = new RbacService();
     }
 
@@ -447,8 +447,8 @@ class OrdersController extends MobileBaseController
             'assignment_customers' => $canChangeFollower && empty($order['customer_id'])
                 ? $db->table('customers')->select('id, name')->where('is_active', 1)->orderBy('name')->get()->getResultArray()
                 : [],
-            'diamond_requirements' => $this->diamondRequirementService->forOrder($id),
-            'can_raise_diamond_requirement' => $this->diamondRequirementService->canRaise(
+            'diamond_supported' => $this->diamondBagService->supportsOrder($id),
+            'can_create_diamond_bag' => $this->diamondBagService->canCreateForOrder(
                 $id,
                 $mobileUserId,
                 $this->rbacService->userCan($mobileUserId, 'diamond.inventory.manage')

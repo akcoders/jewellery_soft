@@ -28,8 +28,8 @@ use App\Models\OrderStatusHistoryModel;
 use App\Models\StoneLedgerEntryModel;
 use App\Models\DeliveryChallanModel;
 use App\Services\AdminPostingService;
+use App\Services\DiamondBagService;
 use App\Services\DiamondBagTraceService;
-use App\Services\DiamondRequirementService;
 use App\Services\FinishedJewelleryService;
 use App\Services\GoldInventory\StockService as GoldInventoryStockService;
 use App\Services\KarigarMaterialAccountingService;
@@ -80,7 +80,7 @@ class OrderController extends BaseController
     private OrderNumberService $orderNumberService;
     private OrderThumbnailService $orderThumbnailService;
     private MobileNotificationEventService $mobileNotificationEvents;
-    private DiamondRequirementService $diamondRequirementService;
+    private DiamondBagService $diamondBagService;
     private RbacService $rbacService;
     private StaffPerformanceService $staffPerformanceService;
     private PdfService $pdfService;
@@ -120,7 +120,7 @@ class OrderController extends BaseController
         $this->orderNumberService = new OrderNumberService();
         $this->orderThumbnailService = new OrderThumbnailService();
         $this->mobileNotificationEvents = new MobileNotificationEventService();
-        $this->diamondRequirementService = new DiamondRequirementService();
+        $this->diamondBagService = new DiamondBagService();
         $this->rbacService = new RbacService();
         $this->staffPerformanceService = new StaffPerformanceService();
         $this->pdfService = new PdfService();
@@ -914,13 +914,8 @@ class OrderController extends BaseController
             'readyImages' => $this->productionReadyImages($id),
             'receiveSummary' => is_array($receiveSummary) ? $receiveSummary : [],
             'studdedDetails' => $studdedDetails,
-            'diamondRequirements' => $this->diamondRequirementService->forOrder($id),
-            'canRaiseDiamondRequirement' => $this->diamondRequirementService->canRaise(
-                $id,
-                (int) session('admin_id'),
-                $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage')
-            ),
-            'canManageDiamondRequirements' => $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage'),
+            'canCreateDiamondBag' => $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage')
+                && $this->diamondBagService->canCreateForOrder($id, (int) session('admin_id'), true),
             'canDeleteOrder' => $this->rbacService->userCan((int) session('admin_id'), 'orders.delete'),
             'canChangeFollower' => $canChangeFollower,
             'staffFollowers' => $canChangeFollower ? $this->staffPerformanceService->staffOptions() : [],

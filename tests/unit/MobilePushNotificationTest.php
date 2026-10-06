@@ -103,7 +103,8 @@ final class MobilePushNotificationTest extends CIUnitTestCase
 
         $this->assertStringContainsString('notifyOrderCreated', $adminOrder . $customerOrder);
         $this->assertStringContainsString('notifyFollowupAdded', $adminOrder . $mobileOrder);
-        $this->assertStringContainsString('notifyDiamondRequirementRaised', $adminRequirement . $mobileRequirement);
+        $this->assertStringNotContainsString('notifyDiamondRequirementRaised', $adminRequirement . $mobileRequirement);
+        $this->assertStringContainsString('Diamond requirement creation has been retired', $adminRequirement . $mobileRequirement);
         $this->assertStringContainsString("'type' => 'purchase_created'", $events);
         $this->assertStringContainsString("'type' => 'issuement_created'", $events);
         $this->assertStringContainsString("'type' => 'return_created'", $events);

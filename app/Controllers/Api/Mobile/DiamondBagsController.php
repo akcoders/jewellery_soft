@@ -2,8 +2,21 @@
 
 namespace App\Controllers\Api\Mobile;
 
+use App\Services\DiamondBagService;
+use App\Services\RbacService;
+use Throwable;
+
 class DiamondBagsController extends MobileBaseController
 {
+    private DiamondBagService $bags;
+    private RbacService $rbac;
+
+    public function __construct()
+    {
+        $this->bags = new DiamondBagService();
+        $this->rbac = new RbacService();
+    }
+
     public function index()
     {
         if ($response = $this->requireMobileAuth()) {
@@ -34,6 +47,84 @@ class DiamondBagsController extends MobileBaseController
         unset($item);
 
         return $this->ok(['items' => $items]);
+    }
+
+    public function createForm()
+    {
+        if ($response = $this->requireMobileAuth()) {
+            return $response;
+        }
+
+        $userId = (int) $this->mobileAdmin['id'];
+        $canManage = $this->rbac->userCan($userId, 'diamond.inventory.manage');
+        $orderId = (int) ($this->request->getGet('order_id') ?? 0);
+        $workRequestId = (int) ($this->request->getGet('work_request_id') ?? 0);
+        if ($orderId > 0 && ! $this->bags->canCreateForOrder($orderId, $userId, $canManage, $workRequestId)) {
+            return $this->fail('You cannot create a diamond bag for this order.', 403);
+        }
+
+        $orders = $this->bags->availableOrders($userId, $canManage);
+        $selectedOrder = null;
+        foreach ($orders as $order) {
+            if ((int) ($order['id'] ?? 0) === $orderId) {
+                $selectedOrder = $order;
+                break;
+            }
+        }
+
+        return $this->ok([
+            'lookups' => $this->bags->lookups(),
+            'orders' => $orders,
+            'selected_order' => $selectedOrder,
+        ]);
+    }
+
+    public function store()
+    {
+        if ($response = $this->requireMobileAuth()) {
+            return $response;
+        }
+
+        $payload = $this->payload();
+        $rows = $payload['items'] ?? $payload['rows'] ?? [];
+        if (! is_array($rows)) {
+            return $this->fail('items must be an array of diamond size rows.', 422);
+        }
+        $userId = (int) $this->mobileAdmin['id'];
+        $orderId = (int) ($payload['order_id'] ?? 0);
+        $workRequestId = (int) ($payload['work_request_id'] ?? 0);
+        $canManage = $this->rbac->userCan($userId, 'diamond.inventory.manage');
+        if (! $this->bags->canCreateForOrder($orderId, $userId, $canManage, $workRequestId)) {
+            return $this->fail('You cannot create a diamond bag for this order.', 403);
+        }
+
+        $imageName = null;
+        $imagePath = null;
+        $imageBase64 = trim((string) ($payload['image_base64'] ?? ''));
+        try {
+            if ($imageBase64 !== '') {
+                $image = $this->saveBase64Image($imageBase64);
+                $imageName = $image['name'];
+                $imagePath = $image['path'];
+            }
+            $bag = $this->bags->create(
+                $orderId,
+                $userId,
+                (int) ($payload['location_id'] ?? 0),
+                (string) ($payload['prepared_date'] ?? date('Y-m-d')),
+                array_values($rows),
+                (string) ($payload['notes'] ?? ''),
+                $imageName,
+                $imagePath,
+                $workRequestId
+            );
+            return $this->ok(['bag' => $bag], 'Diamond bag created and linked to the order.', 201);
+        } catch (Throwable $e) {
+            if ($imagePath !== null && is_file(FCPATH . ltrim($imagePath, '/'))) {
+                @unlink(FCPATH . ltrim($imagePath, '/'));
+            }
+            return $this->fail($e->getMessage(), 422);
+        }
     }
 
     public function show(int $id)
@@ -97,5 +188,32 @@ class DiamondBagsController extends MobileBaseController
             return 'partly_issued';
         }
         return 'ready';
+    }
+
+    /** @return array{name:string,path:string} */
+    private function saveBase64Image(string $input): array
+    {
+        $raw = $input;
+        $extension = 'jpg';
+        if (preg_match('/^data:image\/(\w+);base64,/', $input, $matches) === 1) {
+            $extension = strtolower((string) ($matches[1] ?? 'jpg'));
+            $raw = substr($input, strpos($input, ',') + 1);
+        }
+        if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+            throw new \RuntimeException('Bag photo must be JPG, PNG or WebP.');
+        }
+        $binary = base64_decode(str_replace(' ', '+', $raw), true);
+        if ($binary === false || strlen($binary) > 4 * 1024 * 1024) {
+            throw new \RuntimeException('Invalid bag photo or file is larger than 4 MB.');
+        }
+        $directory = FCPATH . 'uploads/diamond-bags';
+        if (! is_dir($directory) && ! mkdir($directory, 0775, true) && ! is_dir($directory)) {
+            throw new \RuntimeException('Could not create the bag photo directory.');
+        }
+        $name = 'mobile_bag_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
+        if (file_put_contents($directory . DIRECTORY_SEPARATOR . $name, $binary) === false) {
+            throw new \RuntimeException('Could not save the bag photo.');
+        }
+        return ['name' => $name, 'path' => 'uploads/diamond-bags/' . $name];
     }
 }

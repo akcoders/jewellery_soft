@@ -4,20 +4,17 @@ namespace App\Controllers\Api\Mobile;
 
 use App\Services\DiamondRequirementService;
 use App\Services\MobileNotificationEventService;
-use App\Services\RbacService;
 use Throwable;
 
 class DiamondRequirementsController extends MobileBaseController
 {
     private DiamondRequirementService $requirements;
     private MobileNotificationEventService $notifications;
-    private RbacService $rbac;
 
     public function __construct()
     {
         $this->requirements = new DiamondRequirementService();
         $this->notifications = new MobileNotificationEventService();
-        $this->rbac = new RbacService();
     }
 
     public function index()
@@ -61,26 +58,11 @@ class DiamondRequirementsController extends MobileBaseController
         if ($response = $this->requireMobileAuth()) {
             return $response;
         }
-        $payload = $this->payload();
-        $userId = (int) $this->mobileAdmin['id'];
-        try {
-            $row = $this->requirements->raise(
-                $orderId,
-                $userId,
-                (string) ($payload['requirement_note'] ?? ''),
-                (string) ($payload['required_by'] ?? ''),
-                $this->rbac->userCan($userId, 'diamond.inventory.manage')
-            );
-            $notification = [];
-            try {
-                $notification = $this->notifications->notifyDiamondRequirementRaised((int) $row['id']);
-            } catch (Throwable $e) {
-                log_message('error', 'Diamond requirement notification failed: {message}', ['message' => $e->getMessage()]);
-            }
-            return $this->ok(['requirement' => $row, 'notification' => $notification], 'Diamond requirement raised for admin approval.');
-        } catch (Throwable $e) {
-            return $this->fail($e->getMessage(), 422);
-        }
+
+        return $this->fail(
+            'Diamond requirement creation has been retired. Create an order-linked diamond bag directly.',
+            410
+        );
     }
 
     public function prepare(int $id)

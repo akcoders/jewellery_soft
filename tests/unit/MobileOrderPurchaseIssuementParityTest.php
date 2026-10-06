@@ -46,6 +46,11 @@ final class MobileOrderPurchaseIssuementParityTest extends CIUnitTestCase
             $this->assertStringContainsString("payload['{$field}']", $controller);
             $this->assertStringContainsString("'{$field}'", $screen);
         }
+        $this->assertStringContainsString('Issue Complete Bag', $screen);
+        $this->assertStringContainsString("Bag #\${row['bag_id']}", $screen);
+        $this->assertStringContainsString('_diamondSize(row)', $screen);
+        $this->assertStringContainsString("'pcs_available'", $screen);
+        $this->assertStringContainsString("'weight_cts_available'", $screen);
         $this->assertStringContainsString("'issuements'", $shell);
         $this->assertStringContainsString('leading: const _IssuementMenuIcon()', $shell);
         $this->assertStringContainsString('class _IssuementMenuIconPainter extends CustomPainter', $shell);

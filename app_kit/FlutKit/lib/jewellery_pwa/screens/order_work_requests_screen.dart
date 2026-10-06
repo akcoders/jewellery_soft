@@ -117,6 +117,10 @@ class _OrderWorkRequestsScreenState extends State<OrderWorkRequestsScreen> {
     final (type, icon) = switch ('${row['request_type']}') {
       'order_delay' => ('Order delay', LucideIcons.calendar_clock),
       'gold_requirement' => ('Gold requirement', LucideIcons.gem),
+      'diamond_requirement' => (
+        'Diamond requirement',
+        LucideIcons.package_plus,
+      ),
       'follower_change' => ('Follower change', LucideIcons.users_round),
       _ => ('${row['request_type']}', LucideIcons.clipboard_list),
     };

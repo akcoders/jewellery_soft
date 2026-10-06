@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutkit/jewellery_pwa/screens/diamond_requirements_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/issuement_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
@@ -122,6 +123,12 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
                 workRequestId: task.referenceId,
                 initialKarigarId: task.requestKarigarId,
               )
+            : task.isDiamondBagRequestTask
+            ? DiamondBagCreateScreen(
+                api: widget.api,
+                orderId: task.orderId,
+                workRequestId: task.referenceId,
+              )
             : task.isOrderFollowupTask
             ? OrderDetailScreen(api: widget.api, orderId: task.orderId)
             : DiamondRequirementDetailScreen(
@@ -130,7 +137,10 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
               ),
       ),
     );
-    if (changed == true || task.isOrderFollowupTask || task.isGoldRequestTask) {
+    if (changed == true ||
+        task.isOrderFollowupTask ||
+        task.isGoldRequestTask ||
+        task.isDiamondBagRequestTask) {
       await _load();
       TaskRefreshBus.notify();
     }

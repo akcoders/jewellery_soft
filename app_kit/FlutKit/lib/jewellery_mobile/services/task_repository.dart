@@ -58,6 +58,8 @@ class TaskItem {
 
   bool get isDiamondBagTask =>
       referenceType == 'diamond_requirement' && referenceId > 0;
+  bool get isDiamondBagRequestTask =>
+      referenceType == 'order_diamond_bag' && referenceId > 0 && orderId > 0;
   bool get isOrderFollowupTask =>
       referenceType == 'order_followup' && orderId > 0;
   bool get isGoldRequestTask =>

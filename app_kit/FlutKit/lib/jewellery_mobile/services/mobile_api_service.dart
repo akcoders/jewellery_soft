@@ -547,6 +547,44 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<Map<String, dynamic>> fetchDiamondBagForm({
+    int? orderId,
+    int? workRequestId,
+  }) async {
+    final res = await _get(
+      '/api/mobile/diamond-bags/create',
+      query: {
+        if (orderId != null) 'order_id': '$orderId',
+        if (workRequestId != null) 'work_request_id': '$workRequestId',
+      },
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> createDiamondBag({
+    required int orderId,
+    required int locationId,
+    required String preparedDate,
+    required List<Map<String, dynamic>> items,
+    int? workRequestId,
+    String notes = '',
+    String imageBase64 = '',
+  }) async {
+    final body = <String, dynamic>{
+      'order_id': orderId,
+      'location_id': locationId,
+      'prepared_date': preparedDate,
+      'items': items,
+      'notes': notes.trim(),
+      if (workRequestId != null) 'work_request_id': workRequestId,
+    };
+    if (imageBase64.trim().isNotEmpty) {
+      body['image_base64'] = imageBase64.trim();
+    }
+    final res = await _post('/api/mobile/diamond-bags', body: body);
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<Map<String, dynamic>> raiseDiamondRequirement({
     required int orderId,
     required String note,

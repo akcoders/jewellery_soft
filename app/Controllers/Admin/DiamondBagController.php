@@ -7,6 +7,7 @@ use App\Models\DiamondBagItemModel;
 use App\Models\DiamondBagModel;
 use App\Models\InventoryLocationModel;
 use App\Services\AdminPostingService;
+use App\Services\DiamondBagService;
 use App\Services\DiamondChalniStockService;
 use RuntimeException;
 use Throwable;
@@ -17,6 +18,7 @@ class DiamondBagController extends BaseController
     private DiamondBagItemModel $bagItemModel;
     private InventoryLocationModel $locationModel;
     private AdminPostingService $adminPostingService;
+    private DiamondBagService $diamondBagService;
 
     public function __construct()
     {
@@ -25,6 +27,7 @@ class DiamondBagController extends BaseController
         $this->bagItemModel = new DiamondBagItemModel();
         $this->locationModel = new InventoryLocationModel();
         $this->adminPostingService = new AdminPostingService();
+        $this->diamondBagService = new DiamondBagService();
     }
 
     public function index(): string
@@ -47,12 +50,17 @@ class DiamondBagController extends BaseController
     {
         if (! $this->validate([
             'prepared_date' => 'required|valid_date',
+            'order_id' => 'required|integer|greater_than[0]',
             'location_id' => 'required|integer|greater_than[0]',
             'audit_image' => 'permit_empty|is_image[audit_image]|max_size[audit_image,4096]',
         ])) {
             return redirect()->back()->withInput()->with('error', $this->firstValidationError());
         }
         $locationId = (int) $this->request->getPost('location_id');
+        $orderId = (int) $this->request->getPost('order_id');
+        if (! $this->diamondBagService->canCreateForOrder($orderId, (int) session('admin_id'), true)) {
+            return redirect()->back()->withInput()->with('error', 'Select a valid open Diamond or Jadau order.');
+        }
         if (! $this->locationModel->where('is_active', 1)->find($locationId)) {
             return redirect()->back()->withInput()->with('error', 'Select a valid inventory location.');
         }
@@ -70,7 +78,7 @@ class DiamondBagController extends BaseController
             $bagId = (int) $this->bagModel->insert([
                 'bag_no' => $this->nextBagNumber(),
                 'prepared_date' => (string) $this->request->getPost('prepared_date'),
-                'order_id' => null,
+                'order_id' => $orderId,
                 'warehouse_id' => (int) $warehouse['warehouse_id'],
                 'bin_id' => (int) $warehouse['bin_id'],
                 'pcs_balance' => 0,
@@ -114,12 +122,17 @@ class DiamondBagController extends BaseController
         }
         if (! $this->validate([
             'prepared_date' => 'required|valid_date',
+            'order_id' => 'required|integer|greater_than[0]',
             'location_id' => 'required|integer|greater_than[0]',
             'audit_image' => 'permit_empty|is_image[audit_image]|max_size[audit_image,4096]',
         ])) {
             return redirect()->back()->withInput()->with('error', $this->firstValidationError());
         }
         $locationId = (int) $this->request->getPost('location_id');
+        $orderId = (int) $this->request->getPost('order_id');
+        if (! $this->diamondBagService->canCreateForOrder($orderId, (int) session('admin_id'), true)) {
+            return redirect()->back()->withInput()->with('error', 'Select a valid open Diamond or Jadau order.');
+        }
         if (! $this->locationModel->where('is_active', 1)->find($locationId)) {
             return redirect()->back()->withInput()->with('error', 'Select a valid inventory location.');
         }
@@ -136,7 +149,7 @@ class DiamondBagController extends BaseController
             $warehouse = $this->adminPostingService->resolveWarehouseBinByLocation($locationId);
             $this->bagModel->update($id, [
                 'prepared_date' => (string) $this->request->getPost('prepared_date'),
-                'order_id' => null,
+                'order_id' => $orderId,
                 'warehouse_id' => (int) $warehouse['warehouse_id'],
                 'bin_id' => (int) $warehouse['bin_id'],
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
@@ -225,6 +238,10 @@ class DiamondBagController extends BaseController
             'shapes' => $db->table('diamond_shape_masters')->where('is_active', 1)->orderBy('sort_order', 'ASC')->orderBy('name', 'ASC')->get()->getResultArray(),
             'sizes' => $db->table('diamond_size_masters')->where('is_active', 1)->orderBy('sort_order', 'ASC')->orderBy('size_label', 'ASC')->get()->getResultArray(),
             'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'orders' => $this->diamondBagService->availableOrders((int) session('admin_id'), true),
+            'selectedOrderId' => $bag
+                ? (int) ($bag['order_id'] ?? 0)
+                : (int) ($this->request->getGet('order_id') ?? 0),
             'selectedLocationId' => $bag ? $this->resolveLocationIdForBag((int) ($bag['warehouse_id'] ?? 0)) : null,
         ];
     }

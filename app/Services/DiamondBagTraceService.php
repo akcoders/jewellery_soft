@@ -29,13 +29,15 @@ class DiamondBagTraceService
             ->select(
                 'bi.id, bi.bag_id, bi.inventory_item_id AS item_id, bi.pcs_available, '
                 . 'bi.weight_cts_available, bi.pcs_total, bi.weight_cts_total, '
-                . 'b.bag_no, b.prepared_date, i.diamond_type, i.shape AS item_shape, '
+                . 'b.bag_no, b.prepared_date, b.order_id AS bag_order_id, linked_order.order_no AS bag_order_no, '
+                . 'i.diamond_type, i.shape AS item_shape, '
                 . 'i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, '
                 . 'sm.name AS shape_name, sz.size_code, sz.size_label, sz.min_mm, sz.max_mm, '
                 . 'COALESCE(s.avg_cost_per_carat, 0) AS avg_cost_per_carat',
                 false
             )
             ->join('diamond_bags b', 'b.id = bi.bag_id', 'inner')
+            ->join('orders linked_order', 'linked_order.id = b.order_id', 'left')
             ->join('items i', 'i.id = bi.inventory_item_id', 'inner')
             ->join('stock s', 's.item_id = i.id', 'left')
             ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
@@ -415,24 +417,24 @@ class DiamondBagTraceService
     /** @param array<string,mixed> $line */
     private function assertRequirementAllocation(array $line): void
     {
-        if (! $this->db->tableExists('diamond_requirements') || ! $this->db->fieldExists('requirement_id', 'diamond_bags')) {
-            return;
-        }
         $bagId = (int) ($line['bag_id'] ?? 0);
         if ($bagId <= 0) {
             return;
         }
-        $requirement = $this->db->table('diamond_bags b')
-            ->select('dr.order_id')
-            ->join('diamond_requirements dr', 'dr.id = b.requirement_id', 'inner')
-            ->where('b.id', $bagId)->get()->getRowArray();
-        if (! is_array($requirement)) {
+        $builder = $this->db->table('diamond_bags b')->select('b.order_id');
+        if ($this->db->tableExists('diamond_requirements')
+            && $this->db->fieldExists('requirement_id', 'diamond_bags')) {
+            $builder->select('dr.order_id AS requirement_order_id')
+                ->join('diamond_requirements dr', 'dr.id = b.requirement_id', 'left');
+        }
+        $bag = $builder->where('b.id', $bagId)->get()->getRowArray();
+        if (! is_array($bag)) {
             return;
         }
-        $requiredOrderId = (int) ($requirement['order_id'] ?? 0);
+        $requiredOrderId = (int) (($bag['order_id'] ?? 0) ?: ($bag['requirement_order_id'] ?? 0));
         $allocatedOrderId = (int) ($line['allocation_order_id'] ?? 0);
-        if ($requiredOrderId <= 0 || $allocatedOrderId !== $requiredOrderId) {
-            throw new RuntimeException('This requirement bag can only be issued against its linked order.');
+        if ($requiredOrderId > 0 && $allocatedOrderId !== $requiredOrderId) {
+            throw new RuntimeException('This diamond bag can only be issued against its linked order.');
         }
     }
 

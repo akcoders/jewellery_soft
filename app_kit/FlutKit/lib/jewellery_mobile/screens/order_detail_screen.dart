@@ -6,7 +6,7 @@ import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_status_badge.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_followup_form_screen.dart';
-import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -32,12 +32,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Map<String, dynamic> _order = {};
   List<dynamic> _items = [];
   List<dynamic> _followups = [];
-  List<dynamic> _diamondRequirements = [];
   List<dynamic> _workRequests = [];
   List<dynamic> _karigars = [];
   List<dynamic> _assignmentCustomers = [];
   bool _canAssignKarigar = false;
-  bool _canRaiseDiamondRequirement = false;
+  bool _diamondSupported = false;
+  bool _canCreateDiamondBag = false;
   bool _canTakeOrderFollowup = false;
   bool _canChangeFollower = false;
   List<dynamic> _staffFollowers = [];
@@ -83,8 +83,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _order = orderMap ?? data.cast<String, dynamic>();
         _items = (data['items'] as List?) ?? <dynamic>[];
         _followups = (data['followups'] as List?) ?? <dynamic>[];
-        _diamondRequirements =
-            (data['diamond_requirements'] as List?) ?? <dynamic>[];
         _workRequests = requests;
         _karigars = (data['karigars'] as List?) ?? <dynamic>[];
         _assignmentCustomers =
@@ -92,9 +90,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _canAssignKarigar =
             data['can_assign_karigar'] == true ||
             data['can_assign_karigar'] == 1;
-        _canRaiseDiamondRequirement =
-            data['can_raise_diamond_requirement'] == true ||
-            data['can_raise_diamond_requirement'] == 1;
+        _diamondSupported =
+            data['diamond_supported'] == true || data['diamond_supported'] == 1;
+        _canCreateDiamondBag =
+            data['can_create_diamond_bag'] == true ||
+            data['can_create_diamond_bag'] == 1;
         _canTakeOrderFollowup =
             data['can_add_followup'] == true || data['can_add_followup'] == 1;
         _canChangeFollower =
@@ -553,6 +553,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         child: Text('Gold requirement'),
                       ),
                       DropdownMenuItem(
+                        value: 'diamond_requirement',
+                        child: Text('Diamond requirement'),
+                      ),
+                      DropdownMenuItem(
                         value: 'follower_change',
                         child: Text('Follower change'),
                       ),
@@ -693,6 +697,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 children: [
                   Text('${row['details']}'),
                   if (type == 'gold_requirement' ||
+                      type == 'diamond_requirement' ||
                       type == 'follower_change') ...[
                     const SizedBox(height: AppSpacing.lg),
                     DropdownButtonFormField<int>(
@@ -700,6 +705,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       decoration: InputDecoration(
                         labelText: type == 'follower_change'
                             ? 'New follower *'
+                            : type == 'diamond_requirement'
+                            ? 'Create bag by *'
                             : 'Issue gold by *',
                       ),
                       items: staff
@@ -806,6 +813,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ? null
                   : () async {
                       if ((type == 'gold_requirement' ||
+                              type == 'diamond_requirement' ||
                               type == 'follower_change') &&
                           (assignee == null ||
                               !dueAt.isAfter(DateTime.now()))) {
@@ -822,6 +830,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               'review_note': note.text.trim(),
                               if (assignee != null) 'assigned_to': assignee,
                               if (type == 'gold_requirement')
+                                'task_due_at': _dateTimeValue(dueAt),
+                              if (type == 'diamond_requirement')
                                 'task_due_at': _dateTimeValue(dueAt),
                               if (type == 'follower_change')
                                 'followup_due_at': _dateTimeValue(dueAt),
@@ -847,97 +857,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   String _requestLabel(String type) => switch (type) {
     'order_delay' => 'Order delay',
     'gold_requirement' => 'Gold requirement',
+    'diamond_requirement' => 'Diamond requirement',
     'follower_change' => 'Follower change',
     _ => type,
   };
 
-  Future<void> _raiseDiamondRequirement() async {
-    final note = TextEditingController();
-    DateTime? requiredBy;
-    final submitted = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Raise Diamond Requirement'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: note,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Requirement note *',
-                    hintText: 'Quality, quantity or special instruction',
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final selected = await showDatePicker(
-                      context: context,
-                      initialDate:
-                          requiredBy ??
-                          DateTime.now().add(const Duration(days: 1)),
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (selected != null) {
-                      setDialogState(() => requiredBy = selected);
-                    }
-                  },
-                  icon: const Icon(Icons.calendar_today_outlined),
-                  label: Text(
-                    requiredBy == null
-                        ? 'Select required date'
-                        : _dateValue(requiredBy!),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (note.text.trim().isEmpty) return;
-                Navigator.pop(dialogContext, true);
-              },
-              child: const Text('Raise for Approval'),
-            ),
-          ],
-        ),
+  Future<void> _createDiamondBag() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            DiamondBagCreateScreen(api: widget.api, orderId: widget.orderId),
       ),
     );
-    if (submitted != true) {
-      note.dispose();
-      return;
-    }
-    try {
-      await widget.api.raiseDiamondRequirement(
-        orderId: widget.orderId,
-        note: note.text,
-        requiredBy: requiredBy == null ? '' : _dateValue(requiredBy!),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Diamond requirement raised for admin approval.'),
-        ),
-      );
-      await _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
-      }
-    } finally {
-      note.dispose();
-    }
+    if (changed == true) await _load();
   }
 
   String _dateValue(DateTime value) =>
@@ -1219,68 +1151,28 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       );
                     }),
                   ],
-                  if (_diamondRequirements.isNotEmpty ||
-                      _canRaiseDiamondRequirement) ...[
+                  if (_diamondSupported) ...[
                     Row(
                       children: [
-                        const Expanded(
-                          child: AppSectionTitle('Diamond Requirement'),
-                        ),
-                        if (_canRaiseDiamondRequirement)
+                        const Expanded(child: AppSectionTitle('Diamond Bag')),
+                        if (_canCreateDiamondBag)
                           OutlinedButton.icon(
-                            onPressed: _raiseDiamondRequirement,
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text('Raise'),
+                            onPressed: _createDiamondBag,
+                            icon: const Icon(
+                              Icons.inventory_2_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('Create Bag'),
                           ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    if (_diamondRequirements.isEmpty)
-                      const AppEmptyState(
-                        title: 'No requirement raised',
-                        message:
-                            'Raise a request for admin approval and bag preparation assignment.',
-                      )
-                    else
-                      ..._diamondRequirements.map((raw) {
-                        final row = (raw as Map).cast<String, dynamic>();
-                        final requirementStatus = (row['status'] ?? '')
-                            .toString();
-                        final bagNo = (row['bag_no'] ?? '').toString();
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                          child: ListTile(
-                            leading: const Icon(Icons.diamond_outlined),
-                            title: Text(
-                              (row['requirement_no'] ?? '-').toString(),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${requirementStatus.replaceAll('_', ' ')} · ${row['assignee_name'] ?? 'Awaiting admin'}${bagNo.isNotEmpty ? ' · $bagNo' : ''}',
-                            ),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () async {
-                              final changed = await Navigator.of(context)
-                                  .push<bool>(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          DiamondRequirementDetailScreen(
-                                            api: widget.api,
-                                            requirementId:
-                                                int.tryParse(
-                                                  row['id'].toString(),
-                                                ) ??
-                                                0,
-                                          ),
-                                    ),
-                                  );
-                              if (changed == true) _load();
-                            },
-                          ),
-                        );
-                      }),
+                    Text(
+                      _canCreateDiamondBag
+                          ? 'Create the size-wise bag directly for this Diamond / Jadau order.'
+                          : 'Use Diamond requirement under Request admin action to ask for bag preparation.',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
                   if (imageUrl.isNotEmpty) ...[

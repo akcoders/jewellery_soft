@@ -453,6 +453,8 @@ $routes->group('api', static function ($routes): void {
         $routes->get('diamond-requirements', 'Api\Mobile\DiamondRequirementsController::index');
         $routes->get('diamond-requirements/(:num)', 'Api\Mobile\DiamondRequirementsController::show/$1');
         $routes->get('diamond-bags', 'Api\Mobile\DiamondBagsController::index');
+        $routes->get('diamond-bags/create', 'Api\Mobile\DiamondBagsController::createForm');
+        $routes->post('diamond-bags', 'Api\Mobile\DiamondBagsController::store');
         $routes->get('diamond-bags/(:num)', 'Api\Mobile\DiamondBagsController::show/$1');
         $routes->post('orders/(:num)/diamond-requirements', 'Api\Mobile\DiamondRequirementsController::raise/$1');
         $routes->post('diamond-requirements/(:num)/prepare', 'Api\Mobile\DiamondRequirementsController::prepare/$1');

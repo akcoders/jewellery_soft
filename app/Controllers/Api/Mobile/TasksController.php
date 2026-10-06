@@ -32,11 +32,11 @@ class TasksController extends MobileBaseController
 
         $query = trim((string) $this->request->getGet('q'));
         $builder = db_connect()->table('mobile_tasks t')
-            ->select('t.*, creator.name as assigned_by_name, COALESCE(followup_schedule.order_id, gold_request.order_id) AS order_id, request_order.assigned_karigar_id AS request_karigar_id', false)
+            ->select('t.*, creator.name as assigned_by_name, COALESCE(followup_schedule.order_id, material_request.order_id) AS order_id, request_order.assigned_karigar_id AS request_karigar_id', false)
             ->join('admin_users creator', 'creator.id = t.created_by', 'left')
             ->join('order_followup_schedules followup_schedule', "followup_schedule.id = t.reference_id AND t.reference_type = 'order_followup'", 'left')
-            ->join('order_work_requests gold_request', "gold_request.id = t.reference_id AND t.reference_type = 'order_gold_request'", 'left')
-            ->join('orders request_order', 'request_order.id = gold_request.order_id', 'left')
+            ->join('order_work_requests material_request', "material_request.id = t.reference_id AND t.reference_type IN ('order_gold_request','order_diamond_bag')", 'left')
+            ->join('orders request_order', 'request_order.id = material_request.order_id', 'left')
             ->where('t.admin_user_id', (int) ($this->mobileAdmin['id'] ?? 0))
             ->where('t.counts_for_performance', 1)
             ->where('t.status !=', 'cancelled')
@@ -83,7 +83,7 @@ class TasksController extends MobileBaseController
         if ((int) ($task['is_done'] ?? 0) === 1 || in_array((string) ($task['status'] ?? ''), ['cancelled', 'completed_on_time', 'completed_late'], true)) {
             return $this->fail('Task is already closed.', 422);
         }
-        if (in_array((string) ($task['reference_type'] ?? ''), ['diamond_requirement', 'order_followup', 'order_gold_request'], true)) {
+        if (in_array((string) ($task['reference_type'] ?? ''), ['diamond_requirement', 'order_followup', 'order_gold_request', 'order_diamond_bag'], true)) {
             return $this->fail('Complete this task through its linked order or issuement workflow.', 422);
         }
 
