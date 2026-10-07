@@ -553,20 +553,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Request type',
                     ),
-                    items: const [
-                      DropdownMenuItem(
+                    items: [
+                      const DropdownMenuItem(
                         value: 'order_delay',
                         child: Text('Order delay'),
                       ),
-                      DropdownMenuItem(
+                      const DropdownMenuItem(
                         value: 'gold_requirement',
                         child: Text('Gold requirement'),
                       ),
-                      DropdownMenuItem(
-                        value: 'diamond_requirement',
-                        child: Text('Diamond requirement'),
-                      ),
-                      DropdownMenuItem(
+                      if (_canChangeFollower)
+                        const DropdownMenuItem(
+                          value: 'diamond_requirement',
+                          child: Text('Diamond requirement'),
+                        ),
+                      const DropdownMenuItem(
                         value: 'follower_change',
                         child: Text('Follower change'),
                       ),
@@ -1184,7 +1185,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     Text(
                       _canCreateDiamondBag
                           ? 'Create the size-wise bag directly for this Diamond / Jadau order.'
-                          : 'Use Diamond requirement under Request admin action to ask for bag preparation.',
+                          : 'Ask an authorised admin to create the grouped diamond bag for this order.',
                       style: const TextStyle(color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: AppSpacing.lg),

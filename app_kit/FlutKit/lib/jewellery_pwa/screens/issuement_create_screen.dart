@@ -149,13 +149,26 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
                       border: OutlineInputBorder(),
                     ),
                     items: bags.entries.map((entry) {
-                      final rows = _diamondItems.where(
-                        (row) => _intValue(row['bag_id']) == entry.key,
-                      );
+                      final rows = _diamondItems
+                          .where((row) => _intValue(row['bag_id']) == entry.key)
+                          .toList();
+                      final chalni = rows
+                          .map(
+                            (row) =>
+                                (row['size_label'] ??
+                                        row['chalni_group_name'] ??
+                                        row['size'] ??
+                                        '')
+                                    .toString()
+                                    .trim(),
+                          )
+                          .where((value) => value.isNotEmpty)
+                          .toSet()
+                          .join(', ');
                       return DropdownMenuItem<int>(
                         value: entry.key,
                         child: Text(
-                          'Bag #${entry.key} · ${rows.length} chalni size(s) · ${entry.value['bag_no'] ?? ''}',
+                          '${entry.value['bag_no'] ?? 'Bag'} (#${entry.key}) · ${chalni.isEmpty ? '${rows.length} group(s)' : chalni}',
                           overflow: TextOverflow.ellipsis,
                         ),
                       );

@@ -61,9 +61,19 @@
                     <input type="text" name="delivery_challan_suffix" class="form-control" value="<?= esc((string) old('delivery_challan_suffix', (string) ($setting['delivery_challan_suffix'] ?? 'DC'))) ?>">
                 </div>
                 <div class="col-md-3">
+                    <label class="form-label">Last Delivery Challan Number</label>
+                    <input type="number" min="0" step="1" name="delivery_challan_last_number" class="form-control" value="<?= esc((string) old('delivery_challan_last_number', (string) ($setting['delivery_challan_last_number'] ?? '0'))) ?>">
+                    <small class="text-muted">Next challan automatically uses this number + 1.</small>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label">Sale Bill Prefix</label>
                     <input type="text" name="sale_bill_suffix" class="form-control" value="<?= esc((string) old('sale_bill_suffix', (string) ($setting['sale_bill_suffix'] ?? 'SB'))) ?>">
                 </div>
+
+                <div class="col-12"><div class="border rounded-3 p-3 mt-2"><h6 class="mb-3">Delivery Challan Branch Addresses</h6><div class="row g-3">
+                    <div class="col-md-6"><label class="form-label">Mumbai Address</label><textarea name="mumbai_branch_address" class="form-control" rows="4" placeholder="Full Mumbai dispatch address"><?= esc((string) old('mumbai_branch_address', (string) ($setting['mumbai_branch_address'] ?? ''))) ?></textarea></div>
+                    <div class="col-md-6"><label class="form-label">Hyderabad Address</label><textarea name="hyderabad_branch_address" class="form-control" rows="4" placeholder="Full Hyderabad dispatch address"><?= esc((string) old('hyderabad_branch_address', (string) ($setting['hyderabad_branch_address'] ?? ''))) ?></textarea></div>
+                </div></div></div>
 
                 <div class="col-md-6">
                     <label class="form-label">Company Logo</label>

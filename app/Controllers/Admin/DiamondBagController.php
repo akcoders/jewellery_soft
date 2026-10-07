@@ -203,19 +203,21 @@ class DiamondBagController extends BaseController
         }
         $db = db_connect();
         $items = $db->table('diamond_bag_items bi')
-            ->select('bi.*, i.diamond_type, i.color, i.clarity, i.cut, sm.name AS shape_name, sz.size_code, sz.size_label')
+            ->select('bi.*, i.diamond_type, i.color, i.clarity, i.cut, sm.name AS shape_name, sz.size_code, sz.size_label, cg.name AS chalni_group_name, cg.range_label AS chalni_group_range')
             ->join('items i', 'i.id = bi.inventory_item_id', 'left')
             ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
             ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+            ->join('diamond_chalni_groups cg', 'cg.id = bi.chalni_group_id', 'left')
             ->where('bi.bag_id', $id)->orderBy('bi.id', 'ASC')->get()->getResultArray();
         $movements = $db->table('diamond_bag_movements bm')
-            ->select('bm.*, ih.voucher_no, o.order_no, k.name AS karigar_name, i.diamond_type, sm.name AS shape_name, sz.size_label')
+            ->select('bm.*, ih.voucher_no, o.order_no, k.name AS karigar_name, i.diamond_type, sm.name AS shape_name, sz.size_label, cg.name AS chalni_group_name')
             ->join('issue_lines il', 'il.id = bm.issue_line_id', 'left')
             ->join('issue_headers ih', 'ih.id = il.issue_id', 'left')
             ->join('diamond_bag_items bi', 'bi.id = bm.bag_item_id', 'left')
             ->join('items i', 'i.id = bi.inventory_item_id', 'left')
             ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
             ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+            ->join('diamond_chalni_groups cg', 'cg.id = bi.chalni_group_id', 'left')
             ->join('orders o', 'o.id = bm.order_id', 'left')
             ->join('karigars k', 'k.id = bm.karigar_id', 'left')
             ->where('bm.bag_id', $id)->orderBy('bm.id', 'DESC')->get()->getResultArray();
@@ -228,15 +230,27 @@ class DiamondBagController extends BaseController
     private function formData(?array $bag): array
     {
         $db = db_connect();
+        $bagItems = $bag ? $this->bagItemModel->where('bag_id', (int) $bag['id'])->orderBy('id', 'ASC')->findAll() : [];
+        foreach ($bagItems as &$bagItem) {
+            if ((int) ($bagItem['chalni_group_id'] ?? 0) <= 0 && (int) ($bagItem['size_master_id'] ?? 0) > 0) {
+                $mapping = $db->table('diamond_chalni_group_sizes')->where('size_id', (int) $bagItem['size_master_id'])->orderBy('group_id', 'ASC')->get()->getRowArray();
+                $bagItem['chalni_group_id'] = (int) ($mapping['group_id'] ?? 0);
+            }
+        }
+        unset($bagItem);
         return [
             'title' => $bag ? 'Edit Diamond Bag' : 'Prepare Diamond Bag',
             'bag' => $bag,
-            'items' => $bag ? $this->bagItemModel->where('bag_id', (int) $bag['id'])->orderBy('id', 'ASC')->findAll() : [],
+            'items' => $bagItems,
             'inventoryItems' => $db->table('items i')
                 ->select('i.*, COALESCE(s.pcs_balance,0) AS pcs_balance, COALESCE(s.carat_balance,0) AS carat_balance, COALESCE(s.avg_cost_per_carat,0) AS avg_cost_per_carat', false)
                 ->join('stock s', 's.item_id = i.id', 'left')->orderBy('i.diamond_type', 'ASC')->get()->getResultArray(),
             'shapes' => $db->table('diamond_shape_masters')->where('is_active', 1)->orderBy('sort_order', 'ASC')->orderBy('name', 'ASC')->get()->getResultArray(),
-            'sizes' => $db->table('diamond_size_masters')->where('is_active', 1)->orderBy('sort_order', 'ASC')->orderBy('size_label', 'ASC')->get()->getResultArray(),
+            'sizes' => $db->table('diamond_size_masters sz')->select('sz.*, gs.group_id')
+                ->join('diamond_chalni_group_sizes gs', 'gs.size_id = sz.id', 'inner')
+                ->where('sz.is_active', 1)->orderBy('sz.sort_order', 'ASC')->orderBy('sz.size_label', 'ASC')->get()->getResultArray(),
+            'chalniGroups' => $db->table('diamond_chalni_groups')->where('is_active', 1)
+                ->orderBy('sort_order', 'ASC')->orderBy('name', 'ASC')->get()->getResultArray(),
             'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'orders' => $this->diamondBagService->availableOrders((int) session('admin_id'), true),
             'selectedOrderId' => $bag
@@ -251,35 +265,42 @@ class DiamondBagController extends BaseController
     {
         $itemIds = (array) $this->request->getPost('inventory_item_id');
         $shapeIds = (array) $this->request->getPost('shape_master_id');
+        $groupIds = (array) $this->request->getPost('chalni_group_id');
         $sizeIds = (array) $this->request->getPost('size_master_id');
         $pcsList = (array) $this->request->getPost('pcs');
         $weights = (array) $this->request->getPost('weight_cts');
-        $max = max(count($itemIds), count($shapeIds), count($sizeIds), count($pcsList), count($weights));
+        $max = max(count($itemIds), count($shapeIds), count($groupIds), count($sizeIds), count($pcsList), count($weights));
         $rows = [];
         $db = db_connect();
 
         for ($i = 0; $i < $max; $i++) {
             $itemId = (int) ($itemIds[$i] ?? 0);
             $shapeId = (int) ($shapeIds[$i] ?? 0);
+            $groupId = (int) ($groupIds[$i] ?? 0);
             $sizeId = (int) ($sizeIds[$i] ?? 0);
             $pcs = (float) ($pcsList[$i] ?? 0);
             $cts = (float) ($weights[$i] ?? 0);
-            if ($itemId <= 0 && $shapeId <= 0 && $sizeId <= 0 && $pcs <= 0 && $cts <= 0) {
+            if ($itemId <= 0 && $shapeId <= 0 && $groupId <= 0 && $sizeId <= 0 && $pcs <= 0 && $cts <= 0) {
                 continue;
             }
-            if ($itemId <= 0 || $shapeId <= 0 || $sizeId <= 0 || $pcs <= 0 || floor($pcs) !== $pcs || $cts <= 0) {
-                return ['rows' => [], 'error' => 'Every bag row requires Diamond Item, Shape, whole-number PCS and positive CTS.'];
+            if ($itemId <= 0 || $shapeId <= 0 || $groupId <= 0 || $pcs <= 0 || floor($pcs) !== $pcs || $cts <= 0) {
+                return ['rows' => [], 'error' => 'Every bag row requires Diamond Item, Shape, Chalni Group, whole-number PCS and positive CTS.'];
             }
             $item = $db->table('items')->where('id', $itemId)->get()->getRowArray();
             $shape = $db->table('diamond_shape_masters')->where('id', $shapeId)->where('is_active', 1)->get()->getRowArray();
-            $size = $db->table('diamond_size_masters')->where('id', $sizeId)->where('shape_id', $shapeId)->where('is_active', 1)->get()->getRowArray();
-            if (! $item || ! $shape || ! $size) {
-                return ['rows' => [], 'error' => 'Selected diamond item, shape or shape-wise size is invalid.'];
+            $group = $db->table('diamond_chalni_groups')->where('id', $groupId)->where('is_active', 1)->get()->getRowArray();
+            $size = $sizeId > 0 ? $db->table('diamond_size_masters sz')->select('sz.*')
+                ->join('diamond_chalni_group_sizes gs', 'gs.size_id = sz.id', 'inner')
+                ->where('sz.id', $sizeId)->where('sz.shape_id', $shapeId)->where('gs.group_id', $groupId)
+                ->where('sz.is_active', 1)->get()->getRowArray() : null;
+            if (! $item || ! $shape || ! $group || ($sizeId > 0 && ! $size)) {
+                return ['rows' => [], 'error' => 'Selected diamond item, shape, chalni group or exact size is invalid.'];
             }
             $rows[] = [
-                'inventory_item_id' => $itemId, 'shape_master_id' => $shapeId, 'size_master_id' => $sizeId,
+                'inventory_item_id' => $itemId, 'shape_master_id' => $shapeId,
+                'chalni_group_id' => $groupId, 'size_master_id' => $sizeId > 0 ? $sizeId : null,
                 'diamond_type' => (string) ($item['diamond_type'] ?? 'Diamond'),
-                'size' => (string) (($size['size_label'] ?? '') ?: $size['size_code']),
+                'size' => (string) (($size['size_label'] ?? '') ?: ($group['name'] ?? $group['range_label'] ?? '')),
                 'color' => (string) (($item['color'] ?? '') ?: '-'), 'quality' => (string) (($item['clarity'] ?? '') ?: '-'),
                 'pcs' => (int) $pcs, 'weight_cts' => round($cts, 3),
             ];
@@ -323,6 +344,7 @@ class DiamondBagController extends BaseController
             $this->bagItemModel->insert([
                 'bag_id' => $bagId, 'inventory_item_id' => $row['inventory_item_id'],
                 'shape_master_id' => $row['shape_master_id'], 'size_master_id' => $row['size_master_id'],
+                'chalni_group_id' => $row['chalni_group_id'],
                 'diamond_type' => $row['diamond_type'], 'size' => $row['size'], 'color' => $row['color'], 'quality' => $row['quality'],
                 'pcs_total' => $row['pcs'], 'weight_cts_total' => $row['weight_cts'],
                 'pcs_available' => $row['pcs'], 'weight_cts_available' => $row['weight_cts'],

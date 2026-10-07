@@ -122,6 +122,7 @@ class DiamondBagService
      *   inventory_items:list<array<string,mixed>>,
      *   shapes:list<array<string,mixed>>,
      *   sizes:list<array<string,mixed>>,
+     *   chalni_groups:list<array<string,mixed>>,
      *   locations:list<array<string,mixed>>
      * }
      */
@@ -134,8 +135,14 @@ class DiamondBagService
                 ->orderBy('i.diamond_type', 'ASC')->get()->getResultArray(),
             'shapes' => $this->db->table('diamond_shape_masters')->where('is_active', 1)
                 ->orderBy('sort_order', 'ASC')->orderBy('name', 'ASC')->get()->getResultArray(),
-            'sizes' => $this->db->table('diamond_size_masters')->where('is_active', 1)
-                ->orderBy('sort_order', 'ASC')->orderBy('size_label', 'ASC')->get()->getResultArray(),
+            'sizes' => $this->db->table('diamond_size_masters sz')
+                ->select('sz.*, gs.group_id')
+                ->join('diamond_chalni_group_sizes gs', 'gs.size_id = sz.id', 'left')
+                ->where('sz.is_active', 1)->orderBy('sz.sort_order', 'ASC')
+                ->orderBy('sz.size_label', 'ASC')->get()->getResultArray(),
+            'chalni_groups' => $this->db->table('diamond_chalni_groups')
+                ->where('is_active', 1)->orderBy('sort_order', 'ASC')
+                ->orderBy('name', 'ASC')->get()->getResultArray(),
             'locations' => (new InventoryLocationModel())->where('is_active', 1)
                 ->orderBy('name', 'ASC')->findAll(),
         ];
@@ -216,6 +223,7 @@ class DiamondBagService
                     'inventory_item_id' => $row['inventory_item_id'],
                     'shape_master_id' => $row['shape_master_id'],
                     'size_master_id' => $row['size_master_id'],
+                    'chalni_group_id' => $row['chalni_group_id'],
                     'diamond_type' => $row['diamond_type'],
                     'size' => $row['size'],
                     'color' => $row['color'],
@@ -283,28 +291,34 @@ class DiamondBagService
             $itemId = (int) ($input['inventory_item_id'] ?? $input['item_id'] ?? 0);
             $shapeId = (int) ($input['shape_master_id'] ?? $input['shape_id'] ?? 0);
             $sizeId = (int) ($input['size_master_id'] ?? $input['size_id'] ?? 0);
+            $groupId = (int) ($input['chalni_group_id'] ?? $input['group_id'] ?? 0);
             $pcs = (float) ($input['pcs'] ?? 0);
             $cts = round((float) ($input['weight_cts'] ?? $input['carat'] ?? $input['cts'] ?? 0), 3);
-            if ($itemId <= 0 && $shapeId <= 0 && $sizeId <= 0 && $pcs <= 0 && $cts <= 0) {
+            if ($itemId <= 0 && $shapeId <= 0 && $groupId <= 0 && $sizeId <= 0 && $pcs <= 0 && $cts <= 0) {
                 continue;
             }
-            if ($itemId <= 0 || $shapeId <= 0 || $sizeId <= 0 || $pcs <= 0 || floor($pcs) !== $pcs || $cts <= 0) {
-                throw new RuntimeException('Row ' . ($index + 1) . ': diamond item, shape, size, whole PCS and positive CTS are required.');
+            if ($itemId <= 0 || $shapeId <= 0 || $groupId <= 0 || $pcs <= 0 || floor($pcs) !== $pcs || $cts <= 0) {
+                throw new RuntimeException('Row ' . ($index + 1) . ': diamond item, shape, chalni group, whole PCS and positive CTS are required.');
             }
             $item = $this->db->table('items')->where('id', $itemId)->get()->getRowArray();
             $shape = $this->db->table('diamond_shape_masters')->where('id', $shapeId)
                 ->where('is_active', 1)->get()->getRowArray();
-            $size = $this->db->table('diamond_size_masters')->where('id', $sizeId)
-                ->where('shape_id', $shapeId)->where('is_active', 1)->get()->getRowArray();
-            if (! $item || ! $shape || ! $size) {
-                throw new RuntimeException('Row ' . ($index + 1) . ': selected diamond item, shape or shape-wise size is invalid.');
+            $group = $this->db->table('diamond_chalni_groups')->where('id', $groupId)
+                ->where('is_active', 1)->get()->getRowArray();
+            $size = $sizeId > 0 ? $this->db->table('diamond_size_masters sz')
+                ->select('sz.*')->join('diamond_chalni_group_sizes gs', 'gs.size_id = sz.id', 'inner')
+                ->where('sz.id', $sizeId)->where('sz.shape_id', $shapeId)
+                ->where('gs.group_id', $groupId)->where('sz.is_active', 1)->get()->getRowArray() : null;
+            if (! $item || ! $shape || ! $group || ($sizeId > 0 && ! $size)) {
+                throw new RuntimeException('Row ' . ($index + 1) . ': selected diamond item, shape, group or exact size is invalid.');
             }
             $rows[] = [
                 'inventory_item_id' => $itemId,
                 'shape_master_id' => $shapeId,
-                'size_master_id' => $sizeId,
+                'size_master_id' => $sizeId > 0 ? $sizeId : null,
+                'chalni_group_id' => $groupId,
                 'diamond_type' => trim((string) ($item['diamond_type'] ?? '')) ?: 'Diamond',
-                'size' => (string) (($size['size_label'] ?? '') ?: ($size['size_code'] ?? '')),
+                'size' => (string) (($size['size_label'] ?? '') ?: ($group['name'] ?? $group['range_label'] ?? '')),
                 'color' => trim((string) ($item['color'] ?? '')) ?: '-',
                 'quality' => trim((string) ($item['clarity'] ?? '')) ?: '-',
                 'pcs' => (int) $pcs,

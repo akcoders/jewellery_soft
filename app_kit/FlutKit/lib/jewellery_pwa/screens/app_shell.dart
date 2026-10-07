@@ -4,8 +4,10 @@ import 'package:flutkit/jewellery_pwa/screens/admin_tasks_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/dashboard_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/diamond_bags_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/diamond_requirements_screen.dart';
+import 'package:flutkit/jewellery_pwa/screens/delivery_challans_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/followups_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/inventory_screen.dart';
+import 'package:flutkit/jewellery_pwa/screens/mobile_approvals_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/issuement_create_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/issuements_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/notification_center_screen.dart';
@@ -262,6 +264,11 @@ class _AppShellState extends State<AppShell> {
         return FollowupsScreen(api: _api);
       case 'order_requests':
         return OrderWorkRequestsScreen(api: _api);
+      case 'delivery_challans':
+        return DeliveryChallansScreen(
+          key: ValueKey('delivery_challans_$_refreshTick'),
+          api: _api,
+        );
       case 'diamond_requirements':
         return DiamondBagsScreen(
           key: ValueKey('diamond_requirements_$_refreshTick'),
@@ -270,6 +277,11 @@ class _AppShellState extends State<AppShell> {
       case 'issuements':
         return IssuementsScreen(
           key: ValueKey('issuements_$_refreshTick'),
+          api: _api,
+        );
+      case 'mobile_approvals':
+        return MobileApprovalsScreen(
+          key: ValueKey('mobile_approvals_$_refreshTick'),
           api: _api,
         );
       case 'diamond_returns':
@@ -566,6 +578,11 @@ class _AppShellState extends State<AppShell> {
                 _drawerItem('dashboard', 'Dashboard', LucideIcons.house),
                 _drawerItem('orders', 'Orders', LucideIcons.clipboard_list),
                 _drawerItem(
+                  'delivery_challans',
+                  'Delivery Challans',
+                  LucideIcons.scroll_text,
+                ),
+                _drawerItem(
                   'followups',
                   'Followups',
                   LucideIcons.calendar_clock,
@@ -587,6 +604,13 @@ class _AppShellState extends State<AppShell> {
                   'Issuements',
                   LucideIcons.send,
                   leading: const _IssuementMenuIcon(),
+                ),
+                _drawerItem(
+                  'mobile_approvals',
+                  widget.session.isAdmin
+                      ? 'Approval Desk'
+                      : 'Customer & Karigar',
+                  LucideIcons.shield_check,
                 ),
                 _drawerSection('Diamond'),
                 _drawerItem(
@@ -658,7 +682,34 @@ class _AppShellState extends State<AppShell> {
           final created = await Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => IssuementCreateScreen(api: _api)),
           );
-          if (created != null && mounted) setState(() => _refreshTick++);
+          if (created != null && mounted) {
+            setState(() => _refreshTick++);
+            final pending =
+                created is Map && created['approval_required'] == true;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  pending
+                      ? 'Issuement sent for admin approval.'
+                      : 'Issuement created.',
+                ),
+              ),
+            );
+          }
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Create'),
+      );
+    }
+    if (_section == 'delivery_challans') {
+      return FloatingActionButton.extended(
+        onPressed: () async {
+          final created = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => DeliveryChallanCreateScreen(api: _api),
+            ),
+          );
+          if (created == true && mounted) setState(() => _refreshTick++);
         },
         icon: const Icon(Icons.add),
         label: const Text('Create'),
@@ -715,6 +766,10 @@ class _AppShellState extends State<AppShell> {
       case 'diamond_returns':
       case 'diamond_purchases':
         return AppColors.diamond;
+      case 'delivery_challans':
+        return AppColors.gold;
+      case 'mobile_approvals':
+        return AppColors.plum;
       case 'gold_returns':
       case 'gold_purchases':
         return AppColors.gold;
@@ -738,6 +793,10 @@ class _AppShellState extends State<AppShell> {
         return 'Staff Tasks';
       case 'issuements':
         return 'Issuements';
+      case 'delivery_challans':
+        return 'Delivery Challans';
+      case 'mobile_approvals':
+        return widget.session.isAdmin ? 'Approval Desk' : 'Customer & Karigar';
       case 'diamond_requirements':
         return 'Diamond Bags';
       case 'diamond_returns':

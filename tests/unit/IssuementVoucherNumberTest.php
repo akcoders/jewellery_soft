@@ -72,11 +72,14 @@ final class IssuementVoucherNumberTest extends CIUnitTestCase
     public function testMobileIssueCreationCanSendManualVoucherNumber(): void
     {
         $controller = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/TransactionsController.php');
+        $approvalService = (string) file_get_contents(APPPATH . 'Services/MobileApprovalService.php');
         $screen = (string) file_get_contents(
             ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/transaction_create_screen.dart'
         );
 
-        $this->assertSame(4, substr_count($controller, '->resolveForCreate('));
+        $this->assertSame(0, substr_count($controller, '->resolveForCreate('));
+        $this->assertSame(1, substr_count($approvalService, '->resolveForCreate('));
+        $this->assertStringContainsString("'voucher_no' => trim((string) (\$payload['voucher_no'] ?? ''))", $controller);
         $this->assertStringContainsString("payload['voucher_no'] = _voucherNo.trim()", $screen);
         $this->assertStringContainsString('Voucher Number (optional)', $screen);
     }

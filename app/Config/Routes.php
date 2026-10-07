@@ -35,6 +35,13 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('customers/(:num)/users', 'Admin\CustomerController::storePortalUser/$1', ['filter' => 'permission:customers.create']);
     $routes->post('customers/(:num)/users/(:num)/password', 'Admin\CustomerController::updatePortalPassword/$1/$2', ['filter' => 'permission:customers.create']);
 
+    $routes->get('delivery-challans', 'Admin\DeliveryChallanController::index', ['filter' => 'permission:orders.documents']);
+    $routes->get('delivery-challans/create', 'Admin\DeliveryChallanController::create', ['filter' => 'permission:orders.documents']);
+    $routes->post('delivery-challans', 'Admin\DeliveryChallanController::store', ['filter' => 'permission:orders.documents']);
+    $routes->get('delivery-challans/(:num)/pdf', 'Admin\DeliveryChallanController::pdf/$1', ['filter' => 'permission:orders.documents']);
+    $routes->get('mobile-approvals', 'Admin\MobileApprovalController::index');
+    $routes->post('mobile-approvals/(:num)/review', 'Admin\MobileApprovalController::review/$1', ['filter' => 'csrf']);
+
     $routes->get('designs', 'Admin\DesignController::index', ['filter' => 'permission:masters.designs.read']);
     $routes->get('designs/create', 'Admin\DesignController::create', ['filter' => 'permission:masters.designs.manage']);
     $routes->get('designs/(:num)/diamonds', 'Admin\DesignController::diamonds/$1', ['filter' => 'permission:masters.designs.read']);
@@ -450,11 +457,16 @@ $routes->group('api', static function ($routes): void {
         $routes->get('order-work-requests', 'Api\Mobile\OrderWorkRequestsController::index');
         $routes->post('orders/(:num)/work-requests', 'Api\Mobile\OrderWorkRequestsController::create/$1');
         $routes->post('order-work-requests/(:num)/review', 'Api\Mobile\OrderWorkRequestsController::review/$1');
+        $routes->get('delivery-challans', 'Api\Mobile\DeliveryChallansController::index');
+        $routes->get('delivery-challans/create', 'Api\Mobile\DeliveryChallansController::createForm');
+        $routes->post('delivery-challans', 'Api\Mobile\DeliveryChallansController::store');
+        $routes->get('delivery-challans/(:num)/pdf', 'Api\Mobile\DeliveryChallansController::pdf/$1');
         $routes->get('diamond-requirements', 'Api\Mobile\DiamondRequirementsController::index');
         $routes->get('diamond-requirements/(:num)', 'Api\Mobile\DiamondRequirementsController::show/$1');
         $routes->get('diamond-bags', 'Api\Mobile\DiamondBagsController::index');
         $routes->get('diamond-bags/create', 'Api\Mobile\DiamondBagsController::createForm');
         $routes->post('diamond-bags', 'Api\Mobile\DiamondBagsController::store');
+        $routes->post('diamond-bags/sizes', 'Api\Mobile\DiamondBagsController::storeSize');
         $routes->get('diamond-bags/(:num)', 'Api\Mobile\DiamondBagsController::show/$1');
         $routes->post('orders/(:num)/diamond-requirements', 'Api\Mobile\DiamondRequirementsController::raise/$1');
         $routes->post('diamond-requirements/(:num)/prepare', 'Api\Mobile\DiamondRequirementsController::prepare/$1');
@@ -479,6 +491,10 @@ $routes->group('api', static function ($routes): void {
         $routes->get('issuements', 'Api\Mobile\InventoryController::issuements');
         $routes->get('issuements/detail', 'Api\Mobile\TransactionsController::combinedIssuementDetail');
         $routes->post('issuements', 'Api\Mobile\TransactionsController::createCombinedIssuement');
+        $routes->get('approval-requests', 'Api\Mobile\MobileApprovalsController::index');
+        $routes->post('approval-requests/customers', 'Api\Mobile\MobileApprovalsController::createCustomer');
+        $routes->post('approval-requests/karigars', 'Api\Mobile\MobileApprovalsController::createKarigar');
+        $routes->post('approval-requests/(:num)/review', 'Api\Mobile\MobileApprovalsController::review/$1');
 
         $routes->get('lookups/karigars', 'Api\Mobile\LookupsController::karigars');
         $routes->get('lookups/vendors', 'Api\Mobile\LookupsController::vendors');

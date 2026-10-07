@@ -32,7 +32,7 @@ class DiamondBagTraceService
                 . 'b.bag_no, b.prepared_date, b.order_id AS bag_order_id, linked_order.order_no AS bag_order_no, '
                 . 'i.diamond_type, i.shape AS item_shape, '
                 . 'i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, '
-                . 'sm.name AS shape_name, sz.size_code, sz.size_label, sz.min_mm, sz.max_mm, '
+                . 'sm.name AS shape_name, sz.size_code, sz.size_label, sz.min_mm, sz.max_mm, cg.name AS chalni_group_name, cg.range_label AS chalni_group_range, '
                 . 'COALESCE(s.avg_cost_per_carat, 0) AS avg_cost_per_carat',
                 false
             )
@@ -41,7 +41,8 @@ class DiamondBagTraceService
             ->join('items i', 'i.id = bi.inventory_item_id', 'inner')
             ->join('stock s', 's.item_id = i.id', 'left')
             ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
-            ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left');
+            ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+            ->join('diamond_chalni_groups cg', 'cg.id = bi.chalni_group_id', 'left');
         if ($this->db->tableExists('diamond_requirements') && $this->db->fieldExists('requirement_id', 'diamond_bags')) {
             $builder->select('b.requirement_id, dr.order_id AS requirement_order_id, requirement_order.order_no AS requirement_order_no')
                 ->join('diamond_requirements dr', 'dr.id = b.requirement_id', 'left')
@@ -70,7 +71,7 @@ class DiamondBagTraceService
                 'il.id AS issue_line_id, il.issue_id, il.item_id, il.bag_id, il.bag_item_id, '
                 . 'il.allocation_order_id, il.pcs AS issued_pcs, il.carat AS issued_cts, '
                 . 'ih.voucher_no, ih.issue_date, b.bag_no, i.diamond_type, o.order_no, '
-                . 'sm.name AS shape_name, sz.size_code, sz.size_label, i.color, i.clarity, '
+                . 'sm.name AS shape_name, sz.size_code, sz.size_label, cg.name AS chalni_group_name, cg.range_label AS chalni_group_range, i.color, i.clarity, '
                 . 'COALESCE((SELECT SUM(rl.pcs) FROM return_lines rl WHERE rl.issue_line_id = il.id), 0) AS returned_pcs, '
                 . 'COALESCE((SELECT SUM(rl.carat) FROM return_lines rl WHERE rl.issue_line_id = il.id), 0) AS returned_cts, '
                 . 'COALESCE((SELECT SUM(rd.pcs) FROM order_receive_details rd WHERE rd.diamond_issue_line_id = il.id AND rd.component_type = \'diamond\'), 0) AS studded_pcs, '
@@ -83,6 +84,7 @@ class DiamondBagTraceService
             ->join('diamond_bag_items bi', 'bi.id = il.bag_item_id', 'inner')
             ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
             ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+            ->join('diamond_chalni_groups cg', 'cg.id = bi.chalni_group_id', 'left')
             ->join('orders o', 'o.id = il.allocation_order_id', 'left')
             ->where('ih.karigar_id', $karigarId)
             ->where('il.bag_item_id IS NOT NULL', null, false);
@@ -103,7 +105,7 @@ class DiamondBagTraceService
             }
 
             $shape = trim((string) ($row['shape_name'] ?? ''));
-            $size = trim((string) (($row['size_label'] ?? '') ?: ($row['size_code'] ?? '')));
+            $size = trim((string) (($row['size_label'] ?? '') ?: ($row['chalni_group_name'] ?? $row['size_code'] ?? '')));
             $parts = array_values(array_filter([
                 (string) ($row['bag_no'] ?? ''),
                 (string) ($row['diamond_type'] ?? ''),

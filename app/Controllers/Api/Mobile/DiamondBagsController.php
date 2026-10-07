@@ -127,6 +127,51 @@ class DiamondBagsController extends MobileBaseController
         }
     }
 
+    public function storeSize()
+    {
+        if ($response = $this->requireMobileAuth()) {
+            return $response;
+        }
+        $payload = $this->payload();
+        $shapeId = (int) ($payload['shape_id'] ?? 0);
+        $groupId = (int) ($payload['chalni_group_id'] ?? 0);
+        $label = trim((string) ($payload['size_label'] ?? ''));
+        if ($shapeId <= 0 || $groupId <= 0 || $label === '' || mb_strlen($label) > 80) {
+            return $this->fail('Shape, chalni group and exact size are required.', 422);
+        }
+        $db = db_connect();
+        if ($db->table('diamond_shape_masters')->where('id', $shapeId)->where('is_active', 1)->countAllResults() === 0
+            || $db->table('diamond_chalni_groups')->where('id', $groupId)->where('is_active', 1)->countAllResults() === 0) {
+            return $this->fail('Selected shape or chalni group is invalid.', 422);
+        }
+        $codeBase = trim((string) preg_replace('/[^A-Z0-9]+/', '-', strtoupper($label)), '-') ?: 'SIZE';
+        $code = $codeBase;
+        $suffix = 1;
+        while ($db->table('diamond_size_masters')->where('shape_id', $shapeId)->where('size_code', $code)->countAllResults() > 0) {
+            $code = $codeBase . '-' . $suffix++;
+        }
+        try {
+            $db->transException(true)->transStart();
+            $db->table('diamond_size_masters')->insert([
+                'shape_id' => $shapeId, 'size_code' => $code, 'size_label' => $label,
+                'sort_order' => 999, 'is_active' => 1,
+                'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+            $sizeId = (int) $db->insertID();
+            $db->table('diamond_chalni_group_sizes')->insert([
+                'group_id' => $groupId, 'size_id' => $sizeId, 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+            $db->transComplete();
+            return $this->ok(['size' => [
+                'id' => $sizeId, 'shape_id' => $shapeId, 'group_id' => $groupId,
+                'size_code' => $code, 'size_label' => $label,
+            ]], 'Diamond size created.', 201);
+        } catch (Throwable $e) {
+            $db->transRollback();
+            return $this->fail($e->getMessage(), 422);
+        }
+    }
+
     public function show(int $id)
     {
         if ($response = $this->requireMobileAuth()) {
@@ -145,21 +190,23 @@ class DiamondBagsController extends MobileBaseController
         }
 
         $items = $db->table('diamond_bag_items bi')
-            ->select('bi.*, i.diamond_type, i.color, i.clarity, i.cut, sm.name AS shape_name, sz.size_code, sz.size_label')
+            ->select('bi.*, i.diamond_type, i.color, i.clarity, i.cut, sm.name AS shape_name, sz.size_code, sz.size_label, cg.name AS chalni_group_name, cg.range_label AS chalni_group_range')
             ->join('items i', 'i.id = bi.inventory_item_id', 'left')
             ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
             ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+            ->join('diamond_chalni_groups cg', 'cg.id = bi.chalni_group_id', 'left')
             ->where('bi.bag_id', $id)
             ->orderBy('bi.id', 'ASC')->get()->getResultArray();
 
         $movements = $db->table('diamond_bag_movements bm')
-            ->select('bm.*, ih.voucher_no, o.order_no, k.name AS karigar_name, i.diamond_type, sm.name AS shape_name, sz.size_label')
+            ->select('bm.*, ih.voucher_no, o.order_no, k.name AS karigar_name, i.diamond_type, sm.name AS shape_name, sz.size_label, cg.name AS chalni_group_name')
             ->join('issue_lines il', 'il.id = bm.issue_line_id', 'left')
             ->join('issue_headers ih', 'ih.id = il.issue_id', 'left')
             ->join('diamond_bag_items bi', 'bi.id = bm.bag_item_id', 'left')
             ->join('items i', 'i.id = bi.inventory_item_id', 'left')
             ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
             ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+            ->join('diamond_chalni_groups cg', 'cg.id = bi.chalni_group_id', 'left')
             ->join('orders o', 'o.id = bm.order_id', 'left')
             ->join('karigars k', 'k.id = bm.karigar_id', 'left')
             ->where('bm.bag_id', $id)

@@ -38,6 +38,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
   List<dynamic> _inventoryItems = [];
   List<dynamic> _shapes = [];
   List<dynamic> _sizes = [];
+  List<dynamic> _groups = [];
   List<dynamic> _locations = [];
   XFile? _photo;
 
@@ -70,6 +71,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
         _inventoryItems = _list(lookups['inventory_items']);
         _shapes = _list(lookups['shapes']);
         _sizes = _list(lookups['sizes']);
+        _groups = _list(lookups['chalni_groups']);
         _locations = _list(lookups['locations']);
         if (_locationId == null && _locations.isNotEmpty) {
           _locationId = _int(_map(_locations.first)['id']);
@@ -150,6 +152,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
               (line) => {
                 'inventory_item_id': line.itemId,
                 'shape_master_id': line.shapeId,
+                'chalni_group_id': line.groupId,
                 'size_master_id': line.sizeId,
                 'pcs': int.tryParse(line.pcs.text.trim()) ?? 0,
                 'weight_cts': double.tryParse(line.cts.text.trim()) ?? 0,
@@ -266,7 +269,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   const Text(
-                    'SIZE-WISE BAG ITEMS',
+                    'CHALNI GROUP-WISE BAG ITEMS',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       color: AppColors.textSecondary,
@@ -311,7 +314,9 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
   Widget _lineCard(int index) {
     final line = _lines[index];
     final sizes = _sizes.where((raw) {
-      return _int(_map(raw)['shape_id']) == line.shapeId;
+      final size = _map(raw);
+      return _int(size['shape_id']) == line.shapeId &&
+          _int(size['group_id']) == line.groupId;
     }).toList();
     return Card(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -379,8 +384,40 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
               validator: (value) => value == null ? 'Select shape' : null,
               onChanged: (value) => setState(() {
                 line.shapeId = value;
+                line.groupId = null;
                 line.sizeId = null;
               }),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            DropdownButtonFormField<int>(
+              key: ValueKey(
+                'bag_group_${index}_${line.shapeId ?? 0}_${line.groupId ?? 0}',
+              ),
+              initialValue: line.groupId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Chalni Group *',
+                border: OutlineInputBorder(),
+              ),
+              items: _groups.map((raw) {
+                final group = _map(raw);
+                final range = (group['range_label'] ?? '').toString().trim();
+                return DropdownMenuItem<int>(
+                  value: _int(group['id']),
+                  child: Text(
+                    '${group['name'] ?? '-'}${range.isEmpty ? '' : ' · $range'}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              validator: (value) =>
+                  value == null ? 'Select chalni group' : null,
+              onChanged: line.shapeId == null
+                  ? null
+                  : (value) => setState(() {
+                      line.groupId = value;
+                      line.sizeId = null;
+                    }),
             ),
             const SizedBox(height: AppSpacing.sm),
             DropdownButtonFormField<int>(
@@ -393,7 +430,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
                   : null,
               isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Chalni Size *',
+                labelText: 'Exact Chalni Size (optional)',
                 border: OutlineInputBorder(),
               ),
               items: sizes.map((raw) {
@@ -406,10 +443,19 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
                   ),
                 );
               }).toList(),
-              validator: (value) => value == null ? 'Select chalni size' : null,
+              hint: const Text('Use chalni group'),
               onChanged: (value) => setState(() => line.sizeId = value),
             ),
-            const SizedBox(height: AppSpacing.sm),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: line.shapeId == null || line.groupId == null
+                    ? null
+                    : () => _createExactSize(line),
+                icon: const Icon(Icons.add_circle_outline, size: 19),
+                label: const Text('Exact size not listed? Create it'),
+              ),
+            ),
             Row(
               children: [
                 Expanded(
@@ -463,6 +509,57 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
     return 'data:$mime;base64,${base64Encode(await file.readAsBytes())}';
   }
 
+  Future<void> _createExactSize(_BagLine line) async {
+    final controller = TextEditingController();
+    final label = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create Exact Diamond Size'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 80,
+          decoration: const InputDecoration(
+            labelText: 'Exact size / sieve label',
+            hintText: 'Example: 1.20 mm',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(context, value);
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (label == null || !mounted) return;
+    try {
+      final data = await widget.api.createDiamondBagSize(
+        shapeId: line.shapeId!,
+        chalniGroupId: line.groupId!,
+        sizeLabel: label,
+      );
+      final size = _map(data['size']);
+      if (!mounted || size.isEmpty) return;
+      setState(() {
+        _sizes.add(size);
+        line.sizeId = _int(size['id']);
+      });
+      _message('Exact size created.');
+    } catch (e) {
+      if (mounted) _message(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   void _message(String message) => ScaffoldMessenger.of(
     context,
   ).showSnackBar(SnackBar(content: Text(message)));
@@ -471,6 +568,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
 class _BagLine {
   int? itemId;
   int? shapeId;
+  int? groupId;
   int? sizeId;
   final pcs = TextEditingController();
   final cts = TextEditingController();

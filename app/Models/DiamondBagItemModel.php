@@ -14,6 +14,7 @@ class DiamondBagItemModel extends Model
         'inventory_item_id',
         'shape_master_id',
         'size_master_id',
+        'chalni_group_id',
         'diamond_type',
         'size',
         'color',

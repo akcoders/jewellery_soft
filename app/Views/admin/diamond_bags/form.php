@@ -4,17 +4,18 @@ $oldItemIds = old('inventory_item_id');
 $rows = [];
 if (is_array($oldItemIds)) {
     $shapeIds = (array) old('shape_master_id');
+    $groupIds = (array) old('chalni_group_id');
     $sizeIds = (array) old('size_master_id');
     $pcsRows = (array) old('pcs');
     $ctsRows = (array) old('weight_cts');
     foreach ($oldItemIds as $i => $itemId) {
-        $rows[] = ['inventory_item_id' => $itemId, 'shape_master_id' => $shapeIds[$i] ?? '', 'size_master_id' => $sizeIds[$i] ?? '', 'pcs_total' => $pcsRows[$i] ?? '', 'weight_cts_total' => $ctsRows[$i] ?? ''];
+        $rows[] = ['inventory_item_id' => $itemId, 'shape_master_id' => $shapeIds[$i] ?? '', 'chalni_group_id' => $groupIds[$i] ?? '', 'size_master_id' => $sizeIds[$i] ?? '', 'pcs_total' => $pcsRows[$i] ?? '', 'weight_cts_total' => $ctsRows[$i] ?? ''];
     }
 } elseif (($items ?? []) !== []) {
     $rows = $items;
 }
 if ($rows === []) {
-    $rows[] = ['inventory_item_id' => '', 'shape_master_id' => '', 'size_master_id' => '', 'pcs_total' => '', 'weight_cts_total' => ''];
+    $rows[] = ['inventory_item_id' => '', 'shape_master_id' => '', 'chalni_group_id' => '', 'size_master_id' => '', 'pcs_total' => '', 'weight_cts_total' => ''];
 }
 $selectedLocation = (string) old('location_id', (string) ($selectedLocationId ?? ''));
 $selectedOrder = (string) old('order_id', (string) ($selectedOrderId ?? ''));
@@ -30,15 +31,16 @@ $selectedOrder = (string) old('order_id', (string) ($selectedOrderId ?? ''));
     </div></div>
 </div>
 
-<div class="alert alert-info d-flex gap-2 align-items-start"><i class="fe fe-info mt-1"></i><div><strong>This bag stays linked to its selected order.</strong> During issuement, all chalni-size rows are allocated to that order.</div></div>
+<div class="alert alert-info d-flex gap-2 align-items-start"><i class="fe fe-info mt-1"></i><div><strong>This bag stays linked to its selected order.</strong> Bag stock is reserved by the selected Chalni Group; exact size is optional.</div></div>
 <div class="card erp-form-shell mb-3">
-    <div class="card-header d-flex justify-content-between align-items-center"><div><h6 class="mb-1">Calibrated Bag Rows</h6><small class="text-muted">Shape, size, PCS and CTS are mandatory.</small></div><button type="button" class="btn btn-sm btn-primary" id="add-bag-row"><i class="fe fe-plus me-1"></i>Add Size Row</button></div>
-    <div class="table-responsive"><table class="table table-bordered align-middle mb-0" data-dt-skip="true"><thead><tr><th style="min-width:280px">Diamond Inventory Item *</th><th style="min-width:150px">Shape *</th><th style="min-width:180px">Size *</th><th style="min-width:110px">PCS *</th><th style="min-width:120px">CTS *</th><th style="width:65px"></th></tr></thead><tbody id="bag-lines-body">
+    <div class="card-header d-flex justify-content-between align-items-center"><div><h6 class="mb-1">Grouped Bag Rows</h6><small class="text-muted">Shape, Chalni Group, PCS and CTS are mandatory. Exact size is optional.</small></div><button type="button" class="btn btn-sm btn-primary" id="add-bag-row"><i class="fe fe-plus me-1"></i>Add Group Row</button></div>
+    <div class="table-responsive"><table class="table table-bordered align-middle mb-0" data-dt-skip="true"><thead><tr><th style="min-width:280px">Diamond Inventory Item *</th><th style="min-width:150px">Shape *</th><th style="min-width:180px">Chalni Group *</th><th style="min-width:180px">Exact Size</th><th style="min-width:110px">PCS *</th><th style="min-width:120px">CTS *</th><th style="width:65px"></th></tr></thead><tbody id="bag-lines-body">
         <?php foreach ($rows as $row): ?>
         <tr>
             <td><select name="inventory_item_id[]" class="form-select js-bag-item" required><option value="">Select stock item</option><?php foreach (($inventoryItems ?? []) as $item): ?><?php $label = trim((string) $item['diamond_type'] . ' / ' . (string) ($item['shape'] ?? '-') . ' / ' . (string) ($item['color'] ?? '-') . ' / ' . (string) ($item['clarity'] ?? '-')); ?><option value="<?= (int) $item['id'] ?>" <?= (string) ($row['inventory_item_id'] ?? '') === (string) $item['id'] ? 'selected' : '' ?>><?= esc($label) ?> · <?= number_format((float) $item['carat_balance'], 3) ?> cts stock</option><?php endforeach; ?></select></td>
             <td><select name="shape_master_id[]" class="form-select js-bag-shape" required><option value="">Select shape</option><?php foreach (($shapes ?? []) as $shape): ?><option value="<?= (int) $shape['id'] ?>" <?= (string) ($row['shape_master_id'] ?? '') === (string) $shape['id'] ? 'selected' : '' ?>><?= esc((string) $shape['name']) ?></option><?php endforeach; ?></select></td>
-            <td><select name="size_master_id[]" class="form-select js-bag-size" required><option value="">Select size</option><?php foreach (($sizes ?? []) as $size): ?><option value="<?= (int) $size['id'] ?>" data-shape="<?= (int) $size['shape_id'] ?>" <?= (string) ($row['size_master_id'] ?? '') === (string) $size['id'] ? 'selected' : '' ?>><?= esc((string) $size['size_label']) ?></option><?php endforeach; ?></select></td>
+            <td><select name="chalni_group_id[]" class="form-select js-bag-group" required><option value="">Select group</option><?php foreach (($chalniGroups ?? []) as $group): ?><option value="<?= (int) $group['id'] ?>" <?= (string) ($row['chalni_group_id'] ?? '') === (string) $group['id'] ? 'selected' : '' ?>><?= esc((string) $group['name']) ?><?= ! empty($group['range_label']) ? ' · ' . esc((string) $group['range_label']) : '' ?></option><?php endforeach; ?></select></td>
+            <td><select name="size_master_id[]" class="form-select js-bag-size"><option value="">Use complete group</option><?php foreach (($sizes ?? []) as $size): ?><option value="<?= (int) $size['id'] ?>" data-shape="<?= (int) $size['shape_id'] ?>" data-group="<?= (int) $size['group_id'] ?>" <?= (string) ($row['size_master_id'] ?? '') === (string) $size['id'] ? 'selected' : '' ?>><?= esc((string) $size['size_label']) ?></option><?php endforeach; ?></select></td>
             <td><input type="number" name="pcs[]" class="form-control" min="1" step="1" required value="<?= esc((string) ($row['pcs_total'] ?? '')) ?>"></td>
             <td><input type="number" name="weight_cts[]" class="form-control" min="0.001" step="0.001" required value="<?= esc((string) ($row['weight_cts_total'] ?? '')) ?>"></td>
             <td><button type="button" class="btn btn-sm btn-outline-danger js-remove-bag-row"><i class="fe fe-trash-2"></i></button></td>
@@ -55,18 +57,20 @@ $selectedOrder = (string) old('order_id', (string) ($selectedOrderId ?? ''));
     if (!body || !add) return;
     function filterSizes(row) {
         const shape = row.querySelector('.js-bag-shape');
+        const group = row.querySelector('.js-bag-group');
         const size = row.querySelector('.js-bag-size');
-        if (!shape || !size) return;
+        if (!shape || !group || !size) return;
         const selected = size.value;
         Array.from(size.options).forEach(function (option) {
             if (!option.value) return;
-            option.hidden = option.getAttribute('data-shape') !== shape.value;
+            option.hidden = option.getAttribute('data-shape') !== shape.value || option.getAttribute('data-group') !== group.value;
             option.disabled = option.hidden;
         });
         if (selected && size.options[size.selectedIndex] && size.options[size.selectedIndex].disabled) size.value = '';
     }
     function bind(row) {
         row.querySelector('.js-bag-shape')?.addEventListener('change', function () { filterSizes(row); });
+        row.querySelector('.js-bag-group')?.addEventListener('change', function () { filterSizes(row); });
         row.querySelector('.js-remove-bag-row')?.addEventListener('click', function () { if (body.querySelectorAll('tr').length > 1) row.remove(); });
         filterSizes(row);
     }

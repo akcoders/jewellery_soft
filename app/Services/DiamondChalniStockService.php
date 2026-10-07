@@ -394,7 +394,10 @@ class DiamondChalniStockService
         }
         $requested = [];
         foreach ($rows as $row) {
-            $bucket = $this->findBucket((int) ($row['inventory_item_id'] ?? 0), (int) ($row['shape_master_id'] ?? 0), (int) ($row['size_master_id'] ?? 0));
+            $groupId = (int) ($row['chalni_group_id'] ?? 0);
+            $bucket = $groupId > 0
+                ? $this->findGroupBucket((int) ($row['inventory_item_id'] ?? 0), (int) ($row['shape_master_id'] ?? 0), $groupId)
+                : $this->findBucket((int) ($row['inventory_item_id'] ?? 0), (int) ($row['shape_master_id'] ?? 0), (int) ($row['size_master_id'] ?? 0));
             if (! $bucket) {
                 continue;
             }
@@ -629,7 +632,7 @@ class DiamondChalniStockService
             return 0.0;
         }
         $builder = $this->db->table('diamond_bag_items')
-            ->select('size_master_id, weight_cts_available')->where('inventory_item_id', (int) $bucket['item_id'])
+            ->select('size_master_id, chalni_group_id, weight_cts_available')->where('inventory_item_id', (int) $bucket['item_id'])
             ->where('shape_master_id', (int) $bucket['shape_id']);
         if ($excludeBagId > 0) {
             $builder->where('bag_id !=', $excludeBagId);
@@ -637,7 +640,10 @@ class DiamondChalniStockService
         $rows = $builder->get()->getResultArray();
         $reserved = 0.0;
         foreach ($rows as $row) {
-            $matched = $this->findBucket((int) $bucket['item_id'], (int) $bucket['shape_id'], (int) ($row['size_master_id'] ?? 0));
+            $rowGroupId = (int) ($row['chalni_group_id'] ?? 0);
+            $matched = $rowGroupId > 0
+                ? $this->findGroupBucket((int) $bucket['item_id'], (int) $bucket['shape_id'], $rowGroupId)
+                : $this->findBucket((int) $bucket['item_id'], (int) $bucket['shape_id'], (int) ($row['size_master_id'] ?? 0));
             if ($matched && (int) $matched['id'] === (int) $bucket['id']) {
                 $reserved += (float) ($row['weight_cts_available'] ?? 0);
             }

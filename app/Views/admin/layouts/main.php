@@ -8,6 +8,8 @@ $assetBasePath = ((string) ($segments[0] ?? '') === 'public') ? 'public/template
 $assetBase = base_url($assetBasePath);
 $isDash     = $segment2 === 'dashboard';
 $isCustomers= $segment2 === 'customers';
+$isDeliveryChallans = $segment2 === 'delivery-challans';
+$isMobileApprovals = $segment2 === 'mobile-approvals';
 $isOrders   = $segment2 === 'orders';
 $isOrdersAll   = $isOrders && ($segment3 === '' || $segment3 === 'fresh' || ctype_digit($segment3));
 $isOrdersDashboard = $isOrders && $segment3 === 'dashboard';
@@ -104,6 +106,13 @@ $canDashboard = admin_can('dashboard.read');
 $canCustomers = admin_can('customers.read');
 $canOrders = admin_can('orders.read');
 $canOrdersCreate = admin_can('orders.create');
+$canDeliveryChallans = admin_can('orders.documents');
+$canMobileApprovals = false;
+$mobileApprovalPending = 0;
+try {
+    $canMobileApprovals = db_connect()->table('user_roles ur')->join('roles r', 'r.id = ur.role_id', 'inner')->where('ur.user_id', (int) session('admin_id'))->whereIn('r.role_code', ['SUPER_ADMIN', 'ADMIN', 'OWNER'])->countAllResults() > 0;
+    if ($canMobileApprovals && db_connect()->tableExists('mobile_approval_requests')) $mobileApprovalPending = db_connect()->table('mobile_approval_requests')->where('status', 'pending')->countAllResults();
+} catch (\Throwable) {}
 $canIssuements = admin_can('issuements.read');
 $canReports = admin_can('reports.read');
 $canAccounts = admin_can('accounts.read');
@@ -120,7 +129,7 @@ $canDiamondInventory = admin_can('diamond.inventory.read');
 $canStoneInventory = admin_can('stone.inventory.read');
 $canGoldInventory = admin_can('gold.inventory.read');
 $canAccessControl = admin_can_any(['access.roles.read', 'access.permissions.read', 'access.users.read']);
-$canCrmOrdersMenu = $canCustomers || $canOrders;
+$canCrmOrdersMenu = $canCustomers || $canOrders || $canDeliveryChallans;
 $canProductionMenu = $canKarigars || $canIssuements || $canDesigns;
 $canInventoryMenu = $canGoldInventory || $canDiamondInventory || $canStoneInventory || $canInventorySettings;
 $canStuddedJewelleryMenu = $canShowroomStock || $canShowroomSales;
@@ -1711,6 +1720,16 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
                         <?php if ($canCustomers): ?>
                         <li class="<?= $isCustomers ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/customers') ?>" data-app-tour-module="customers"><i class="fe fe-users"></i> <span>Customers</span></a>
+                        </li>
+                        <?php endif; ?>
+                        <?php if ($canDeliveryChallans): ?>
+                        <li class="<?= $isDeliveryChallans ? 'active' : '' ?>">
+                            <a class="<?= $isDeliveryChallans ? 'active' : '' ?>" href="<?= site_url('admin/delivery-challans') ?>"><i class="fe fe-file-text"></i> <span>Delivery Challans</span></a>
+                        </li>
+                        <?php endif; ?>
+                        <?php if ($canMobileApprovals): ?>
+                        <li class="<?= $isMobileApprovals ? 'active' : '' ?>">
+                            <a class="<?= $isMobileApprovals ? 'active' : '' ?>" href="<?= site_url('admin/mobile-approvals') ?>"><i class="fe fe-check-square"></i> <span>Mobile Approvals</span><?php if ($mobileApprovalPending > 0): ?><span class="badge bg-danger ms-auto"><?= (int) $mobileApprovalPending ?></span><?php endif; ?></a>
                         </li>
                         <?php endif; ?>
                         <?php if ($canOrders): ?>

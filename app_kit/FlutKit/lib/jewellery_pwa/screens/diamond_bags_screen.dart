@@ -388,7 +388,7 @@ class _DiamondBagDetailScreenState extends State<DiamondBagDetailScreen> {
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             Text(
-              '${row['color'] ?? '-'} / ${row['clarity'] ?? '-'} · ${row['shape_name'] ?? '-'} · ${row['size_label'] ?? row['size'] ?? '-'}',
+              '${row['color'] ?? '-'} / ${row['clarity'] ?? '-'} · ${row['shape_name'] ?? '-'} · ${row['size_label'] ?? row['chalni_group_name'] ?? row['size'] ?? '-'}',
               style: const TextStyle(color: AppColors.textSecondary),
             ),
             const Divider(height: 20),
@@ -489,7 +489,7 @@ class _DiamondBagDetailScreenState extends State<DiamondBagDetailScreen> {
             ),
             const SizedBox(height: 14),
             Text(
-              '${row['diamond_type'] ?? '-'} · ${row['size_label'] ?? '-'}',
+              '${row['diamond_type'] ?? '-'} · ${row['size_label'] ?? row['chalni_group_name'] ?? '-'}',
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),

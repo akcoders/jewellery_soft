@@ -89,6 +89,7 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $adminRequirement = (string) file_get_contents(APPPATH . 'Controllers/Admin/DiamondRequirementController.php');
         $mobileRequirement = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/DiamondRequirementsController.php');
         $mobileTransactions = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/TransactionsController.php');
+        $mobileApprovals = (string) file_get_contents(APPPATH . 'Services/MobileApprovalService.php');
         $combinedIssuement = (string) file_get_contents(APPPATH . 'Controllers/Admin/IssuementController.php');
         $legacyPurchase = (string) file_get_contents(APPPATH . 'Controllers/Admin/PurchaseController.php');
 
@@ -111,7 +112,8 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString("'permission' => 'accounts.read'", $events);
         $this->assertStringContainsString("'permission' => 'issuements.read'", $events);
         $this->assertSame(9, substr_count($adminInventory, 'notifyInventoryTransactionCreated('));
-        $this->assertSame(10, substr_count($mobileTransactions, 'notifyInventoryTransactionCreated('));
+        $this->assertSame(6, substr_count($mobileTransactions, 'notifyInventoryTransactionCreated('));
+        $this->assertSame(1, substr_count($mobileApprovals, 'notifyInventoryTransactionCreated('));
         $this->assertStringContainsString('notifyInventoryTransactionCreated(', $combinedIssuement);
         $this->assertStringContainsString('notifyInventoryTransactionCreated(', $legacyPurchase);
         $this->assertStringContainsString('Inventory transaction notification failed', $events);

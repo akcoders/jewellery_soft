@@ -585,6 +585,76 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<Map<String, dynamic>> createDiamondBagSize({
+    required int shapeId,
+    required int chalniGroupId,
+    required String sizeLabel,
+  }) async {
+    final res = await _post(
+      '/api/mobile/diamond-bags/sizes',
+      body: {
+        'shape_id': shapeId,
+        'chalni_group_id': chalniGroupId,
+        'size_label': sizeLabel.trim(),
+      },
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> fetchApprovalRequests() async {
+    final res = await _get('/api/mobile/approval-requests');
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> createCustomerApprovalRequest(
+    Map<String, dynamic> payload,
+  ) async {
+    final res = await _post(
+      '/api/mobile/approval-requests/customers',
+      body: payload,
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> createKarigarApprovalRequest(
+    Map<String, dynamic> payload,
+  ) async {
+    final res = await _post(
+      '/api/mobile/approval-requests/karigars',
+      body: payload,
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> reviewApprovalRequest(
+    int id, {
+    required String decision,
+    String note = '',
+  }) async {
+    final res = await _post(
+      '/api/mobile/approval-requests/$id/review',
+      body: {'decision': decision, 'note': note.trim()},
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<List<dynamic>> fetchDeliveryChallans() async {
+    final res = await _get('/api/mobile/delivery-challans');
+    return ((res['data'] as Map?)?['items'] as List?) ?? <dynamic>[];
+  }
+
+  Future<Map<String, dynamic>> fetchDeliveryChallanForm() async {
+    final res = await _get('/api/mobile/delivery-challans/create');
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> createDeliveryChallan(
+    Map<String, dynamic> payload,
+  ) async {
+    final res = await _post('/api/mobile/delivery-challans', body: payload);
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<Map<String, dynamic>> raiseDiamondRequirement({
     required int orderId,
     required String note,

@@ -5,8 +5,6 @@ namespace App\Controllers\Api\Mobile;
 use App\Models\CompanySettingModel;
 use App\Models\DiamondPurchaseAttachmentModel;
 use App\Models\InventoryLocationModel;
-use App\Models\IssueHeaderModel;
-use App\Models\IssueLineModel;
 use App\Models\ItemModel;
 use App\Models\KarigarModel;
 use App\Models\PurchaseHeaderModel;
@@ -14,15 +12,11 @@ use App\Models\PurchaseLineModel;
 use App\Models\ReturnHeaderModel;
 use App\Models\ReturnLineModel;
 use App\Models\VendorModel;
-use App\Models\GoldInventoryIssueHeaderModel;
-use App\Models\GoldInventoryIssueLineModel;
 use App\Models\GoldInventoryPurchaseHeaderModel;
 use App\Models\GoldInventoryPurchaseLineModel;
 use App\Models\GoldInventoryReturnHeaderModel;
 use App\Models\GoldInventoryReturnLineModel;
 use App\Models\GoldInventoryItemModel;
-use App\Models\StoneInventoryIssueHeaderModel;
-use App\Models\StoneInventoryIssueLineModel;
 use App\Models\StoneInventoryPurchaseHeaderModel;
 use App\Models\StoneInventoryPurchaseLineModel;
 use App\Models\StoneInventoryReturnHeaderModel;
@@ -35,8 +29,8 @@ use App\Services\DiamondChalniStockService;
 use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\StoneInventory\StockService as StoneStockService;
 use App\Services\KarigarMaterialAccountingService;
-use App\Services\IssuementVoucherNumberService;
 use App\Services\MobileNotificationEventService;
+use App\Services\MobileApprovalService;
 use App\Services\PdfService;
 use App\Services\PurchaseTermsService;
 use App\Services\TaxMasterService;
@@ -222,64 +216,11 @@ class TransactionsController extends MobileBaseController
             return $this->fail((string) $attachment['message'], 422);
         }
 
-        $db = db_connect();
-        $service = new DiamondStockService($db);
-        try {
-            $voucherNo = (new IssuementVoucherNumberService($db))
-                ->resolveForCreate((string) ($payload['voucher_no'] ?? ''));
-        } catch (Throwable $e) {
-            return $this->fail($e->getMessage(), 422);
-        }
+        return $this->submitIssuementApproval(
+            $payload, $issueDate, $karigarId, $karigar, $locationId, $location,
+            $purpose, [], $parsed['lines'], [], $attachment
+        );
 
-        try {
-            $db->transException(true)->transStart();
-
-            $issueId = (int) (new IssueHeaderModel())->insert([
-                'voucher_no' => $voucherNo,
-                'issue_date' => $issueDate,
-                'karigar_id' => $karigarId,
-                'location_id' => $locationId,
-                'issue_to' => (string) ($karigar['name'] ?? ''),
-                'purpose' => $purpose,
-                'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
-                'attachment_name' => $attachment['name'],
-                'attachment_path' => $attachment['path'],
-                'created_by' => (int) ($this->mobileAdmin['id'] ?? 0),
-            ], true);
-
-            $lineModel = new IssueLineModel();
-            foreach ($parsed['lines'] as $line) {
-                $itemId = (int) ($line['item_id'] ?? 0);
-                if ($itemId <= 0) {
-                    $itemId = $service->upsertItemFromSignature((array) ($line['signature'] ?? []));
-                }
-
-                $lineModel->insert([
-                    'issue_id' => $issueId,
-                    'item_id' => $itemId,
-                    'bag_id' => (int) ($line['bag_id'] ?? 0) ?: null,
-                    'bag_item_id' => (int) ($line['bag_item_id'] ?? 0) ?: null,
-                    'allocation_order_id' => (int) ($line['allocation_order_id'] ?? 0) ?: null,
-                    'pcs' => $line['pcs'],
-                    'carat' => $line['carat'],
-                    'rate_per_carat' => $line['rate_per_carat'],
-                    'line_value' => $line['line_value'],
-                ]);
-            }
-
-            $service->applyIssue($issueId);
-            (new DiamondBagTraceService($db))->applyIssue($issueId);
-            (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $issueId);
-            $db->transComplete();
-            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
-                'issue', 'Diamond', 'issue_headers', $issueId, 'mobile'
-            );
-        } catch (Throwable $e) {
-            $db->transRollback();
-            return $this->fail('Unable to save issue: ' . $e->getMessage(), 500);
-        }
-
-        return $this->ok(['id' => $issueId], 'Diamond issue saved.');
     }
 
     public function createDiamondReturn()
@@ -718,55 +659,11 @@ class TransactionsController extends MobileBaseController
             return $this->fail((string) $attachment['message'], 422);
         }
 
-        $db = db_connect();
-        $service = new GoldStockService($db);
-        try {
-            $voucherNo = (new IssuementVoucherNumberService($db))
-                ->resolveForCreate((string) ($payload['voucher_no'] ?? ''));
-        } catch (Throwable $e) {
-            return $this->fail($e->getMessage(), 422);
-        }
+        return $this->submitIssuementApproval(
+            $payload, $issueDate, $karigarId, $karigar, $locationId, $location,
+            $purpose, $parsed['lines'], [], [], $attachment
+        );
 
-        try {
-            $db->transException(true)->transStart();
-
-            $issueId = (int) (new GoldInventoryIssueHeaderModel())->insert([
-                'voucher_no' => $voucherNo,
-                'issue_date' => $issueDate,
-                'karigar_id' => $karigarId,
-                'location_id' => $locationId,
-                'issue_to' => (string) ($karigar['name'] ?? ''),
-                'purpose' => $purpose,
-                'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
-                'attachment_name' => $attachment['name'],
-                'attachment_path' => $attachment['path'],
-                'created_by' => (int) ($this->mobileAdmin['id'] ?? 0),
-            ], true);
-
-            $lineModel = new GoldInventoryIssueLineModel();
-            foreach ($parsed['lines'] as $line) {
-                $lineModel->insert([
-                    'issue_id' => $issueId,
-                    'item_id' => $line['item_id'],
-                    'weight_gm' => $line['weight_gm'],
-                    'fine_weight_gm' => $line['fine_weight_gm'],
-                    'rate_per_gm' => $line['rate_per_gm'],
-                    'line_value' => $line['line_value'],
-                ]);
-            }
-
-            $service->applyIssue($issueId);
-            (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'issue', $issueId);
-            $db->transComplete();
-            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
-                'issue', 'Gold', 'gold_inventory_issue_headers', $issueId, 'mobile'
-            );
-        } catch (Throwable $e) {
-            $db->transRollback();
-            return $this->fail('Unable to save issue: ' . $e->getMessage(), 500);
-        }
-
-        return $this->ok(['id' => $issueId], 'Gold issue saved.');
     }
 
     public function createGoldReturn()
@@ -1176,55 +1073,11 @@ class TransactionsController extends MobileBaseController
             return $this->fail((string) $attachment['message'], 422);
         }
 
-        $db = db_connect();
-        $service = new StoneStockService($db);
-        try {
-            $voucherNo = (new IssuementVoucherNumberService($db))
-                ->resolveForCreate((string) ($payload['voucher_no'] ?? ''));
-        } catch (Throwable $e) {
-            return $this->fail($e->getMessage(), 422);
-        }
+        return $this->submitIssuementApproval(
+            $payload, $issueDate, $karigarId, $karigar, $locationId, $location,
+            $purpose, [], [], $parsed['lines'], $attachment
+        );
 
-        try {
-            $db->transException(true)->transStart();
-
-            $issueId = (int) (new StoneInventoryIssueHeaderModel())->insert([
-                'voucher_no' => $voucherNo,
-                'issue_date' => $issueDate,
-                'karigar_id' => $karigarId,
-                'location_id' => $locationId,
-                'issue_to' => (string) ($karigar['name'] ?? ''),
-                'purpose' => $purpose,
-                'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
-                'attachment_name' => $attachment['name'],
-                'attachment_path' => $attachment['path'],
-                'created_by' => (int) ($this->mobileAdmin['id'] ?? 0),
-            ], true);
-
-            $lineModel = new StoneInventoryIssueLineModel();
-            foreach ($parsed['lines'] as $line) {
-                $lineModel->insert([
-                    'issue_id' => $issueId,
-                    'item_id' => $line['item_id'],
-                    'pcs' => $line['pcs'],
-                    'qty' => $line['qty'],
-                    'rate' => $line['rate'],
-                    'line_value' => $line['line_value'],
-                ]);
-            }
-
-            $service->applyIssue($issueId);
-            (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'issue', $issueId);
-            $db->transComplete();
-            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
-                'issue', 'Stone', 'stone_inventory_issue_headers', $issueId, 'mobile'
-            );
-        } catch (Throwable $e) {
-            $db->transRollback();
-            return $this->fail('Unable to save issue: ' . $e->getMessage(), 500);
-        }
-
-        return $this->ok(['id' => $issueId], 'Stone issue saved.');
     }
 
     public function createStoneReturn()
@@ -1554,139 +1407,11 @@ class TransactionsController extends MobileBaseController
             return $this->fail((string) $attachment['message'], 422);
         }
 
-        $db = db_connect();
-        try {
-            $voucherNo = (new IssuementVoucherNumberService($db))
-                ->resolveForCreate((string) ($payload['voucher_no'] ?? ''));
-        } catch (Throwable $e) {
-            $this->removeRelativeFile((string) ($attachment['path'] ?? ''));
-            return $this->fail($e->getMessage(), 422);
-        }
-
-        $issueTo = (string) ($karigar['name'] ?? '');
-        $notes = trim((string) ($payload['notes'] ?? '')) ?: null;
-        $createdBy = (int) ($this->mobileAdmin['id'] ?? 0);
-        $created = [];
-        $notificationTable = '';
-        $notificationId = 0;
-
-        try {
-            $db->transException(true)->transStart();
-
-            if ($gold['lines'] !== []) {
-                $issueId = (int) (new GoldInventoryIssueHeaderModel())->insert([
-                    'voucher_no' => $voucherNo, 'issue_date' => $issueDate,
-                    'karigar_id' => $karigarId, 'location_id' => $locationId,
-                    'issue_to' => $issueTo, 'purpose' => $purpose, 'notes' => $notes,
-                    'attachment_name' => $attachment['name'], 'attachment_path' => $attachment['path'],
-                    'created_by' => $createdBy,
-                ], true);
-                $lineModel = new GoldInventoryIssueLineModel();
-                foreach ($gold['lines'] as $line) {
-                    $lineModel->insert([
-                        'issue_id' => $issueId, 'item_id' => $line['item_id'],
-                        'weight_gm' => $line['weight_gm'], 'fine_weight_gm' => $line['fine_weight_gm'],
-                        'rate_per_gm' => $line['rate_per_gm'], 'line_value' => $line['line_value'],
-                    ]);
-                }
-                (new GoldStockService($db))->applyIssue($issueId, [
-                    'txn_date' => $issueDate, 'karigar_id' => $karigarId,
-                    'location_id' => $locationId, 'created_by' => $createdBy,
-                    'notes' => 'Common issuement from PWA - Gold',
-                ]);
-                (new KarigarMaterialAccountingService($db))->postInventoryHeader('gold', 'issue', $issueId);
-                $created['gold_issue_id'] = $issueId;
-                $notificationTable = 'gold_inventory_issue_headers';
-                $notificationId = $issueId;
-            }
-
-            if ($diamond['lines'] !== []) {
-                $issueId = (int) (new IssueHeaderModel())->insert([
-                    'voucher_no' => $voucherNo, 'issue_date' => $issueDate,
-                    'karigar_id' => $karigarId, 'location_id' => $locationId,
-                    'issue_to' => $issueTo, 'purpose' => $purpose, 'notes' => $notes,
-                    'attachment_name' => $attachment['name'], 'attachment_path' => $attachment['path'],
-                    'created_by' => $createdBy,
-                ], true);
-                $lineModel = new IssueLineModel();
-                foreach ($diamond['lines'] as $line) {
-                    $lineModel->insert([
-                        'issue_id' => $issueId, 'item_id' => $line['item_id'],
-                        'bag_id' => $line['bag_id'], 'bag_item_id' => $line['bag_item_id'],
-                        'allocation_order_id' => $line['allocation_order_id'],
-                        'pcs' => $line['pcs'], 'carat' => $line['carat'],
-                        'rate_per_carat' => $line['rate_per_carat'], 'line_value' => $line['line_value'],
-                    ]);
-                }
-                (new DiamondStockService($db))->applyIssue($issueId);
-                (new DiamondBagTraceService($db))->applyIssue($issueId);
-                (new KarigarMaterialAccountingService($db))->postInventoryHeader('diamond', 'issue', $issueId);
-                $created['diamond_issue_id'] = $issueId;
-                if ($notificationTable === '') {
-                    $notificationTable = 'issue_headers';
-                    $notificationId = $issueId;
-                }
-            }
-
-            if ($stone['lines'] !== []) {
-                $issueId = (int) (new StoneInventoryIssueHeaderModel())->insert([
-                    'voucher_no' => $voucherNo, 'issue_date' => $issueDate,
-                    'karigar_id' => $karigarId, 'location_id' => $locationId,
-                    'issue_to' => $issueTo, 'purpose' => $purpose, 'notes' => $notes,
-                    'attachment_name' => $attachment['name'], 'attachment_path' => $attachment['path'],
-                    'created_by' => $createdBy,
-                ], true);
-                $lineModel = new StoneInventoryIssueLineModel();
-                foreach ($stone['lines'] as $line) {
-                    $lineModel->insert([
-                        'issue_id' => $issueId, 'item_id' => $line['item_id'],
-                        'pcs' => $line['pcs'], 'qty' => $line['qty'],
-                        'rate' => $line['rate'], 'line_value' => $line['line_value'],
-                    ]);
-                }
-                (new StoneStockService($db))->applyIssue($issueId);
-                (new KarigarMaterialAccountingService($db))->postInventoryHeader('stone', 'issue', $issueId);
-                $created['stone_issue_id'] = $issueId;
-                if ($notificationTable === '') {
-                    $notificationTable = 'stone_inventory_issue_headers';
-                    $notificationId = $issueId;
-                }
-            }
-
-            if ($workRequestId > 0) {
-                $db->table('order_work_requests')->where('id', $workRequestId)->where('status', 'approved')->update([
-                    'status' => 'completed',
-                    'completed_at' => date('Y-m-d H:i:s'),
-                    'voucher_no' => $voucherNo,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-                if ($db->affectedRows() !== 1) throw new \RuntimeException('Gold request was already completed.');
-                (new \App\Services\WorkflowTaskService())->complete('order_gold_request', $workRequestId, $createdBy);
-            }
-
-            $db->transComplete();
-        } catch (Throwable $e) {
-            $db->transRollback();
-            $this->removeRelativeFile((string) ($attachment['path'] ?? ''));
-            return $this->fail('Unable to save issuement: ' . $e->getMessage(), 500);
-        }
-
-        $materials = array_map(
-            static fn(string $key): string => ucfirst(str_replace('_issue_id', '', $key)),
-            array_keys($created)
+        return $this->submitIssuementApproval(
+            $payload, $issueDate, $karigarId, $karigar, $locationId, $location,
+            $purpose, $gold['lines'], $diamond['lines'], $stone['lines'], $attachment, $workRequestId
         );
-        try {
-            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
-                'issue', implode(' + ', $materials), $notificationTable, $notificationId, 'mobile',
-                ['voucher_no' => $voucherNo, 'issue_to' => $issueTo, 'work_request_id' => $workRequestId]
-            );
-        } catch (Throwable $e) {
-            log_message('error', 'Combined mobile issuement notification failed: {message}', [
-                'message' => $e->getMessage(),
-            ]);
-        }
 
-        return $this->ok(['voucher_no' => $voucherNo] + $created, 'Common issuement saved.', 201);
     }
 
     public function combinedIssuementDetail()
@@ -2294,6 +2019,101 @@ class TransactionsController extends MobileBaseController
         if (is_file($absolute)) {
             @unlink($absolute);
         }
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     * @param array<string,mixed> $karigar
+     * @param array<string,mixed> $location
+     * @param list<array<string,mixed>> $goldLines
+     * @param list<array<string,mixed>> $diamondLines
+     * @param list<array<string,mixed>> $stoneLines
+     * @param array<string,mixed> $attachment
+     */
+    private function submitIssuementApproval(
+        array $payload,
+        string $issueDate,
+        int $karigarId,
+        array $karigar,
+        int $locationId,
+        array $location,
+        string $purpose,
+        array $goldLines,
+        array $diamondLines,
+        array $stoneLines,
+        array $attachment,
+        int $workRequestId = 0
+    ) {
+        $materials = [];
+        if ($goldLines !== []) $materials[] = 'Gold';
+        if ($diamondLines !== []) $materials[] = 'Diamond';
+        if ($stoneLines !== []) $materials[] = 'Stone';
+        $requestPayload = [
+            'issue_date' => $issueDate,
+            'karigar_id' => $karigarId,
+            'karigar_name' => (string) ($karigar['name'] ?? ''),
+            'location_id' => $locationId,
+            'location_name' => (string) ($location['name'] ?? ''),
+            'purpose' => $purpose,
+            'notes' => trim((string) ($payload['notes'] ?? '')),
+            'voucher_no' => trim((string) ($payload['voucher_no'] ?? '')),
+            'work_request_id' => $workRequestId,
+            'gold_lines' => $this->approvalDisplayLines('gold', $goldLines),
+            'diamond_lines' => $this->approvalDisplayLines('diamond', $diamondLines),
+            'stone_lines' => $this->approvalDisplayLines('stone', $stoneLines),
+        ];
+        try {
+            $approval = (new MobileApprovalService())->submit(
+                'issuement',
+                $requestPayload,
+                (int) ($this->mobileAdmin['id'] ?? 0),
+                implode(' + ', $materials) . ' issuement to ' . (string) ($karigar['name'] ?? ''),
+                $attachment['name'] ?? null,
+                $attachment['path'] ?? null
+            );
+        } catch (Throwable $e) {
+            $this->removeRelativeFile((string) ($attachment['path'] ?? ''));
+            return $this->fail('Unable to submit issuement: ' . $e->getMessage(), 500);
+        }
+        return $this->ok([
+            'approval_request' => $approval,
+            'approval_required' => true,
+        ], 'Issuement sent for admin approval.', 201);
+    }
+
+    /** @param list<array<string,mixed>> $lines @return list<array<string,mixed>> */
+    private function approvalDisplayLines(string $material, array $lines): array
+    {
+        $db = db_connect();
+        foreach ($lines as &$line) {
+            if ($material === 'gold') {
+                $item = $db->table('gold_inventory_items')->where('id', (int) ($line['item_id'] ?? 0))->get()->getRowArray();
+                $line['display_name'] = trim(implode(' · ', array_filter([
+                    (string) ($item['purity_code'] ?? ''), (string) ($item['color_name'] ?? ''), (string) ($item['form_type'] ?? ''),
+                ]))) ?: 'Gold item #' . (int) ($line['item_id'] ?? 0);
+            } elseif ($material === 'diamond') {
+                $item = $db->table('items')->where('id', (int) ($line['item_id'] ?? 0))->get()->getRowArray();
+                $bag = $db->table('diamond_bag_items bi')
+                    ->select('b.bag_no, sm.name AS shape_name, sz.size_label, cg.name AS chalni_group_name')
+                    ->join('diamond_bags b', 'b.id = bi.bag_id', 'left')
+                    ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
+                    ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+                    ->join('diamond_chalni_groups cg', 'cg.id = bi.chalni_group_id', 'left')
+                    ->where('bi.id', (int) ($line['bag_item_id'] ?? 0))->get()->getRowArray();
+                $line['display_name'] = trim(implode(' · ', array_filter([
+                    (string) ($bag['bag_no'] ?? ''), (string) ($item['diamond_type'] ?? ''),
+                    (string) ($bag['shape_name'] ?? ''), (string) (($bag['size_label'] ?? '') ?: ($bag['chalni_group_name'] ?? '')),
+                    (string) ($item['color'] ?? ''), (string) ($item['clarity'] ?? ''),
+                ]))) ?: 'Diamond item #' . (int) ($line['item_id'] ?? 0);
+            } else {
+                $item = $db->table('stone_inventory_items')->where('id', (int) ($line['item_id'] ?? 0))->get()->getRowArray();
+                $line['display_name'] = trim(implode(' · ', array_filter([
+                    (string) ($item['product_name'] ?? ''), (string) ($item['stone_type'] ?? ''),
+                ]))) ?: 'Stone item #' . (int) ($line['item_id'] ?? 0);
+            }
+        }
+        unset($line);
+        return $lines;
     }
 
     private function saveBase64Attachment(string $input, string $uploadDir, bool $required, string $relativeRoot): array

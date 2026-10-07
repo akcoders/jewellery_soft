@@ -13,6 +13,14 @@ class DeliveryChallanModel extends Model
         'challan_no',
         'challan_date',
         'order_id',
+        'customer_id',
+        'dispatch_from',
+        'dispatch_from_address',
+        'customer_name',
+        'customer_address',
+        'customer_gstin',
+        'total_pcs',
+        'notes',
         'packing_list_id',
         'receive_movement_id',
         'gross_weight_gm',
@@ -30,4 +38,3 @@ class DeliveryChallanModel extends Model
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
 }
-
