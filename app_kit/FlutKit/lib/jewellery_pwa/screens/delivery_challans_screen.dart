@@ -115,7 +115,7 @@ class _DeliveryChallansScreenState extends State<DeliveryChallansScreen> {
                       ),
                       SizedBox(height: 5),
                       Text(
-                        'Royal Delivery Challans',
+                        'Delivery Challans',
                         style: TextStyle(
                           color: Colors.white,
                           fontFamily: 'CormorantGaramond',
@@ -381,7 +381,7 @@ class _DeliveryChallanCreateScreenState
                         const SizedBox(width: 14),
                         const Expanded(
                           child: Text(
-                            'ROYAL DELIVERY CHALLAN',
+                            'DELIVERY CHALLAN',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
