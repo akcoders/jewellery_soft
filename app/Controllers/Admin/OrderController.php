@@ -1265,6 +1265,38 @@ class OrderController extends BaseController
         return $this->saveFinishedJewelleryReceipt($id);
     }
 
+    public function receive(int $id): string|\CodeIgniter\HTTP\RedirectResponse
+    {
+        $order = $this->orderModel->find($id);
+        if (! is_array($order)) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Order not found.');
+        }
+        if (in_array((string) ($order['status'] ?? ''), ['Cancelled', 'Completed'], true)) {
+            return redirect()->to(site_url('admin/orders/' . $id))->with('error', 'Cancelled or completed order cannot be received again.');
+        }
+        if ((int) ($order['assigned_karigar_id'] ?? 0) <= 0) {
+            return redirect()->to(site_url('admin/orders/' . $id))->with('error', 'Assign a karigar before receiving finished jewellery.');
+        }
+
+        $karigar = db_connect()->table('karigars')
+            ->select('name, rate_per_gm')
+            ->where('id', (int) $order['assigned_karigar_id'])
+            ->get()->getRowArray();
+        $order['karigar_name'] = (string) ($karigar['name'] ?? '');
+        $order['karigar_rate_per_gm'] = (float) ($karigar['rate_per_gm'] ?? 0);
+        $items = $this->orderItemModel->where('order_id', $id)->findAll();
+
+        return view('admin/orders/receive', [
+            'title' => 'Receive Finished Jewellery',
+            'order' => $order,
+            'items' => $items,
+            'locations' => $this->locationModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
+            'goldPurities' => $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
+            'stoneInventoryItems' => $this->stoneInventoryOptions(),
+            'karigarDiamondOptions' => $this->karigarDiamondOptions((int) $order['assigned_karigar_id'], $id),
+        ]);
+    }
+
     public function updateStatus(int $id)
     {
         $this->syncCompletedOrdersFromReceive([$id]);

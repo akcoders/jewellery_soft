@@ -177,7 +177,7 @@ $statusClass = match ($status) {
                 <?php if ($canChangeFollower): ?><button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#changeFollowerModal"><i class="fe fe-user-check me-1"></i>Change Follower</button><?php endif; ?>
                 <?php if ($canCreateDiamondBag): ?><a class="btn btn-warning" href="<?= site_url('admin/diamond-inventory/bags/create?order_id=' . (int) $order['id']) ?>"><i class="fe fe-package me-1"></i>Create Diamond Bag</a><?php endif; ?>
                 <?php if (! in_array($status, ['Cancelled', 'Completed'], true)): ?><a href="<?= site_url('admin/orders/' . $order['id'] . '/edit') ?>" class="btn btn-light"><i class="fe fe-edit me-1"></i>Edit</a><?php endif; ?>
-                <?php if ($canReceive): ?><button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#receiveModal"><i class="fe fe-check-circle me-1"></i>Receive Jewellery</button><?php endif; ?>
+                <?php if ($canReceive): ?><a href="<?= site_url('admin/orders/' . $order['id'] . '/receive') ?>" class="btn btn-success"><i class="fe fe-check-circle me-1"></i>Receive Jewellery</a><?php endif; ?>
                 <?php if ($canDeleteOrder): ?><button type="button" class="btn btn-light text-danger" data-bs-toggle="modal" data-bs-target="#deleteOrderModal"><i class="fe fe-trash-2 me-1"></i>Delete Order</button><?php endif; ?>
                 <a href="<?= site_url((string) $order['order_type'] === 'Repair' ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-light"><i class="fe fe-arrow-left me-1"></i>Order List</a>
             </div>

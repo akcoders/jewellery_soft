@@ -143,19 +143,11 @@
                                                 <?php endif; ?>
                                             <?php endif; ?>
                                             <?php if (admin_can('orders.receive') && ! empty($order['assigned_karigar_id'])): ?>
-                                                <button
-                                                    type="button"
-                                                    class="btn btn-sm btn-outline-success js-receive-btn"
-                                                    data-order-id="<?= esc((string) $order['id']) ?>"
-                                                    data-order-no="<?= esc($order['order_no']) ?>"
-                                                    data-order-purity="<?= esc((string) number_format((float) ($order['avg_purity_percent'] ?? 100), 3, '.', '')) ?>"
-                                                    data-karigar-rate="<?= esc((string) number_format((float) ($order['karigar_rate_per_gm'] ?? 0), 2, '.', '')) ?>"
-                                                    data-diamond-options="<?= esc(json_encode($karigarDiamondOptions[(int) $order['assigned_karigar_id']] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'attr') ?>"
-                                                    data-bs-toggle="modal"
-                                                    data-bs-target="#receiveModal"
+                                                <a href="<?= site_url('admin/orders/' . $order['id'] . '/receive') ?>"
+                                                    class="btn btn-sm btn-outline-success"
                                                     title="Receive">
                                                     <i class="fe fe-download"></i>
-                                                </button>
+                                                </a>
                                             <?php endif; ?>
                                             <?php if (admin_can('orders.status')): ?>
                                                 <button
