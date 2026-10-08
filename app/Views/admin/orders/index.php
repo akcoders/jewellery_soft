@@ -344,7 +344,7 @@
                                                 <td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="0"></td>
                                                 <td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="0"></td>
                                                 <td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="0.00" readonly></td>
-                                                <td><div class="diamond-row-actions"><button type="button" class="btn btn-sm btn-outline-primary js-merge-dia-row" title="Use the full selected weight as one finished piece"><i class="fe fe-minimize-2 me-1"></i>1 PCS</button><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button></div></td>
+                                                <td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button></td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -619,7 +619,7 @@
                     + '<td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="' + wt.toFixed(3) + '"></td>'
                     + '<td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="' + rate.toFixed(2) + '"></td>'
                     + '<td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="' + total.toFixed(2) + '" readonly></td>'
-                    + '<td><div class="diamond-row-actions"><button type="button" class="btn btn-sm btn-outline-primary js-merge-dia-row" title="Use the full selected weight as one finished piece"><i class="fe fe-minimize-2 me-1"></i>1 PCS</button><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button></div></td>'
+                    + '<td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button></td>'
                     + '</tr>';
             }
             if (kind === 'stone') {
@@ -899,33 +899,6 @@
                 if (addOther) {
                     const body = receiveModal.querySelector('.js-other-body');
                     if (body) body.insertAdjacentHTML('beforeend', createRowHtml('other'));
-                    recalcReceiveModal();
-                    return;
-                }
-                const mergeDiamond = target.closest('.js-merge-dia-row');
-                if (mergeDiamond) {
-                    const row = mergeDiamond.closest('tr');
-                    const select = row ? row.querySelector('.js-diamond-balance-select') : null;
-                    const selected = select && select.selectedOptions ? Array.from(select.selectedOptions) : [];
-                    const availableCts = selected.reduce(function (sum, option) { return sum + num(option.getAttribute('data-available-cts')); }, 0);
-                    const availablePcs = selected.reduce(function (sum, option) { return sum + num(option.getAttribute('data-available-pcs')); }, 0);
-                    if (selected.length === 0 || availableCts <= 0 || availablePcs < 1) {
-                        if (select) select.focus();
-                        if (window.Swal) {
-                            window.Swal.fire({
-                                icon: 'error',
-                                title: 'Cannot merge diamond',
-                                text: 'Select a diamond line with at least one piece and available weight.'
-                            });
-                        }
-                        return;
-                    }
-
-                    const pcs = row.querySelector('.js-dia-pcs');
-                    const weight = row.querySelector('.js-dia-weight');
-                    if (pcs) pcs.value = '1';
-                    if (weight) weight.value = availableCts.toFixed(3);
-                    row.classList.add('table-success');
                     recalcReceiveModal();
                     return;
                 }

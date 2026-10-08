@@ -16,11 +16,10 @@
     .receive-diamond-table th:nth-child(3) { width: 11%; }
     .receive-diamond-table th:nth-child(4) { width: 9%; }
     .receive-diamond-table th:nth-child(5) { width: 11%; }
-    .receive-diamond-table th:nth-child(6) { width: 21%; }
+    .receive-diamond-table th:nth-child(6) { width: 8%; }
     .receive-diamond-table .select2-container, .receive-table .form-control { min-width: 0; width: 100% !important; }
     .receive-diamond-name { margin-top: 7px; }
-    .diamond-row-actions { display: flex; flex-direction: column; gap: 6px; min-width: 80px; }
-    .diamond-row-actions .btn { justify-content: center; white-space: nowrap; width: 100%; }
+    .receive-diamond-table .js-remove-row { display: block; margin: 0 auto; }
     .receive-footer { align-items: center; background: #fff; border-top: 1px solid #e7eaf0; bottom: 0; display: flex; gap: 10px; justify-content: flex-end; margin: 16px -16px -16px; padding: 14px 16px; position: sticky; z-index: 5; }
     .receive-page .select2-dropdown { z-index: 2070; }
     .receive-page .select2-container { max-width: 100%; }
@@ -74,7 +73,7 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
             <div class="card-header"><strong>2. Studded Diamond</strong><button type="button" class="btn btn-sm btn-outline-primary js-add-row" data-kind="dia"><i class="fe fe-plus me-1"></i>Add Row</button></div>
             <div class="table-responsive">
                 <table class="table table-bordered align-middle mb-0 receive-table receive-diamond-table">
-                    <thead><tr><th>Available Bag Lines</th><th>PCS</th><th>Weight (cts)</th><th>Rate</th><th>Total</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Available Bag Lines</th><th>PCS</th><th>Weight (cts)</th><th>Rate</th><th>Total</th><th></th></tr></thead>
                     <tbody class="js-dia-body"><tr>
                         <td>
                             <select multiple class="form-select js-diamond-balance-select">
@@ -89,7 +88,7 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
                         <td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="0"></td>
                         <td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="0"></td>
                         <td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="0.00" readonly></td>
-                        <td><div class="diamond-row-actions"><button type="button" class="btn btn-sm btn-outline-primary js-merge-dia-row">1 PCS</button><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></div></td>
+                        <td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" aria-label="Remove diamond row"><i class="fe fe-trash"></i></button></td>
                     </tr></tbody>
                 </table>
             </div>
@@ -216,7 +215,7 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
 
     function addRow(kind) {
         if (kind === 'dia') {
-            return '<tr><td><select multiple class="form-select js-diamond-balance-select">' + diamondSelectOptions(null, []) + '</select><input type="hidden" name="studded_diamond_type[]" class="js-dia-type"><input type="text" name="studded_diamond_name[]" class="form-control receive-diamond-name js-dia-name" placeholder="Editable final name"></td><td><input type="number" step="1" min="1" name="studded_diamond_pcs[]" class="form-control js-dia-pcs"></td><td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="0"></td><td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="0"></td><td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="0.00" readonly></td><td><div class="diamond-row-actions"><button type="button" class="btn btn-sm btn-outline-primary js-merge-dia-row">1 PCS</button><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></div></td></tr>';
+            return '<tr><td><select multiple class="form-select js-diamond-balance-select">' + diamondSelectOptions(null, []) + '</select><input type="hidden" name="studded_diamond_type[]" class="js-dia-type"><input type="text" name="studded_diamond_name[]" class="form-control receive-diamond-name js-dia-name" placeholder="Editable final name"></td><td><input type="number" step="1" min="1" name="studded_diamond_pcs[]" class="form-control js-dia-pcs"></td><td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="0"></td><td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="0"></td><td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="0.00" readonly></td><td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" aria-label="Remove diamond row"><i class="fe fe-trash"></i></button></td></tr>';
         }
         if (kind === 'stone') {
             return '<tr><td><select name="stone_item_id[]" class="form-select js-stone-inventory-select">' + stoneSelectOptions() + '</select></td><td><input type="text" name="stone_type[]" class="form-control"></td><td><input type="number" step="0.001" min="0" name="stone_pcs[]" class="form-control js-stone-pcs" value="0"></td><td><input type="number" step="0.001" min="0" name="stone_weight[]" class="form-control js-stone-weight" value="0"></td><td><input type="number" step="0.01" min="0" name="stone_rate[]" class="form-control js-stone-rate" value="0"></td><td><input type="text" name="stone_total[]" class="form-control js-stone-total" value="0.00" readonly></td><td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td></tr>';
@@ -226,7 +225,9 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
 
     function updateDiamond(select) {
         const row = select.closest('tr');
-        const selected = Array.from(select.selectedOptions);
+        const selectedValues = window.jQuery ? window.jQuery(select).val() || [] : Array.from(select.selectedOptions).map(option => option.value);
+        const selectedSet = new Set(Array.isArray(selectedValues) ? selectedValues.map(String) : [String(selectedValues)]);
+        const selected = Array.from(select.options).filter(option => selectedSet.has(option.value));
         const pcs = selected.reduce((sum, option) => sum + n(option.dataset.availablePcs), 0);
         const cts = selected.reduce((sum, option) => sum + n(option.dataset.availableCts), 0);
         const hidden = row.querySelector('.js-dia-type');
@@ -284,24 +285,14 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
                 row.remove();
                 if (isDiamond) syncSelectors();
             }
-        } else if (button.classList.contains('js-merge-dia-row')) {
-            const row = button.closest('tr');
-            const selected = Array.from(row.querySelector('.js-diamond-balance-select').selectedOptions);
-            const cts = selected.reduce((sum, option) => sum + n(option.dataset.availableCts), 0);
-            if (!selected.length || cts <= 0) {
-                if (window.Swal) window.Swal.fire({ icon: 'error', title: 'Select bag lines', text: 'Select one or more diamond bag lines first.' });
-                return;
-            }
-            row.querySelector('.js-dia-pcs').value = '1';
-            row.querySelector('.js-dia-weight').value = cts.toFixed(3);
         }
         recalc();
     });
 
     form.addEventListener('change', event => {
-        const diamond = event.target.closest('.js-diamond-balance-select');
+        const diamond = event.target instanceof Element ? event.target.closest('.js-diamond-balance-select') : null;
         if (diamond) updateDiamond(diamond);
-        const stone = event.target.closest('.js-stone-inventory-select');
+        const stone = event.target instanceof Element ? event.target.closest('.js-stone-inventory-select') : null;
         if (stone && stone.value) {
             const option = stone.selectedOptions[0];
             const row = stone.closest('tr');
@@ -310,6 +301,11 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
         }
         recalc();
     });
+    if (window.jQuery) {
+        window.jQuery(form).on('select2:select select2:unselect', '.js-diamond-balance-select', function () {
+            updateDiamond(this);
+        });
+    }
     form.addEventListener('input', event => {
         if (event.target.matches('.js-dia-name')) event.target.dataset.edited = '1';
         recalc();

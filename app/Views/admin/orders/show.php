@@ -428,7 +428,7 @@ $statusClass = match ($status) {
                     <td><input type="text" class="form-control js-<?= esc($key) ?>-total" readonly></td>
                     <td>
                         <?php if ($key === 'dia'): ?>
-                            <div class="diamond-row-actions"><button type="button" class="btn btn-sm btn-outline-primary js-merge-dia-row" title="Use the full selected weight as one finished piece"><i class="fe fe-minimize-2 me-1"></i>1 PCS</button><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button></div>
+                            <button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button>
                         <?php else: ?>
                             <button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button>
                         <?php endif; ?>
@@ -545,7 +545,7 @@ $statusClass = match ($status) {
             + '<td><input type="number" step="0.01" min="0" name="' + names[3] + '[]" class="form-control js-' + kind + '-rate"></td>'
             + '<td><input type="text" class="form-control js-' + kind + '-total" readonly></td>'
             + '<td>' + (kind === 'dia'
-                ? '<div class="diamond-row-actions"><button type="button" class="btn btn-sm btn-outline-primary js-merge-dia-row" title="Use the full selected weight as one finished piece"><i class="fe fe-minimize-2 me-1"></i>1 PCS</button><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button></div>'
+                ? '<button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button>'
                 : '<button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button>') + '</td></tr>';
     }
 
@@ -603,30 +603,6 @@ $statusClass = match ($status) {
                 row.remove();
                 if (wasDiamondRow) refreshDiamondSelectors();
             }
-        }
-        const mergeDiamond = target.closest('.js-merge-dia-row');
-        if (mergeDiamond) {
-            const row = mergeDiamond.closest('tr');
-            const select = row ? row.querySelector('.js-diamond-balance-select') : null;
-            const selected = select && select.selectedOptions ? Array.from(select.selectedOptions) : [];
-            const availableCts = selected.reduce((sum, option) => sum + n(option.getAttribute('data-available-cts')), 0);
-            const availablePcs = selected.reduce((sum, option) => sum + n(option.getAttribute('data-available-pcs')), 0);
-            if (selected.length === 0 || availableCts <= 0 || availablePcs < 1) {
-                if (select) select.focus();
-                if (window.Swal) {
-                    window.Swal.fire({
-                        icon: 'error',
-                        title: 'Cannot merge diamond',
-                        text: 'Select a diamond line with at least one piece and available weight.'
-                    });
-                }
-                return;
-            }
-            const pcs = row.querySelector('[name="studded_diamond_pcs[]"]');
-            const weight = row.querySelector('.js-dia-weight');
-            if (pcs) pcs.value = '1';
-            if (weight) weight.value = availableCts.toFixed(3);
-            row.classList.add('table-success');
         }
         recalc();
     });
