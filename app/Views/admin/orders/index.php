@@ -8,6 +8,23 @@
     .order-list-thumb { align-items: center; background: #f4f5f7; border: 1px solid #e1e5eb; border-radius: 9px; color: #9aa3af; display: inline-flex; height: 44px; justify-content: center; overflow: hidden; position: relative; width: 44px; }
     .order-list-thumb img { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
     .order-list-name { min-width: 150px; white-space: normal; }
+    #receiveModal .modal-dialog { max-width: min(1480px, calc(100vw - 28px)); }
+    #receiveModal .diamond-table-shell::before { content: none !important; display: none !important; }
+    #receiveModal .receive-diamond-table { min-width: 0 !important; table-layout: fixed; width: 100%; }
+    #receiveModal .receive-diamond-table th, #receiveModal .receive-diamond-table td { white-space: normal !important; }
+    #receiveModal .receive-diamond-table th:nth-child(1) { width: 45%; }
+    #receiveModal .receive-diamond-table th:nth-child(2) { width: 8%; }
+    #receiveModal .receive-diamond-table th:nth-child(3) { width: 11%; }
+    #receiveModal .receive-diamond-table th:nth-child(4) { width: 9%; }
+    #receiveModal .receive-diamond-table th:nth-child(5) { width: 11%; }
+    #receiveModal .receive-diamond-table th:nth-child(6) { width: 16%; }
+    #receiveModal .receive-diamond-table .select2-container { max-width: 100%; min-width: 0 !important; }
+    #receiveModal .diamond-row-actions { display: flex; flex-direction: column; gap: 6px; min-width: 76px; }
+    #receiveModal .diamond-row-actions .btn { justify-content: center; white-space: nowrap; width: 100%; }
+    #receiveModal .receive-diamond-table input, #receiveModal .receive-diamond-table .select2-container { min-width: 0; width: 100% !important; }
+    @media (max-width: 767.98px) {
+        #receiveModal .receive-diamond-table { min-width: 760px !important; }
+    }
 </style>
 <div class="erp-page-toolbar flex-wrap mb-3">
     <div>
@@ -320,20 +337,20 @@
                         <div class="card border mb-3">
                             <div class="card-header py-2 d-flex justify-content-between align-items-center">
                                 <strong>2. Studded Diamond</strong>
-                                <button type="button" class="btn btn-sm btn-outline-primary js-add-dia-row"><i class="fe fe-plus"></i></button>
+                                <button type="button" class="btn btn-sm btn-outline-primary js-add-dia-row"><i class="fe fe-plus me-1"></i>Add Row</button>
                             </div>
                             <div class="card-body p-0">
-                                <div class="table-responsive">
-                                    <table class="table table-bordered mb-0" data-dt-skip="1">
-                                        <thead><tr><th>Available Diamond Type</th><th>Pcs</th><th>Weight (cts)</th><th>Rate</th><th>Total</th><th></th></tr></thead>
+                                <div class="table-responsive diamond-table-shell">
+                                    <table class="table table-bordered mb-0 receive-diamond-table" data-dt-skip="1">
+                                        <thead><tr><th>Available Type / Final Name</th><th>PCS</th><th>Weight (cts)</th><th>Rate</th><th>Total</th><th>Actions</th></tr></thead>
                                         <tbody class="js-dia-body">
                                             <tr>
-                                                <td><select name="studded_diamond_type[]" class="form-select js-diamond-balance-select"><option value="">Select available diamond</option></select></td>
+                                                <td><select name="studded_diamond_type[]" class="form-select js-diamond-balance-select"><option value="">Select available diamond</option></select><input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name"></td>
                                                 <td><input type="number" step="1" min="1" name="studded_diamond_pcs[]" class="form-control js-dia-pcs"></td>
                                                 <td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="0"></td>
                                                 <td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="0"></td>
                                                 <td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="0.00" readonly></td>
-                                                <td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td>
+                                                <td><div class="diamond-row-actions"><button type="button" class="btn btn-sm btn-outline-primary js-merge-dia-row" title="Use the full selected weight as one finished piece"><i class="fe fe-minimize-2 me-1"></i>1 PCS</button><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button></div></td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -525,7 +542,7 @@
             activeDiamondOptions.forEach(function (item) {
                 const value = String(item.value || '');
                 const label = String(item.label || value || 'Diamond') + ' · ' + num(item.available_cts).toFixed(3) + ' cts / ' + num(item.available_pcs).toFixed(0) + ' pcs';
-                options += '<option value="' + attr(value) + '"' + (String(selectedValue || '') === value ? ' selected' : '') + '>' + attr(label) + '</option>';
+                options += '<option value="' + attr(value) + '" data-final-name="' + attr(item.label || value) + '" data-available-cts="' + num(item.available_cts).toFixed(3) + '" data-available-pcs="' + num(item.available_pcs).toFixed(3) + '" data-issue-line-id="' + num(item.issue_line_id) + '"' + (String(selectedValue || '') === value ? ' selected' : '') + '>' + attr(label) + '</option>';
             });
             return options;
         }
@@ -554,12 +571,12 @@
             const total = wt * rate;
             if (kind === 'dia') {
                 return '<tr>'
-                    + '<td><select name="studded_diamond_type[]" class="form-select js-diamond-balance-select">' + diamondBalanceOptions(r.type || '') + '</select></td>'
+                    + '<td><select name="studded_diamond_type[]" class="form-select js-diamond-balance-select">' + diamondBalanceOptions(r.type || '') + '</select><input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name" value="' + attr(r.name || '') + '"></td>'
                     + '<td><input type="number" step="1" min="1" name="studded_diamond_pcs[]" class="form-control js-dia-pcs" value="' + (pcs > 0 ? Math.round(pcs) : '') + '"></td>'
                     + '<td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="' + wt.toFixed(3) + '"></td>'
                     + '<td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="' + rate.toFixed(2) + '"></td>'
                     + '<td><input type="text" name="studded_diamond_total[]" class="form-control js-dia-total" value="' + total.toFixed(2) + '" readonly></td>'
-                    + '<td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td>'
+                    + '<td><div class="diamond-row-actions"><button type="button" class="btn btn-sm btn-outline-primary js-merge-dia-row" title="Use the full selected weight as one finished piece"><i class="fe fe-minimize-2 me-1"></i>1 PCS</button><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button></div></td>'
                     + '</tr>';
             }
             if (kind === 'stone') {
@@ -840,6 +857,33 @@
                     recalcReceiveModal();
                     return;
                 }
+                const mergeDiamond = target.closest('.js-merge-dia-row');
+                if (mergeDiamond) {
+                    const row = mergeDiamond.closest('tr');
+                    const select = row ? row.querySelector('.js-diamond-balance-select') : null;
+                    const selected = select && select.selectedOptions ? select.selectedOptions[0] : null;
+                    const availableCts = num(selected ? selected.getAttribute('data-available-cts') : 0);
+                    const availablePcs = num(selected ? selected.getAttribute('data-available-pcs') : 0);
+                    if (!selected || !select.value || availableCts <= 0 || availablePcs < 1) {
+                        if (select) select.focus();
+                        if (window.Swal) {
+                            window.Swal.fire({
+                                icon: 'error',
+                                title: 'Cannot merge diamond',
+                                text: 'Select a diamond line with at least one piece and available weight.'
+                            });
+                        }
+                        return;
+                    }
+
+                    const pcs = row.querySelector('.js-dia-pcs');
+                    const weight = row.querySelector('.js-dia-weight');
+                    if (pcs) pcs.value = '1';
+                    if (weight) weight.value = availableCts.toFixed(3);
+                    row.classList.add('table-success');
+                    recalcReceiveModal();
+                    return;
+                }
                 const rm = target.closest('.js-remove-row');
                 if (rm) {
                     const tr = rm.closest('tr');
@@ -855,9 +899,90 @@
             receiveModal.addEventListener('input', function () {
                 recalcReceiveModal();
             });
-            receiveModal.addEventListener('change', function () {
+            receiveModal.addEventListener('change', function (event) {
+                const diamondSelect = event.target instanceof Element ? event.target.closest('.js-diamond-balance-select') : null;
+                if (diamondSelect) {
+                    const row = diamondSelect.closest('tr');
+                    const selected = diamondSelect.selectedOptions ? diamondSelect.selectedOptions[0] : null;
+                    const pcs = row ? row.querySelector('.js-dia-pcs') : null;
+                    const weight = row ? row.querySelector('.js-dia-weight') : null;
+                    const name = row ? row.querySelector('.js-dia-name') : null;
+                    if (selected && diamondSelect.value) {
+                        if (pcs) pcs.value = String(Math.floor(num(selected.getAttribute('data-available-pcs'))));
+                        if (weight) weight.value = num(selected.getAttribute('data-available-cts')).toFixed(3);
+                        if (name && !name.value.trim()) name.value = selected.getAttribute('data-final-name') || selected.textContent.trim();
+                    } else {
+                        if (pcs) pcs.value = '';
+                        if (weight) weight.value = '0';
+                    }
+                }
                 recalcReceiveModal();
             });
+
+            if (receiveForm) {
+                let submitting = false;
+                receiveModal.addEventListener('hide.bs.modal', function (event) {
+                    if (submitting) event.preventDefault();
+                });
+                receiveForm.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+                    if (submitting) return;
+
+                    const submitButton = receiveForm.querySelector('[type="submit"]');
+                    const originalLabel = submitButton ? submitButton.innerHTML : '';
+                    submitting = true;
+                    if (submitButton) {
+                        submitButton.disabled = true;
+                        submitButton.textContent = 'Saving...';
+                    }
+
+                    try {
+                        const response = await fetch(receiveForm.action, {
+                            method: 'POST',
+                            body: new FormData(receiveForm),
+                            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                            credentials: 'same-origin'
+                        });
+                        let result;
+                        try {
+                            result = await response.json();
+                        } catch (error) {
+                            throw new Error('The server returned an unexpected response. Your receipt was not confirmed.');
+                        }
+
+                        if (result.csrf && result.csrf.name && result.csrf.hash) {
+                            const csrfInput = Array.from(receiveForm.elements).find(function (field) {
+                                return field.name === result.csrf.name;
+                            });
+                            if (csrfInput) csrfInput.value = result.csrf.hash;
+                        }
+                        if (!response.ok || result.status !== 'ok') {
+                            throw new Error(result.message || 'Unable to save the finished jewellery receipt.');
+                        }
+
+                        if (window.Swal) {
+                            await window.Swal.fire({ icon: 'success', title: 'Completed', text: result.message || 'Finished jewellery received.' });
+                        }
+                        submitting = false;
+                        bootstrap.Modal.getOrCreateInstance(receiveModal).hide();
+                        window.location.reload();
+                    } catch (error) {
+                        if (window.Swal) {
+                            await window.Swal.fire({
+                                icon: 'error',
+                                title: 'Unable to complete receipt',
+                                text: error instanceof Error ? error.message : 'Unable to save the finished jewellery receipt.'
+                            });
+                        }
+                    } finally {
+                        submitting = false;
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.innerHTML = originalLabel;
+                        }
+                    }
+                });
+            }
         }
     })();
 </script>

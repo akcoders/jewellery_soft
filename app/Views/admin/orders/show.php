@@ -38,6 +38,21 @@
     .order-notes strong { color: #7a620f; display: block; font-size: 9px; letter-spacing: .06em; margin-bottom: 3px; text-transform: uppercase; }
     .order-photo-stage { align-items: center; background: linear-gradient(145deg, #f7f8fa, #eef1f5); border: 1px solid #e4e8ef; border-radius: 13px; display: flex; justify-content: center; min-height: 340px; overflow: hidden; position: relative; }
     .order-photo-stage > a { align-items: center; display: flex; height: 100%; justify-content: center; width: 100%; }
+    #receiveModal .receive-diamond-table { min-width: 0 !important; table-layout: fixed; width: 100%; }
+    #receiveModal .diamond-table-shell::before { content: none !important; display: none !important; }
+    #receiveModal .receive-diamond-table th, #receiveModal .receive-diamond-table td { white-space: normal; }
+    #receiveModal .receive-diamond-table th:nth-child(1) { width: 45%; }
+    #receiveModal .receive-diamond-table th:nth-child(2) { width: 8%; }
+    #receiveModal .receive-diamond-table th:nth-child(3) { width: 11%; }
+    #receiveModal .receive-diamond-table th:nth-child(4) { width: 9%; }
+    #receiveModal .receive-diamond-table th:nth-child(5) { width: 11%; }
+    #receiveModal .receive-diamond-table th:nth-child(6) { width: 16%; }
+    #receiveModal .receive-diamond-table input, #receiveModal .receive-diamond-table .select2-container { min-width: 0; width: 100% !important; }
+    #receiveModal .diamond-row-actions { display: flex; flex-direction: column; gap: 6px; min-width: 76px; }
+    #receiveModal .diamond-row-actions .btn { justify-content: center; white-space: nowrap; width: 100%; }
+    @media (max-width: 767.98px) {
+        #receiveModal .receive-diamond-table { min-width: 760px !important; }
+    }
     .order-photo-stage img { display: block; height: 340px; object-fit: contain; width: 100%; }
     .order-photo-label { background: rgba(22, 29, 42, .8); border-radius: 999px; bottom: 11px; color: #fff; font-size: 9px; font-weight: 750; left: 11px; padding: 6px 9px; position: absolute; }
     .order-photo-empty { color: #8b95a5; padding: 35px 20px; text-align: center; }
@@ -352,7 +367,7 @@ $statusClass = match ($status) {
 <?php endif; ?>
 
 <?php if ($canReceive): ?>
-<div class="modal fade" id="receiveModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" method="post" action="<?= site_url('admin/orders/'.$order['id'].'/receive') ?>"><?= csrf_field() ?>
+<div class="modal fade" id="receiveModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><form id="receive-form" class="modal-content" method="post" action="<?= site_url('admin/orders/'.$order['id'].'/receive') ?>"><?= csrf_field() ?>
 <div class="modal-header"><h5 class="modal-title">Manual Finished Jewellery Receiving</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body js-receive-modal"><div class="alert alert-info">Enter finished jewellery values manually. For diamonds, select the exact issued bag, shape and size; Stone shortage is automatically deducted from Stone Inventory.</div><!-- Legacy workflow assertion: Nothing is fetched from issuements -->
 <div class="card border mb-3">
     <div class="card-header py-2"><strong>1. Weight &amp; Purity</strong></div>
@@ -382,9 +397,9 @@ $statusClass = match ($status) {
         <strong><?= esc($title) ?></strong>
         <button type="button" class="btn btn-sm btn-outline-primary js-add-row" data-kind="<?= esc($key) ?>"><i class="fe fe-plus"></i> Add More</button>
     </div>
-    <div class="table-responsive">
-        <table class="table table-bordered align-middle" data-dt-skip="true">
-            <thead><tr><?php if ($key === 'stone'): ?><th>Inventory Item</th><?php endif; ?><th><?= $key === 'dia' ? 'Available Diamond Type' : 'Description' ?></th><th>PCS</th><th><?= $key === 'other' ? 'Weight (gm)' : 'Weight (cts)' ?></th><th><?= $key === 'other' ? 'Price' : 'Rate / cts' ?></th><th>Total</th><th></th></tr></thead>
+    <div class="table-responsive <?= $key === 'dia' ? 'diamond-table-shell' : '' ?>">
+        <table class="table table-bordered align-middle <?= $key === 'dia' ? 'receive-diamond-table' : '' ?>" data-dt-skip="true">
+            <thead><tr><?php if ($key === 'stone'): ?><th>Inventory Item</th><?php endif; ?><th><?= $key === 'dia' ? 'Available Type / Final Name' : 'Description' ?></th><th>PCS</th><th><?= $key === 'other' ? 'Weight (gm)' : 'Weight (cts)' ?></th><th><?= $key === 'other' ? 'Price' : 'Rate / cts' ?></th><th>Total</th><th></th></tr></thead>
             <tbody class="js-<?= esc($key) ?>-body">
                 <tr>
                     <?php if ($key === 'stone'): ?>
@@ -395,20 +410,27 @@ $statusClass = match ($status) {
                             <select name="<?= esc($names[0]) ?>[]" class="form-select js-diamond-balance-select">
                                 <option value="">Select available diamond</option>
                                 <?php foreach (($karigarDiamondOptions ?? []) as $diamondOption): ?>
-                                    <option value="<?= esc((string) $diamondOption['value'], 'attr') ?>">
+                                    <option value="<?= esc((string) $diamondOption['value'], 'attr') ?>" data-final-name="<?= esc((string) $diamondOption['label'], 'attr') ?>" data-available-cts="<?= esc((string) $diamondOption['available_cts'], 'attr') ?>" data-available-pcs="<?= esc((string) $diamondOption['available_pcs'], 'attr') ?>">
                                         <?= esc((string) $diamondOption['label']) ?> · <?= number_format((float) $diamondOption['available_cts'], 3) ?> cts / <?= number_format((float) $diamondOption['available_pcs'], 0) ?> pcs
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name">
                         <?php else: ?>
                             <input type="text" name="<?= esc($names[0]) ?>[]" class="form-control">
                         <?php endif; ?>
                     </td>
-                    <td><input type="number" step="<?= $key === 'dia' ? '1' : '0.001' ?>" min="<?= $key === 'dia' ? '1' : '0' ?>" name="<?= esc($names[1]) ?>[]" class="form-control"></td>
+                    <td><input type="number" step="<?= $key === 'dia' ? '1' : '0.001' ?>" min="<?= $key === 'dia' ? '1' : '0' ?>" name="<?= esc($names[1]) ?>[]" class="form-control <?= $key === 'dia' ? 'js-dia-pcs' : '' ?>"></td>
                     <td><input type="number" step="0.001" min="0" name="<?= esc($names[2]) ?>[]" class="form-control js-<?= esc($key) ?>-weight"></td>
                     <td><input type="number" step="0.01" min="0" name="<?= esc($names[3]) ?>[]" class="form-control js-<?= esc($key) ?>-rate"></td>
                     <td><input type="text" class="form-control js-<?= esc($key) ?>-total" readonly></td>
-                    <td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td>
+                    <td>
+                        <?php if ($key === 'dia'): ?>
+                            <div class="diamond-row-actions"><button type="button" class="btn btn-sm btn-outline-primary js-merge-dia-row" title="Use the full selected weight as one finished piece"><i class="fe fe-minimize-2 me-1"></i>1 PCS</button><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button></div>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button>
+                        <?php endif; ?>
+                    </td>
                 </tr>
             </tbody>
         </table>
@@ -450,7 +472,7 @@ $statusClass = match ($status) {
         let options = '<option value="">Select available diamond</option>';
         karigarDiamondOptions.forEach(item => {
             const label = String(item.label || item.value || 'Diamond') + ' · ' + n(item.available_cts).toFixed(3) + ' cts / ' + n(item.available_pcs).toFixed(0) + ' pcs';
-            options += '<option value="' + escapeHtml(item.value) + '">' + escapeHtml(label) + '</option>';
+            options += '<option value="' + escapeHtml(item.value) + '" data-available-cts="' + n(item.available_cts).toFixed(3) + '" data-available-pcs="' + n(item.available_pcs).toFixed(3) + '">' + escapeHtml(label) + '</option>';
         });
         return options;
     }
@@ -474,12 +496,14 @@ $statusClass = match ($status) {
             ? '<select name="' + names[0] + '[]" class="form-select js-diamond-balance-select">' + diamondOptions() + '</select>'
             : '<input type="text" name="' + names[0] + '[]" class="form-control">';
         return '<tr>' + inventoryCell
-            + '<td>' + descriptionControl + '</td>'
-            + '<td><input type="number" step="' + (kind === 'dia' ? '1' : '0.001') + '" min="' + (kind === 'dia' ? '1' : '0') + '" name="' + names[1] + '[]" class="form-control"></td>'
+            + '<td>' + descriptionControl + (kind === 'dia' ? '<input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name">' : '') + '</td>'
+            + '<td><input type="number" step="' + (kind === 'dia' ? '1' : '0.001') + '" min="' + (kind === 'dia' ? '1' : '0') + '" name="' + names[1] + '[]" class="form-control ' + (kind === 'dia' ? 'js-dia-pcs' : '') + '"></td>'
             + '<td><input type="number" step="0.001" min="0" name="' + names[2] + '[]" class="form-control js-' + kind + '-weight"></td>'
             + '<td><input type="number" step="0.01" min="0" name="' + names[3] + '[]" class="form-control js-' + kind + '-rate"></td>'
             + '<td><input type="text" class="form-control js-' + kind + '-total" readonly></td>'
-            + '<td><button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button></td></tr>';
+            + '<td>' + (kind === 'dia'
+                ? '<div class="diamond-row-actions"><button type="button" class="btn btn-sm btn-outline-primary js-merge-dia-row" title="Use the full selected weight as one finished piece"><i class="fe fe-minimize-2 me-1"></i>1 PCS</button><button type="button" class="btn btn-sm btn-outline-danger js-remove-row" title="Remove row"><i class="fe fe-trash"></i></button></div>'
+                : '<button type="button" class="btn btn-sm btn-outline-danger js-remove-row"><i class="fe fe-trash"></i></button>') + '</td></tr>';
     }
 
     function recalc() {
@@ -532,10 +556,112 @@ $statusClass = match ($status) {
             const body = row ? row.parentElement : null;
             if (body && row && body.children.length > 1) row.remove();
         }
+        const mergeDiamond = target.closest('.js-merge-dia-row');
+        if (mergeDiamond) {
+            const row = mergeDiamond.closest('tr');
+            const select = row ? row.querySelector('.js-diamond-balance-select') : null;
+            const selected = select && select.selectedOptions ? select.selectedOptions[0] : null;
+            const availableCts = n(selected ? selected.getAttribute('data-available-cts') : 0);
+            const availablePcs = n(selected ? selected.getAttribute('data-available-pcs') : 0);
+            if (!selected || !select.value || availableCts <= 0 || availablePcs < 1) {
+                if (select) select.focus();
+                if (window.Swal) {
+                    window.Swal.fire({
+                        icon: 'error',
+                        title: 'Cannot merge diamond',
+                        text: 'Select a diamond line with at least one piece and available weight.'
+                    });
+                }
+                return;
+            }
+            const pcs = row.querySelector('[name="studded_diamond_pcs[]"]');
+            const weight = row.querySelector('.js-dia-weight');
+            if (pcs) pcs.value = '1';
+            if (weight) weight.value = availableCts.toFixed(3);
+            row.classList.add('table-success');
+        }
         recalc();
     });
     modal.addEventListener('input', recalc);
-    modal.addEventListener('change', recalc);
+    modal.addEventListener('change', event => {
+        const select = event.target instanceof Element ? event.target.closest('.js-diamond-balance-select') : null;
+        if (select) {
+            const row = select.closest('tr');
+            const selected = select.selectedOptions ? select.selectedOptions[0] : null;
+            const pcs = row ? row.querySelector('.js-dia-pcs') : null;
+            const weight = row ? row.querySelector('.js-dia-weight') : null;
+            const name = row ? row.querySelector('.js-dia-name') : null;
+            if (selected && select.value) {
+                if (pcs) pcs.value = String(Math.floor(n(selected.getAttribute('data-available-pcs'))));
+                if (weight) weight.value = n(selected.getAttribute('data-available-cts')).toFixed(3);
+                if (name) name.value = selected.getAttribute('data-final-name') || selected.textContent.trim();
+            } else {
+                if (pcs) pcs.value = '';
+                if (weight) weight.value = '0';
+            }
+        }
+        recalc();
+    });
+    const receiveForm = document.getElementById('receive-form');
+    if (receiveForm) {
+        let submitting = false;
+        modal.addEventListener('hide.bs.modal', event => {
+            if (submitting) event.preventDefault();
+        });
+        receiveForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (submitting) return;
+
+            const submitButton = receiveForm.querySelector('[type="submit"]');
+            const originalLabel = submitButton ? submitButton.innerHTML : '';
+            submitting = true;
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = 'Saving...';
+            }
+            try {
+                const response = await fetch(receiveForm.action, {
+                    method: 'POST',
+                    body: new FormData(receiveForm),
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                let result;
+                try {
+                    result = await response.json();
+                } catch (error) {
+                    throw new Error('The server returned an unexpected response. Your receipt was not confirmed.');
+                }
+                if (result.csrf && result.csrf.name && result.csrf.hash) {
+                    const csrfInput = Array.from(receiveForm.elements).find(field => field.name === result.csrf.name);
+                    if (csrfInput) csrfInput.value = result.csrf.hash;
+                }
+                if (!response.ok || result.status !== 'ok') {
+                    throw new Error(result.message || 'Unable to save the finished jewellery receipt.');
+                }
+                if (window.Swal) {
+                    await window.Swal.fire({ icon: 'success', title: 'Completed', text: result.message || 'Finished jewellery received.' });
+                }
+                submitting = false;
+                bootstrap.Modal.getOrCreateInstance(modal).hide();
+                window.location.reload();
+            } catch (error) {
+                if (window.Swal) {
+                    await window.Swal.fire({
+                        icon: 'error',
+                        title: 'Unable to complete receipt',
+                        text: error instanceof Error ? error.message : 'Unable to save the finished jewellery receipt.'
+                    });
+                }
+            } finally {
+                submitting = false;
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalLabel;
+                }
+            }
+        });
+    }
     recalc();
 })();
 </script>

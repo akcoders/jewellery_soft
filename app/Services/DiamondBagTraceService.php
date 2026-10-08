@@ -100,7 +100,7 @@ class DiamondBagTraceService
         foreach ($rows as $row) {
             $availablePcs = round(max(0, (float) $row['issued_pcs'] - (float) $row['returned_pcs'] - (float) $row['studded_pcs']), 3);
             $availableCts = round(max(0, (float) $row['issued_cts'] - (float) $row['returned_cts'] - (float) $row['studded_cts']), 3);
-            if ($availablePcs <= self::EPSILON && $availableCts <= self::EPSILON) {
+            if ($availableCts <= self::EPSILON) {
                 continue;
             }
 

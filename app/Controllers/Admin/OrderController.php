@@ -1841,15 +1841,15 @@ class OrderController extends BaseController
     {
         $order = $this->orderModel->find($orderId);
         if (! $order) {
-            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Order not found.');
+            return $this->finishedReceiptFailure('Order not found.', 404);
         }
         if (in_array((string) ($order['status'] ?? ''), ['Cancelled', 'Completed'], true)) {
-            return redirect()->back()->with('error', 'Cancelled or completed order cannot be received again.');
+            return $this->finishedReceiptFailure('Cancelled or completed order cannot be received again.');
         }
 
         $karigarId = (int) ($order['assigned_karigar_id'] ?? 0);
         if ($karigarId <= 0) {
-            return redirect()->back()->with('error', 'Assign a karigar before receiving finished jewellery.');
+            return $this->finishedReceiptFailure('Assign a karigar before receiving finished jewellery.');
         }
         if (! $this->validate([
             'location_id' => 'required|integer|greater_than[0]',
@@ -1860,24 +1860,24 @@ class OrderController extends BaseController
             'wastage_percent' => 'permit_empty|decimal|greater_than_equal_to[0]|less_than_equal_to[100]',
             'notes' => 'permit_empty',
         ])) {
-            return redirect()->back()->withInput()->with('error', $this->firstValidationError());
+            return $this->finishedReceiptFailure($this->firstValidationError());
         }
 
         $locationId = (int) $this->request->getPost('location_id');
         if (! $this->locationModel->where('is_active', 1)->find($locationId)) {
-            return redirect()->back()->withInput()->with('error', 'Select a valid inventory location.');
+            return $this->finishedReceiptFailure('Select a valid inventory location.');
         }
 
         $goldPurityId = (int) $this->request->getPost('gold_purity_id');
         $goldPurity = $this->goldPurityModel->where('is_active', 1)->find($goldPurityId);
         if (! is_array($goldPurity)) {
-            return redirect()->back()->withInput()->with('error', 'Select a valid active ornament purity.');
+            return $this->finishedReceiptFailure('Select a valid active ornament purity.');
         }
 
         $grossWeightGm = round((float) $this->request->getPost('gross_weight_gm'), 3);
         $purityPercent = round((float) ($goldPurity['purity_percent'] ?? 0), 3);
         if ($purityPercent <= 0 || $purityPercent > 100) {
-            return redirect()->back()->withInput()->with('error', 'Selected ornament purity has an invalid percentage in Purity Master.');
+            return $this->finishedReceiptFailure('Selected ornament purity has an invalid percentage in Purity Master.');
         }
         $goldRate = round((float) $this->request->getPost('gold_rate_per_gm'), 2);
         $labourRate = round(max(0, (float) $this->request->getPost('labour_rate_per_gm')), 2);
@@ -1887,12 +1887,14 @@ class OrderController extends BaseController
             (array) $this->request->getPost('studded_diamond_type'),
             (array) $this->request->getPost('studded_diamond_pcs'),
             (array) $this->request->getPost('studded_diamond_weight'),
-            (array) $this->request->getPost('studded_diamond_rate')
+            (array) $this->request->getPost('studded_diamond_rate'),
+            [],
+            (array) $this->request->getPost('studded_diamond_name')
         );
         $diamondRows = $diamond['rows'];
         $diamondError = $this->validateReceivedDiamondSelection($karigarId, $orderId, $diamondRows);
         if ($diamondError !== null) {
-            return redirect()->back()->withInput()->with('error', $diamondError);
+            return $this->finishedReceiptFailure($diamondError);
         }
         $diamond['rows'] = $diamondRows;
         $stone = $this->collectReceiveComponentRows(
@@ -1918,7 +1920,7 @@ class OrderController extends BaseController
         $otherWeightGm = round($stoneWeightGm + $otherOnlyWeightGm, 3);
         $netGoldWeightGm = round($grossWeightGm - $diamondWeightGm - $stoneWeightGm - $otherOnlyWeightGm, 3);
         if ($netGoldWeightGm <= 0) {
-            return redirect()->back()->withInput()->with('error', 'Net gold weight must be greater than zero. Check all entered weights.');
+            return $this->finishedReceiptFailure('Net gold weight must be greater than zero. Check all entered weights.');
         }
         $pureGoldWeightGm = round($netGoldWeightGm * ($purityPercent / 100), 3);
         $wastage = KarigarMaterialAccountingService::calculateLabourWastage($netGoldWeightGm, $purityPercent, $wastagePercent);
@@ -2058,11 +2060,37 @@ class OrderController extends BaseController
             $db->transComplete();
         } catch (Throwable $e) {
             $db->transRollback();
-            return redirect()->back()->withInput()->with('error', $e->getMessage());
+            return $this->finishedReceiptFailure($e->getMessage());
         }
 
         $this->dispatchWhatsappOrderReady($orderId, 'Completed');
-        return redirect()->back()->with('success', 'Finished jewellery received, karigar material balance reduced, and inventory created.');
+        return $this->finishedReceiptSuccess('Finished jewellery received, karigar material balance reduced, and inventory created.');
+    }
+
+    private function finishedReceiptFailure(string $message, int $statusCode = 422)
+    {
+        if ($this->request->isAJAX()) {
+            return $this->response->setStatusCode($statusCode)->setJSON([
+                'status' => 'error',
+                'message' => $message,
+                'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()],
+            ]);
+        }
+
+        return redirect()->back()->withInput()->with('error', $message);
+    }
+
+    private function finishedReceiptSuccess(string $message)
+    {
+        if ($this->request->isAJAX()) {
+            return $this->response->setJSON([
+                'status' => 'ok',
+                'message' => $message,
+                'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()],
+            ]);
+        }
+
+        return redirect()->back()->with('success', $message);
     }
 
     private function dispatchWhatsappOrderCreated(int $orderId): void
@@ -2170,6 +2198,7 @@ class OrderController extends BaseController
      * @param array<int,mixed> $weightList
      * @param array<int,mixed> $rateList
      * @param array<int,mixed> $itemIds
+     * @param array<int,mixed> $displayNames
      * @return array{rows:list<array<string,mixed>>,total_pcs:float,total_weight_cts:float,total_amount:float}
      */
     private function collectReceiveComponentRows(
@@ -2177,7 +2206,8 @@ class OrderController extends BaseController
         array $pcsList,
         array $weightList,
         array $rateList,
-        array $itemIds = []
+        array $itemIds = [],
+        array $displayNames = []
     ): array
     {
         $max = max(count($types), count($pcsList), count($weightList), count($rateList), count($itemIds));
@@ -2203,6 +2233,7 @@ class OrderController extends BaseController
             $totalAmount += $lineTotal;
             $rows[] = [
                 'name' => $type === '' ? '-' : $type,
+                'display_name' => trim((string) ($displayNames[$i] ?? '')),
                 'item_id' => $itemId > 0 ? $itemId : null,
                 'pcs' => round($pcs, 3),
                 'weight_cts' => round($weight, 3),
@@ -2534,6 +2565,7 @@ class OrderController extends BaseController
             }
 
             $issueLineId = (int) ($option['issue_line_id'] ?? 0);
+            $displayName = trim((string) ($row['display_name'] ?? ''));
             if ($issueLineId > 0) {
                 if ($pcs <= 0 || floor($pcs) !== $pcs || $cts <= 0) {
                     return 'Whole-number PCS and positive CTS are mandatory for every bag-wise studded diamond line.';
@@ -2545,7 +2577,9 @@ class OrderController extends BaseController
                 $row['diamond_issue_line_id'] = $issueLineId;
                 $row['diamond_bag_id'] = (int) ($option['bag_id'] ?? 0) ?: null;
                 $row['diamond_bag_item_id'] = (int) ($option['bag_item_id'] ?? 0) ?: null;
-                $row['name'] = (string) ($option['label'] ?? $value);
+                $row['name'] = $displayName !== '' ? $displayName : (string) ($option['label'] ?? $value);
+            } elseif ($displayName !== '') {
+                $row['name'] = $displayName;
             }
         }
         unset($row);
