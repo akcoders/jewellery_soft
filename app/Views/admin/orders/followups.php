@@ -5,12 +5,32 @@
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Order Followups</h4>
 </div>
-<style>.followup-order-thumb{align-items:center;background:#f3f4f6;border:1px solid #e2e5ea;border-radius:8px;color:#9aa3af;display:inline-flex;height:40px;justify-content:center;overflow:hidden;position:relative;width:40px}.followup-order-thumb img{height:100%;inset:0;object-fit:cover;position:absolute;width:100%}</style>
+<style>
+    .followup-order-thumb { align-items: center; background: #f3f4f6; border: 1px solid #e2e5ea; border-radius: 8px; color: #9aa3af; display: inline-flex; height: 40px; justify-content: center; overflow: hidden; position: relative; width: 40px; }
+    .followup-order-thumb img { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
+    .followups-table { min-width: 1640px; table-layout: fixed; }
+    .followups-table th, .followups-table td { vertical-align: middle; }
+    .followups-table th:nth-child(1), .followups-table td:nth-child(1) { width: 60px; }
+    .followups-table th:nth-child(2), .followups-table td:nth-child(2) { width: 105px; }
+    .followups-table th:nth-child(3), .followups-table td:nth-child(3) { width: 180px; }
+    .followups-table th:nth-child(4), .followups-table td:nth-child(4) { width: 130px; }
+    .followups-table th:nth-child(5), .followups-table td:nth-child(5) { width: 155px; }
+    .followups-table th:nth-child(6), .followups-table td:nth-child(6) { width: 130px; }
+    .followups-table th:nth-child(7), .followups-table td:nth-child(7) { width: 110px; }
+    .followups-table th:nth-child(8), .followups-table td:nth-child(8) { width: 170px; }
+    .followups-table th:nth-child(9), .followups-table td:nth-child(9) { width: 150px; }
+    .followups-table th:nth-child(10), .followups-table td:nth-child(10) { width: 110px; }
+    .followups-table th:nth-child(11), .followups-table td:nth-child(11) { width: 160px; }
+    .followups-table th:nth-child(12), .followups-table td:nth-child(12) { width: 280px; }
+    .followups-table tbody td:nth-child(9) .badge { white-space: nowrap; }
+    .followup-actions { display: flex; flex-wrap: nowrap; gap: 6px; }
+    .followup-actions .btn { flex: 0 0 auto; white-space: nowrap; }
+</style>
 
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table datatable table-hover table-bordered mb-0">
+            <table class="table datatable table-hover table-bordered mb-0 followups-table">
                 <thead>
                     <tr>
                         <th>Photo</th>
@@ -62,7 +82,7 @@
                             <td><?= esc((string) ($order['followup_days_text'] ?? '-')) ?></td>
                             <td><?= esc((string) (($order['last_followup_on'] ?? '') !== '' ? $order['last_followup_on'] : '-')) ?></td>
                             <td>
-                                <div class="d-flex flex-wrap gap-1">
+                                <div class="followup-actions">
                                     <button
                                         type="button"
                                         class="btn btn-sm btn-primary js-take-followup-btn"
