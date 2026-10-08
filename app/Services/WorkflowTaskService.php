@@ -53,7 +53,7 @@ class WorkflowTaskService
         return (int) $tasks->insert($data, true);
     }
 
-    public function complete(string $type, int $referenceId, int $completedBy): void
+    public function complete(string $type, int $referenceId, int $completedBy, ?string $completedAt = null): void
     {
         $tasks = new MobileTaskModel($this->db);
         $task = $tasks->where('reference_type', $type)->where('reference_id', $referenceId)->first();
@@ -61,12 +61,15 @@ class WorkflowTaskService
             return;
         }
         $now = date('Y-m-d H:i:s');
-        $onTime = $now <= (string) $task['scheduled_at'];
+        $eventAt = $completedAt !== null && strtotime($completedAt) !== false
+            ? date('Y-m-d H:i:s', strtotime($completedAt))
+            : $now;
+        $onTime = $eventAt <= (string) $task['scheduled_at'];
         $this->db->table('mobile_tasks')->where('id', (int) $task['id'])
             ->where('is_done', 0)->where('status', 'pending')->update([
             'is_done' => 1,
             'status' => $onTime ? 'completed_on_time' : 'completed_late',
-            'completed_at' => $now,
+            'completed_at' => $eventAt,
             'completed_by' => $completedBy,
             'score_delta' => $completedBy === (int) $task['admin_user_id']
                 ? ($onTime ? StaffPerformanceService::TASK_ON_TIME_POINTS : StaffPerformanceService::TASK_LATE_POINTS)

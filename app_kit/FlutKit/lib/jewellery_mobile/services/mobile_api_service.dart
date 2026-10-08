@@ -108,6 +108,7 @@ class MobileApiService {
     required String description,
     String nextFollowupDate = '',
     String imageBase64 = '',
+    String imageSource = 'camera',
   }) async {
     final payload = <String, dynamic>{
       'stage': stage,
@@ -118,10 +119,25 @@ class MobileApiService {
     }
     if (imageBase64.trim().isNotEmpty) {
       payload['image_base64'] = imageBase64.trim();
+      payload['image_source'] = imageSource.trim().isEmpty
+          ? 'camera'
+          : imageSource.trim();
     }
     final res = await _post(
       '/api/mobile/orders/$orderId/followups',
       body: payload,
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> rateOrder({
+    required int orderId,
+    required int rating,
+    String comment = '',
+  }) async {
+    final res = await _post(
+      '/api/mobile/orders/$orderId/rating',
+      body: {'rating': rating, 'comment': comment.trim()},
     );
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
@@ -634,6 +650,22 @@ class MobileApiService {
     final res = await _post(
       '/api/mobile/approval-requests/$id/review',
       body: {'decision': decision, 'note': note.trim()},
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<List<dynamic>> fetchApprovalStaffSettings() async {
+    final res = await _get('/api/mobile/approval-staff-settings');
+    return ((res['data'] as Map?)?['items'] as List?) ?? <dynamic>[];
+  }
+
+  Future<Map<String, dynamic>> updateApprovalStaffSettings(
+    int userId,
+    Map<String, dynamic> payload,
+  ) async {
+    final res = await _post(
+      '/api/mobile/approval-staff-settings/$userId',
+      body: payload,
     );
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }

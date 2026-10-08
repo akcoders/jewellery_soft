@@ -35,6 +35,7 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
     {
         $controller = $this->source('Controllers/Admin/OrderController.php');
         $mobileController = $this->source('Controllers/Api/Mobile/OrdersController.php');
+        $followupService = $this->source('Services/OrderFollowupService.php');
         $create = $this->source('Views/admin/orders/create.php');
         $edit = $this->source('Views/admin/orders/edit.php');
         $orderList = $this->source('Views/admin/orders/index.php');
@@ -47,7 +48,8 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("getPost('followup_assigned_to')", $controller);
         $this->assertStringContainsString("getPost('followup_due_at')", $controller);
         $this->assertStringContainsString('syncOrderAssignment(', $controller);
-        $this->assertStringContainsString('completeOrderFollowup(', $controller);
+        $this->assertStringContainsString('OrderFollowupService', $controller);
+        $this->assertStringContainsString('completeOrderFollowup(', $followupService);
         $this->assertStringContainsString('Only the assigned order follower can submit this follow-up.', $mobileController);
         $this->assertStringContainsString('Only the assigned order follower can submit this follow-up.', $controller);
         $this->assertStringContainsString('next_followup_date is required while the order remains open.', $mobileController);

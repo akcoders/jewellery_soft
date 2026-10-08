@@ -2,6 +2,7 @@
 
 <?= $this->section('content') ?>
 <?php $row = is_array($row ?? null) ? $row : []; ?>
+<?php $mobileSettings = is_array($mobileSettings ?? null) ? $mobileSettings : []; ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <div>
         <h4 class="mb-1"><?= esc($title ?? 'Employee') ?></h4>
@@ -134,6 +135,25 @@
         </div>
 
         <div class="col-xl-4">
+            <div class="card mb-3">
+                <div class="card-header"><h5 class="card-title mb-0">PWA Workflow Controls</h5></div>
+                <div class="card-body">
+                    <p class="small text-muted">Applied to the linked login. Approval is required by default; follow-up photos use camera only by default.</p>
+                    <?php foreach ([
+                        'followup_requires_approval' => 'Follow-up approval required',
+                        'issuement_requires_approval' => 'Issuement approval required',
+                        'delivery_challan_requires_approval' => 'Delivery challan approval required',
+                        'followup_gallery_enabled' => 'Allow follow-up image selection from gallery',
+                    ] as $field => $label): ?>
+                    <div class="form-check form-switch mb-3">
+                        <input type="hidden" name="<?= esc($field) ?>" value="0">
+                        <input class="form-check-input" type="checkbox" id="<?= esc($field) ?>" name="<?= esc($field) ?>" value="1"
+                            <?= (string) old($field, (string) ($mobileSettings[$field] ?? 0)) === '1' ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="<?= esc($field) ?>"><?= esc($label) ?></label>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
             <div class="card">
                 <div class="card-header"><h5 class="card-title mb-0">Status</h5></div>
                 <div class="card-body">

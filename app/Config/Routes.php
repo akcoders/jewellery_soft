@@ -452,6 +452,7 @@ $routes->group('api', static function ($routes): void {
         $routes->get('orders/(:num)', 'Api\Mobile\OrdersController::show/$1');
         $routes->get('orders/(:num)/followups', 'Api\Mobile\OrdersController::followups/$1');
         $routes->post('orders/(:num)/followups', 'Api\Mobile\OrdersController::addFollowup/$1');
+        $routes->post('orders/(:num)/rating', 'Api\Mobile\OrdersController::rate/$1');
         $routes->post('orders/(:num)/follower', 'Api\Mobile\OrdersController::updateFollower/$1');
         $routes->post('orders/(:num)/assign', 'Api\Mobile\OrdersController::assignKarigar/$1');
         $routes->get('order-work-requests', 'Api\Mobile\OrderWorkRequestsController::index');
@@ -495,6 +496,8 @@ $routes->group('api', static function ($routes): void {
         $routes->post('approval-requests/customers', 'Api\Mobile\MobileApprovalsController::createCustomer');
         $routes->post('approval-requests/karigars', 'Api\Mobile\MobileApprovalsController::createKarigar');
         $routes->post('approval-requests/(:num)/review', 'Api\Mobile\MobileApprovalsController::review/$1');
+        $routes->get('approval-staff-settings', 'Api\Mobile\MobileApprovalsController::staffSettings');
+        $routes->post('approval-staff-settings/(:num)', 'Api\Mobile\MobileApprovalsController::updateStaffSettings/$1');
 
         $routes->get('lookups/karigars', 'Api\Mobile\LookupsController::karigars');
         $routes->get('lookups/vendors', 'Api\Mobile\LookupsController::vendors');

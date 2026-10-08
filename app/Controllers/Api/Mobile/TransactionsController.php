@@ -31,6 +31,7 @@ use App\Services\StoneInventory\StockService as StoneStockService;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\MobileNotificationEventService;
 use App\Services\MobileApprovalService;
+use App\Services\MobileUserPolicyService;
 use App\Services\PdfService;
 use App\Services\PurchaseTermsService;
 use App\Services\TaxMasterService;
@@ -2063,10 +2064,24 @@ class TransactionsController extends MobileBaseController
             'stone_lines' => $this->approvalDisplayLines('stone', $stoneLines),
         ];
         try {
-            $approval = (new MobileApprovalService())->submit(
+            $approvalService = new MobileApprovalService();
+            $userId = (int) ($this->mobileAdmin['id'] ?? 0);
+            if (! (new MobileUserPolicyService())->requiresApproval($userId, 'issuement')) {
+                $created = $approvalService->createIssuementWithoutApproval(
+                    $requestPayload,
+                    $userId,
+                    $attachment['name'] ?? null,
+                    $attachment['path'] ?? null
+                );
+                return $this->ok([
+                    'issuement' => $created,
+                    'approval_required' => false,
+                ], 'Issuement created.', 201);
+            }
+            $approval = $approvalService->submit(
                 'issuement',
                 $requestPayload,
-                (int) ($this->mobileAdmin['id'] ?? 0),
+                $userId,
                 implode(' + ', $materials) . ' issuement to ' . (string) ($karigar['name'] ?? ''),
                 $attachment['name'] ?? null,
                 $attachment['path'] ?? null

@@ -55,6 +55,14 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
     if (created == true) await _load();
   }
 
+  Future<void> _openStaffControls() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => _ApprovalStaffSettingsScreen(api: widget.api),
+      ),
+    );
+  }
+
   Future<void> _review(Map<String, dynamic> item, String decision) async {
     final note = TextEditingController();
     final confirmed = await showDialog<bool>(
@@ -109,7 +117,11 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            decision == 'approve' ? 'Request approved.' : 'Request rejected.',
+            decision == 'approve'
+                ? 'Request approved.'
+                : item['request_type'] == 'followup'
+                ? 'Followup disapproved.'
+                : 'Request disapproved.',
           ),
         ),
       );
@@ -198,6 +210,14 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
             ),
           ),
           const SizedBox(height: 14),
+          if (_canReview) ...[
+            OutlinedButton.icon(
+              onPressed: _openStaffControls,
+              icon: const Icon(LucideIcons.user_round_cog),
+              label: const Text('Employee Approval & Camera Controls'),
+            ),
+            const SizedBox(height: 10),
+          ],
           LayoutBuilder(
             builder: (context, constraints) {
               final buttonWidth = constraints.maxWidth < 430
@@ -245,6 +265,11 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
     final status = (item['status'] ?? 'pending').toString();
     final payload = _map(item['payload']);
     final isIssue = type == 'issuement';
+    final isFollowup = type == 'followup';
+    final isChallan = type == 'delivery_challan';
+    final statusLabel = status == 'rejected'
+        ? 'DISAPPROVED'
+        : status.toUpperCase();
     final statusColor = switch (status) {
       'approved' => Colors.green,
       'rejected' => Colors.red,
@@ -266,6 +291,10 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                   child: Icon(
                     isIssue
                         ? LucideIcons.send
+                        : isFollowup
+                        ? LucideIcons.clipboard_check
+                        : isChallan
+                        ? LucideIcons.scroll_text
                         : type == 'customer_create'
                         ? LucideIcons.users
                         : LucideIcons.hammer,
@@ -304,7 +333,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: Text(
-                    status.toUpperCase(),
+                    statusLabel,
                     style: TextStyle(
                       color: statusColor.shade700,
                       fontSize: 10,
@@ -356,6 +385,84 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                   ),
                 ),
               ],
+            ] else if (isFollowup) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _chip(LucideIcons.shopping_bag, payload['order_no'] ?? '-'),
+                  _chip(LucideIcons.activity, payload['stage'] ?? '-'),
+                  if ((payload['next_followup_date'] ?? '')
+                      .toString()
+                      .isNotEmpty)
+                    _chip(
+                      LucideIcons.calendar_clock,
+                      payload['next_followup_date'],
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                (payload['description'] ?? '').toString(),
+                style: const TextStyle(height: 1.5),
+              ),
+              if ((item['attachment_url'] ?? '').toString().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    item['attachment_url'].toString(),
+                    width: double.infinity,
+                    height: 230,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ],
+            ] else if (isChallan) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _chip(LucideIcons.users, payload['customer_name'] ?? '-'),
+                  _chip(LucideIcons.map_pin, payload['dispatch_from'] ?? '-'),
+                  _chip(LucideIcons.calendar, payload['challan_date'] ?? '-'),
+                  _chip(
+                    LucideIcons.package,
+                    '${(payload['items'] as List?)?.length ?? 0} item(s)',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              for (
+                var i = 0;
+                i < ((payload['items'] as List?)?.length ?? 0);
+                i++
+              )
+                Builder(
+                  builder: (context) {
+                    final line = _map((payload['items'] as List)[i]);
+                    return Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAF7F9),
+                        border: Border.all(color: AppColors.border),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${i + 1}. ${line['description'] ?? '-'} · ${line['item_type'] ?? '-'} · ${line['purity'] ?? '-'} · ${line['pcs'] ?? 0} PCS · Rs. ${line['value'] ?? 0}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.45,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    );
+                  },
+                ),
             ] else ...[
               const SizedBox(height: 8),
               Text(
@@ -476,8 +583,200 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
   String _typeLabel(String type) => switch (type) {
     'customer_create' => 'Customer Creation',
     'karigar_create' => 'Karigar Creation',
+    'followup' => 'Order Follow-up',
+    'delivery_challan' => 'Delivery Challan',
     _ => 'Material Issuement',
   };
+}
+
+class _ApprovalStaffSettingsScreen extends StatefulWidget {
+  const _ApprovalStaffSettingsScreen({required this.api});
+
+  final MobileApiService api;
+
+  @override
+  State<_ApprovalStaffSettingsScreen> createState() =>
+      _ApprovalStaffSettingsScreenState();
+}
+
+class _ApprovalStaffSettingsScreenState
+    extends State<_ApprovalStaffSettingsScreen> {
+  bool _loading = true;
+  String _error = '';
+  List<Map<String, dynamic>> _rows = [];
+  final Set<int> _saving = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
+    try {
+      final rows = await widget.api.fetchApprovalStaffSettings();
+      if (!mounted) return;
+      setState(() {
+        _rows = rows
+            .whereType<Map>()
+            .map((row) => row.cast<String, dynamic>())
+            .toList();
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save(Map<String, dynamic> row) async {
+    final id = _int(row['id']);
+    if (id <= 0 || _saving.contains(id)) return;
+    setState(() => _saving.add(id));
+    try {
+      await widget.api.updateApprovalStaffSettings(id, {
+        'followup_requires_approval': _enabled(
+          row['followup_requires_approval'],
+        ),
+        'issuement_requires_approval': _enabled(
+          row['issuement_requires_approval'],
+        ),
+        'delivery_challan_requires_approval': _enabled(
+          row['delivery_challan_requires_approval'],
+        ),
+        'followup_gallery_enabled': _enabled(row['followup_gallery_enabled']),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${row['name']} settings saved.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving.remove(id));
+    }
+  }
+
+  void _toggle(Map<String, dynamic> row, String field, bool value) {
+    setState(() => row[field] = value ? 1 : 0);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Employee PWA Controls')),
+    body: _loading
+        ? const FullScreenLoader(message: 'Loading employee controls...')
+        : _error.isNotEmpty
+        ? AppErrorState(message: _error, onRetry: _load)
+        : RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.paleGold.withValues(alpha: .45),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Text(
+                    'Approval is ON by default for follow-ups, issuements and delivery challans. Gallery is OFF by default, so follow-up photos open the camera only.',
+                    style: TextStyle(height: 1.5, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (_rows.isEmpty)
+                  const AppEmptyState(
+                    title: 'No staff accounts',
+                    message:
+                        'Active non-admin employee logins will appear here.',
+                  ),
+                ..._rows.map(_card),
+              ],
+            ),
+          ),
+  );
+
+  Widget _card(Map<String, dynamic> row) {
+    final id = _int(row['id']);
+    final busy = _saving.contains(id);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              (row['name'] ?? 'Employee').toString(),
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+            ),
+            Text(
+              '${row['email'] ?? ''} · ${row['role_label'] ?? 'Staff'}',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+            const Divider(height: 24),
+            _switch(
+              row,
+              'followup_requires_approval',
+              'Follow-up approval required',
+            ),
+            _switch(
+              row,
+              'issuement_requires_approval',
+              'Issuement approval required',
+            ),
+            _switch(
+              row,
+              'delivery_challan_requires_approval',
+              'Delivery challan approval required',
+            ),
+            _switch(
+              row,
+              'followup_gallery_enabled',
+              'Allow gallery for follow-up image',
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: busy ? null : () => _save(row),
+                icon: busy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(LucideIcons.save),
+                label: Text(busy ? 'Saving...' : 'Save Controls'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _switch(Map<String, dynamic> row, String field, String label) =>
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: Text(label),
+        value: _enabled(row[field]),
+        onChanged: (value) => _toggle(row, field, value),
+      );
+
+  bool _enabled(dynamic value) =>
+      value == true || value == 1 || value.toString() == '1';
 }
 
 class _MasterRequestDialog extends StatefulWidget {

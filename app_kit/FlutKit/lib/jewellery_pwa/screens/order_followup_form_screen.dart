@@ -18,11 +18,13 @@ class OrderFollowupFormScreen extends StatefulWidget {
     required this.api,
     required this.orderId,
     required this.stages,
+    this.allowGallery = false,
   });
 
   final MobileApiService api;
   final int orderId;
   final List<String> stages;
+  final bool allowGallery;
 
   @override
   State<OrderFollowupFormScreen> createState() =>
@@ -38,6 +40,7 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
   XFile? _picked;
   bool _saving = false;
   bool _pickingPhoto = false;
+  String _imageSource = 'camera';
 
   @override
   void initState() {
@@ -58,6 +61,8 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
       final image = await AppImagePicker().pickImage(
         context,
         title: 'Followup photo',
+        allowGallery: widget.allowGallery,
+        onSourceSelected: (source) => _imageSource = source.name,
       );
       if (mounted && image != null) setState(() => _picked = image);
     } finally {
@@ -93,22 +98,30 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
         description: _descCtrl.text.trim(),
         nextFollowupDate: nextFollowupDateTime,
         imageBase64: base64Image,
+        imageSource: _imageSource,
       );
-      final notification =
-          (response['notification'] as Map?)?.cast<String, dynamic>() ?? {};
-      final queued = notification['queued'] == true;
       if (!mounted) return;
-      if (scheduleAt != null && !queued) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+      if (response['approval_required'] == true) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            icon: const Icon(Icons.hourglass_top),
+            title: const Text('Approval requested'),
             content: Text(
-              (notification['message'] ??
-                      'Followup saved but push notification could not be queued.')
+              (response['submission_message'] ??
+                      'Follow-up sent for admin approval. It remains pending until approved.')
                   .toString(),
             ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
           ),
         );
       }
+      if (!mounted) return;
       TaskRefreshBus.notify();
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -209,7 +222,9 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
               AppPhotoField(
                 file: _picked,
                 title: 'Add a followup photo',
-                subtitle: 'Optional · camera or gallery',
+                subtitle: widget.allowGallery
+                    ? 'Optional · camera or gallery'
+                    : 'Optional · camera only (admin controlled)',
                 busy: _pickingPhoto,
                 enabled: !_saving,
                 onPick: _pickImage,

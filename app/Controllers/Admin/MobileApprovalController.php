@@ -33,11 +33,14 @@ class MobileApprovalController extends BaseController
         try {
             $service = new MobileApprovalService();
             if ($decision === 'approve') {
-                $service->approve($id, (int) session('admin_id'), (string) $this->request->getPost('note'));
+                $request = $service->approve($id, (int) session('admin_id'), (string) $this->request->getPost('note'));
             } else {
-                $service->reject($id, (int) session('admin_id'), (string) $this->request->getPost('note'));
+                $request = $service->reject($id, (int) session('admin_id'), (string) $this->request->getPost('note'));
             }
-            return redirect()->back()->with('success', 'Request ' . ($decision === 'approve' ? 'approved' : 'rejected') . ' successfully.');
+            $message = $decision === 'approve'
+                ? 'Request approved successfully.'
+                : (($request['request_type'] ?? '') === 'followup' ? 'Followup disapproved.' : 'Request disapproved successfully.');
+            return redirect()->back()->with('success', $message);
         } catch (Throwable $e) {
             return redirect()->back()->with('error', $e->getMessage());
         }

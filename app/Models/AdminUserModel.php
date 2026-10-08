@@ -14,6 +14,10 @@ class AdminUserModel extends Model
         'email',
         'password_hash',
         'is_active',
+        'followup_requires_approval',
+        'issuement_requires_approval',
+        'delivery_challan_requires_approval',
+        'followup_gallery_enabled',
     ];
 
     protected $useTimestamps = true;

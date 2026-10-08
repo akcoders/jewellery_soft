@@ -85,9 +85,9 @@ denied permission.
 - After uploading a new build, purge the Hostinger/CDN cache so `index.html`,
   `manifest.json` and `aabhushan_app_sw.js` are refreshed immediately.
 - The app checks for a new service worker on every online launch. A newly
-  deployed cache version removes earlier Aabhushan PWA caches and reloads the
-  running app once, so installed devices receive the update when they next
-  open the app online.
+  deployed cache version removes earlier Aabhushan PWA caches without forcing
+  an in-session reload. Devices use the new shell on their next normal launch,
+  or immediately when the user accepts the explicit PWA update prompt.
 
 ## Clear server and installed-app caches
 

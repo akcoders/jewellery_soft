@@ -71,12 +71,14 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $admin = (string) file_get_contents(APPPATH . 'Controllers/Admin/OrderController.php');
         $customer = (string) file_get_contents(APPPATH . 'Controllers/Customer/OrdersController.php');
         $mobile = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/OrdersController.php');
+        $followupService = (string) file_get_contents(APPPATH . 'Services/OrderFollowupService.php');
         $routes = (string) file_get_contents(APPPATH . 'Config/Routes.php');
 
         $this->assertStringContainsString("notifyOrderCreated((int) \$orderId, 'admin')", $admin);
-        $this->assertStringContainsString('notifyFollowupAdded($id, $followupId)', $admin);
+        $this->assertStringContainsString('OrderFollowupService', $admin);
         $this->assertStringContainsString("notifyOrderCreated(\$orderId, 'customer_portal')", $customer);
-        $this->assertStringContainsString('notifyFollowupAdded($id, $followupId)', $mobile);
+        $this->assertStringContainsString('OrderFollowupService', $mobile);
+        $this->assertStringContainsString('notifyFollowupAdded($orderId, $followupId)', $followupService);
         $this->assertStringNotContainsString("'Api\\OrdersController::create'", $routes);
     }
 
@@ -90,6 +92,7 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $mobileRequirement = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/DiamondRequirementsController.php');
         $mobileTransactions = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/TransactionsController.php');
         $mobileApprovals = (string) file_get_contents(APPPATH . 'Services/MobileApprovalService.php');
+        $followupService = (string) file_get_contents(APPPATH . 'Services/OrderFollowupService.php');
         $combinedIssuement = (string) file_get_contents(APPPATH . 'Controllers/Admin/IssuementController.php');
         $legacyPurchase = (string) file_get_contents(APPPATH . 'Controllers/Admin/PurchaseController.php');
 
@@ -103,7 +106,8 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         }
 
         $this->assertStringContainsString('notifyOrderCreated', $adminOrder . $customerOrder);
-        $this->assertStringContainsString('notifyFollowupAdded', $adminOrder . $mobileOrder);
+        $this->assertStringContainsString('OrderFollowupService', $adminOrder . $mobileOrder);
+        $this->assertStringContainsString('notifyFollowupAdded', $followupService);
         $this->assertStringNotContainsString('notifyDiamondRequirementRaised', $adminRequirement . $mobileRequirement);
         $this->assertStringContainsString('Diamond requirement creation has been retired', $adminRequirement . $mobileRequirement);
         $this->assertStringContainsString("'type' => 'purchase_created'", $events);
@@ -113,7 +117,7 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString("'permission' => 'issuements.read'", $events);
         $this->assertSame(9, substr_count($adminInventory, 'notifyInventoryTransactionCreated('));
         $this->assertSame(6, substr_count($mobileTransactions, 'notifyInventoryTransactionCreated('));
-        $this->assertSame(1, substr_count($mobileApprovals, 'notifyInventoryTransactionCreated('));
+        $this->assertSame(2, substr_count($mobileApprovals, 'notifyInventoryTransactionCreated('));
         $this->assertStringContainsString('notifyInventoryTransactionCreated(', $combinedIssuement);
         $this->assertStringContainsString('notifyInventoryTransactionCreated(', $legacyPurchase);
         $this->assertStringContainsString('Inventory transaction notification failed', $events);

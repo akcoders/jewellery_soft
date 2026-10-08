@@ -54,35 +54,18 @@ class DeliveryChallanService
     /** @return array<string,mixed> */
     public function create(array $payload, int $createdBy): array
     {
-        $date = trim((string) ($payload['challan_date'] ?? ''));
-        if ($date === '' || strtotime($date) === false) {
-            throw new RuntimeException('Select a valid challan date.');
-        }
-        $date = date('Y-m-d', strtotime($date));
-        $customerId = (int) ($payload['customer_id'] ?? 0);
-        $customer = $this->db->table('customers')->where('id', $customerId)
-            ->where('is_active', 1)->where('deleted_at', null)->get()->getRowArray();
-        if (! is_array($customer)) {
-            throw new RuntimeException('Select a valid customer.');
-        }
-        $setting = $this->setting();
-        $dispatchFrom = ucfirst(strtolower(trim((string) ($payload['dispatch_from'] ?? ''))));
-        if (! in_array($dispatchFrom, ['Mumbai', 'Hyderabad'], true)) {
-            throw new RuntimeException('Select Mumbai or Hyderabad as dispatch location.');
-        }
-        $addressKey = strtolower($dispatchFrom) . '_branch_address';
-        $fromAddress = trim((string) ($setting[$addressKey] ?? ''));
-        if ($fromAddress === '') {
-            throw new RuntimeException($dispatchFrom . ' branch address is not configured in Company Settings.');
-        }
-        $items = $this->normalizeItems($payload['items'] ?? []);
-        $taxPercent = round((float) ($payload['tax_percent'] ?? 0), 2);
-        if (! in_array($taxPercent, self::GST_RATES, true)) {
-            throw new RuntimeException('Select a valid GST rate.');
-        }
+        $payload = $this->validatedPayload($payload);
+        $date = (string) $payload['challan_date'];
+        $customerId = (int) $payload['customer_id'];
+        $customer = (array) $payload['_customer'];
+        $setting = (array) $payload['_setting'];
+        $dispatchFrom = (string) $payload['dispatch_from'];
+        $fromAddress = (string) $payload['_dispatch_from_address'];
+        $items = (array) $payload['items'];
+        $taxPercent = (float) $payload['tax_percent'];
         $taxable = round(array_sum(array_column($items, 'value')), 2);
         $tax = round($taxable * $taxPercent / 100, 2);
-        $address = $this->customerAddress($customerId);
+        $address = (string) $payload['_customer_address'];
         $totals = $this->totals($items);
 
         try {
@@ -137,6 +120,51 @@ class DeliveryChallanService
             throw $e;
         }
         return $this->find($id);
+    }
+
+    /** @param array<string,mixed> $payload @return array<string,mixed> */
+    public function validatedPayload(array $payload): array
+    {
+        $date = trim((string) ($payload['challan_date'] ?? ''));
+        if ($date === '' || strtotime($date) === false) {
+            throw new RuntimeException('Select a valid challan date.');
+        }
+        $date = date('Y-m-d', strtotime($date));
+        $customerId = (int) ($payload['customer_id'] ?? 0);
+        $customer = $this->db->table('customers')->where('id', $customerId)
+            ->where('is_active', 1)->where('deleted_at', null)->get()->getRowArray();
+        if (! is_array($customer)) {
+            throw new RuntimeException('Select a valid customer.');
+        }
+        $setting = $this->setting();
+        $dispatchFrom = ucfirst(strtolower(trim((string) ($payload['dispatch_from'] ?? ''))));
+        if (! in_array($dispatchFrom, ['Mumbai', 'Hyderabad'], true)) {
+            throw new RuntimeException('Select Mumbai or Hyderabad as dispatch location.');
+        }
+        $addressKey = strtolower($dispatchFrom) . '_branch_address';
+        $fromAddress = trim((string) ($setting[$addressKey] ?? ''));
+        if ($fromAddress === '') {
+            throw new RuntimeException($dispatchFrom . ' branch address is not configured in Company Settings.');
+        }
+        $items = $this->normalizeItems($payload['items'] ?? []);
+        $taxPercent = round((float) ($payload['tax_percent'] ?? 0), 2);
+        if (! in_array($taxPercent, self::GST_RATES, true)) {
+            throw new RuntimeException('Select a valid GST rate.');
+        }
+        $address = $this->customerAddress($customerId);
+        return [
+            'challan_date' => $date,
+            'customer_id' => $customerId,
+            'customer_name' => (string) ($customer['name'] ?? ''),
+            'dispatch_from' => $dispatchFrom,
+            'tax_percent' => $taxPercent,
+            'notes' => trim((string) ($payload['notes'] ?? '')),
+            'items' => $items,
+            '_customer' => $customer,
+            '_setting' => $setting,
+            '_dispatch_from_address' => $fromAddress,
+            '_customer_address' => $address,
+        ];
     }
 
     /** @return array<string,mixed> */

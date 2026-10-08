@@ -49,6 +49,10 @@ class OrderModel extends Model
         'cancel_reason',
         'cancelled_at',
         'cancelled_by',
+        'completion_rating',
+        'rating_comment',
+        'rated_by',
+        'rated_at',
         'created_by',
     ];
     protected $useTimestamps = true;

@@ -4,11 +4,15 @@
 $label = static fn(string $type): string => match ($type) {
     'customer_create' => 'New Customer',
     'karigar_create' => 'New Karigar',
+    'followup' => 'Order Follow-up',
+    'delivery_challan' => 'Delivery Challan',
     default => 'Material Issuement',
 };
 $icon = static fn(string $type): string => match ($type) {
     'customer_create' => 'fe-users',
     'karigar_create' => 'fe-user-check',
+    'followup' => 'fe-message-circle',
+    'delivery_challan' => 'fe-file-text',
     default => 'fe-share-2',
 };
 ?>
@@ -17,7 +21,7 @@ $icon = static fn(string $type): string => match ($type) {
 </style>
 <div class="content container-fluid">
     <div class="approval-hero mb-4 d-flex align-items-center justify-content-between">
-        <div><span class="text-uppercase small opacity-75">Admin control desk</span><h2>Mobile Approvals</h2><p class="mb-0 opacity-75">Review customer, karigar and material issuement requests with complete details.</p></div>
+        <div><span class="text-uppercase small opacity-75">Admin control desk</span><h2>Mobile Approvals</h2><p class="mb-0 opacity-75">Review follow-up, delivery challan, issuement and master requests with complete details.</p></div>
         <div class="text-center"><div class="fs-2 fw-bold"><?= (int) $pendingCount ?></div><small>Pending</small></div>
     </div>
     <?php if (session()->getFlashdata('success')): ?><div class="alert alert-success"><?= esc(session()->getFlashdata('success')) ?></div><?php endif; ?>
@@ -30,7 +34,7 @@ $icon = static fn(string $type): string => match ($type) {
             <div class="approval-head d-flex gap-3 align-items-center">
                 <span class="approval-mark"><i class="fe <?= esc($icon($type)) ?>"></i></span>
                 <div class="flex-grow-1"><div class="small text-muted">REQUEST #<?= (int) $row['id'] ?> · <?= esc(date('d M Y, h:i A', strtotime((string) $row['created_at']))) ?></div><h4 class="mb-1"><?= esc($label($type)) ?></h4><div><?= esc($row['summary'] ?? '') ?></div></div>
-                <div class="text-end"><span class="status-pill status-<?= esc($status) ?>"><?= esc($status) ?></span><small class="d-block text-muted mt-2">by <?= esc($row['requested_by_name'] ?? '-') ?></small></div>
+                <div class="text-end"><span class="status-pill status-<?= esc($status) ?>"><?= esc($status === 'rejected' ? 'disapproved' : $status) ?></span><small class="d-block text-muted mt-2">by <?= esc($row['requested_by_name'] ?? '-') ?></small></div>
             </div>
             <div class="card-body p-4">
                 <?php if ($type === 'issuement'): ?>
@@ -54,8 +58,15 @@ $icon = static fn(string $type): string => match ($type) {
                         <?php endforeach; ?>
                         <?php if (is_array($payload['address'] ?? null)): ?><div class="col-12"><div class="approval-material"><small class="text-muted">Address</small><strong class="d-block"><?= esc(implode(', ', array_filter(array_map('strval', $payload['address'])))) ?></strong></div></div><?php endif; ?>
                     </div>
+                    <?php if ($type === 'delivery_challan' && is_array($payload['items'] ?? null) && $payload['items'] !== []): ?>
+                    <div class="table-responsive mt-3"><table class="table table-sm align-middle mb-0"><thead><tr><th>#</th><th>Description</th><th>Type / Purity</th><th class="text-end">PCS</th><th class="text-end">Gross / Net</th><th class="text-end">Value</th></tr></thead><tbody>
+                        <?php foreach ($payload['items'] as $i => $line): if (! is_array($line)) continue; ?>
+                        <tr><td><?= (int) $i + 1 ?></td><td><?= esc((string) ($line['description'] ?? '-')) ?></td><td><?= esc(ucwords(str_replace('_', ' ', (string) ($line['item_type'] ?? '-')))) ?> · <?= esc((string) (($line['purity'] ?? '') ?: '-')) ?></td><td class="text-end"><?= (int) ($line['pcs'] ?? 0) ?></td><td class="text-end"><?= number_format((float) ($line['gross_weight_gm'] ?? 0), 3) ?> / <?= number_format((float) ($line['net_weight_gm'] ?? 0), 3) ?> gm</td><td class="text-end">Rs. <?= number_format((float) ($line['value'] ?? 0), 2) ?></td></tr>
+                        <?php endforeach; ?>
+                    </tbody></table></div>
+                    <?php endif; ?>
                 <?php endif; ?>
-                <?php if (! empty($row['attachment_url'])): ?><div class="mt-3"><small class="text-muted d-block mb-2">ISSUEMENT IMAGE / ATTACHMENT</small><a href="<?= esc($row['attachment_url']) ?>" target="_blank"><img class="approval-photo" src="<?= esc($row['attachment_url']) ?>" alt="Issuement attachment"></a></div><?php endif; ?>
+                <?php if (! empty($row['attachment_url'])): ?><div class="mt-3"><small class="text-muted d-block mb-2">REQUEST IMAGE / ATTACHMENT</small><a href="<?= esc($row['attachment_url']) ?>" target="_blank"><img class="approval-photo" src="<?= esc($row['attachment_url']) ?>" alt="Request attachment"></a></div><?php endif; ?>
                 <?php if ($status === 'pending'): ?>
                     <form method="post" action="<?= site_url('admin/mobile-approvals/' . (int) $row['id'] . '/review') ?>" class="mt-4 p-3 rounded bg-light">
                         <?= csrf_field() ?><div class="row g-2 align-items-end"><div class="col-md"><label class="form-label">Admin note</label><input class="form-control" name="note" maxlength="500" placeholder="Optional approval / rejection note"></div><div class="col-md-auto d-flex gap-2"><button class="btn btn-outline-danger" name="decision" value="reject" onclick="return confirm('Reject this request?')"><i class="fe fe-x me-1"></i>Reject</button><button class="btn btn-success" name="decision" value="approve" onclick="return confirm('Approve and process this request?')"><i class="fe fe-check me-1"></i>Approve & Process</button></div></div>

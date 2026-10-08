@@ -3,6 +3,8 @@
 namespace App\Controllers\Api\Mobile;
 
 use App\Services\DeliveryChallanService;
+use App\Services\MobileApprovalService;
+use App\Services\MobileUserPolicyService;
 use App\Services\PdfService;
 use Throwable;
 
@@ -37,7 +39,23 @@ class DeliveryChallansController extends MobileBaseController
             return $response;
         }
         try {
-            $challan = $this->challans->create($this->payload(), (int) ($this->mobileAdmin['id'] ?? 0));
+            $userId = (int) ($this->mobileAdmin['id'] ?? 0);
+            $payload = $this->challans->validatedPayload($this->payload());
+            unset($payload['_customer'], $payload['_setting'], $payload['_dispatch_from_address'], $payload['_customer_address']);
+            if ((new MobileUserPolicyService())->requiresApproval($userId, 'delivery_challan')) {
+                $request = (new MobileApprovalService())->submit(
+                    'delivery_challan',
+                    $payload,
+                    $userId,
+                    'Delivery challan for ' . (string) ($payload['customer_name'] ?? 'customer')
+                );
+                return $this->ok([
+                    'approval_required' => true,
+                    'approval_request' => $request,
+                    'submission_message' => 'Delivery challan sent for admin approval.',
+                ], 'Delivery challan sent for admin approval.', 201);
+            }
+            $challan = $this->challans->create($payload, $userId);
             return $this->ok(['challan' => $challan], 'Delivery challan created.', 201);
         } catch (Throwable $e) {
             return $this->fail($e->getMessage(), 422);

@@ -49,6 +49,7 @@ class EmployeeController extends BaseController
             'departments' => $this->departmentOptions(),
             'designations' => $this->designationOptions(),
             'adminUsers' => $this->adminUserOptions(),
+            'mobileSettings' => $this->defaultMobileSettings(),
             'formAction' => site_url('admin/employees'),
         ]);
     }
@@ -68,6 +69,7 @@ class EmployeeController extends BaseController
         }
 
         $this->employeeModel->insert($data);
+        $this->syncMobileSettings((int) ($data['admin_user_id'] ?? 0));
 
         return redirect()->to(site_url('admin/employees'))->with('success', 'Employee created.');
     }
@@ -85,6 +87,7 @@ class EmployeeController extends BaseController
             'departments' => $this->departmentOptions(),
             'designations' => $this->designationOptions(),
             'adminUsers' => $this->adminUserOptions($id),
+            'mobileSettings' => $this->mobileSettings((int) ($row['admin_user_id'] ?? 0)),
             'formAction' => site_url('admin/employees/' . $id . '/update'),
         ]);
     }
@@ -109,6 +112,7 @@ class EmployeeController extends BaseController
         }
 
         $this->employeeModel->update($id, $data);
+        $this->syncMobileSettings((int) ($data['admin_user_id'] ?? 0));
 
         return redirect()->to(site_url('admin/employees'))->with('success', 'Employee updated.');
     }
@@ -244,5 +248,39 @@ class EmployeeController extends BaseController
     {
         $errors = $this->validator ? $this->validator->getErrors() : [];
         return $errors === [] ? 'Validation failed.' : (string) array_values($errors)[0];
+    }
+
+    /** @return array<string,int> */
+    private function defaultMobileSettings(): array
+    {
+        return [
+            'followup_requires_approval' => 1,
+            'issuement_requires_approval' => 1,
+            'delivery_challan_requires_approval' => 1,
+            'followup_gallery_enabled' => 0,
+        ];
+    }
+
+    /** @return array<string,int> */
+    private function mobileSettings(int $adminUserId): array
+    {
+        $defaults = $this->defaultMobileSettings();
+        if ($adminUserId <= 0) return $defaults;
+        $row = $this->adminUserModel->find($adminUserId);
+        if (! is_array($row)) return $defaults;
+        foreach ($defaults as $field => $value) {
+            $defaults[$field] = (int) ($row[$field] ?? $value);
+        }
+        return $defaults;
+    }
+
+    private function syncMobileSettings(int $adminUserId): void
+    {
+        if ($adminUserId <= 0) return;
+        $data = [];
+        foreach ($this->defaultMobileSettings() as $field => $default) {
+            $data[$field] = $this->request->getPost($field) ? 1 : 0;
+        }
+        $this->adminUserModel->update($adminUserId, $data);
     }
 }

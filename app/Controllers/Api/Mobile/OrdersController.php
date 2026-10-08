@@ -8,8 +8,11 @@ use App\Models\OrderItemModel;
 use App\Models\OrderModel;
 use App\Models\OrderStatusHistoryModel;
 use App\Services\DiamondBagService;
+use App\Services\MobileApprovalService;
 use App\Services\MobileNotificationEventService;
+use App\Services\MobileUserPolicyService;
 use App\Services\OrderCategoryService;
+use App\Services\OrderFollowupService;
 use App\Services\OrderNumberService;
 use App\Services\OrderWhatsAppService;
 use App\Services\RbacService;
@@ -425,6 +428,7 @@ class OrdersController extends MobileBaseController
         $canViewFollowups = $canChangeFollower
             || (int) ($order['followup_assigned_to'] ?? 0) === $mobileUserId;
         $followups = $canViewFollowups ? $this->followupRows($id) : [];
+        $pendingFollowupApproval = (new MobileApprovalService())->pendingForSubject('followup', 'orders', $id);
         $documents = $this->documentLinks($order);
         $media = $this->orderMedia($id);
         $followupClosed = in_array(
@@ -438,8 +442,13 @@ class OrdersController extends MobileBaseController
             'items' => $items,
             'followups' => $followups,
             'can_add_followup' => ! $followupClosed
-                && (int) ($order['followup_assigned_to'] ?? 0) === $mobileUserId,
+                && (int) ($order['followup_assigned_to'] ?? 0) === $mobileUserId
+                && $pendingFollowupApproval === null,
             'can_view_followups' => $canViewFollowups,
+            'pending_followup_approval' => $pendingFollowupApproval,
+            'followup_gallery_enabled' => (new MobileUserPolicyService())->followupGalleryEnabled($mobileUserId),
+            'can_rate_order' => in_array((string) ($order['status'] ?? ''), ['Completed', 'Complete', 'Delivered'], true)
+                && $canChangeFollower,
             'can_change_follower' => $canChangeFollower,
             'can_assign_karigar' => $canChangeFollower && empty($order['assigned_karigar_id']),
             'staff_followers' => $canChangeFollower ? $this->staffPerformanceService->staffOptions() : [],
@@ -484,28 +493,19 @@ class OrdersController extends MobileBaseController
 
     public function addFollowup(int $id)
     {
-        $authFail = $this->requireMobileAuth();
-        if ($authFail) {
-            return $authFail;
-        }
-
+        if ($authFail = $this->requireMobileAuth()) return $authFail;
         $payload = $this->payload();
         $stage = trim((string) ($payload['stage'] ?? ''));
         $description = trim((string) ($payload['description'] ?? ''));
         $nextFollowupDate = trim((string) ($payload['next_followup_date'] ?? ''));
-
         if ($stage === '' || ! in_array($stage, $this->jewelleryConfig->orderStatuses, true)) {
             return $this->fail('Invalid stage.', 422);
         }
-        if ($description === '') {
-            return $this->fail('description is required.', 422);
-        }
+        if ($description === '') return $this->fail('description is required.', 422);
 
         $db = db_connect();
         $order = $db->table('orders')->where('id', $id)->get()->getRowArray();
-        if (! $order) {
-            return $this->fail('Order not found.', 404);
-        }
+        if (! $order) return $this->fail('Order not found.', 404);
 
         $currentStatus = (string) ($order['status'] ?? '');
         if (in_array($currentStatus, ['Cancelled', 'Completed', 'Complete', 'Ready', 'Packed', 'Delivered', 'Dispatched'], true)) {
@@ -525,9 +525,14 @@ class OrdersController extends MobileBaseController
             return $this->fail('next_followup_date is required while the order remains open.', 422);
         }
 
+        $policy = new MobileUserPolicyService();
         $imageName = null;
         $imagePath = null;
         $imageBase64 = trim((string) ($payload['image_base64'] ?? ''));
+        $imageSource = strtolower(trim((string) ($payload['image_source'] ?? 'camera')));
+        if ($imageBase64 !== '' && $imageSource === 'gallery' && ! $policy->followupGalleryEnabled($currentUserId)) {
+            return $this->fail('Gallery selection is not enabled for your account. Please use the camera.', 403);
+        }
         if ($imageBase64 !== '') {
             $saved = $this->saveBase64Image($imageBase64, FCPATH . 'uploads/orders/followups');
             if (! $saved['ok']) {
@@ -541,6 +546,10 @@ class OrdersController extends MobileBaseController
         if ($nextFollowupDate !== '') {
             $ts = strtotime($nextFollowupDate);
             if ($ts === false || $ts <= time()) {
+                if ($imagePath !== null) {
+                    $absolute = FCPATH . ltrim($imagePath, '/');
+                    if (is_file($absolute)) @unlink($absolute);
+                }
                 return $this->fail('next_followup_date must be a future date and time.', 422);
             }
             $nextFollowupDateTime = date('Y-m-d H:i:s', $ts);
@@ -549,71 +558,82 @@ class OrdersController extends MobileBaseController
             $nextFollowupDateTime = null;
         }
 
-        $push = ['queued' => false, 'message' => 'No followup notification queued.'];
-
         try {
-            $db->transException(true)->transStart();
-
-            $db->table('order_followups')->insert([
+            $followupPayload = [
                 'order_id' => $id,
+                'order_no' => (string) ($order['order_no'] ?? ('#' . $id)),
                 'stage' => $stage,
                 'description' => $description,
                 'next_followup_date' => $nextFollowupDateTime,
-                'followup_taken_by' => (int) ($this->mobileAdmin['id'] ?? 0),
                 'followup_taken_on' => date('Y-m-d H:i:s'),
-                'image_name' => $imageName,
-                'image_path' => $imagePath,
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]);
-            $followupId = (int) $db->insertID();
-
-            if ($currentStatus !== $stage) {
-                $db->table('orders')->where('id', $id)->update([
-                    'status' => $stage,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-                $db->table('order_items')->where('order_id', $id)->update([
-                    'item_status' => $stage,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-                $db->table('order_status_history')->insert([
+            ];
+            if ($policy->requiresApproval($currentUserId, 'followup')) {
+                $approval = (new MobileApprovalService())->submit(
+                    'followup',
+                    $followupPayload,
+                    $currentUserId,
+                    'Order ' . (string) ($order['order_no'] ?? ('#' . $id)) . ' follow-up: ' . $stage,
+                    $imageName,
+                    $imagePath,
+                    'orders',
+                    $id
+                );
+                return $this->ok([
                     'order_id' => $id,
-                    'from_status' => $currentStatus !== '' ? $currentStatus : null,
-                    'to_status' => $stage,
-                    'remarks' => 'Updated from mobile followup: ' . $description,
-                    'changed_by' => (int) ($this->mobileAdmin['id'] ?? 0),
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
+                    'status' => $currentStatus,
+                    'approval_required' => true,
+                    'approval_request' => $approval,
+                    'submission_message' => 'Follow-up sent for admin approval.',
+                ], 'Follow-up sent for admin approval.', 201);
             }
-
-            $this->staffPerformanceService->completeOrderFollowup(
+            $created = (new OrderFollowupService($db))->create(
                 $id,
-                $followupId,
-                (int) ($this->mobileAdmin['id'] ?? 0),
-                $nextFollowupDateTime
+                $followupPayload,
+                $currentUserId,
+                $imageName,
+                $imagePath
             );
-
-            $db->transComplete();
         } catch (Throwable $e) {
-            $db->transRollback();
+            if ($imagePath !== null) {
+                $absolute = FCPATH . ltrim($imagePath, '/');
+                if (is_file($absolute)) @unlink($absolute);
+            }
             return $this->fail('Could not save followup: ' . $e->getMessage(), 500);
         }
-
-        try {
-            $push = $this->mobileNotificationEvents->notifyFollowupAdded($id, $followupId);
-        } catch (Throwable $e) {
-            log_message('error', 'Mobile followup push notification failed: {message}', ['message' => $e->getMessage()]);
-            $push = ['queued' => false, 'message' => 'Followup saved, but push notification failed.'];
-        }
-
         return $this->ok([
             'order_id' => $id,
             'status' => $stage,
             'followups' => $this->followupRows($id),
-            'notification' => $push,
+            'followup_id' => (int) ($created['id'] ?? 0),
+            'approval_required' => false,
         ], 'Followup saved and order status synced.');
+    }
+
+    public function rate(int $id)
+    {
+        if ($response = $this->requireMobileAuth()) return $response;
+        $db = db_connect();
+        $order = $db->table('orders')->where('id', $id)->get()->getRowArray();
+        if (! is_array($order)) return $this->fail('Order not found.', 404);
+        if (! in_array((string) ($order['status'] ?? ''), ['Completed', 'Complete', 'Delivered'], true)) {
+            return $this->fail('Rating is available only after the order is completed.', 422);
+        }
+        $userId = (int) ($this->mobileAdmin['id'] ?? 0);
+        if (! $this->rbacService->userCan($userId, 'orders.assign')) {
+            return $this->fail('You cannot rate this order.', 403);
+        }
+        $payload = $this->payload();
+        $rating = (int) ($payload['rating'] ?? 0);
+        $comment = mb_substr(trim((string) ($payload['comment'] ?? '')), 0, 500);
+        if ($rating < 1 || $rating > 5) return $this->fail('Select a rating from 1 to 5.', 422);
+        $db->table('orders')->where('id', $id)->update([
+            'completion_rating' => $rating,
+            'rating_comment' => $comment !== '' ? $comment : null,
+            'rated_by' => $userId,
+            'rated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+        return $this->ok(['order_id' => $id, 'rating' => $rating], 'Order completion rating saved.');
     }
 
     public function updateFollower(int $id)

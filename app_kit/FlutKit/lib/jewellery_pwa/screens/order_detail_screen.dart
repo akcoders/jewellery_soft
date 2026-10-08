@@ -41,6 +41,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _canCreateDiamondBag = false;
   bool _canTakeOrderFollowup = false;
   bool _canChangeFollower = false;
+  bool _followupGalleryEnabled = false;
+  bool _canRateOrder = false;
+  Map<String, dynamic> _pendingFollowupApproval = {};
   List<dynamic> _staffFollowers = [];
   List<String> _allowedStages = const [];
 
@@ -101,6 +104,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _canChangeFollower =
             data['can_change_follower'] == true ||
             data['can_change_follower'] == 1;
+        _followupGalleryEnabled =
+            data['followup_gallery_enabled'] == true ||
+            data['followup_gallery_enabled'] == 1;
+        _canRateOrder =
+            data['can_rate_order'] == true || data['can_rate_order'] == 1;
+        _pendingFollowupApproval =
+            (data['pending_followup_approval'] as Map?)
+                ?.cast<String, dynamic>() ??
+            {};
         _staffFollowers = (data['staff_followers'] as List?) ?? <dynamic>[];
         _allowedStages = ((data['allowed_stages'] as List?) ?? <dynamic>[])
             .map((e) => e.toString())
@@ -126,12 +138,98 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           api: widget.api,
           orderId: widget.orderId,
           stages: _allowedStages,
+          allowGallery: _followupGalleryEnabled,
         ),
       ),
     );
 
     if (result == true) {
       _load();
+    }
+  }
+
+  Future<void> _rateOrder() async {
+    var rating = int.tryParse('${_order['completion_rating'] ?? ''}') ?? 0;
+    final comment = TextEditingController(
+      text: (_order['rating_comment'] ?? '').toString(),
+    );
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Order completion rating'),
+          content: SizedBox(
+            width: 430,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Rate the completed order from 1 to 5. This rating is included in the assigned follower’s performance.',
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (index) {
+                    final value = index + 1;
+                    return IconButton(
+                      tooltip: '$value star',
+                      onPressed: () => setDialogState(() => rating = value),
+                      icon: Icon(
+                        value <= rating ? Icons.star : Icons.star_border,
+                        color: AppColors.brandGold,
+                        size: 34,
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: comment,
+                  maxLength: 500,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Rating note (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: rating == 0
+                  ? null
+                  : () => Navigator.pop(context, true),
+              child: const Text('Save Rating'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final note = comment.text;
+    comment.dispose();
+    if (saved != true || !mounted) return;
+    try {
+      await widget.api.rateOrder(
+        orderId: widget.orderId,
+        rating: rating,
+        comment: note,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Completion rating saved.')));
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
     }
   }
 
@@ -1001,6 +1099,43 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     const SizedBox(height: AppSpacing.lg),
                   ],
                   _overviewCard(status),
+                  if (_pendingFollowupApproval.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: AppColors.brandGold.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(
+                          color: AppColors.brandGold.withValues(alpha: .4),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(LucideIcons.hourglass, color: AppColors.gold),
+                          SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              'Follow-up approval pending. The current follow-up remains pending until admin approves it.',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (_canRateOrder) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    OutlinedButton.icon(
+                      onPressed: _rateOrder,
+                      icon: const Icon(LucideIcons.star),
+                      label: Text(
+                        _order['completion_rating'] == null
+                            ? 'Rate completed order'
+                            : 'Update rating · ${_order['completion_rating']}/5',
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   const AppSectionTitle('People & responsibility'),
                   const SizedBox(height: 14),

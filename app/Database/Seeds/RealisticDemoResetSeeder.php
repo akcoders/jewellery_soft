@@ -286,7 +286,7 @@ class RealisticDemoResetSeeder extends Seeder
             ['Shree Color Stones', 'Rakesh Jain', '9825011004', '08AAQFS4444K1Z4', 'Johari Bazaar, Jaipur'],
             ['Om Casting Works', 'Dharmesh Patel', '9825011005', '24AAEFO5555M1Z5', 'Varachha, Surat'],
             ['Bright Findings Co', 'Anil Agarwal', '9825011006', '27AAEFB6666N1Z6', 'Andheri East, Mumbai'],
-            ['Royal Packaging', 'Priya Doshi', '9825011007', '24AAEFR7777P1Z7', 'Ring Road, Surat'],
+            ['Premium Packaging', 'Priya Doshi', '9825011007', '24AAEFR7777P1Z7', 'Ring Road, Surat'],
             ['Galaxy CAD Studio', 'Harsh Vora', '9825011008', '24AAEFG8888Q1Z8', 'Katargam, Surat'],
         ] as $vendor) {
             $this->vendors[] = $this->insertFiltered('vendors', [

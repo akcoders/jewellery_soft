@@ -3,6 +3,7 @@
 namespace App\Controllers\Api\Mobile;
 
 use App\Services\MobileApprovalService;
+use App\Services\MobileUserPolicyService;
 use Throwable;
 
 class MobileApprovalsController extends MobileBaseController
@@ -94,7 +95,35 @@ class MobileApprovalsController extends MobileBaseController
             $request = $decision === 'approve'
                 ? $service->approve($id, $userId, (string) ($payload['note'] ?? ''))
                 : $service->reject($id, $userId, (string) ($payload['note'] ?? ''));
-            return $this->ok(['request' => $request], 'Request ' . ($decision === 'approve' ? 'approved.' : 'rejected.'));
+            $message = $decision === 'approve'
+                ? 'Request approved.'
+                : (($request['request_type'] ?? '') === 'followup' ? 'Followup disapproved.' : 'Request disapproved.');
+            return $this->ok(['request' => $request], $message);
+        } catch (Throwable $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
+    }
+
+    public function staffSettings()
+    {
+        if ($response = $this->requireMobileAuth()) return $response;
+        $userId = (int) ($this->mobileAdmin['id'] ?? 0);
+        if (! $this->isAdminReviewer($userId)) {
+            return $this->fail('Only admin can manage employee mobile controls.', 403);
+        }
+        return $this->ok(['items' => (new MobileUserPolicyService())->staffSettings()]);
+    }
+
+    public function updateStaffSettings(int $id)
+    {
+        if ($response = $this->requireMobileAuth()) return $response;
+        $userId = (int) ($this->mobileAdmin['id'] ?? 0);
+        if (! $this->isAdminReviewer($userId)) {
+            return $this->fail('Only admin can manage employee mobile controls.', 403);
+        }
+        try {
+            $settings = (new MobileUserPolicyService())->update($id, $this->payload());
+            return $this->ok(['settings' => $settings], 'Employee mobile controls updated.');
         } catch (Throwable $e) {
             return $this->fail($e->getMessage(), 422);
         }

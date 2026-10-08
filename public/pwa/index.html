@@ -86,15 +86,6 @@
     }, { once: true });
 
     if ("serviceWorker" in navigator) {
-      var aabhushanPwaReloading = false;
-      var aabhushanPwaHadController = Boolean(navigator.serviceWorker.controller);
-
-      navigator.serviceWorker.addEventListener("controllerchange", function () {
-        if (!aabhushanPwaHadController || aabhushanPwaReloading) return;
-        aabhushanPwaReloading = true;
-        window.location.reload();
-      });
-
       window.aabhushanForcePwaUpdate = async function () {
         var currentParams = new URLSearchParams(window.location.search);
         var appliedVersion = currentParams.get("app-update-version");

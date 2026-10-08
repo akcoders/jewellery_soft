@@ -284,7 +284,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Points come from task completion and timing.',
+              'Points come from task completion and completed-order ratings.',
               style: TextStyle(
                 color: Color(0xFFD6C4CE),
                 fontSize: 12,
@@ -347,6 +347,13 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           'Task scored',
           AppColors.danger,
           LucideIcons.calendar_clock,
+        ),
+        _breakdownRow(
+          'Completion ratings',
+          _integer(_summary['rating_count']),
+          '${_number(_summary['rating_average']).toStringAsFixed(1)}/5 average',
+          AppColors.brandGold,
+          LucideIcons.star,
           divider: false,
         ),
       ],

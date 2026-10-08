@@ -334,7 +334,7 @@ class _DeliveryChallanCreateScreenState
     }
     setState(() => _saving = true);
     try {
-      await widget.api.createDeliveryChallan({
+      final result = await widget.api.createDeliveryChallan({
         'challan_date': _dateText(_date),
         'dispatch_from': _branch,
         'customer_id': _customerId,
@@ -342,6 +342,27 @@ class _DeliveryChallanCreateScreenState
         'notes': _notes.text.trim(),
         'items': _lines.map((line) => line.payload).toList(),
       });
+      if (!mounted) return;
+      if (result['approval_required'] == true) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            icon: const Icon(LucideIcons.hourglass),
+            title: const Text('Approval requested'),
+            content: Text(
+              (result['submission_message'] ??
+                      'Delivery challan sent for admin approval.')
+                  .toString(),
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) _message(e.toString().replaceFirst('Exception: ', ''));

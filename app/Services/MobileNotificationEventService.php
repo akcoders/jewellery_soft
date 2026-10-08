@@ -96,6 +96,81 @@ class MobileNotificationEventService
         ]);
     }
 
+    /** @param array<string,mixed> $request */
+    public function notifyApprovalRequested(array $request): array
+    {
+        $id = (int) ($request['id'] ?? 0);
+        if ($id <= 0) {
+            return $this->emptySummary('Invalid approval request.');
+        }
+        $type = (string) ($request['request_type'] ?? '');
+        $label = match ($type) {
+            'followup' => 'Follow-up',
+            'delivery_challan' => 'Delivery challan',
+            'issuement' => 'Issuement',
+            'customer_create' => 'Customer creation',
+            'karigar_create' => 'Karigar creation',
+            default => 'Mobile request',
+        };
+        return $this->queueForReviewers([
+            'type' => 'approval_requested',
+            'reference_table' => 'mobile_approval_requests',
+            'reference_id' => $id,
+            'dedupe_key' => 'approval-requested:' . $id,
+            'title' => $label . ' approval required',
+            'message' => trim((string) ($request['summary'] ?? '')) ?: ($label . ' is waiting for approval.'),
+            'payload' => [
+                'type' => 'approval_requested',
+                'screen' => 'approvals',
+                'approval_request_id' => $id,
+                'request_type' => $type,
+                'order_id' => (int) ($request['subject_id'] ?? 0),
+            ],
+        ]);
+    }
+
+    /** @param array<string,mixed> $request */
+    public function notifyApprovalOutcome(array $request, bool $approved): array
+    {
+        $id = (int) ($request['id'] ?? 0);
+        $requesterId = (int) ($request['requested_by'] ?? 0);
+        if ($id <= 0 || $requesterId <= 0) {
+            return $this->emptySummary('Invalid approval outcome.');
+        }
+        $type = (string) ($request['request_type'] ?? '');
+        $label = match ($type) {
+            'followup' => 'Followup',
+            'delivery_challan' => 'Delivery challan',
+            'issuement' => 'Issuement',
+            'customer_create' => 'Customer request',
+            'karigar_create' => 'Karigar request',
+            default => 'Request',
+        };
+        $title = $approved
+            ? $label . ' approved'
+            : ($type === 'followup' ? 'Followup disapproved' : $label . ' disapproved');
+        $message = $title . '.';
+        $note = trim((string) ($request['review_note'] ?? ''));
+        if ($note !== '') {
+            $message .= ' Admin: ' . $note;
+        }
+        return $this->queueForFollower($requesterId, [
+            'type' => $approved ? 'approval_approved' : 'approval_disapproved',
+            'reference_table' => 'mobile_approval_requests',
+            'reference_id' => $id,
+            'dedupe_key' => 'approval-outcome:' . $id . ':' . ($approved ? 'approved' : 'disapproved'),
+            'title' => $title,
+            'message' => $message,
+            'payload' => [
+                'type' => $approved ? 'approval_approved' : 'approval_disapproved',
+                'screen' => $type === 'followup' ? 'followups' : 'approvals',
+                'approval_request_id' => $id,
+                'request_type' => $type,
+                'order_id' => (int) ($request['subject_id'] ?? 0),
+            ],
+        ]);
+    }
+
     public function notifyFollowupAdded(int $orderId, int $followupId): array
     {
         if ($orderId <= 0 || $followupId <= 0) {
@@ -617,6 +692,44 @@ class MobileNotificationEventService
             'queued_count' => $queuedCount,
             'failed_count' => $failedCount,
             'duplicate_count' => $duplicateCount,
+            'results' => $results,
+        ];
+    }
+
+    private function queueForReviewers(array $notification): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('user_roles') || ! $db->tableExists('roles')) {
+            return $this->queueForActiveUsers($notification);
+        }
+        $rows = $db->table('admin_users au')
+            ->select('au.*')
+            ->join('user_roles ur', 'ur.user_id = au.id', 'inner')
+            ->join('roles r', 'r.id = ur.role_id', 'inner')
+            ->where('au.is_active', 1)
+            ->whereIn('r.role_code', ['SUPER_ADMIN', 'ADMIN', 'OWNER'])
+            ->groupBy('au.id')
+            ->orderBy('au.id', 'ASC')->get()->getResultArray();
+        $notification['defer_dispatch'] = true;
+        $baseDedupeKey = trim((string) ($notification['dedupe_key'] ?? ''));
+        $results = [];
+        $queuedCount = 0;
+        foreach ($rows as $admin) {
+            $adminId = (int) ($admin['id'] ?? 0);
+            $personalized = $notification;
+            if ($baseDedupeKey !== '') {
+                $personalized['dedupe_key'] = $baseDedupeKey . ':admin:' . $adminId;
+            }
+            $result = $this->pushService->queueForAdminRow($admin, $personalized);
+            $results[$adminId] = $result;
+            if (($result['queued'] ?? false) && ($result['created'] ?? false)) {
+                $queuedCount++;
+            }
+        }
+        return [
+            'queued' => $queuedCount > 0,
+            'recipient_count' => count($results),
+            'queued_count' => $queuedCount,
             'results' => $results,
         ];
     }

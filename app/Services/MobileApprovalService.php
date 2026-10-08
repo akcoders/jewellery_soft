@@ -21,7 +21,7 @@ use Throwable;
 
 class MobileApprovalService
 {
-    public const TYPES = ['customer_create', 'karigar_create', 'issuement'];
+    public const TYPES = ['customer_create', 'karigar_create', 'issuement', 'followup', 'delivery_challan'];
 
     public function __construct(private ?BaseConnection $db = null)
     {
@@ -35,10 +35,25 @@ class MobileApprovalService
         int $requestedBy,
         string $summary,
         ?string $attachmentName = null,
-        ?string $attachmentPath = null
+        ?string $attachmentPath = null,
+        ?string $subjectTable = null,
+        ?int $subjectId = null
     ): array {
         if (! in_array($type, self::TYPES, true) || $requestedBy <= 0) {
             throw new RuntimeException('Invalid approval request.');
+        }
+        $subjectTable = trim((string) $subjectTable) ?: null;
+        $subjectId = ($subjectId ?? 0) > 0 ? (int) $subjectId : null;
+        if ($subjectTable !== null && $subjectId !== null) {
+            $pending = $this->db->table('mobile_approval_requests')
+                ->where('request_type', $type)
+                ->where('subject_table', $subjectTable)
+                ->where('subject_id', $subjectId)
+                ->where('status', 'pending')
+                ->get()->getRowArray();
+            if (is_array($pending)) {
+                throw new RuntimeException('This request is already pending for approval.');
+            }
         }
         $id = (int) (new MobileApprovalRequestModel())->insert([
             'request_type' => $type,
@@ -48,11 +63,19 @@ class MobileApprovalService
             'attachment_name' => $attachmentName,
             'attachment_path' => $attachmentPath,
             'requested_by' => $requestedBy,
+            'subject_table' => $subjectTable,
+            'subject_id' => $subjectId,
         ], true);
         if ($id <= 0) {
             throw new RuntimeException('Approval request could not be saved.');
         }
-        return $this->find($id) ?? ['id' => $id, 'status' => 'pending'];
+        $request = $this->find($id) ?? ['id' => $id, 'status' => 'pending'];
+        try {
+            (new MobileNotificationEventService())->notifyApprovalRequested($request);
+        } catch (Throwable $e) {
+            log_message('error', 'Approval request notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+        return $request;
     }
 
     /** @return list<array<string,mixed>> */
@@ -82,6 +105,7 @@ class MobileApprovalService
 
     public function reject(int $id, int $reviewerId, string $note = ''): array
     {
+        $before = $this->find($id);
         $affected = $this->db->table('mobile_approval_requests')
             ->where('id', $id)->where('status', 'pending')->update([
                 'status' => 'rejected', 'reviewed_by' => $reviewerId,
@@ -92,7 +116,13 @@ class MobileApprovalService
         if (! $affected || $this->db->affectedRows() !== 1) {
             throw new RuntimeException('Request is no longer pending.');
         }
-        return $this->find($id) ?? [];
+        $request = $this->find($id) ?? [];
+        try {
+            (new MobileNotificationEventService())->notifyApprovalOutcome($request ?: ($before ?? []), false);
+        } catch (Throwable $e) {
+            log_message('error', 'Approval rejection notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+        return $request;
     }
 
     public function approve(int $id, int $reviewerId, string $note = ''): array
@@ -114,6 +144,8 @@ class MobileApprovalService
                 'customer_create' => $this->approveCustomer($payload),
                 'karigar_create' => $this->approveKarigar($payload),
                 'issuement' => $this->approveIssuement($payload, $request),
+                'followup' => $this->approveFollowup($payload, $request),
+                'delivery_challan' => $this->approveDeliveryChallan($payload, $request),
                 default => throw new RuntimeException('Unsupported request type.'),
             };
             $this->db->table('mobile_approval_requests')->where('id', $id)->update([
@@ -143,7 +175,65 @@ class MobileApprovalService
                 log_message('error', 'Approved mobile issuement notification failed: {message}', ['message' => $e->getMessage()]);
             }
         }
-        return $this->find($id) ?? [];
+        $approved = $this->find($id) ?? [];
+        try {
+            (new MobileNotificationEventService())->notifyApprovalOutcome($approved, true);
+        } catch (Throwable $e) {
+            log_message('error', 'Approval outcome notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+        return $approved;
+    }
+
+    /** @param array<string,mixed> $payload @return array<string,mixed> */
+    public function createIssuementWithoutApproval(
+        array $payload,
+        int $requestedBy,
+        ?string $attachmentName = null,
+        ?string $attachmentPath = null
+    ): array {
+        $request = [
+            'requested_by' => $requestedBy,
+            'attachment_name' => $attachmentName,
+            'attachment_path' => $attachmentPath,
+        ];
+        try {
+            $this->db->transException(true)->transStart();
+            $result = $this->approveIssuement($payload, $request);
+            $this->db->transComplete();
+        } catch (Throwable $e) {
+            $this->db->transRollback();
+            throw $e;
+        }
+        try {
+            (new MobileNotificationEventService())->notifyInventoryTransactionCreated(
+                'issue',
+                (string) ($result['material_label'] ?? 'Material'),
+                (string) ($result['table'] ?? ''),
+                (int) ($result['id'] ?? 0),
+                'mobile',
+                ['voucher_no' => (string) ($result['reference'] ?? '')]
+            );
+        } catch (Throwable $e) {
+            log_message('error', 'Direct mobile issuement notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+        return $result;
+    }
+
+    public function pendingForSubject(string $type, string $subjectTable, int $subjectId): ?array
+    {
+        if ($subjectId <= 0 || ! in_array($type, self::TYPES, true)) {
+            return null;
+        }
+        $row = $this->db->table('mobile_approval_requests ar')
+            ->select('ar.*, requester.name AS requested_by_name, reviewer.name AS reviewed_by_name')
+            ->join('admin_users requester', 'requester.id = ar.requested_by', 'left')
+            ->join('admin_users reviewer', 'reviewer.id = ar.reviewed_by', 'left')
+            ->where('ar.request_type', $type)
+            ->where('ar.subject_table', $subjectTable)
+            ->where('ar.subject_id', $subjectId)
+            ->where('ar.status', 'pending')
+            ->orderBy('ar.id', 'DESC')->get()->getRowArray();
+        return is_array($row) ? $this->hydrate($row) : null;
     }
 
     /** @param array<string,mixed> $payload */
@@ -252,7 +342,7 @@ class MobileApprovalService
             (new GoldStockService($this->db))->applyIssue($issueId, [
                 'txn_date' => $issueDate, 'karigar_id' => $karigarId,
                 'location_id' => $locationId, 'created_by' => (int) $request['requested_by'],
-                'notes' => 'Admin-approved PWA issuement - Gold',
+                'notes' => 'PWA issuement - Gold',
             ]);
             (new KarigarMaterialAccountingService($this->db))->postInventoryHeader('gold', 'issue', $issueId);
             $created['gold_issue_id'] = $issueId;
@@ -318,6 +408,30 @@ class MobileApprovalService
         return [
             'table' => $table, 'id' => (int) $created[$firstKey],
             'reference' => $voucherNo, 'material_label' => $materialLabel,
+        ];
+    }
+
+    /** @param array<string,mixed> $payload @param array<string,mixed> $request */
+    private function approveFollowup(array $payload, array $request): array
+    {
+        $orderId = (int) ($payload['order_id'] ?? $request['subject_id'] ?? 0);
+        return (new OrderFollowupService($this->db))->create(
+            $orderId,
+            $payload,
+            (int) ($request['requested_by'] ?? 0),
+            $request['attachment_name'] ?? null,
+            $request['attachment_path'] ?? null
+        );
+    }
+
+    /** @param array<string,mixed> $payload @param array<string,mixed> $request */
+    private function approveDeliveryChallan(array $payload, array $request): array
+    {
+        $challan = (new DeliveryChallanService($this->db))->create($payload, (int) ($request['requested_by'] ?? 0));
+        return [
+            'table' => 'delivery_challans',
+            'id' => (int) ($challan['id'] ?? 0),
+            'reference' => (string) ($challan['challan_no'] ?? ''),
         ];
     }
 

@@ -14,6 +14,7 @@ class StaffPerformanceService
     public const TASK_LATE_POINTS = -2.0;
     public const FOLLOWUP_ON_TIME_POINTS = 1.0;
     public const FOLLOWUP_LATE_POINTS = -1.0;
+    public const RATING_POINT_STEP = 5.0;
 
     private const TIMEZONE = 'Asia/Kolkata';
     private const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OWNER'];
@@ -143,13 +144,20 @@ class StaffPerformanceService
         ]);
     }
 
-    public function completeOrderFollowup(int $orderId, int $followupId, int $completedBy, ?string $nextDueAt): void
+    public function completeOrderFollowup(
+        int $orderId,
+        int $followupId,
+        int $completedBy,
+        ?string $nextDueAt,
+        ?string $completedAt = null
+    ): void
     {
         $db = db_connect();
         if (! $db->tableExists('order_followup_schedules')) {
             return;
         }
 
+        $eventAt = $this->normalizeDateTime($completedAt) ?? $this->now();
         $now = $this->now();
         $schedule = $db->table('order_followup_schedules')
             ->where('order_id', $orderId)
@@ -158,7 +166,7 @@ class StaffPerformanceService
             ->orderBy('id', 'ASC')
             ->get()->getRowArray();
         if ($schedule) {
-            $onTime = $now <= (string) $schedule['due_at'];
+            $onTime = $eventAt <= (string) $schedule['due_at'];
             $completedByAssignee = $completedBy === (int) $schedule['assigned_to'];
             $status = $completedByAssignee
                 ? ($onTime ? 'completed_on_time' : 'completed_late')
@@ -167,11 +175,11 @@ class StaffPerformanceService
                 'status' => $status,
                 'completed_followup_id' => $followupId,
                 'completed_by' => $completedBy,
-                'completed_at' => $now,
+                'completed_at' => $eventAt,
                 'score_delta' => 0,
                 'updated_at' => $now,
             ]);
-            (new WorkflowTaskService())->complete('order_followup', (int) $schedule['id'], $completedBy);
+            (new WorkflowTaskService())->complete('order_followup', (int) $schedule['id'], $completedBy, $eventAt);
         }
 
         $order = $db->table('orders')->select('followup_assigned_to, status')->where('id', $orderId)->get()->getRowArray();
@@ -227,6 +235,7 @@ class StaffPerformanceService
         [$start, $end] = $this->monthRange($year, $month);
         $tasks = $this->taskRows($staffIds, $start, $end);
         $followups = $this->followupRows($staffIds, $start, $end);
+        $ratings = $this->ratingRows($staffIds, $start, $end);
 
         $rows = [];
         $eventsByUser = [];
@@ -234,9 +243,10 @@ class StaffPerformanceService
             $id = (int) $person['id'];
             $personTasks = array_values(array_filter($tasks, static fn(array $row): bool => (int) $row['admin_user_id'] === $id));
             $personFollowups = array_values(array_filter($followups, static fn(array $row): bool => (int) $row['assigned_to'] === $id));
-            $metrics = $this->metrics($personTasks, $personFollowups);
+            $personRatings = array_values(array_filter($ratings, static fn(array $row): bool => (int) $row['followup_assigned_to'] === $id));
+            $metrics = $this->metrics($personTasks, $personFollowups, $personRatings);
             $rows[] = $person + $metrics;
-            $eventsByUser[$id] = $this->events($personTasks, $personFollowups);
+            $eventsByUser[$id] = $this->events($personTasks, $personFollowups, $personRatings);
         }
 
         usort($rows, static fn(array $a, array $b): int => [$b['score'], $b['on_time_rate']] <=> [$a['score'], $a['on_time_rate']]);
@@ -293,6 +303,8 @@ class StaffPerformanceService
             'followup_on_time' => 0,
             'followup_late' => 0,
             'followup_overdue' => 0,
+            'rating_count' => 0,
+            'rating_average' => 0,
         ];
         return [
             'year' => $year,
@@ -311,6 +323,7 @@ class StaffPerformanceService
             'task_late_or_overdue' => self::TASK_LATE_POINTS,
             'followup_on_time' => 0,
             'followup_late_or_overdue' => 0,
+            'rating_point_step' => self::RATING_POINT_STEP,
         ];
     }
 
@@ -353,7 +366,24 @@ class StaffPerformanceService
             ->get()->getResultArray();
     }
 
-    private function metrics(array $tasks, array $followups): array
+    private function ratingRows(array $staffIds, string $start, string $end): array
+    {
+        $db = db_connect();
+        if ($staffIds === [] || ! $db->tableExists('orders') || ! $db->fieldExists('completion_rating', 'orders')) {
+            return [];
+        }
+        return $db->table('orders o')
+            ->select('o.id, o.order_no, o.order_name, o.followup_assigned_to, o.completion_rating, o.rating_comment, o.rated_at, rater.name AS rated_by_name')
+            ->join('admin_users rater', 'rater.id = o.rated_by', 'left')
+            ->whereIn('o.followup_assigned_to', $staffIds)
+            ->where('o.completion_rating IS NOT NULL', null, false)
+            ->where('o.rated_at >=', $start)
+            ->where('o.rated_at <', $end)
+            ->orderBy('o.rated_at', 'DESC')
+            ->get()->getResultArray();
+    }
+
+    private function metrics(array $tasks, array $followups, array $ratings): array
     {
         $now = $this->now();
         $taskOnTime = $taskLate = $taskOverdue = 0;
@@ -391,6 +421,14 @@ class StaffPerformanceService
             $delta >= 0 ? $earned += $delta : $lost += abs($delta);
         }
 
+        $ratingTotal = 0;
+        foreach ($ratings as $rating) {
+            $value = max(1, min(5, (int) ($rating['completion_rating'] ?? 0)));
+            $ratingTotal += $value;
+            $delta = ($value - 3) * self::RATING_POINT_STEP;
+            $delta >= 0 ? $earned += $delta : $lost += abs($delta);
+        }
+
         $completed = $taskOnTime + $taskLate;
         $onTime = $taskOnTime;
         $overdue = $taskOverdue;
@@ -405,6 +443,8 @@ class StaffPerformanceService
             'followup_on_time' => $followupOnTime,
             'followup_late' => $followupLate,
             'followup_overdue' => $followupOverdue,
+            'rating_count' => count($ratings),
+            'rating_average' => count($ratings) > 0 ? round($ratingTotal / count($ratings), 1) : 0,
             'completed_actions' => $completed,
             'on_time_actions' => $onTime,
             'overdue_actions' => $overdue,
@@ -412,7 +452,7 @@ class StaffPerformanceService
         ];
     }
 
-    private function events(array $tasks, array $followups): array
+    private function events(array $tasks, array $followups, array $ratings): array
     {
         $events = [];
         $now = $this->now();
@@ -448,6 +488,22 @@ class StaffPerformanceService
                 'score_delta' => $delta,
                 'order_id' => (int) ($followup['order_id'] ?? 0),
                 'proof_url' => null,
+            ];
+        }
+        foreach ($ratings as $rating) {
+            $value = max(1, min(5, (int) ($rating['completion_rating'] ?? 0)));
+            $events[] = [
+                'type' => 'Rating',
+                'title' => 'Order ' . (string) (($rating['order_no'] ?? '') ?: ('#' . ($rating['id'] ?? ''))),
+                'reference' => $value . '/5 completion rating',
+                'due_at' => (string) ($rating['rated_at'] ?? ''),
+                'completed_at' => (string) ($rating['rated_at'] ?? ''),
+                'status' => 'rated',
+                'score_delta' => ($value - 3) * self::RATING_POINT_STEP,
+                'order_id' => (int) ($rating['id'] ?? 0),
+                'proof_url' => null,
+                'rating' => $value,
+                'comment' => (string) ($rating['rating_comment'] ?? ''),
             ];
         }
         usort($events, static fn(array $a, array $b): int => strcmp((string) $b['due_at'], (string) $a['due_at']));

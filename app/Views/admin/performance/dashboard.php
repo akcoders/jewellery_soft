@@ -17,13 +17,13 @@ $statusClass = static function (float $score): string {
 };
 ?>
 <div class="card performance-hero mb-4"><div class="card-body">
-    <div class="d-flex flex-column flex-xl-row align-items-xl-center justify-content-between gap-4"><div><span class="text-uppercase fw-bold small opacity-75">People intelligence</span><h2 class="text-white mb-2 mt-1">Staff Performance</h2><p class="mb-0 opacity-75">Points are recorded only when assigned tasks are completed. Follow-up activity is shown separately.</p></div><a href="<?= site_url('admin/performance/tasks') ?>" class="btn btn-light"><i class="fe fe-check-square me-1"></i> Assign & Review Tasks</a></div>
+    <div class="d-flex flex-column flex-xl-row align-items-xl-center justify-content-between gap-4"><div><span class="text-uppercase fw-bold small opacity-75">People intelligence</span><h2 class="text-white mb-2 mt-1">Staff Performance</h2><p class="mb-0 opacity-75">Task points and completed-order ratings are combined; follow-up timing remains visible separately.</p></div><a href="<?= site_url('admin/performance/tasks') ?>" class="btn btn-light"><i class="fe fe-check-square me-1"></i> Assign & Review Tasks</a></div>
     <div class="row g-2 mt-3">
         <div class="col-6 col-lg"><div class="performance-rule"><span>Start</span><strong><?= number_format((float) ($rules['base_score'] ?? 100), 0) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Task on time</span><strong>+<?= number_format((float) ($rules['task_on_time'] ?? 2), 0) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Task late</span><strong><?= number_format((float) ($rules['task_late_or_overdue'] ?? -2), 0) ?></strong></div></div>
-        <div class="col-6 col-lg"><div class="performance-rule"><span>Follow-up on time</span><strong>Task</strong></div></div>
-        <div class="col-6 col-lg"><div class="performance-rule"><span>Follow-up late</span><strong>Task</strong></div></div>
+        <div class="col-6 col-lg"><div class="performance-rule"><span>Rating above 3</span><strong>+<?= number_format((float) ($rules['rating_point_step'] ?? 5), 0) ?>/star</strong></div></div>
+        <div class="col-6 col-lg"><div class="performance-rule"><span>Rating below 3</span><strong>-<?= number_format((float) ($rules['rating_point_step'] ?? 5), 0) ?>/star</strong></div></div>
     </div>
 </div></div>
 
@@ -42,13 +42,14 @@ $statusClass = static function (float $score): string {
     <div class="col-6 col-xl"><div class="card performance-stat"><div class="card-body"><small>Orders Missing Follower</small><strong class="text-warning"><?= (int) ($totals['unassigned_open_orders'] ?? 0) ?></strong></div></div></div>
 </div>
 
-<div class="card mb-4"><div class="card-header"><div><h5 class="card-title mb-1">Employee Scoreboard</h5><small class="text-muted">Admin and SuperAdmin accounts are excluded automatically.</small></div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover datatable performance-table mb-0"><thead><tr><th>Employee</th><th>Score</th><th>Points</th><th>Tasks</th><th>Order Follow-ups</th><th>On-time Rate</th><th>Overdue</th></tr></thead><tbody>
+<div class="card mb-4"><div class="card-header"><div><h5 class="card-title mb-1">Employee Scoreboard</h5><small class="text-muted">Admin and SuperAdmin accounts are excluded automatically.</small></div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover datatable performance-table mb-0"><thead><tr><th>Employee</th><th>Score</th><th>Points</th><th>Tasks</th><th>Order Follow-ups</th><th>Completion Rating</th><th>On-time Rate</th><th>Overdue</th></tr></thead><tbody>
 <?php foreach (($rows ?? []) as $row): ?><tr>
     <td><strong><?= esc((string) ($row['name'] ?? '-')) ?></strong><div class="small text-muted"><?= esc((string) ($row['role_label'] ?? 'Staff')) ?><br><?= esc((string) ($row['email'] ?? '')) ?></div></td>
     <td><span class="score-pill <?= $statusClass((float) ($row['score'] ?? 0)) ?>"><?= number_format((float) ($row['score'] ?? 0), 1) ?></span></td>
     <td><span class="badge bg-success-light text-success">+<?= number_format((float) ($row['points_earned'] ?? 0), 1) ?></span> <span class="badge bg-danger-light text-danger">-<?= number_format((float) ($row['points_lost'] ?? 0), 1) ?></span></td>
     <td><div class="metric-pair"><span class="metric-badge">On time <?= (int) ($row['task_on_time'] ?? 0) ?></span><span class="metric-badge">Late <?= (int) ($row['task_late'] ?? 0) ?></span></div></td>
     <td><div class="metric-pair"><span class="metric-badge">On time <?= (int) ($row['followup_on_time'] ?? 0) ?></span><span class="metric-badge">Late <?= (int) ($row['followup_late'] ?? 0) ?></span></div></td>
+    <td><strong><?= number_format((float) ($row['rating_average'] ?? 0), 1) ?>/5</strong><div class="small text-muted"><?= (int) ($row['rating_count'] ?? 0) ?> rated order(s)</div></td>
     <td><strong><?= number_format((float) ($row['on_time_rate'] ?? 0), 1) ?>%</strong><div class="progress mt-2"><div class="progress-bar bg-success" style="width:<?= min(100, max(0, (float) ($row['on_time_rate'] ?? 0))) ?>%"></div></div></td>
     <td><span class="badge <?= (int) ($row['overdue_actions'] ?? 0) > 0 ? 'bg-danger' : 'bg-success' ?>"><?= (int) ($row['overdue_actions'] ?? 0) ?></span></td>
 </tr><?php endforeach; ?></tbody></table></div></div></div>

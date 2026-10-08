@@ -3,16 +3,16 @@ import 'dart:async';
 import 'package:flutkit/jewellery_pwa/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
-class RoyalSplashScreen extends StatefulWidget {
-  const RoyalSplashScreen({super.key, required this.onFinished});
+class BrandSplashScreen extends StatefulWidget {
+  const BrandSplashScreen({super.key, required this.onFinished});
 
   final VoidCallback onFinished;
 
   @override
-  State<RoyalSplashScreen> createState() => _RoyalSplashScreenState();
+  State<BrandSplashScreen> createState() => _BrandSplashScreenState();
 }
 
-class _RoyalSplashScreenState extends State<RoyalSplashScreen>
+class _BrandSplashScreenState extends State<BrandSplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _entrance = AnimationController(
     vsync: this,

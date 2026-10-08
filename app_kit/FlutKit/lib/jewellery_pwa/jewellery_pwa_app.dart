@@ -1,6 +1,6 @@
 import 'package:flutkit/jewellery_pwa/screens/app_shell.dart';
 import 'package:flutkit/jewellery_pwa/screens/login_screen.dart';
-import 'package:flutkit/jewellery_pwa/screens/royal_splash_screen.dart';
+import 'package:flutkit/jewellery_pwa/screens/brand_splash_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/services/onesignal_service.dart';
 import 'package:flutkit/jewellery_mobile/session/mobile_session_store.dart';
@@ -101,7 +101,7 @@ class _JewelleryPwaAppState extends State<JewelleryPwaApp> {
   @override
   Widget build(BuildContext context) {
     if (_showSplash) {
-      return RoyalSplashScreen(
+      return BrandSplashScreen(
         onFinished: () => setState(() => _showSplash = false),
       );
     }

@@ -33,10 +33,13 @@ use App\Services\DiamondBagTraceService;
 use App\Services\FinishedJewelleryService;
 use App\Services\GoldInventory\StockService as GoldInventoryStockService;
 use App\Services\KarigarMaterialAccountingService;
+use App\Services\MobileApprovalService;
 use App\Services\MobileNotificationEventService;
+use App\Services\MobileUserPolicyService;
 use App\Services\OrderWhatsAppService;
 use App\Services\OrderCategoryService;
 use App\Services\OrderDeletionService;
+use App\Services\OrderFollowupService;
 use App\Services\OrderNumberService;
 use App\Services\OrderThumbnailService;
 use App\Services\PdfService;
@@ -1495,60 +1498,50 @@ class OrderController extends BaseController
             $imagePath = 'uploads/orders/followups/' . $storedName;
         }
 
-        $db = db_connect();
+        $followupPayload = [
+            'order_id' => $id,
+            'order_no' => (string) ($order['order_no'] ?? ('#' . $id)),
+            'stage' => $stage,
+            'description' => $description,
+            'next_followup_date' => $terminalStage ? null : $this->nullableDateTime($nextFollowupDate),
+            'followup_taken_on' => date('Y-m-d H:i:s'),
+        ];
+        $returnTo = trim((string) $this->request->getPost('return_to'));
+
         try {
-            $db->transException(true)->transStart();
-
-            $followupId = (int) $this->followupModel->insert([
-                'order_id' => $id,
-                'stage' => $stage,
-                'description' => $description,
-                'next_followup_date' => $terminalStage ? null : $this->nullableDateTime($nextFollowupDate),
-                'followup_taken_by' => (int) session('admin_id'),
-                'followup_taken_on' => date('Y-m-d H:i:s'),
-                'image_name' => $imageName,
-                'image_path' => $imagePath,
-            ], true);
-
-            $oldStatus = (string) ($order['status'] ?? '');
-            if ($oldStatus !== $stage) {
-                $db->table('orders')->where('id', $id)->update([
-                    'status' => $stage,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-                $db->table('order_items')->where('order_id', $id)->update([
-                    'item_status' => $stage,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-                $this->historyModel->insert([
-                    'order_id' => $id,
-                    'from_status' => $oldStatus,
-                    'to_status' => $stage,
-                    'remarks' => 'Updated from followup: ' . $description,
-                    'changed_by' => (int) session('admin_id'),
-                ]);
+            if ((new MobileUserPolicyService())->requiresApproval($currentAdminId, 'followup')) {
+                (new MobileApprovalService())->submit(
+                    'followup',
+                    $followupPayload,
+                    $currentAdminId,
+                    'Order ' . (string) ($order['order_no'] ?? ('#' . $id)) . ' follow-up: ' . $stage,
+                    $imageName,
+                    $imagePath,
+                    'orders',
+                    $id
+                );
+                $redirect = $this->isSafeAdminReturnUrl($returnTo)
+                    ? redirect()->to($returnTo)
+                    : redirect()->back();
+                return $redirect->with('success', 'Follow-up sent for admin approval.');
             }
-
-            $this->staffPerformanceService->completeOrderFollowup(
+            (new OrderFollowupService())->create(
                 $id,
-                $followupId,
-                (int) session('admin_id'),
-                $terminalStage ? null : $nextFollowupDate
+                $followupPayload,
+                $currentAdminId,
+                $imageName,
+                $imagePath
             );
-
-            $db->transComplete();
         } catch (Throwable $e) {
-            $db->transRollback();
+            if ($imagePath !== null) {
+                $absolutePath = FCPATH . ltrim($imagePath, '/');
+                if (is_file($absolutePath)) {
+                    @unlink($absolutePath);
+                }
+            }
             return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
 
-        try {
-            $this->mobileNotificationEvents->notifyFollowupAdded($id, $followupId);
-        } catch (Throwable $e) {
-            log_message('error', 'Followup push notification failed: {message}', ['message' => $e->getMessage()]);
-        }
-
-        $returnTo = trim((string) $this->request->getPost('return_to'));
         if ($this->isSafeAdminReturnUrl($returnTo)) {
             return redirect()->to($returnTo)->with('success', 'Followup saved and order status synced.');
         }

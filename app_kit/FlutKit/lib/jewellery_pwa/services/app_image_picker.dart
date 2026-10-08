@@ -15,6 +15,8 @@ class AppImagePicker {
     String title = 'Add a photo',
     int imageQuality = 85,
     double maxWidth = 1800,
+    bool allowGallery = true,
+    ValueChanged<ImageSource>? onSourceSelected,
   }) async {
     final images = await pickImages(
       context,
@@ -22,6 +24,8 @@ class AppImagePicker {
       allowMultiple: false,
       imageQuality: imageQuality,
       maxWidth: maxWidth,
+      allowGallery: allowGallery,
+      onSourceSelected: onSourceSelected,
     );
     return images.firstOrNull;
   }
@@ -32,21 +36,29 @@ class AppImagePicker {
     bool allowMultiple = true,
     int imageQuality = 85,
     double maxWidth = 1800,
+    bool allowGallery = true,
+    ValueChanged<ImageSource>? onSourceSelected,
   }) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: false,
-      isScrollControlled: true,
-      backgroundColor: AppColors.background,
-      constraints: const BoxConstraints(maxWidth: 560),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (sheetContext) =>
-          _PhotoSourceSheet(title: title, allowMultiple: allowMultiple),
-    );
+    final source = allowGallery
+        ? await showModalBottomSheet<ImageSource>(
+            context: context,
+            useSafeArea: true,
+            showDragHandle: false,
+            isScrollControlled: true,
+            backgroundColor: AppColors.background,
+            constraints: const BoxConstraints(maxWidth: 560),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            builder: (sheetContext) => _PhotoSourceSheet(
+              title: title,
+              allowMultiple: allowMultiple,
+              allowGallery: allowGallery,
+            ),
+          )
+        : ImageSource.camera;
     if (source == null || !context.mounted) return [];
+    onSourceSelected?.call(source);
 
     try {
       if (source == ImageSource.gallery && allowMultiple) {
@@ -85,10 +97,15 @@ class AppImagePicker {
 }
 
 class _PhotoSourceSheet extends StatelessWidget {
-  const _PhotoSourceSheet({required this.title, required this.allowMultiple});
+  const _PhotoSourceSheet({
+    required this.title,
+    required this.allowMultiple,
+    required this.allowGallery,
+  });
 
   final String title;
   final bool allowMultiple;
+  final bool allowGallery;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -140,16 +157,18 @@ class _PhotoSourceSheet extends StatelessWidget {
             color: AppColors.plum,
             onTap: () => Navigator.pop(context, ImageSource.camera),
           ),
-          const SizedBox(height: 12),
-          _SourceOption(
-            icon: LucideIcons.images,
-            title: 'Choose from gallery',
-            subtitle: allowMultiple
-                ? 'Select one or more photos'
-                : 'Select a photo from your device',
-            color: AppColors.brandGold,
-            onTap: () => Navigator.pop(context, ImageSource.gallery),
-          ),
+          if (allowGallery) ...[
+            const SizedBox(height: 12),
+            _SourceOption(
+              icon: LucideIcons.images,
+              title: 'Choose from gallery',
+              subtitle: allowMultiple
+                  ? 'Select one or more photos'
+                  : 'Select a photo from your device',
+              color: AppColors.brandGold,
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
         ],
       ),
     ),
