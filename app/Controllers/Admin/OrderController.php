@@ -2548,41 +2548,94 @@ class OrderController extends BaseController
         if ($allowed === []) {
             return 'This karigar has no diamond balance available for receiving.';
         }
-        $requested = [];
+        $selectedIssueLines = [];
+        $expandedRows = [];
         foreach ($rows as &$row) {
-            $value = (string) ($row['name'] ?? '');
-            if (! isset($allowed[$value])) {
-                return 'Select the diamond type from this karigar\'s available diamond balance.';
+            $selection = (string) ($row['name'] ?? '');
+            $values = json_decode($selection, true);
+            if (! is_array($values)) {
+                $values = [$selection];
             }
-            $option = $allowed[$value];
-            $pcs = (float) ($row['pcs'] ?? 0);
-            $cts = (float) ($row['weight_cts'] ?? 0);
-            $requested[$value]['pcs'] = (float) ($requested[$value]['pcs'] ?? 0) + $pcs;
-            $requested[$value]['cts'] = (float) ($requested[$value]['cts'] ?? 0) + $cts;
-            if ($requested[$value]['pcs'] > ((float) ($option['available_pcs'] ?? 0) + 0.0005)
-                || $requested[$value]['cts'] > ((float) ($option['available_cts'] ?? 0) + 0.0005)) {
-                return 'Studded PCS/CTS exceeds the available balance of ' . (string) ($option['label'] ?? 'the selected diamond line') . '.';
+            $values = array_values(array_unique(array_filter(array_map(
+                static fn($value): string => is_scalar($value) ? trim((string) $value) : '',
+                $values
+            ), static fn(string $value): bool => $value !== '')));
+            if ($values === []) {
+                return 'Select at least one diamond bag line from the available balance.';
             }
 
-            $issueLineId = (int) ($option['issue_line_id'] ?? 0);
+            $pcs = (float) ($row['pcs'] ?? 0);
+            $cts = (float) ($row['weight_cts'] ?? 0);
+            $selectionOptions = [];
+            $totalAvailablePcs = 0.0;
+            $totalAvailableCts = 0.0;
+            foreach ($values as $value) {
+                if (! isset($allowed[$value])) {
+                    return 'Select the diamond type from this karigar\'s available diamond balance.';
+                }
+                $option = $allowed[$value];
+                $issueLineId = (int) ($option['issue_line_id'] ?? 0);
+                if ($issueLineId > 0 && isset($selectedIssueLines[$issueLineId])) {
+                    return 'A selected diamond bag line cannot be used in more than one row.';
+                }
+                if ($issueLineId > 0) {
+                    $selectedIssueLines[$issueLineId] = true;
+                }
+                $selectionOptions[] = $option;
+                $totalAvailablePcs += (float) ($option['available_pcs'] ?? 0);
+                $totalAvailableCts += (float) ($option['available_cts'] ?? 0);
+            }
+
             $displayName = trim((string) ($row['display_name'] ?? ''));
-            if ($issueLineId > 0) {
+            $hasIssueLines = count(array_filter(
+                $selectionOptions,
+                static fn(array $option): bool => (int) ($option['issue_line_id'] ?? 0) > 0
+            )) > 0;
+            if ($pcs > $totalAvailablePcs + 0.0005 || $cts > $totalAvailableCts + 0.0005) {
+                return 'Studded PCS/CTS exceeds the combined available balance of the selected diamond bag lines.';
+            }
+            if ($hasIssueLines) {
                 if ($pcs <= 0 || floor($pcs) !== $pcs || $cts <= 0) {
                     return 'Whole-number PCS and positive CTS are mandatory for every bag-wise studded diamond line.';
                 }
+            }
+            foreach ($selectionOptions as $option) {
                 $allocatedOrderId = (int) ($option['allocation_order_id'] ?? 0);
                 if ($allocatedOrderId > 0 && $allocatedOrderId !== $orderId) {
                     return 'The selected diamond bag line is allocated to another order.';
                 }
-                $row['diamond_issue_line_id'] = $issueLineId;
-                $row['diamond_bag_id'] = (int) ($option['bag_id'] ?? 0) ?: null;
-                $row['diamond_bag_item_id'] = (int) ($option['bag_item_id'] ?? 0) ?: null;
-                $row['name'] = $displayName !== '' ? $displayName : (string) ($option['label'] ?? $value);
-            } elseif ($displayName !== '') {
-                $row['name'] = $displayName;
+            }
+
+            $remainingPcs = $pcs;
+            $remainingCts = $cts;
+            foreach ($selectionOptions as $option) {
+                $issueLineId = (int) ($option['issue_line_id'] ?? 0);
+                $linePcs = min($remainingPcs, (float) ($option['available_pcs'] ?? 0));
+                $lineCts = min($remainingCts, (float) ($option['available_cts'] ?? 0));
+                $remainingPcs = max(0, $remainingPcs - $linePcs);
+                $remainingCts = max(0, $remainingCts - $lineCts);
+                if ($linePcs <= 0 && $lineCts <= 0) {
+                    continue;
+                }
+
+                $expanded = $row;
+                $expanded['name'] = $displayName !== '' ? $displayName : (string) ($option['label'] ?? '');
+                $expanded['pcs'] = round($linePcs, 3);
+                $expanded['weight_cts'] = round($lineCts, 3);
+                $expanded['line_total'] = round($expanded['weight_cts'] * (float) ($row['rate'] ?? 0), 2);
+                if ($issueLineId > 0) {
+                    $expanded['diamond_issue_line_id'] = $issueLineId;
+                    $expanded['diamond_bag_id'] = (int) ($option['bag_id'] ?? 0) ?: null;
+                    $expanded['diamond_bag_item_id'] = (int) ($option['bag_item_id'] ?? 0) ?: null;
+                }
+                $expandedRows[] = $expanded;
+            }
+            if ($remainingPcs > 0.0005 || $remainingCts > 0.0005) {
+                return 'Studded PCS/CTS could not be assigned across the selected diamond bag lines.';
             }
         }
         unset($row);
+        $rows = $expandedRows;
         return null;
     }
 
@@ -3136,17 +3189,29 @@ class OrderController extends BaseController
                     if ($name === '') {
                         $name = ucfirst($componentType !== '' ? $componentType : 'detail');
                     }
-                    $rows[] = [
-                        'name' => $name,
-                        'grade' => ucfirst($componentType !== '' ? $componentType : '-'),
-                        'pcs' => round($pcs, 3),
-                        'wt' => round($weight, 3),
-                        'rate' => round((float) ($row['rate'] ?? 0), 2),
-                        'amt' => round($amt, 2),
-                    ];
+                    $rate = round((float) ($row['rate'] ?? 0), 2);
+                    $key = hash('sha256', $componentType . "\0" . $name . "\0" . number_format($rate, 2, '.', ''));
+                    if (! isset($rows[$key])) {
+                        $rows[$key] = [
+                            'name' => $name,
+                            'grade' => ucfirst($componentType !== '' ? $componentType : '-'),
+                            'pcs' => 0.0,
+                            'wt' => 0.0,
+                            'rate' => $rate,
+                            'amt' => 0.0,
+                        ];
+                    }
+                    $rows[$key]['pcs'] += $pcs;
+                    $rows[$key]['wt'] += $weight;
+                    $rows[$key]['amt'] += $amt;
                 }
                 if ($rows !== []) {
-                    return $rows;
+                    return array_values(array_map(static function (array $row): array {
+                        $row['pcs'] = round($row['pcs'], 3);
+                        $row['wt'] = round($row['wt'], 3);
+                        $row['amt'] = round($row['amt'], 2);
+                        return $row;
+                    }, $rows));
                 }
             }
         }

@@ -22,6 +22,8 @@
     #receiveModal .diamond-row-actions { display: flex; flex-direction: column; gap: 6px; min-width: 76px; }
     #receiveModal .diamond-row-actions .btn { justify-content: center; white-space: nowrap; width: 100%; }
     #receiveModal .receive-diamond-table input, #receiveModal .receive-diamond-table .select2-container { min-width: 0; width: 100% !important; }
+    #receiveModal .js-stone-inventory-select + .select2-container { min-width: 190px; width: 100% !important; }
+    #receiveModal .select2-dropdown { z-index: 2070; }
     @media (max-width: 767.98px) {
         #receiveModal .receive-diamond-table { min-width: 760px !important; }
     }
@@ -345,7 +347,7 @@
                                         <thead><tr><th>Available Type / Final Name</th><th>PCS</th><th>Weight (cts)</th><th>Rate</th><th>Total</th><th>Actions</th></tr></thead>
                                         <tbody class="js-dia-body">
                                             <tr>
-                                                <td><select name="studded_diamond_type[]" class="form-select js-diamond-balance-select"><option value="">Select available diamond</option></select><input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name"></td>
+                                                <td><select multiple class="form-select js-diamond-balance-select"></select><input type="hidden" name="studded_diamond_type[]" class="js-dia-type"><input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name"></td>
                                                 <td><input type="number" step="1" min="1" name="studded_diamond_pcs[]" class="form-control js-dia-pcs"></td>
                                                 <td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="0"></td>
                                                 <td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="0"></td>
@@ -370,10 +372,10 @@
                                         <tbody class="js-stone-body">
                                             <tr>
                                                 <td>
-                                                    <select name="stone_item_id[]" class="form-select js-stone-inventory-select" data-placeholder="Search inventory item">
+                                                    <select name="stone_item_id[]" class="form-select js-stone-inventory-select" data-placeholder="Search stone inventory">
                                                         <option value="">Select stone</option>
                                                         <?php foreach (($stoneInventoryItems ?? []) as $stoneItem): ?>
-                                                            <option value="<?= (int) $stoneItem['id'] ?>"><?= esc((string) $stoneItem['product_name'] . ' · ' . number_format((float) $stoneItem['qty_balance'], 3) . ' available') ?></option>
+                                                            <option value="<?= (int) $stoneItem['id'] ?>" data-description="<?= esc((string) (($stoneItem['stone_type'] ?? '') ?: $stoneItem['product_name']), 'attr') ?>" data-rate="<?= esc((string) (($stoneItem['avg_rate'] ?? 0) ?: ($stoneItem['default_rate'] ?? 0)), 'attr') ?>"><?= esc((string) $stoneItem['product_name'] . (($stoneItem['stone_type'] ?? '') !== '' ? ' · ' . $stoneItem['stone_type'] : '') . ' · ' . number_format((float) $stoneItem['qty_balance'], 3) . ' available · Rate ' . number_format((float) (($stoneItem['avg_rate'] ?? 0) ?: ($stoneItem['default_rate'] ?? 0)), 2)) ?></option>
                                                         <?php endforeach; ?>
                                                     </select>
                                                 </td>
@@ -531,20 +533,68 @@
             let options = '<option value="">Select stone</option>';
             stoneInventoryItems.forEach(function (item) {
                 const id = String(item.id || '');
-                const label = String(item.product_name || 'Stone') + ' · ' + num(item.qty_balance).toFixed(3) + ' available';
-                options += '<option value="' + attr(id) + '"' + (String(selectedId || '') === id ? ' selected' : '') + '>' + attr(label) + '</option>';
+                const name = String(item.product_name || 'Stone');
+                const type = String(item.stone_type || '');
+                const rate = num(item.avg_rate || item.default_rate);
+                const label = name + (type ? ' · ' + type : '') + ' · ' + num(item.qty_balance).toFixed(3) + ' available · Rate ' + rate.toFixed(2);
+                const description = type || name;
+                options += '<option value="' + attr(id) + '" data-description="' + attr(description) + '" data-rate="' + rate.toFixed(2) + '"' + (String(selectedId || '') === id ? ' selected' : '') + '>' + attr(label) + '</option>';
             });
             return options;
         }
 
-        function diamondBalanceOptions(selectedValue) {
-            let options = '<option value="">Select available diamond</option>';
+        function diamondBalanceOptions(selectedValues, select) {
+            const selected = Array.isArray(selectedValues) ? selectedValues.map(String) : [];
+            const usedElsewhere = new Set();
+            if (receiveModal) {
+                receiveModal.querySelectorAll('.js-diamond-balance-select').forEach(function (otherSelect) {
+                    if (otherSelect === select) return;
+                    Array.from(otherSelect.selectedOptions).forEach(function (option) {
+                        usedElsewhere.add(String(option.value));
+                    });
+                });
+            }
+            let options = '';
             activeDiamondOptions.forEach(function (item) {
                 const value = String(item.value || '');
                 const label = String(item.label || value || 'Diamond') + ' · ' + num(item.available_cts).toFixed(3) + ' cts / ' + num(item.available_pcs).toFixed(0) + ' pcs';
-                options += '<option value="' + attr(value) + '" data-final-name="' + attr(item.label || value) + '" data-available-cts="' + num(item.available_cts).toFixed(3) + '" data-available-pcs="' + num(item.available_pcs).toFixed(3) + '" data-issue-line-id="' + num(item.issue_line_id) + '"' + (String(selectedValue || '') === value ? ' selected' : '') + '>' + attr(label) + '</option>';
+                options += '<option value="' + attr(value) + '" data-final-name="' + attr(item.label || value) + '" data-available-cts="' + num(item.available_cts).toFixed(3) + '" data-available-pcs="' + num(item.available_pcs).toFixed(3) + '" data-issue-line-id="' + num(item.issue_line_id) + '"' + (selected.indexOf(value) >= 0 ? ' selected' : '') + (usedElsewhere.has(value) ? ' disabled' : '') + '>' + attr(label) + '</option>';
             });
             return options;
+        }
+
+        function refreshDiamondSelectors() {
+            if (!receiveModal) return;
+            receiveModal.querySelectorAll('.js-diamond-balance-select').forEach(function (select) {
+                const selected = Array.from(select.selectedOptions).map(function (option) { return option.value; });
+                select.innerHTML = diamondBalanceOptions(selected, select);
+                const hidden = select.closest('tr').querySelector('.js-dia-type');
+                if (hidden) hidden.value = JSON.stringify(selected);
+                if (window.jQuery) window.jQuery(select).trigger('change.select2');
+            });
+        }
+
+        function updateDiamondSelection(select) {
+            const row = select.closest('tr');
+            if (!row) return;
+            const chosen = Array.from(select.selectedOptions);
+            const values = chosen.map(function (option) { return option.value; });
+            const availablePcs = chosen.reduce(function (sum, option) { return sum + num(option.getAttribute('data-available-pcs')); }, 0);
+            const availableCts = chosen.reduce(function (sum, option) { return sum + num(option.getAttribute('data-available-cts')); }, 0);
+            const hidden = row.querySelector('.js-dia-type');
+            const pcs = row.querySelector('.js-dia-pcs');
+            const weight = row.querySelector('.js-dia-weight');
+            const name = row.querySelector('.js-dia-name');
+            if (hidden) hidden.value = JSON.stringify(values);
+            if (pcs) pcs.value = availablePcs > 0 ? String(Math.floor(availablePcs)) : '';
+            if (weight) weight.value = availableCts.toFixed(3);
+            if (name && name.dataset.edited !== '1') {
+                name.value = chosen.map(function (option) {
+                    return option.getAttribute('data-final-name') || option.textContent.trim();
+                }).join(' + ');
+            }
+            refreshDiamondSelectors();
+            recalcReceiveModal();
         }
 
         function initStoneInventorySelects() {
@@ -556,7 +606,8 @@
                     allowClear: true,
                     placeholder: window.jQuery(this).hasClass('js-diamond-balance-select')
                         ? 'Search available diamond'
-                        : (window.jQuery(this).hasClass('js-purity-select') ? 'Search ornament purity' : 'Search inventory item'),
+                        : (window.jQuery(this).hasClass('js-purity-select') ? 'Search ornament purity' : 'Search stone inventory'),
+                    minimumResultsForSearch: 0,
                     dropdownParent: window.jQuery(receiveModal)
                 });
             });
@@ -571,7 +622,7 @@
             const total = wt * rate;
             if (kind === 'dia') {
                 return '<tr>'
-                    + '<td><select name="studded_diamond_type[]" class="form-select js-diamond-balance-select">' + diamondBalanceOptions(r.type || '') + '</select><input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name" value="' + attr(r.name || '') + '"></td>'
+                    + '<td><select multiple class="form-select js-diamond-balance-select">' + diamondBalanceOptions([], null) + '</select><input type="hidden" name="studded_diamond_type[]" class="js-dia-type"><input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name" value="' + attr(r.name || '') + '"></td>'
                     + '<td><input type="number" step="1" min="1" name="studded_diamond_pcs[]" class="form-control js-dia-pcs" value="' + (pcs > 0 ? Math.round(pcs) : '') + '"></td>'
                     + '<td><input type="number" step="0.001" min="0" name="studded_diamond_weight[]" class="form-control js-dia-weight" value="' + wt.toFixed(3) + '"></td>'
                     + '<td><input type="number" step="0.01" min="0" name="studded_diamond_rate[]" class="form-control js-dia-rate" value="' + rate.toFixed(2) + '"></td>'
@@ -839,6 +890,8 @@
                 if (addDia) {
                     const body = receiveModal.querySelector('.js-dia-body');
                     if (body) body.insertAdjacentHTML('beforeend', createRowHtml('dia'));
+                    refreshDiamondSelectors();
+                    initStoneInventorySelects();
                     recalcReceiveModal();
                     return;
                 }
@@ -861,10 +914,10 @@
                 if (mergeDiamond) {
                     const row = mergeDiamond.closest('tr');
                     const select = row ? row.querySelector('.js-diamond-balance-select') : null;
-                    const selected = select && select.selectedOptions ? select.selectedOptions[0] : null;
-                    const availableCts = num(selected ? selected.getAttribute('data-available-cts') : 0);
-                    const availablePcs = num(selected ? selected.getAttribute('data-available-pcs') : 0);
-                    if (!selected || !select.value || availableCts <= 0 || availablePcs < 1) {
+                    const selected = select && select.selectedOptions ? Array.from(select.selectedOptions) : [];
+                    const availableCts = selected.reduce(function (sum, option) { return sum + num(option.getAttribute('data-available-cts')); }, 0);
+                    const availablePcs = selected.reduce(function (sum, option) { return sum + num(option.getAttribute('data-available-pcs')); }, 0);
+                    if (selected.length === 0 || availableCts <= 0 || availablePcs < 1) {
                         if (select) select.focus();
                         if (window.Swal) {
                             window.Swal.fire({
@@ -890,6 +943,7 @@
                     const tbody = tr ? tr.parentElement : null;
                     if (tbody && tr && tbody.children.length > 1) {
                         tr.remove();
+                        refreshDiamondSelectors();
                         recalcReceiveModal();
                     }
                 }
@@ -901,22 +955,25 @@
             });
             receiveModal.addEventListener('change', function (event) {
                 const diamondSelect = event.target instanceof Element ? event.target.closest('.js-diamond-balance-select') : null;
+                const stoneSelect = event.target instanceof Element ? event.target.closest('.js-stone-inventory-select') : null;
                 if (diamondSelect) {
-                    const row = diamondSelect.closest('tr');
-                    const selected = diamondSelect.selectedOptions ? diamondSelect.selectedOptions[0] : null;
-                    const pcs = row ? row.querySelector('.js-dia-pcs') : null;
-                    const weight = row ? row.querySelector('.js-dia-weight') : null;
-                    const name = row ? row.querySelector('.js-dia-name') : null;
-                    if (selected && diamondSelect.value) {
-                        if (pcs) pcs.value = String(Math.floor(num(selected.getAttribute('data-available-pcs'))));
-                        if (weight) weight.value = num(selected.getAttribute('data-available-cts')).toFixed(3);
-                        if (name && !name.value.trim()) name.value = selected.getAttribute('data-final-name') || selected.textContent.trim();
-                    } else {
-                        if (pcs) pcs.value = '';
-                        if (weight) weight.value = '0';
+                    updateDiamondSelection(diamondSelect);
+                }
+                if (stoneSelect) {
+                    const row = stoneSelect.closest('tr');
+                    const option = stoneSelect.selectedOptions ? stoneSelect.selectedOptions[0] : null;
+                    const description = row ? row.querySelector('[name="stone_type[]"]') : null;
+                    const rate = row ? row.querySelector('.js-stone-rate') : null;
+                    if (option && stoneSelect.value) {
+                        if (description) description.value = option.getAttribute('data-description') || option.textContent.trim();
+                        if (rate) rate.value = num(option.getAttribute('data-rate')).toFixed(2);
                     }
                 }
                 recalcReceiveModal();
+            });
+            receiveModal.addEventListener('input', function (event) {
+                const name = event.target instanceof Element ? event.target.closest('.js-dia-name') : null;
+                if (name) name.dataset.edited = '1';
             });
 
             if (receiveForm) {

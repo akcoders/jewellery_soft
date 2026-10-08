@@ -387,8 +387,8 @@ class DiamondBagTraceService
         $used = $this->consumedAgainstIssueLine($issueLineId, $receiveDetailId);
         $pcs = round((float) ($detail['pcs'] ?? 0), 3);
         $cts = round((float) ($detail['weight_cts'] ?? 0), 3);
-        if ($pcs <= 0 || $cts <= 0) {
-            throw new RuntimeException('Studded diamond PCS and CTS are mandatory for bag traceability.');
+        if ($pcs <= 0 && $cts <= 0) {
+            throw new RuntimeException('Studded diamond PCS or CTS is required for bag traceability.');
         }
         if (($used['pcs'] + $pcs) > ((float) $detail['issued_pcs'] + self::EPSILON)
             || ($used['carat'] + $cts) > ((float) $detail['issued_cts'] + self::EPSILON)) {

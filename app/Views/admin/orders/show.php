@@ -48,6 +48,8 @@
     #receiveModal .receive-diamond-table th:nth-child(5) { width: 11%; }
     #receiveModal .receive-diamond-table th:nth-child(6) { width: 16%; }
     #receiveModal .receive-diamond-table input, #receiveModal .receive-diamond-table .select2-container { min-width: 0; width: 100% !important; }
+    #receiveModal .js-stone-inventory-select + .select2-container { min-width: 190px; width: 100% !important; }
+    #receiveModal .select2-dropdown { z-index: 2070; }
     #receiveModal .diamond-row-actions { display: flex; flex-direction: column; gap: 6px; min-width: 76px; }
     #receiveModal .diamond-row-actions .btn { justify-content: center; white-space: nowrap; width: 100%; }
     @media (max-width: 767.98px) {
@@ -403,18 +405,18 @@ $statusClass = match ($status) {
             <tbody class="js-<?= esc($key) ?>-body">
                 <tr>
                     <?php if ($key === 'stone'): ?>
-                        <td><select name="stone_item_id[]" class="form-select js-stone-inventory-select"><option value="">Select stone</option><?php foreach (($stoneInventoryItems ?? []) as $stoneItem): ?><option value="<?= (int) $stoneItem['id'] ?>"><?= esc((string) $stoneItem['product_name'] . ' · ' . number_format((float) $stoneItem['qty_balance'], 3) . ' available') ?></option><?php endforeach; ?></select></td>
+                        <td><select name="stone_item_id[]" class="form-select js-stone-inventory-select" data-placeholder="Search stone inventory"><option value="">Select stone</option><?php foreach (($stoneInventoryItems ?? []) as $stoneItem): ?><option value="<?= (int) $stoneItem['id'] ?>" data-description="<?= esc((string) (($stoneItem['stone_type'] ?? '') ?: $stoneItem['product_name']), 'attr') ?>" data-rate="<?= esc((string) (($stoneItem['avg_rate'] ?? 0) ?: ($stoneItem['default_rate'] ?? 0)), 'attr') ?>"><?= esc((string) $stoneItem['product_name'] . (($stoneItem['stone_type'] ?? '') !== '' ? ' · ' . $stoneItem['stone_type'] : '') . ' · ' . number_format((float) $stoneItem['qty_balance'], 3) . ' available · Rate ' . number_format((float) (($stoneItem['avg_rate'] ?? 0) ?: ($stoneItem['default_rate'] ?? 0)), 2)) ?></option><?php endforeach; ?></select></td>
                     <?php endif; ?>
                     <td>
                         <?php if ($key === 'dia'): ?>
-                            <select name="<?= esc($names[0]) ?>[]" class="form-select js-diamond-balance-select">
-                                <option value="">Select available diamond</option>
+                            <select multiple class="form-select js-diamond-balance-select">
                                 <?php foreach (($karigarDiamondOptions ?? []) as $diamondOption): ?>
                                     <option value="<?= esc((string) $diamondOption['value'], 'attr') ?>" data-final-name="<?= esc((string) $diamondOption['label'], 'attr') ?>" data-available-cts="<?= esc((string) $diamondOption['available_cts'], 'attr') ?>" data-available-pcs="<?= esc((string) $diamondOption['available_pcs'], 'attr') ?>">
                                         <?= esc((string) $diamondOption['label']) ?> · <?= number_format((float) $diamondOption['available_cts'], 3) ?> cts / <?= number_format((float) $diamondOption['available_pcs'], 0) ?> pcs
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <input type="hidden" name="studded_diamond_type[]" class="js-dia-type">
                             <input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name">
                         <?php else: ?>
                             <input type="text" name="<?= esc($names[0]) ?>[]" class="form-control">
@@ -462,19 +464,60 @@ $statusClass = match ($status) {
     function stoneOptions() {
         let options = '<option value="">Select stone</option>';
         stoneInventoryItems.forEach(item => {
-            const label = String(item.product_name || 'Stone') + ' · ' + n(item.qty_balance).toFixed(3) + ' available';
-            options += '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(label) + '</option>';
+            const name = String(item.product_name || 'Stone');
+            const type = String(item.stone_type || '');
+            const rate = n(item.avg_rate || item.default_rate);
+            const label = name + (type ? ' · ' + type : '') + ' · ' + n(item.qty_balance).toFixed(3) + ' available · Rate ' + rate.toFixed(2);
+            options += '<option value="' + escapeHtml(item.id) + '" data-description="' + escapeHtml(type || name) + '" data-rate="' + rate.toFixed(2) + '">' + escapeHtml(label) + '</option>';
         });
         return options;
     }
 
-    function diamondOptions() {
-        let options = '<option value="">Select available diamond</option>';
+    function diamondOptions(selectedValues, select) {
+        const selected = Array.isArray(selectedValues) ? selectedValues.map(String) : [];
+        const usedElsewhere = new Set();
+        modal.querySelectorAll('.js-diamond-balance-select').forEach(otherSelect => {
+            if (otherSelect === select) return;
+            Array.from(otherSelect.selectedOptions).forEach(option => usedElsewhere.add(String(option.value)));
+        });
+        let options = '';
         karigarDiamondOptions.forEach(item => {
             const label = String(item.label || item.value || 'Diamond') + ' · ' + n(item.available_cts).toFixed(3) + ' cts / ' + n(item.available_pcs).toFixed(0) + ' pcs';
-            options += '<option value="' + escapeHtml(item.value) + '" data-available-cts="' + n(item.available_cts).toFixed(3) + '" data-available-pcs="' + n(item.available_pcs).toFixed(3) + '">' + escapeHtml(label) + '</option>';
+            const value = String(item.value || '');
+            options += '<option value="' + escapeHtml(value) + '" data-final-name="' + escapeHtml(item.label || value) + '" data-available-cts="' + n(item.available_cts).toFixed(3) + '" data-available-pcs="' + n(item.available_pcs).toFixed(3) + '"' + (selected.includes(value) ? ' selected' : '') + (usedElsewhere.has(value) ? ' disabled' : '') + '>' + escapeHtml(label) + '</option>';
         });
         return options;
+    }
+
+    function refreshDiamondSelectors() {
+        modal.querySelectorAll('.js-diamond-balance-select').forEach(select => {
+            const selected = Array.from(select.selectedOptions).map(option => option.value);
+            select.innerHTML = diamondOptions(selected, select);
+            const hidden = select.closest('tr').querySelector('.js-dia-type');
+            if (hidden) hidden.value = JSON.stringify(selected);
+            if (window.jQuery) window.jQuery(select).trigger('change.select2');
+        });
+    }
+
+    function updateDiamondSelection(select) {
+        const row = select.closest('tr');
+        if (!row) return;
+        const chosen = Array.from(select.selectedOptions);
+        const values = chosen.map(option => option.value);
+        const pcsTotal = chosen.reduce((sum, option) => sum + n(option.getAttribute('data-available-pcs')), 0);
+        const ctsTotal = chosen.reduce((sum, option) => sum + n(option.getAttribute('data-available-cts')), 0);
+        const hidden = row.querySelector('.js-dia-type');
+        const pcs = row.querySelector('.js-dia-pcs');
+        const weight = row.querySelector('.js-dia-weight');
+        const name = row.querySelector('.js-dia-name');
+        if (hidden) hidden.value = JSON.stringify(values);
+        if (pcs) pcs.value = pcsTotal > 0 ? String(Math.floor(pcsTotal)) : '';
+        if (weight) weight.value = ctsTotal.toFixed(3);
+        if (name && name.dataset.edited !== '1') {
+            name.value = chosen.map(option => option.getAttribute('data-final-name') || option.textContent.trim()).join(' + ');
+        }
+        refreshDiamondSelectors();
+        recalc();
     }
 
     function initStoneSelects() {
@@ -482,7 +525,7 @@ $statusClass = match ($status) {
         window.jQuery(modal).find('.js-stone-inventory-select, .js-diamond-balance-select, .js-purity-select').each(function () {
             if (window.jQuery(this).hasClass('select2-hidden-accessible')) return;
             window.jQuery(this).select2({
-                width: '100%', allowClear: true, placeholder: window.jQuery(this).hasClass('js-diamond-balance-select') ? 'Search available diamond' : (window.jQuery(this).hasClass('js-purity-select') ? 'Search ornament purity' : 'Search inventory item'), dropdownParent: window.jQuery(modal)
+                width: '100%', allowClear: true, minimumResultsForSearch: 0, placeholder: window.jQuery(this).hasClass('js-diamond-balance-select') ? 'Search available diamond' : (window.jQuery(this).hasClass('js-purity-select') ? 'Search ornament purity' : 'Search stone inventory'), dropdownParent: window.jQuery(modal)
             });
         });
     }
@@ -493,10 +536,10 @@ $statusClass = match ($status) {
             ? '<td><select name="stone_item_id[]" class="form-select js-stone-inventory-select">' + stoneOptions() + '</select></td>'
             : '';
         const descriptionControl = kind === 'dia'
-            ? '<select name="' + names[0] + '[]" class="form-select js-diamond-balance-select">' + diamondOptions() + '</select>'
+            ? '<select multiple class="form-select js-diamond-balance-select">' + diamondOptions([], null) + '</select><input type="hidden" name="studded_diamond_type[]" class="js-dia-type"><input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name">'
             : '<input type="text" name="' + names[0] + '[]" class="form-control">';
         return '<tr>' + inventoryCell
-            + '<td>' + descriptionControl + (kind === 'dia' ? '<input type="text" name="studded_diamond_name[]" class="form-control mt-1 js-dia-name" placeholder="Editable final name">' : '') + '</td>'
+            + '<td>' + descriptionControl + '</td>'
             + '<td><input type="number" step="' + (kind === 'dia' ? '1' : '0.001') + '" min="' + (kind === 'dia' ? '1' : '0') + '" name="' + names[1] + '[]" class="form-control ' + (kind === 'dia' ? 'js-dia-pcs' : '') + '"></td>'
             + '<td><input type="number" step="0.001" min="0" name="' + names[2] + '[]" class="form-control js-' + kind + '-weight"></td>'
             + '<td><input type="number" step="0.01" min="0" name="' + names[3] + '[]" class="form-control js-' + kind + '-rate"></td>'
@@ -548,22 +591,27 @@ $statusClass = match ($status) {
             const kind = add.getAttribute('data-kind');
             const body = modal.querySelector('.js-' + kind + '-body');
             if (body) body.insertAdjacentHTML('beforeend', rowHtml(kind));
+            if (kind === 'dia') refreshDiamondSelectors();
             initStoneSelects();
         }
         const remove = target.closest('.js-remove-row');
         if (remove) {
             const row = remove.closest('tr');
             const body = row ? row.parentElement : null;
-            if (body && row && body.children.length > 1) row.remove();
+            if (body && row && body.children.length > 1) {
+                const wasDiamondRow = row.querySelector('.js-diamond-balance-select') !== null;
+                row.remove();
+                if (wasDiamondRow) refreshDiamondSelectors();
+            }
         }
         const mergeDiamond = target.closest('.js-merge-dia-row');
         if (mergeDiamond) {
             const row = mergeDiamond.closest('tr');
             const select = row ? row.querySelector('.js-diamond-balance-select') : null;
-            const selected = select && select.selectedOptions ? select.selectedOptions[0] : null;
-            const availableCts = n(selected ? selected.getAttribute('data-available-cts') : 0);
-            const availablePcs = n(selected ? selected.getAttribute('data-available-pcs') : 0);
-            if (!selected || !select.value || availableCts <= 0 || availablePcs < 1) {
+            const selected = select && select.selectedOptions ? Array.from(select.selectedOptions) : [];
+            const availableCts = selected.reduce((sum, option) => sum + n(option.getAttribute('data-available-cts')), 0);
+            const availablePcs = selected.reduce((sum, option) => sum + n(option.getAttribute('data-available-pcs')), 0);
+            if (selected.length === 0 || availableCts <= 0 || availablePcs < 1) {
                 if (select) select.focus();
                 if (window.Swal) {
                     window.Swal.fire({
@@ -585,22 +633,23 @@ $statusClass = match ($status) {
     modal.addEventListener('input', recalc);
     modal.addEventListener('change', event => {
         const select = event.target instanceof Element ? event.target.closest('.js-diamond-balance-select') : null;
-        if (select) {
-            const row = select.closest('tr');
-            const selected = select.selectedOptions ? select.selectedOptions[0] : null;
-            const pcs = row ? row.querySelector('.js-dia-pcs') : null;
-            const weight = row ? row.querySelector('.js-dia-weight') : null;
-            const name = row ? row.querySelector('.js-dia-name') : null;
-            if (selected && select.value) {
-                if (pcs) pcs.value = String(Math.floor(n(selected.getAttribute('data-available-pcs'))));
-                if (weight) weight.value = n(selected.getAttribute('data-available-cts')).toFixed(3);
-                if (name) name.value = selected.getAttribute('data-final-name') || selected.textContent.trim();
-            } else {
-                if (pcs) pcs.value = '';
-                if (weight) weight.value = '0';
+        const stoneSelect = event.target instanceof Element ? event.target.closest('.js-stone-inventory-select') : null;
+        if (select) updateDiamondSelection(select);
+        if (stoneSelect) {
+            const row = stoneSelect.closest('tr');
+            const option = stoneSelect.selectedOptions ? stoneSelect.selectedOptions[0] : null;
+            const description = row ? row.querySelector('[name="stone_type[]"]') : null;
+            const rate = row ? row.querySelector('.js-stone-rate') : null;
+            if (option && stoneSelect.value) {
+                if (description) description.value = option.getAttribute('data-description') || option.textContent.trim();
+                if (rate) rate.value = n(option.getAttribute('data-rate')).toFixed(2);
             }
         }
         recalc();
+    });
+    modal.addEventListener('input', event => {
+        const name = event.target instanceof Element ? event.target.closest('.js-dia-name') : null;
+        if (name) name.dataset.edited = '1';
     });
     const receiveForm = document.getElementById('receive-form');
     if (receiveForm) {
