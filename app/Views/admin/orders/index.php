@@ -8,6 +8,10 @@
     .order-list-thumb { align-items: center; background: #f4f5f7; border: 1px solid #e1e5eb; border-radius: 9px; color: #9aa3af; display: inline-flex; height: 44px; justify-content: center; overflow: hidden; position: relative; width: 44px; }
     .order-list-thumb img { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
     .order-list-name { min-width: 150px; white-space: normal; }
+    .ready-orders-table { min-width: 1280px; table-layout: auto; }
+    .ready-orders-table th:last-child, .ready-orders-table td:last-child { min-width: 210px; width: 210px; }
+    .ready-order-actions { align-items: center; display: flex; flex-wrap: nowrap; gap: 6px; min-width: 198px; }
+    .ready-order-actions .btn { flex: 0 0 auto; white-space: nowrap; }
     #receiveModal .modal-dialog { max-width: min(1480px, calc(100vw - 28px)); }
     #receiveModal .diamond-table-shell::before { content: none !important; display: none !important; }
     #receiveModal .receive-diamond-table { min-width: 0 !important; table-layout: fixed; width: 100%; }
@@ -47,7 +51,7 @@
 <div class="card erp-table-card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table datatable table-hover mb-0 erp-responsive-wide">
+            <table class="table datatable table-hover mb-0 erp-responsive-wide <?= $isReadyMode ? 'ready-orders-table' : '' ?>">
                 <thead>
                     <tr>
                         <th>Photo</th>
@@ -89,7 +93,7 @@
                             <td><?= esc($order['status']) ?></td>
                             <td><?= esc($order['due_date'] ?: '-') ?></td>
                             <td>
-                                <div class="d-flex gap-1">
+                                <div class="<?= $isReadyMode ? 'ready-order-actions' : 'd-flex gap-1' ?>">
                                     <?php if ($isReadyMode): ?>
                                         <a href="<?= site_url('admin/orders/' . $order['id']) ?>" class="btn btn-sm btn-outline-primary" title="Order Details">
                                             <i class="fe fe-eye me-1"></i>Order Details
