@@ -114,6 +114,19 @@
                                                     <i class="fe fe-file-text"></i>
                                                 </a>
                                             <?php endif; ?>
+                                            <?php if (admin_can('orders.receive') && ! empty($order['has_active_receive'])): ?>
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-outline-warning js-reverse-receive-btn"
+                                                    data-order-id="<?= esc((string) $order['id']) ?>"
+                                                    data-order-no="<?= esc((string) $order['order_no'], 'attr') ?>"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#reverseReceiveModal"
+                                                    title="Return Rollback"
+                                                    aria-label="Return Rollback for <?= esc((string) $order['order_no'], 'attr') ?>">
+                                                    <i class="fe fe-rotate-ccw"></i>
+                                                </button>
+                                            <?php endif; ?>
                                         <?php elseif ($isCancelled): ?>
                                             <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Cancelled order">
                                                 <i class="fe fe-lock"></i>
@@ -456,6 +469,29 @@
 </div>
 <?php endif; ?>
 
+<?php if (! $isReadyMode && admin_can('orders.receive')): ?>
+<div class="modal fade" id="reverseReceiveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form id="reverse-receive-form" class="modal-content" method="post">
+            <?= csrf_field() ?>
+            <div class="modal-header">
+                <h5 class="modal-title">Return Rollback - <span id="reverse-receive-order-label"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">All active receiving entries will be reversed and the order reopened. Rollback is blocked if the finished jewellery has downstream sales, documents, reservations, or inventory movements.</div>
+                <label class="form-label" for="reverse-receive-reason">Reason <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="reverse-receive-reason" name="reason" rows="3" minlength="5" required placeholder="Why does this receiving need correction?"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger"><i class="fe fe-rotate-ccw me-1"></i>Return Rollback</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="modal fade" id="cancelOrderModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -504,6 +540,8 @@
 
         const cancelForm = document.getElementById('cancel-order-form');
         const cancelOrderLabel = document.getElementById('cancel-order-label');
+        const reverseReceiveForm = document.getElementById('reverse-receive-form');
+        const reverseReceiveOrderLabel = document.getElementById('reverse-receive-order-label');
 
         const assignBase = '<?= site_url('admin/orders') ?>';
         const summaryBase = '<?= site_url('admin/karigars') ?>';
@@ -825,6 +863,11 @@
             if (btn.classList.contains('js-cancel-btn')) {
                 if (cancelForm && orderId) cancelForm.setAttribute('action', assignBase + '/' + orderId + '/cancel');
                 if (cancelOrderLabel) cancelOrderLabel.textContent = orderNo;
+            }
+
+            if (btn.classList.contains('js-reverse-receive-btn')) {
+                if (reverseReceiveForm && orderId) reverseReceiveForm.setAttribute('action', assignBase + '/' + orderId + '/reverse-receive');
+                if (reverseReceiveOrderLabel) reverseReceiveOrderLabel.textContent = orderNo;
             }
 
         });
