@@ -128,9 +128,6 @@ class OrderReceiveReversalService
             }
         }
         $voucherIds = array_values(array_unique($voucherIds));
-        if ($movements === [] && $summaries === [] && $voucherIds === [] && $fgItems === []) {
-            throw new RuntimeException('No receiving records or posted receiving entries were found for this order.');
-        }
         $vouchers = $voucherIds === []
             ? []
             : $this->db->table('vouchers')->whereIn('id', $voucherIds)->get()->getResultArray();
