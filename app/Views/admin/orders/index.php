@@ -479,7 +479,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="alert alert-warning">All active receiving entries will be reversed and the order reopened. Rollback is blocked if the finished jewellery has downstream sales, documents, reservations, or inventory movements.</div>
+                <div class="alert alert-warning">All active receiving entries will be reversed and the order reopened. Linked packing lists and delivery challans will be removed. Rollback is blocked if the finished jewellery has downstream sales, reservations, or inventory movements.</div>
                 <label class="form-label" for="reverse-receive-reason">Reason <span class="text-danger">*</span></label>
                 <textarea class="form-control" id="reverse-receive-reason" name="reason" rows="3" minlength="5" required placeholder="Why does this receiving need correction?"></textarea>
             </div>

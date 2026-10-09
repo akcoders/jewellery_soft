@@ -87,8 +87,19 @@ class OrderReceiveReversalService
             $fgItems
         )));
         $orderItems = $this->db->table('order_items')->where('order_id', $orderId)->get()->getResultArray();
+        $packingLists = $this->db->tableExists('packing_lists')
+            ? $this->db->table('packing_lists')->where('order_id', $orderId)->orderBy('id', 'ASC')->get()->getResultArray()
+            : [];
+        $packingListIds = array_values(array_filter(array_map(
+            static fn(array $row): int => (int) ($row['id'] ?? 0),
+            $packingLists
+        )));
+        $packingListItems = $packingListIds !== [] && $this->db->tableExists('packing_list_items')
+            ? $this->db->table('packing_list_items')->whereIn('packing_list_id', $packingListIds)->orderBy('id', 'ASC')->get()->getResultArray()
+            : [];
+        $deliveryChallans = $this->deliveryChallansForOrder($orderId, $packingListIds, $movementIds);
 
-        $this->assertNoDownstreamTransactions($orderId, $backflushIds, $fgItems, $fgItemIds);
+        $this->assertNoDownstreamTransactions($orderId, $backflushIds, $fgItems, $fgItemIds, $packingListIds);
 
         $voucherIds = [];
         foreach ($summaries as $summary) {
@@ -168,6 +179,9 @@ class OrderReceiveReversalService
             'stone_backflush_lines' => $backflushLines,
             'finished_items' => $fgItems,
             'finished_item_movements' => $fgMovements,
+            'packing_lists' => $packingLists,
+            'packing_list_items' => $packingListItems,
+            'delivery_challans' => $deliveryChallans,
             'diamond_bag_movements' => $bagMovementRows,
             'vouchers' => $vouchers,
             'voucher_lines' => $voucherLines,
@@ -230,7 +244,29 @@ class OrderReceiveReversalService
             if ($lockedBackflushIds !== $backflushIds || $lockedFgItemIds !== $fgItemIds) {
                 throw new RuntimeException('Receiving inventory changed before reversal could start. Refresh the order and try again.');
             }
-            $this->assertNoDownstreamTransactions($orderId, $lockedBackflushIds, $lockedFgItems, $lockedFgItemIds);
+            $lockedPackingLists = $this->db->tableExists('packing_lists')
+                ? $this->db->table('packing_lists')->select('id')->where('order_id', $orderId)->orderBy('id', 'ASC')->get()->getResultArray()
+                : [];
+            $lockedPackingListIds = array_values(array_filter(array_map(
+                static fn(array $row): int => (int) ($row['id'] ?? 0),
+                $lockedPackingLists
+            )));
+            if ($lockedPackingListIds !== $packingListIds) {
+                throw new RuntimeException('Packing documents changed before reversal could start. Refresh the order and try again.');
+            }
+            $lockedDeliveryChallans = $this->deliveryChallansForOrder($orderId, $lockedPackingListIds, $movementIds);
+            $lockedDeliveryChallanIds = array_values(array_filter(array_map(
+                static fn(array $row): int => (int) ($row['id'] ?? 0),
+                $lockedDeliveryChallans
+            )));
+            $expectedDeliveryChallanIds = array_values(array_filter(array_map(
+                static fn(array $row): int => (int) ($row['id'] ?? 0),
+                $deliveryChallans
+            )));
+            if ($lockedDeliveryChallanIds !== $expectedDeliveryChallanIds) {
+                throw new RuntimeException('Delivery challans changed before reversal could start. Refresh the order and try again.');
+            }
+            $this->assertNoDownstreamTransactions($orderId, $lockedBackflushIds, $lockedFgItems, $lockedFgItemIds, $lockedPackingListIds);
 
             foreach ($backflushRows as $backflush) {
                 $issueId = (int) $backflush['id'];
@@ -255,6 +291,21 @@ class OrderReceiveReversalService
                     ->delete();
             }
 
+            $deliveryChallanIds = array_values(array_filter(array_map(
+                static fn(array $row): int => (int) ($row['id'] ?? 0),
+                $deliveryChallans
+            )));
+            if ($deliveryChallanIds !== [] && $this->db->tableExists('delivery_challans')) {
+                $this->db->table('delivery_challans')->whereIn('id', $deliveryChallanIds)->delete();
+            }
+            if ($packingListIds !== []) {
+                if ($this->db->tableExists('packing_list_items')) {
+                    $this->db->table('packing_list_items')->whereIn('packing_list_id', $packingListIds)->delete();
+                }
+                if ($this->db->tableExists('packing_lists')) {
+                    $this->db->table('packing_lists')->whereIn('id', $packingListIds)->delete();
+                }
+            }
             if ($fgItemIds !== []) {
                 if ($this->db->tableExists('showroom_fg_movements')) {
                     $this->db->table('showroom_fg_movements')->whereIn('fg_item_id', $fgItemIds)->delete();
@@ -366,12 +417,17 @@ class OrderReceiveReversalService
      * @param list<int> $backflushIds
      * @param list<array<string,mixed>> $fgItems
      * @param list<int> $fgItemIds
+     * @param list<int> $packingListIds
      */
-    private function assertNoDownstreamTransactions(int $orderId, array $backflushIds, array $fgItems, array $fgItemIds): void
+    private function assertNoDownstreamTransactions(
+        int $orderId,
+        array $backflushIds,
+        array $fgItems,
+        array $fgItemIds,
+        array $packingListIds
+    ): void
     {
         foreach ([
-            ['packing_lists', 'order_id', 'packing list'],
-            ['delivery_challans', 'order_id', 'delivery challan'],
             ['invoices', 'order_id', 'customer invoice'],
             ['showroom_sales', 'order_id', 'showroom sale'],
             ['labour_bills', 'order_id', 'labour bill'],
@@ -382,6 +438,10 @@ class OrderReceiveReversalService
                 throw new RuntimeException('Receiving cannot be reversed because this order has a linked ' . $label . '.');
             }
         }
+        if ($this->countWhereIn('invoices', 'packing_list_id', $packingListIds) > 0
+            || $this->countWhereIn('showroom_sales', 'packing_list_id', $packingListIds) > 0) {
+            throw new RuntimeException('Receiving cannot be reversed because a packing list is linked to an invoice or sale.');
+        }
 
         if ($backflushIds !== [] && $this->countWhereIn('stone_inventory_return_headers', 'issue_id', $backflushIds) > 0) {
             throw new RuntimeException('A stone return is linked to receiving. Remove or reverse it first.');
@@ -391,9 +451,8 @@ class OrderReceiveReversalService
             return;
         }
         if ($this->countWhereIn('invoice_items', 'fg_item_id', $fgItemIds) > 0
-            || $this->countWhereIn('showroom_sale_items', 'fg_item_id', $fgItemIds) > 0
-            || $this->countWhereIn('packing_list_items', 'fg_item_id', $fgItemIds) > 0) {
-            throw new RuntimeException('Receiving cannot be reversed because the finished jewellery has linked sales, invoices or packing records.');
+            || $this->countWhereIn('showroom_sale_items', 'fg_item_id', $fgItemIds) > 0) {
+            throw new RuntimeException('Receiving cannot be reversed because the finished jewellery has linked sales or invoices.');
         }
         if ($this->countWhereIn('qc_checks', 'fg_item_id', $fgItemIds) > 0
             || $this->countWhereIn('production_ready_items', 'fg_item_id', $fgItemIds) > 0) {
@@ -445,5 +504,38 @@ class OrderReceiveReversalService
             return 0;
         }
         return $this->db->table($table)->whereIn($field, $values)->countAllResults();
+    }
+
+    /**
+     * @param list<int> $packingListIds
+     * @param list<int> $movementIds
+     * @return list<array<string,mixed>>
+     */
+    private function deliveryChallansForOrder(int $orderId, array $packingListIds, array $movementIds): array
+    {
+        if (! $this->db->tableExists('delivery_challans')) {
+            return [];
+        }
+        $builder = $this->db->table('delivery_challans');
+        $hasOrderId = $this->db->fieldExists('order_id', 'delivery_challans');
+        $hasPackingListId = $this->db->fieldExists('packing_list_id', 'delivery_challans');
+        $hasMovementId = $this->db->fieldExists('receive_movement_id', 'delivery_challans');
+        if (! $hasOrderId && ! $hasPackingListId && ! $hasMovementId) {
+            return [];
+        }
+        $builder->groupStart();
+        $hasCondition = false;
+        if ($hasOrderId) {
+            $builder->where('order_id', $orderId);
+            $hasCondition = true;
+        }
+        if ($hasPackingListId && $packingListIds !== []) {
+            $hasCondition ? $builder->orWhereIn('packing_list_id', $packingListIds) : $builder->whereIn('packing_list_id', $packingListIds);
+            $hasCondition = true;
+        }
+        if ($hasMovementId && $movementIds !== []) {
+            $hasCondition ? $builder->orWhereIn('receive_movement_id', $movementIds) : $builder->whereIn('receive_movement_id', $movementIds);
+        }
+        return $builder->groupEnd()->orderBy('id', 'ASC')->get()->getResultArray();
     }
 }

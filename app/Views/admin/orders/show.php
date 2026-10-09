@@ -351,7 +351,7 @@ $statusClass = match ($status) {
             </div>
             <div class="modal-body">
                 <div class="alert alert-warning">
-                    All active receiving entries for <strong><?= esc((string) $order['order_no']) ?></strong> will be reversed, the order will reopen, and receiving can be entered again. This is blocked if finished jewellery has already moved downstream.
+                    All active receiving entries for <strong><?= esc((string) $order['order_no']) ?></strong> will be reversed, the order will reopen, and receiving can be entered again. Linked packing lists and delivery challans will be removed. This is blocked if finished jewellery has already moved downstream.
                 </div>
                 <label class="form-label" for="receive-reversal-reason">Reason for correction <span class="text-danger">*</span></label>
                 <textarea class="form-control" id="receive-reversal-reason" name="reason" rows="3" minlength="5" required placeholder="Describe why the receiving needs to be reversed"></textarea>
