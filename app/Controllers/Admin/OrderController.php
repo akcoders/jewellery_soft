@@ -548,50 +548,12 @@ class OrderController extends BaseController
         }
 
         $rows = $orders->orderBy('orders.id', 'DESC')->findAll();
-        $activeReceiveOrderIds = [];
-        if ($rows !== [] && admin_can('orders.receive')) {
-            $orderIds = array_values(array_filter(array_map(
-                static fn(array $row): int => (int) ($row['id'] ?? 0),
-                $rows
-            )));
-            if ($orderIds !== []) {
-                $db = db_connect();
-                $activeReceiveRows = $db->table('order_material_movements')
-                    ->select('order_id')
-                    ->distinct()
-                    ->whereIn('order_id', $orderIds)
-                    ->where('movement_type', 'receive')
-                    ->get()
-                    ->getResultArray();
-                $receivedOrderIds = array_map(
-                    static fn(array $row): int => (int) $row['order_id'],
-                    $activeReceiveRows
-                );
-                if ($db->tableExists('order_receive_summaries')) {
-                    $receiveSummaryRows = $db->table('order_receive_summaries')
-                        ->select('order_id')
-                        ->distinct()
-                        ->whereIn('order_id', $orderIds)
-                        ->get()
-                        ->getResultArray();
-                    $receivedOrderIds = array_merge(
-                        $receivedOrderIds,
-                        array_map(static fn(array $row): int => (int) $row['order_id'], $receiveSummaryRows)
-                    );
-                }
-                $activeReceiveOrderIds = array_fill_keys(
-                    array_unique(array_filter($receivedOrderIds)),
-                    true
-                );
-            }
-        }
         $thumbnailMap = $this->orderThumbnailService->map(array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $rows));
         $purityMap = $this->buildOrderPurityPercentMap($rows);
         foreach ($rows as &$row) {
             $oid = (int) ($row['id'] ?? 0);
             $row['avg_purity_percent'] = (float) ($purityMap[$oid] ?? 100);
             $row['thumbnail_url'] = (string) ($thumbnailMap[$oid] ?? '');
-            $row['has_active_receive'] = isset($activeReceiveOrderIds[$oid]);
         }
         unset($row);
         $karigarDiamondOptions = [];

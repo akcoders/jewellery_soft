@@ -114,7 +114,7 @@
                                                     <i class="fe fe-file-text"></i>
                                                 </a>
                                             <?php endif; ?>
-                                            <?php if (admin_can('orders.receive') && ! empty($order['has_active_receive'])): ?>
+                                            <?php if (admin_can('orders.receive')): ?>
                                                 <button
                                                     type="button"
                                                     class="btn btn-sm btn-outline-warning js-reverse-receive-btn"
