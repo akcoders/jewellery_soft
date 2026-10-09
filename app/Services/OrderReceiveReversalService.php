@@ -53,9 +53,6 @@ class OrderReceiveReversalService
             ->where('order_id', $orderId)
             ->orderBy('id', 'ASC')
             ->get()->getResultArray();
-        if ($movements === [] && $summaries === []) {
-            throw new RuntimeException('This order has no active receiving transactions to reverse.');
-        }
         $activeMovementIds = array_values(array_filter(array_map(
             static fn(array $row): int => (int) ($row['id'] ?? 0),
             $movements
@@ -64,18 +61,19 @@ class OrderReceiveReversalService
             $activeMovementIds,
             array_map(static fn(array $row): int => (int) ($row['movement_id'] ?? 0), $summaries)
         ))));
-        if ($movementIds === []) {
-            throw new RuntimeException('Receiving records are incomplete; manual review is required.');
-        }
 
-        $details = $this->db->table('order_receive_details')
-            ->whereIn('movement_id', $movementIds)
-            ->orderBy('id', 'ASC')
-            ->get()->getResultArray();
-        $backflushRows = $this->db->table('stone_inventory_issue_headers')
-            ->whereIn('receive_movement_id', $movementIds)
-            ->orderBy('id', 'ASC')
-            ->get()->getResultArray();
+        $details = $movementIds === []
+            ? []
+            : $this->db->table('order_receive_details')
+                ->whereIn('movement_id', $movementIds)
+                ->orderBy('id', 'ASC')
+                ->get()->getResultArray();
+        $backflushRows = $movementIds === []
+            ? []
+            : $this->db->table('stone_inventory_issue_headers')
+                ->whereIn('receive_movement_id', $movementIds)
+                ->orderBy('id', 'ASC')
+                ->get()->getResultArray();
         $backflushIds = array_values(array_filter(array_map(
             static fn(array $row): int => (int) ($row['id'] ?? 0),
             $backflushRows
@@ -119,6 +117,9 @@ class OrderReceiveReversalService
             }
         }
         $voucherIds = array_values(array_unique($voucherIds));
+        if ($movements === [] && $summaries === [] && $voucherIds === [] && $fgItems === []) {
+            throw new RuntimeException('No receiving records or posted receiving entries were found for this order.');
+        }
         $vouchers = $voucherIds === []
             ? []
             : $this->db->table('vouchers')->whereIn('id', $voucherIds)->get()->getResultArray();
@@ -207,11 +208,13 @@ class OrderReceiveReversalService
                 || $lockedSummaryMovementIds !== $expectedSummaryMovementIds) {
                 throw new RuntimeException('Order receiving changed before reversal could start. Refresh the order and try again.');
             }
-            $lockedBackflushRows = $this->db->table('stone_inventory_issue_headers')
-                ->select('id')
-                ->whereIn('receive_movement_id', $movementIds)
-                ->orderBy('id', 'ASC')
-                ->get()->getResultArray();
+            $lockedBackflushRows = $movementIds === []
+                ? []
+                : $this->db->table('stone_inventory_issue_headers')
+                    ->select('id')
+                    ->whereIn('receive_movement_id', $movementIds)
+                    ->orderBy('id', 'ASC')
+                    ->get()->getResultArray();
             $lockedBackflushIds = array_values(array_filter(array_map(
                 static fn(array $row): int => (int) ($row['id'] ?? 0),
                 $lockedBackflushRows
@@ -258,7 +261,9 @@ class OrderReceiveReversalService
                 }
                 $this->db->table('fg_items')->whereIn('id', $fgItemIds)->delete();
             }
-            $this->db->table('order_receive_details')->whereIn('movement_id', $movementIds)->delete();
+            if ($movementIds !== []) {
+                $this->db->table('order_receive_details')->whereIn('movement_id', $movementIds)->delete();
+            }
             $this->db->table('order_receive_summaries')->where('order_id', $orderId)->delete();
             foreach ($movements as $movement) {
                 $this->db->table('order_material_movements')->where('id', (int) $movement['id'])->update([
