@@ -118,6 +118,7 @@ $receiveSummary = is_array($receiveSummary ?? null) ? $receiveSummary : [];
 $items = is_array($items ?? null) ? $items : [];
 $canCreateDiamondBag = (bool) ($canCreateDiamondBag ?? false);
 $canDeleteOrder = (bool) ($canDeleteOrder ?? false);
+$canReverseReceive = (bool) ($canReverseReceive ?? false);
 $canChangeFollower = (bool) ($canChangeFollower ?? false);
 $staffFollowers = is_array($staffFollowers ?? null) ? $staffFollowers : [];
 $photoGallery = [];
@@ -187,6 +188,7 @@ $statusClass = match ($status) {
                 <?php if ($canCreateDiamondBag): ?><a class="btn btn-warning" href="<?= site_url('admin/diamond-inventory/bags/create?order_id=' . (int) $order['id']) ?>"><i class="fe fe-package me-1"></i>Create Diamond Bag</a><?php endif; ?>
                 <?php if (! in_array($status, ['Cancelled', 'Completed'], true)): ?><a href="<?= site_url('admin/orders/' . $order['id'] . '/edit') ?>" class="btn btn-light"><i class="fe fe-edit me-1"></i>Edit</a><?php endif; ?>
                 <?php if ($canReceive): ?><a href="<?= site_url('admin/orders/' . $order['id'] . '/receive') ?>" class="btn btn-success"><i class="fe fe-check-circle me-1"></i>Receive Jewellery</a><?php endif; ?>
+                <?php if ($canReverseReceive): ?><button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#reverseReceiveModal"><i class="fe fe-rotate-ccw me-1"></i>Reverse Receiving</button><?php endif; ?>
                 <?php if ($canDeleteOrder): ?><button type="button" class="btn btn-light text-danger" data-bs-toggle="modal" data-bs-target="#deleteOrderModal"><i class="fe fe-trash-2 me-1"></i>Delete Order</button><?php endif; ?>
                 <a href="<?= site_url((string) $order['order_type'] === 'Repair' ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-light"><i class="fe fe-arrow-left me-1"></i>Order List</a>
             </div>
@@ -332,6 +334,31 @@ $statusClass = match ($status) {
             <div class="modal-footer">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-primary">Update Follower</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($canReverseReceive): ?>
+<div class="modal fade" id="reverseReceiveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="post" action="<?= site_url('admin/orders/' . (int) $order['id'] . '/reverse-receive') ?>">
+            <?= csrf_field() ?>
+            <div class="modal-header">
+                <h5 class="modal-title">Reverse Finished-Jewellery Receiving</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    All active receiving entries for <strong><?= esc((string) $order['order_no']) ?></strong> will be reversed, the order will reopen, and receiving can be entered again. This is blocked if finished jewellery has already moved downstream.
+                </div>
+                <label class="form-label" for="receive-reversal-reason">Reason for correction <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="receive-reversal-reason" name="reason" rows="3" minlength="5" required placeholder="Describe why the receiving needs to be reversed"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger"><i class="fe fe-rotate-ccw me-1"></i>Reverse Receiving</button>
             </div>
         </form>
     </div>

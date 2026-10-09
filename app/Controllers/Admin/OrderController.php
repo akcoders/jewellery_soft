@@ -41,6 +41,7 @@ use App\Services\OrderCategoryService;
 use App\Services\OrderDeletionService;
 use App\Services\OrderFollowupService;
 use App\Services\OrderNumberService;
+use App\Services\OrderReceiveReversalService;
 use App\Services\OrderThumbnailService;
 use App\Services\PdfService;
 use App\Services\RbacService;
@@ -903,6 +904,10 @@ class OrderController extends BaseController
                 ->orderBy('id', 'ASC')
                 ->findAll();
         }
+        $hasActiveReceiveMovement = db_connect()->table('order_material_movements')
+            ->where('order_id', $id)
+            ->where('movement_type', 'receive')
+            ->countAllResults() > 0;
 
         return view('admin/orders/show', [
             'title'      => 'Order Details',
@@ -920,6 +925,9 @@ class OrderController extends BaseController
             'canCreateDiamondBag' => $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage')
                 && $this->diamondBagService->canCreateForOrder($id, (int) session('admin_id'), true),
             'canDeleteOrder' => $this->rbacService->userCan((int) session('admin_id'), 'orders.delete'),
+            'canReverseReceive' => (string) ($order['status'] ?? '') === 'Completed'
+                && $hasActiveReceiveMovement
+                && $this->rbacService->userCan((int) session('admin_id'), 'orders.receive'),
             'canChangeFollower' => $canChangeFollower,
             'staffFollowers' => $canChangeFollower ? $this->staffPerformanceService->staffOptions() : [],
         ]);
@@ -1263,6 +1271,38 @@ class OrderController extends BaseController
     public function addReceive(int $id)
     {
         return $this->saveFinishedJewelleryReceipt($id);
+    }
+
+    public function reverseReceive(int $id)
+    {
+        $reason = trim((string) $this->request->getPost('reason'));
+        if (mb_strlen($reason) < 5) {
+            return redirect()->back()->withInput()->with('error', 'Enter a receiving reversal reason of at least 5 characters.');
+        }
+
+        try {
+            $result = (new OrderReceiveReversalService())->reverse(
+                $id,
+                $this->currentAuditUserId(),
+                $reason,
+                $this->request->getIPAddress()
+            );
+        } catch (Throwable $e) {
+            log_message('error', 'Order receiving reversal failed for order {id}: {message}', [
+                'id' => $id,
+                'message' => $e->getMessage(),
+            ]);
+            return redirect()->to(site_url('admin/orders/' . $id))->with('error', $e->getMessage());
+        }
+
+        return redirect()->to(site_url('admin/orders/' . $id))->with(
+            'success',
+            sprintf(
+                'Receiving reversed for %s. The order is active again with status %s.',
+                $result['order_no'],
+                $result['restored_status']
+            )
+        );
     }
 
     public function receive(int $id): string|\CodeIgniter\HTTP\RedirectResponse

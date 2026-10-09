@@ -372,6 +372,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('orders/(:num)/follower', 'Admin\OrderController::updateFollower/$1', ['filter' => 'permission:orders.assign']);
     $routes->post('orders/(:num)/attachments', 'Admin\OrderController::addAttachment/$1', ['filter' => 'permission:orders.documents']);
     $routes->post('orders/(:num)/receive', 'Admin\OrderController::addReceive/$1', ['filter' => 'permission:orders.receive']);
+    $routes->post('orders/(:num)/reverse-receive', 'Admin\OrderController::reverseReceive/$1', ['filter' => 'permission:orders.receive']);
     $routes->post('orders/(:num)/assign', 'Admin\OrderController::assignKarigar/$1', ['filter' => 'permission:orders.assign']);
     $routes->get('orders/(:num)/packing-list/generate', 'Admin\OrderController::generatePackingList/$1', ['filter' => 'permission:orders.documents']);
     $routes->get('orders/(:num)/packing-list/html', 'Admin\OrderController::packingListHtml/$1', ['filter' => 'permission:orders.documents']);
