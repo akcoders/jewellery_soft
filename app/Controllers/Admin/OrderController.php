@@ -555,17 +555,34 @@ class OrderController extends BaseController
                 $rows
             )));
             if ($orderIds !== []) {
-                $activeReceiveRows = db_connect()->table('order_material_movements')
+                $db = db_connect();
+                $activeReceiveRows = $db->table('order_material_movements')
                     ->select('order_id')
                     ->distinct()
                     ->whereIn('order_id', $orderIds)
                     ->where('movement_type', 'receive')
                     ->get()
                     ->getResultArray();
-                $activeReceiveOrderIds = array_fill_keys(array_map(
+                $receivedOrderIds = array_map(
                     static fn(array $row): int => (int) $row['order_id'],
                     $activeReceiveRows
-                ), true);
+                );
+                if ($db->tableExists('order_receive_summaries')) {
+                    $receiveSummaryRows = $db->table('order_receive_summaries')
+                        ->select('order_id')
+                        ->distinct()
+                        ->whereIn('order_id', $orderIds)
+                        ->get()
+                        ->getResultArray();
+                    $receivedOrderIds = array_merge(
+                        $receivedOrderIds,
+                        array_map(static fn(array $row): int => (int) $row['order_id'], $receiveSummaryRows)
+                    );
+                }
+                $activeReceiveOrderIds = array_fill_keys(
+                    array_unique(array_filter($receivedOrderIds)),
+                    true
+                );
             }
         }
         $thumbnailMap = $this->orderThumbnailService->map(array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $rows));

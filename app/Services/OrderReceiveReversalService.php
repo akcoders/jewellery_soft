@@ -49,17 +49,25 @@ class OrderReceiveReversalService
             ->where('movement_type', 'receive')
             ->orderBy('id', 'ASC')
             ->get()->getResultArray();
-        if ($movements === []) {
+        $summaries = $this->db->table('order_receive_summaries')
+            ->where('order_id', $orderId)
+            ->orderBy('id', 'ASC')
+            ->get()->getResultArray();
+        if ($movements === [] && $summaries === []) {
             throw new RuntimeException('This order has no active receiving transactions to reverse.');
         }
-        $movementIds = array_values(array_filter(array_map(
+        $activeMovementIds = array_values(array_filter(array_map(
             static fn(array $row): int => (int) ($row['id'] ?? 0),
             $movements
         )));
+        $movementIds = array_values(array_unique(array_filter(array_merge(
+            $activeMovementIds,
+            array_map(static fn(array $row): int => (int) ($row['movement_id'] ?? 0), $summaries)
+        ))));
+        if ($movementIds === []) {
+            throw new RuntimeException('Receiving records are incomplete; manual review is required.');
+        }
 
-        $summaries = $this->db->table('order_receive_summaries')
-            ->where('order_id', $orderId)
-            ->get()->getResultArray();
         $details = $this->db->table('order_receive_details')
             ->whereIn('movement_id', $movementIds)
             ->orderBy('id', 'ASC')
@@ -180,7 +188,23 @@ class OrderReceiveReversalService
                 static fn(array $row): int => (int) ($row['id'] ?? 0),
                 $lockedMovements
             )));
-            if (! $lockedOrder || (string) ($lockedOrder['status'] ?? '') === 'Cancelled' || $lockedMovementIds !== $movementIds) {
+            $lockedSummaries = $this->db->table('order_receive_summaries')
+                ->select('movement_id')
+                ->where('order_id', $orderId)
+                ->orderBy('id', 'ASC')
+                ->get()->getResultArray();
+            $lockedSummaryMovementIds = array_values(array_filter(array_map(
+                static fn(array $row): int => (int) ($row['movement_id'] ?? 0),
+                $lockedSummaries
+            )));
+            $expectedSummaryMovementIds = array_values(array_filter(array_map(
+                static fn(array $row): int => (int) ($row['movement_id'] ?? 0),
+                $summaries
+            )));
+            if (! $lockedOrder
+                || (string) ($lockedOrder['status'] ?? '') === 'Cancelled'
+                || $lockedMovementIds !== $activeMovementIds
+                || $lockedSummaryMovementIds !== $expectedSummaryMovementIds) {
                 throw new RuntimeException('Order receiving changed before reversal could start. Refresh the order and try again.');
             }
             $lockedBackflushRows = $this->db->table('stone_inventory_issue_headers')
