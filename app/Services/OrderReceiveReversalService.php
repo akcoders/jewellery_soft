@@ -37,8 +37,8 @@ class OrderReceiveReversalService
         if (! $order) {
             throw new RuntimeException('Order not found.');
         }
-        if ((string) ($order['status'] ?? '') !== 'Completed') {
-            throw new RuntimeException('Only a completed order can have its receiving reversed.');
+        if ((string) ($order['status'] ?? '') === 'Cancelled') {
+            throw new RuntimeException('Cancelled orders cannot have their receiving reversed.');
         }
         if (! $this->db->tableExists('audit_logs')) {
             throw new RuntimeException('Receiving reversal audit storage is unavailable.');
@@ -180,7 +180,7 @@ class OrderReceiveReversalService
                 static fn(array $row): int => (int) ($row['id'] ?? 0),
                 $lockedMovements
             )));
-            if (! $lockedOrder || (string) ($lockedOrder['status'] ?? '') !== 'Completed' || $lockedMovementIds !== $movementIds) {
+            if (! $lockedOrder || (string) ($lockedOrder['status'] ?? '') === 'Cancelled' || $lockedMovementIds !== $movementIds) {
                 throw new RuntimeException('Order receiving changed before reversal could start. Refresh the order and try again.');
             }
             $lockedBackflushRows = $this->db->table('stone_inventory_issue_headers')
@@ -253,7 +253,7 @@ class OrderReceiveReversalService
             ]);
             $this->db->table('order_status_history')->insert([
                 'order_id' => $orderId,
-                'from_status' => 'Completed',
+                'from_status' => (string) ($order['status'] ?? ''),
                 'to_status' => $previousStatus,
                 'remarks' => 'Finished-jewellery receiving reversed by admin #' . $actorId . '. Reason: ' . $reason,
                 'changed_by' => $actorId,

@@ -925,7 +925,7 @@ class OrderController extends BaseController
             'canCreateDiamondBag' => $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage')
                 && $this->diamondBagService->canCreateForOrder($id, (int) session('admin_id'), true),
             'canDeleteOrder' => $this->rbacService->userCan((int) session('admin_id'), 'orders.delete'),
-            'canReverseReceive' => (string) ($order['status'] ?? '') === 'Completed'
+            'canReverseReceive' => (string) ($order['status'] ?? '') !== 'Cancelled'
                 && $hasActiveReceiveMovement
                 && $this->rbacService->userCan((int) session('admin_id'), 'orders.receive'),
             'canChangeFollower' => $canChangeFollower,
