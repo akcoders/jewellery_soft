@@ -69,7 +69,7 @@ class DiamondBagTraceService
         $rows = $this->db->table('issue_lines il')
             ->select(
                 'il.id AS issue_line_id, il.issue_id, il.item_id, il.bag_id, il.bag_item_id, '
-                . 'il.allocation_order_id, il.pcs AS issued_pcs, il.carat AS issued_cts, '
+                . 'il.allocation_order_id, il.pcs AS issued_pcs, il.carat AS issued_cts, il.rate_per_carat, '
                 . 'ih.voucher_no, ih.issue_date, b.bag_no, i.diamond_type, o.order_no, '
                 . 'sm.name AS shape_name, sz.size_code, sz.size_label, cg.name AS chalni_group_name, cg.range_label AS chalni_group_range, i.color, i.clarity, '
                 . 'COALESCE((SELECT SUM(rl.pcs) FROM return_lines rl WHERE rl.issue_line_id = il.id), 0) AS returned_pcs, '

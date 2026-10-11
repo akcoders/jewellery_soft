@@ -496,8 +496,8 @@ $statusClass = match ($status) {
                             <input type="text" name="<?= esc($names[0]) ?>[]" class="form-control">
                         <?php endif; ?>
                     </td>
-                    <td><input type="number" step="<?= $key === 'dia' ? '1' : '0.001' ?>" min="<?= $key === 'dia' ? '1' : '0' ?>" name="<?= esc($names[1]) ?>[]" class="form-control <?= $key === 'dia' ? 'js-dia-pcs' : '' ?>"></td>
-                    <td><input type="number" step="0.001" min="0" name="<?= esc($names[2]) ?>[]" class="form-control js-<?= esc($key) ?>-weight"></td>
+                    <td><input type="number" step="<?= $key === 'dia' ? '1' : '0.001' ?>" min="<?= $key === 'dia' ? '1' : '0' ?>" name="<?= esc($names[1]) ?>[]" class="form-control <?= $key === 'dia' ? 'js-dia-pcs' : '' ?>" <?= $key === 'dia' ? 'readonly' : '' ?>></td>
+                    <td><input type="number" step="0.001" min="0" name="<?= esc($names[2]) ?>[]" class="form-control js-<?= esc($key) ?>-weight" <?= $key === 'dia' ? 'readonly' : '' ?>></td>
                     <td><input type="number" step="0.01" min="0" name="<?= esc($names[3]) ?>[]" class="form-control js-<?= esc($key) ?>-rate"></td>
                     <td><input type="text" class="form-control js-<?= esc($key) ?>-total" readonly></td>
                     <td>
@@ -614,8 +614,8 @@ $statusClass = match ($status) {
             : '<input type="text" name="' + names[0] + '[]" class="form-control">';
         return '<tr>' + inventoryCell
             + '<td>' + descriptionControl + '</td>'
-            + '<td><input type="number" step="' + (kind === 'dia' ? '1' : '0.001') + '" min="' + (kind === 'dia' ? '1' : '0') + '" name="' + names[1] + '[]" class="form-control ' + (kind === 'dia' ? 'js-dia-pcs' : '') + '"></td>'
-            + '<td><input type="number" step="0.001" min="0" name="' + names[2] + '[]" class="form-control js-' + kind + '-weight"></td>'
+            + '<td><input type="number" step="' + (kind === 'dia' ? '1' : '0.001') + '" min="' + (kind === 'dia' ? '1' : '0') + '" name="' + names[1] + '[]" class="form-control ' + (kind === 'dia' ? 'js-dia-pcs' : '') + '"' + (kind === 'dia' ? ' readonly' : '') + '></td>'
+            + '<td><input type="number" step="0.001" min="0" name="' + names[2] + '[]" class="form-control js-' + kind + '-weight"' + (kind === 'dia' ? ' readonly' : '') + '></td>'
             + '<td><input type="number" step="0.01" min="0" name="' + names[3] + '[]" class="form-control js-' + kind + '-rate"></td>'
             + '<td><input type="text" class="form-control js-' + kind + '-total" readonly></td>'
             + '<td>' + (kind === 'dia'

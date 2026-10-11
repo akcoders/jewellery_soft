@@ -32,12 +32,13 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
   final _labourRate = TextEditingController(text: '0');
   final _wastage = TextEditingController(text: '0');
   final _notes = TextEditingController();
-  final List<_ComponentLine> _diamonds = [];
+  final List<_DiamondLine> _diamonds = [];
   final List<_ComponentLine> _stones = [];
   final List<_ComponentLine> _others = [];
   Map<String, dynamic> _order = {};
   List<Map<String, dynamic>> _locations = [];
   List<Map<String, dynamic>> _purities = [];
+  List<Map<String, dynamic>> _diamondBagLines = [];
   int? _locationId;
   int? _purityId;
   bool _loading = true;
@@ -48,7 +49,14 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
   @override
   void initState() {
     super.initState();
+    for (final controller in [_gross, _goldRate, _labourRate, _wastage]) {
+      controller.addListener(_refreshCalculations);
+    }
     _load();
+  }
+
+  void _refreshCalculations() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -62,7 +70,10 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
     ]) {
       controller.dispose();
     }
-    for (final row in [..._diamonds, ..._stones, ..._others]) {
+    for (final row in _diamonds) {
+      row.dispose();
+    }
+    for (final row in [..._stones, ..._others]) {
       row.dispose();
     }
     super.dispose();
@@ -85,6 +96,7 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
         _order = _map(data['order']);
         _locations = _maps(data['locations']);
         _purities = _maps(data['gold_purities']);
+        _diamondBagLines = _maps(data['diamond_bag_lines']);
         _locationId = _locations.isEmpty ? null : _int(_locations.first['id']);
         _purityId = _purities.isEmpty ? null : _int(_purities.first['id']);
         final rate = _number(_order['gold_rate_per_gm']);
@@ -125,7 +137,7 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
         'wastage_percent': _decimal(_wastage),
         'notes': _notes.text.trim(),
         if (photo.isNotEmpty) 'finish_photo_base64': photo,
-        'diamonds': _diamonds.map((row) => row.json(false)).toList(),
+        'diamonds': _diamonds.map((row) => row.json()).toList(),
         'stones': _stones.map((row) => row.json(false)).toList(),
         'others': _others.map((row) => row.json(true)).toList(),
       });
@@ -165,12 +177,7 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
                   const SizedBox(height: 12),
                   _fields(),
                   const SizedBox(height: 24),
-                  _componentSection(
-                    'Diamonds',
-                    _diamonds,
-                    LucideIcons.diamond,
-                    false,
-                  ),
+                  _diamondSection(),
                   const SizedBox(height: 20),
                   _componentSection(
                     'Colour stones',
@@ -185,6 +192,8 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
                     LucideIcons.box,
                     true,
                   ),
+                  const SizedBox(height: 24),
+                  _calculationSummary(),
                   const SizedBox(height: 24),
                   AppPhotoField(
                     file: _photo,
@@ -349,6 +358,309 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
     },
   );
 
+  Widget _diamondSection() => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(LucideIcons.diamond, color: AppColors.brandGold),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Diamonds from order bags',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Select one or more issued bag lines. PCS and weight are automatic.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _diamondBagLines.isEmpty ? null : _addDiamondLine,
+                icon: const Icon(Icons.add),
+                label: const Text('Add'),
+              ),
+            ],
+          ),
+          if (_diamondBagLines.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 14),
+              child: Text(
+                'No available diamond bag line is issued to this order and karigar.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+          ..._diamonds.asMap().entries.map(
+            (entry) => _diamondRow(entry.key, entry.value),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Future<void> _addDiamondLine() async {
+    final row = _DiamondLine();
+    final selected = await _selectDiamondBagLines(row);
+    if (selected == null || selected.isEmpty || !mounted) {
+      row.dispose();
+      return;
+    }
+    row.setSelections(selected, _diamondBagLines);
+    setState(() => _diamonds.add(row));
+  }
+
+  Future<void> _editDiamondLine(_DiamondLine row) async {
+    final selected = await _selectDiamondBagLines(row);
+    if (selected == null || selected.isEmpty || !mounted) return;
+    row.setSelections(selected, _diamondBagLines);
+    setState(() {});
+  }
+
+  Future<Set<int>?> _selectDiamondBagLines(_DiamondLine row) async {
+    final selected = <int>{...row.issueLineIds};
+    final usedElsewhere = _diamonds
+        .where((candidate) => !identical(candidate, row))
+        .expand((candidate) => candidate.issueLineIds)
+        .toSet();
+    return showDialog<Set<int>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Select diamond bag lines'),
+          content: SizedBox(
+            width: 620,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 520),
+              child: ListView(
+                shrinkWrap: true,
+                children: _diamondBagLines.map((option) {
+                  final id = _int(option['issue_line_id']);
+                  final unavailable = usedElsewhere.contains(id);
+                  return CheckboxListTile(
+                    value: selected.contains(id),
+                    onChanged: unavailable
+                        ? null
+                        : (checked) => update(() {
+                            checked == true
+                                ? selected.add(id)
+                                : selected.remove(id);
+                          }),
+                    title: Text('${option['label'] ?? 'Diamond bag line'}'),
+                    subtitle: Text(
+                      '${_displayNumber(option['available_pcs'])} PCS · '
+                      '${_weight(option['available_cts'])} CTS',
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: selected.isEmpty
+                  ? null
+                  : () => Navigator.pop(dialogContext, selected),
+              child: Text('Use ${selected.length} line(s)'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _diamondRow(int index, _DiamondLine row) => Container(
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      border: Border.all(color: AppColors.border),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Diamond line ${index + 1} · ${row.issueLineIds.length} bag line(s)',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            TextButton(
+              onPressed: () => _editDiamondLine(row),
+              child: const Text('Change'),
+            ),
+            IconButton(
+              onPressed: () {
+                row.dispose();
+                setState(() => _diamonds.removeAt(index));
+              },
+              icon: const Icon(Icons.close, color: AppColors.danger),
+            ),
+          ],
+        ),
+        TextFormField(
+          controller: row.name,
+          decoration: const InputDecoration(
+            labelText: 'Description (editable)',
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: _readOnlyMetric('PCS', _displayNumber(row.pcs))),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _readOnlyMetric('Weight', '${_weight(row.cts)} CTS'),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _readOnlyMetric(
+                'Amount',
+                '₹${row.amount.toStringAsFixed(2)}',
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+
+  Widget _readOnlyMetric(String label, String value) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: AppColors.border),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 3),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
+      ],
+    ),
+  );
+
+  Widget _calculationSummary() {
+    final gross = _decimal(_gross);
+    final diamondCts = _diamonds.fold<double>(0, (sum, row) => sum + row.cts);
+    final stoneCts = _stones.fold<double>(
+      0,
+      (sum, row) => sum + _decimal(row.weightCts),
+    );
+    final otherWeight = _others.fold<double>(
+      0,
+      (sum, row) => sum + _decimal(row.weightGm),
+    );
+    final net = gross - (diamondCts * .2) - (stoneCts * .2) - otherWeight;
+    var purity = 0.0;
+    for (final row in _purities) {
+      if (_int(row['id']) == _purityId) {
+        purity = _number(row['purity_percent']);
+        break;
+      }
+    }
+    final safeNet = net > 0 ? net : 0.0;
+    final pure = safeNet * purity / 100;
+    final wastageWeight = safeNet * _decimal(_wastage) / 100;
+    final pureWastage = wastageWeight * purity / 100;
+    final labour = safeNet * _decimal(_labourRate);
+    final goldAmount = safeNet * _decimal(_goldRate);
+    final components =
+        _diamonds.fold<double>(0, (sum, row) => sum + row.amount) +
+        _stones.fold<double>(
+          0,
+          (sum, row) => sum + (_decimal(row.weightCts) * _decimal(row.rate)),
+        ) +
+        _others.fold<double>(
+          0,
+          (sum, row) => sum + (_decimal(row.weightGm) * _decimal(row.rate)),
+        );
+    final total = goldAmount + labour + components;
+    final metrics = <(String, String)>[
+      ('Gross weight', '${_weight(gross)} gm'),
+      ('Diamond', '${_weight(diamondCts)} cts'),
+      ('Stone', '${_weight(stoneCts)} cts'),
+      ('Net gold', '${_weight(net)} gm'),
+      ('Pure gold', '${_weight(pure)} gm'),
+      ('Wastage', '${_weight(wastageWeight)} gm'),
+      ('Pure wastage', '${_weight(pureWastage)} gm'),
+      ('Labour', '₹${labour.toStringAsFixed(2)}'),
+      ('Calculated value', '₹${total.toStringAsFixed(2)}'),
+    ];
+    return Card(
+      color: AppColors.paleGold,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'CALCULATED RECEIVING VALUES',
+              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, box) {
+                final width = box.maxWidth >= 720
+                    ? (box.maxWidth - 24) / 3
+                    : (box.maxWidth - 10) / 2;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: metrics
+                      .map(
+                        (metric) => SizedBox(
+                          width: width,
+                          child: _readOnlyMetric(metric.$1, metric.$2),
+                        ),
+                      )
+                      .toList(),
+                );
+              },
+            ),
+            if (net <= 0 && gross > 0)
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text(
+                  'Component weight exceeds gross weight.',
+                  style: TextStyle(
+                    color: AppColors.danger,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _componentSection(
     String title,
     List<_ComponentLine> rows,
@@ -374,7 +686,9 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
                 ),
               ),
               TextButton.icon(
-                onPressed: () => setState(() => rows.add(_ComponentLine())),
+                onPressed: () => setState(
+                  () => rows.add(_ComponentLine(_refreshCalculations)),
+                ),
                 icon: const Icon(Icons.add),
                 label: const Text('Add'),
               ),
@@ -456,9 +770,22 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
 
   double _decimal(TextEditingController controller) =>
       double.tryParse(controller.text.trim()) ?? 0;
+
+  String _weight(dynamic value) => _number(value).toStringAsFixed(3);
+
+  String _displayNumber(dynamic value) {
+    final text = _number(value).toStringAsFixed(3);
+    return text.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
 }
 
 class _ComponentLine {
+  _ComponentLine(VoidCallback onChanged) {
+    for (final controller in [pcs, weightCts, weightGm, rate]) {
+      controller.addListener(onChanged);
+    }
+  }
+
   final name = TextEditingController();
   final pcs = TextEditingController(text: '0');
   final weightCts = TextEditingController(text: '0');
@@ -478,6 +805,52 @@ class _ComponentLine {
     weightGm.dispose();
     rate.dispose();
   }
+}
+
+class _DiamondLine {
+  final name = TextEditingController();
+  final Set<int> issueLineIds = <int>{};
+  double pcs = 0;
+  double cts = 0;
+  double amount = 0;
+
+  void setSelections(Set<int> selected, List<Map<String, dynamic>> options) {
+    issueLineIds
+      ..clear()
+      ..addAll(selected);
+    final chosen = options
+        .where((option) => selected.contains(_int(option['issue_line_id'])))
+        .toList();
+    pcs = chosen.fold<double>(
+      0,
+      (sum, option) => sum + _number(option['available_pcs']),
+    );
+    cts = chosen.fold<double>(
+      0,
+      (sum, option) => sum + _number(option['available_cts']),
+    );
+    amount = chosen.fold<double>(
+      0,
+      (sum, option) =>
+          sum +
+          (_number(option['available_cts']) *
+              _number(option['rate_per_carat'])),
+    );
+    if (name.text.trim().isEmpty) {
+      final descriptions = chosen
+          .map((option) => (option['diamond_type'] ?? 'Diamond').toString())
+          .toSet()
+          .join(' + ');
+      name.text = descriptions.isEmpty ? 'Diamond' : descriptions;
+    }
+  }
+
+  Map<String, dynamic> json() => {
+    'name': name.text.trim(),
+    'issue_line_ids': issueLineIds.toList(),
+  };
+
+  void dispose() => name.dispose();
 }
 
 Map<String, dynamic> _map(dynamic value) =>

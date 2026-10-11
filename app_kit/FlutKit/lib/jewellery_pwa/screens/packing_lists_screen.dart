@@ -211,7 +211,7 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
               ),
               SizedBox(height: 3),
               Text(
-                'Select completed & received orders for one horizontal PDF.',
+                'Select completed & received orders for one A4 landscape PDF.',
                 style: TextStyle(color: Colors.white70, fontSize: 12),
               ),
             ],
@@ -372,7 +372,7 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
                   ),
                 ),
                 const Text(
-                  'A3 landscape PDF',
+                  'A4 landscape PDF',
                   style: TextStyle(color: Colors.white60, fontSize: 10),
                 ),
               ],

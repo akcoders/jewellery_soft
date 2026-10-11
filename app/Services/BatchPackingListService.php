@@ -63,31 +63,46 @@ class BatchPackingListService
             $record = $byId[$id];
             $movementId = (int) ($record['movement_id'] ?? 0);
             $details = $detailMap[$movementId] ?? [];
+            $diamondPcs = 0.0;
+            $diamondWeight = 0.0;
+            $diamondAmount = 0.0;
             $stonePcs = 0.0;
             $stoneWeight = 0.0;
             $stoneAmount = 0.0;
-            $detailLines = [];
+            $diamondLines = [];
+            $stoneLines = [];
             foreach ($details as $detail) {
+                $type = strtolower(trim((string) ($detail['component_type'] ?? '')));
                 $pcs = (float) ($detail['pcs'] ?? 0);
                 $cts = (float) ($detail['weight_cts'] ?? 0);
-                $gm = (float) ($detail['weight_gm'] ?? 0);
                 $rate = (float) ($detail['rate'] ?? 0);
                 $amount = (float) ($detail['line_total'] ?? 0);
-                $stonePcs += $pcs;
-                $stoneWeight += $cts;
-                $stoneAmount += $amount;
-                $weight = $cts > 0 ? number_format($cts, 3, '.', '') . ' ct' : number_format($gm, 3, '.', '') . ' gm';
-                $detailLines[] = strtoupper((string) ($detail['component_name'] ?: $detail['component_type']))
-                    . ' | ' . $this->compactNumber($pcs) . ' pcs | ' . $weight
+                $line = strtoupper((string) ($detail['component_name'] ?: $detail['component_type']))
+                    . ' | ' . $this->compactNumber($pcs) . ' pcs | ' . number_format($cts, 3, '.', '') . ' ct'
                     . ' | rate ' . number_format($rate, 2, '.', '')
                     . ' | amt ' . number_format($amount, 2, '.', '');
+                if ($type === 'diamond') {
+                    $diamondPcs += $pcs;
+                    $diamondWeight += $cts;
+                    $diamondAmount += $amount;
+                    $diamondLines[] = $line;
+                } elseif ($type === 'stone') {
+                    $stonePcs += $pcs;
+                    $stoneWeight += $cts;
+                    $stoneAmount += $amount;
+                    $stoneLines[] = $line;
+                }
             }
 
             $photo = $photoMap[$id] ?? '';
             $record['batch_no'] = $index + 1;
             $record['item_no'] = 1;
             $record['item_description'] = $itemMap[$id] ?? (string) ($record['order_name'] ?? 'Jewellery');
-            $record['stone_details'] = $detailLines;
+            $record['diamond_details'] = $diamondLines;
+            $record['diamond_pcs'] = round($diamondPcs, 3);
+            $record['diamond_weight_cts'] = round($diamondWeight, 3);
+            $record['diamond_amount_total'] = round($diamondAmount, 2);
+            $record['stone_details'] = $stoneLines;
             $record['stone_pcs'] = $stonePcs;
             $record['stone_weight_cts'] = $stoneWeight;
             $record['stone_amount_total'] = $stoneAmount;
@@ -225,7 +240,8 @@ class BatchPackingListService
     private function totals(array $rows): array
     {
         $fields = [
-            'gross_weight_gm', 'stone_pcs', 'stone_weight_cts', 'stone_amount_total',
+            'gross_weight_gm', 'diamond_pcs', 'diamond_weight_cts', 'diamond_amount_total',
+            'stone_pcs', 'stone_weight_cts', 'stone_amount_total',
             'net_gold_weight_gm', 'pure_gold_weight_gm', 'gold_amount',
             'pure_wastage_weight_gm', 'labour_amount', 'total_valuation',
         ];

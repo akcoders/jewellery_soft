@@ -18,10 +18,15 @@ class OrderReceivingService
     {
         $order = $this->order($orderId);
         $summary = $this->receiptSummary($orderId);
+        $diamondBagLines = (new DiamondBagTraceService($this->db))->receiptOptions(
+            (int) ($order['assigned_karigar_id'] ?? 0),
+            $orderId
+        );
         return [
             'order' => $order,
             'already_received' => $summary !== [],
             'receipt' => $summary,
+            'diamond_bag_lines' => $diamondBagLines,
             'locations' => $this->db->table('inventory_locations')
                 ->select('id, name, code')->where('is_active', 1)->orderBy('name')->get()->getResultArray(),
             'gold_purities' => $this->db->table('gold_purities')
@@ -72,7 +77,11 @@ class OrderReceivingService
             throw new RuntimeException('Purity or wastage percentage is invalid.');
         }
 
-        $diamonds = $this->componentRows($payload['diamonds'] ?? [], 'diamond');
+        $diamonds = $this->diamondRows(
+            $payload['diamonds'] ?? [],
+            $orderId,
+            (int) $order['assigned_karigar_id']
+        );
         $stones = $this->componentRows($payload['stones'] ?? [], 'stone');
         $others = $this->componentRows($payload['others'] ?? [], 'other');
         $diamondCts = $this->sum($diamonds, 'weight_cts');
@@ -293,12 +302,76 @@ class OrderReceivingService
         return $rows;
     }
 
+    /** @return list<array<string,mixed>> */
+    private function diamondRows(mixed $raw, int $orderId, int $karigarId): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $options = (new DiamondBagTraceService($this->db))->receiptOptions($karigarId, $orderId);
+        $byIssueLine = [];
+        foreach ($options as $option) {
+            $byIssueLine[(int) ($option['issue_line_id'] ?? 0)] = $option;
+        }
+
+        $rows = [];
+        $selected = [];
+        foreach (array_values($raw) as $index => $input) {
+            if (! is_array($input)) {
+                continue;
+            }
+            $issueLineIds = array_values(array_unique(array_filter(
+                array_map('intval', (array) ($input['issue_line_ids'] ?? [])),
+                static fn(int $id): bool => $id > 0
+            )));
+            if ($issueLineIds === []) {
+                $hasManualQuantity = (float) ($input['pcs'] ?? 0) > 0 || (float) ($input['weight_cts'] ?? 0) > 0;
+                if ($hasManualQuantity || trim((string) ($input['name'] ?? '')) !== '') {
+                    throw new RuntimeException('Diamond line ' . ($index + 1) . ' must use this order\'s issued bag lines.');
+                }
+                continue;
+            }
+
+            $description = mb_substr(trim((string) ($input['name'] ?? '')), 0, 120);
+            foreach ($issueLineIds as $issueLineId) {
+                if (isset($selected[$issueLineId])) {
+                    throw new RuntimeException('A diamond bag line can be selected only once.');
+                }
+                $option = $byIssueLine[$issueLineId] ?? null;
+                if (! is_array($option)) {
+                    throw new RuntimeException('Selected diamond bag line is not available for this order.');
+                }
+                $selected[$issueLineId] = true;
+                $pcs = round((float) ($option['available_pcs'] ?? 0), 3);
+                $weightCts = round((float) ($option['available_cts'] ?? 0), 3);
+                $rate = round(max(0, (float) ($option['rate_per_carat'] ?? 0)), 2);
+                if ($weightCts <= 0) {
+                    throw new RuntimeException('Selected diamond bag line has no available carat weight.');
+                }
+                $rows[] = [
+                    'name' => $description !== '' ? $description : mb_substr((string) ($option['label'] ?? 'Diamond'), 0, 120),
+                    'pcs' => $pcs,
+                    'weight_cts' => $weightCts,
+                    'weight_gm' => 0.0,
+                    'rate' => $rate,
+                    'line_total' => round($weightCts * $rate, 2),
+                    'diamond_issue_line_id' => $issueLineId,
+                    'diamond_bag_id' => (int) ($option['bag_id'] ?? 0),
+                    'diamond_bag_item_id' => (int) ($option['bag_item_id'] ?? 0),
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
     /** @param list<array<string,mixed>> $rows */
     private function insertDetails(int $movementId, int $orderId, array $rows, string $type, int $createdBy): void
     {
         $now = date('Y-m-d H:i:s');
         foreach ($rows as $row) {
-            $this->db->table('order_receive_details')->insert([
+            $detail = [
                 'movement_id' => $movementId,
                 'order_id' => $orderId,
                 'component_type' => $type,
@@ -311,7 +384,19 @@ class OrderReceivingService
                 'created_by' => $createdBy,
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]);
+            ];
+            if ($type === 'diamond' && $this->db->fieldExists('diamond_issue_line_id', 'order_receive_details')) {
+                $detail += [
+                    'diamond_issue_line_id' => (int) ($row['diamond_issue_line_id'] ?? 0) ?: null,
+                    'diamond_bag_id' => (int) ($row['diamond_bag_id'] ?? 0) ?: null,
+                    'diamond_bag_item_id' => (int) ($row['diamond_bag_item_id'] ?? 0) ?: null,
+                ];
+            }
+            $this->db->table('order_receive_details')->insert($detail);
+            $receiveDetailId = (int) $this->db->insertID();
+            if ($type === 'diamond' && $receiveDetailId > 0) {
+                (new DiamondBagTraceService($this->db))->recordStudding($receiveDetailId);
+            }
         }
     }
 

@@ -85,9 +85,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         orderId: widget.orderId,
       );
       if (!mounted) return;
-      final orderMap = (data['order'] as Map?)?.cast<String, dynamic>();
+      final orderMap = _stringMap(data['order']);
       setState(() {
-        _order = orderMap ?? data.cast<String, dynamic>();
+        _order = orderMap.isNotEmpty ? orderMap : data;
         _items = (data['items'] as List?) ?? <dynamic>[];
         _followups = (data['followups'] as List?) ?? <dynamic>[];
         _workRequests = requests;
@@ -114,11 +114,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             data['can_rate_order'] == true || data['can_rate_order'] == 1;
         _canReceiveOrder =
             data['can_receive_order'] == true || data['can_receive_order'] == 1;
-        _receipt = (data['receipt'] as Map?)?.cast<String, dynamic>() ?? {};
-        _pendingFollowupApproval =
-            (data['pending_followup_approval'] as Map?)
-                ?.cast<String, dynamic>() ??
-            {};
+        _receipt = _stringMap(data['receipt']);
+        _pendingFollowupApproval = _stringMap(
+          data['pending_followup_approval'],
+        );
         _staffFollowers = (data['staff_followers'] as List?) ?? <dynamic>[];
         _allowedStages = ((data['allowed_stages'] as List?) ?? <dynamic>[])
             .map((e) => e.toString())
@@ -1810,3 +1809,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     return number.toStringAsFixed(3);
   }
 }
+
+Map<String, dynamic> _stringMap(dynamic value) => value is Map
+    ? value.map((key, item) => MapEntry(key.toString(), item))
+    : <String, dynamic>{};

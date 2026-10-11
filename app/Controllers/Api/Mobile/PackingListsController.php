@@ -39,7 +39,7 @@ class PackingListsController extends MobileBaseController
             $pdf = (new PdfService())->render('pdf/batch_packing_list', [
                 'company' => (new CompanySettingModel())->first() ?? [],
                 'report' => $report,
-            ], 'A3', 'landscape');
+            ], 'A4', 'landscape');
             $filename = strtolower((string) $report['packing_no']) . '.pdf';
             return $this->response->setHeader('Content-Type', 'application/pdf')
                 ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')

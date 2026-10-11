@@ -2004,6 +2004,9 @@ class OrderController extends BaseController
             return $this->finishedReceiptFailure($diamondError);
         }
         $diamond['rows'] = $diamondRows;
+        $diamond['total_pcs'] = round(array_sum(array_column($diamondRows, 'pcs')), 3);
+        $diamond['total_weight_cts'] = round(array_sum(array_column($diamondRows, 'weight_cts')), 3);
+        $diamond['total_amount'] = round(array_sum(array_column($diamondRows, 'line_total')), 2);
         $stone = $this->collectReceiveComponentRows(
             (array) $this->request->getPost('stone_type'),
             (array) $this->request->getPost('stone_pcs'),
@@ -2552,6 +2555,9 @@ class OrderController extends BaseController
         }
 
         $db = db_connect();
+        if ($orderId > 0) {
+            return (new DiamondBagTraceService($db))->receiptOptions($karigarId, $orderId);
+        }
         if (! $db->tableExists('accounts') || ! $db->tableExists('account_balances')) {
             return [];
         }
@@ -2710,6 +2716,13 @@ class OrderController extends BaseController
                 $selectionOptions[] = $option;
                 $totalAvailablePcs += (float) ($option['available_pcs'] ?? 0);
                 $totalAvailableCts += (float) ($option['available_cts'] ?? 0);
+            }
+
+            if ($orderId > 0) {
+                $pcs = round($totalAvailablePcs, 3);
+                $cts = round($totalAvailableCts, 3);
+                $row['pcs'] = $pcs;
+                $row['weight_cts'] = $cts;
             }
 
             $manual = count(array_filter($selectionOptions, static fn(array $option): bool => ! empty($option['allow_negative']))) > 0;
