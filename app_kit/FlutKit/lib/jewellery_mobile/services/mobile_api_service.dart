@@ -254,11 +254,6 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
-  Future<Map<String, dynamic>> fetchBusinessAnalytics({int days = 90}) async {
-    final res = await _get('/api/mobile/analytics', query: {'days': '$days'});
-    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
-  }
-
   Future<List<dynamic>> fetchPackingListOrders() async {
     final res = await _get('/api/mobile/packing-lists');
     return (res['data'] as List?) ?? <dynamic>[];

@@ -1,0 +1,15 @@
+{
+  "name": "Aabhushan Business Intelligence",
+  "short_name": "Aabhushan BI",
+  "description": "Advanced jewellery business analytics for orders, purchases, inventory, requirements, customers and employee performance.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f6fb",
+  "theme_color": "#11122f",
+  "icons": [
+    {"src": "../pwa/icons/Icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "../pwa/icons/Icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

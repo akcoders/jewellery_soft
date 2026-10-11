@@ -123,6 +123,7 @@ $canStaffHierarchy = admin_can_any(['organization.departments.read', 'organizati
 $canShowroomStock = admin_can('showroom.stock.read');
 $canShowroomSales = admin_can('showroom.sales.read');
 $canPerformance = admin_can_any(['performance.dashboard.read', 'performance.tasks.read']);
+$canBusinessAnalytics = admin_can_any(['analytics.business.read', 'orders.assign']);
 $canVendors = admin_can('masters.vendors.read');
 $canCompanySettings = admin_can_any(['company-settings.read', 'company-settings.manage']);
 $canInventorySettings = admin_can('inventory.settings.read');
@@ -1712,6 +1713,11 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
                         <?php if ($canDashboard): ?>
                         <li class="<?= $isDash ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/dashboard') ?>" data-app-tour-module="dashboard"><i class="fe fe-home"></i> <span>Dashboard</span></a>
+                        </li>
+                        <?php endif; ?>
+                        <?php if ($canBusinessAnalytics): ?>
+                        <li>
+                            <a href="<?= base_url('analytics/') ?>" target="_blank" rel="noopener"><i class="fe fe-bar-chart-2"></i> <span>Business Intelligence</span><i class="fe fe-external-link ms-auto" style="font-size:11px"></i></a>
                         </li>
                         <?php endif; ?>
 

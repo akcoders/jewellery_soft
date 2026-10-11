@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutkit/jewellery_pwa/screens/admin_tasks_screen.dart';
-import 'package:flutkit/jewellery_pwa/screens/business_analytics_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/dashboard_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/diamond_bags_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/diamond_requirements_screen.dart';
@@ -356,8 +355,6 @@ class _AppShellState extends State<AppShell> {
         return AdminTasksScreen(api: _api);
       case 'performance':
         return PerformanceScreen(api: _api);
-      case 'analytics':
-        return BusinessAnalyticsScreen(api: _api);
       default:
         return DashboardScreen(
           api: _api,
@@ -600,11 +597,6 @@ class _AppShellState extends State<AppShell> {
                 ),
                 if (widget.session.isAdmin) ...[
                   _drawerItem(
-                    'analytics',
-                    'Business Analytics',
-                    LucideIcons.chart_no_axes_combined,
-                  ),
-                  _drawerItem(
                     'order_requests',
                     'Order Requests',
                     LucideIcons.badge_check,
@@ -837,8 +829,6 @@ class _AppShellState extends State<AppShell> {
         return 'My Tasks';
       case 'performance':
         return 'My Performance';
-      case 'analytics':
-        return 'Business Analytics';
       default:
         return 'Dashboard';
     }

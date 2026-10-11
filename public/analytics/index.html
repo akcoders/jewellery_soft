@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#11122f">
+  <meta name="description" content="Aabhushan Intelligence — advanced business analytics for orders, inventory, purchases, requirements, customers and employee performance.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="../pwa/icons/Icon-192.png">
+  <link rel="apple-touch-icon" href="../pwa/icons/Icon-192.png">
+  <link rel="stylesheet" href="app.css?v=1">
+  <title>Aabhushan Intelligence</title>
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+
+  <section class="login-screen" id="loginScreen">
+    <div class="login-art">
+      <div class="brand-orbit"><img src="../pwa/icons/Icon-192.png" alt="Aabhushan"></div>
+      <p class="eyebrow">AABHUSHAN BUSINESS OS</p>
+      <h1>See the whole business.<br><span>Decide with confidence.</span></h1>
+      <p class="login-copy">Orders, people, purchasing, inventory and customer intelligence—unified in one high-speed analytics workspace.</p>
+      <div class="login-metrics"><span><strong>360°</strong> Business view</span><span><strong>Live</strong> ERP intelligence</span><span><strong>20+</strong> Visual indicators</span></div>
+    </div>
+    <form class="login-card" id="loginForm">
+      <div class="login-card-head"><span class="pulse-dot"></span><span>SECURE ADMIN ACCESS</span></div>
+      <h2>Welcome back</h2><p>Use your existing Aabhushan admin account.</p>
+      <label>Email address<input id="email" type="email" autocomplete="username" required placeholder="admin@company.com"></label>
+      <label>Password<input id="password" type="password" autocomplete="current-password" required placeholder="••••••••"></label>
+      <div class="form-error" id="loginError" role="alert"></div>
+      <button class="primary-button login-button" type="submit"><span>Open Intelligence</span><span aria-hidden="true">→</span></button>
+      <small>Read-only analytics workspace · no operational data can be changed</small>
+    </form>
+  </section>
+
+  <div class="app-shell hidden" id="appShell">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-brand"><img src="../pwa/icons/Icon-192.png" alt=""><div><strong>AABHUSHAN</strong><span>INTELLIGENCE</span></div><button class="icon-button mobile-only" id="closeMenu" aria-label="Close menu">×</button></div>
+      <nav id="mainNav">
+        <p>ANALYSIS</p>
+        <button class="nav-link active" data-page="overview"><i>⌂</i><span>Command Centre</span></button>
+        <button class="nav-link" data-page="orders"><i>◫</i><span>Order Intelligence</span></button>
+        <button class="nav-link" data-page="purchases"><i>↗</i><span>Purchase History</span></button>
+        <button class="nav-link" data-page="requirements"><i>◇</i><span>Requirements</span></button>
+        <button class="nav-link" data-page="inventory"><i>◈</i><span>Inventory Pulse</span></button>
+        <button class="nav-link" data-page="team"><i>◎</i><span>People Performance</span></button>
+        <button class="nav-link" data-page="relationships"><i>♧</i><span>Customers & Partners</span></button>
+      </nav>
+      <div class="sidebar-foot"><div class="live-pill"><span></span>Live ERP data</div><a href="../pwa/">Open Operations PWA ↗</a></div>
+    </aside>
+    <div class="menu-scrim" id="menuScrim"></div>
+
+    <main class="workspace">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="openMenu" aria-label="Open menu">☰</button>
+        <div><p class="eyebrow" id="pageEyebrow">EXECUTIVE OVERVIEW</p><h2 id="pageTitle">Command Centre</h2></div>
+        <div class="top-actions">
+          <label class="period-control"><span>Period</span><select id="periodSelect"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="180">6 months</option><option value="365">1 year</option></select></label>
+          <button class="icon-button" id="refreshButton" title="Refresh">↻</button>
+          <button class="install-button hidden" id="installButton">Install PWA</button>
+          <button class="profile-button" id="profileButton"><span id="userInitial">A</span><div><strong id="userName">Admin</strong><small>Analytics admin</small></div></button>
+          <div class="profile-menu hidden" id="profileMenu"><button id="logoutButton">Sign out</button></div>
+        </div>
+      </header>
+
+      <div class="loading-state" id="loadingState"><div class="loader-ring"></div><p>Building your business intelligence…</p></div>
+      <div class="error-state hidden" id="errorState"><span>!</span><h3>Analytics could not load</h3><p id="errorText"></p><button class="primary-button" id="retryButton">Retry now</button></div>
+
+      <div class="pages hidden" id="pages">
+        <section class="page active" data-page-panel="overview">
+          <div class="hero-panel">
+            <div><p class="eyebrow">LIVE BUSINESS COMMAND CENTRE</p><h1>Everything that matters,<br><span>in one decisive view.</span></h1><p id="periodCaption">Analysing your business performance.</p></div>
+            <div class="hero-score"><div class="score-ring" id="businessScore"><strong>—</strong><span>Health score</span></div><p id="healthMessage">Calculating operational health</p></div>
+          </div>
+          <div class="kpi-grid" id="overviewKpis"></div>
+          <div class="insight-strip" id="insightStrip"></div>
+          <div class="dashboard-grid">
+            <article class="panel span-8"><header><div><span class="panel-kicker">BUSINESS MOMENTUM</span><h3>Order value & conversion pulse</h3></div><span class="legend-note">Orders · Value · Advance</span></header><div class="chart chart-xl"><canvas id="businessPulseChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">ORDER MIX</span><h3>Live status distribution</h3></div></header><div class="chart chart-xl"><canvas id="orderStatusChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">DELIVERY RISK</span><h3>Due-date health</h3></div></header><div class="chart"><canvas id="dueHealthChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">CASH POSITION</span><h3>Value flow</h3></div></header><div class="chart"><canvas id="financialChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">MATERIAL CAPITAL</span><h3>Inventory value mix</h3></div></header><div class="chart"><canvas id="inventoryMixChart"></canvas></div></article>
+            <article class="panel span-6"><header><div><span class="panel-kicker">CUSTOMER VALUE</span><h3>Top customers by order value</h3></div></header><div class="chart chart-lg"><canvas id="topCustomersChart"></canvas></div></article>
+            <article class="panel span-6"><header><div><span class="panel-kicker">TEAM LEAGUE</span><h3>Performance score leaders</h3></div></header><div class="chart chart-lg"><canvas id="teamLeadersChart"></canvas></div></article>
+          </div>
+        </section>
+
+        <section class="page" data-page-panel="orders">
+          <div class="section-hero purple"><div><p class="eyebrow">ORDER INTELLIGENCE</p><h1>Demand, delivery and conversion</h1><p>Understand what is selling, what is delayed and where execution needs attention.</p></div><div class="section-stat"><strong id="ordersHeroValue">—</strong><span>Total order value</span></div></div>
+          <div class="kpi-grid compact" id="orderKpis"></div>
+          <div class="dashboard-grid">
+            <article class="panel span-8"><header><div><span class="panel-kicker">DEMAND CURVE</span><h3>Orders, completions & value</h3></div></header><div class="chart chart-xl"><canvas id="orderTrendChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">FULFILMENT</span><h3>Receiving integrity</h3></div></header><div class="chart chart-xl"><canvas id="receivingChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">ORDER FORMAT</span><h3>Order type mix</h3></div></header><div class="chart"><canvas id="orderTypeChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">WORKLOAD</span><h3>Priority distribution</h3></div></header><div class="chart"><canvas id="priorityChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">CATEGORY SIGNAL</span><h3>Jewellery demand</h3></div></header><div class="chart"><canvas id="categoryChart"></canvas></div></article>
+            <article class="panel span-12"><header><div><span class="panel-kicker">LATEST ACTIVITY</span><h3>Recent order book</h3></div></header><div class="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Type</th><th>Status</th><th>Due</th><th>Value</th><th>Advance</th></tr></thead><tbody id="recentOrdersTable"></tbody></table></div></article>
+          </div>
+        </section>
+
+        <section class="page" data-page-panel="purchases">
+          <div class="section-hero orange"><div><p class="eyebrow">PURCHASE INTELLIGENCE</p><h1>Spend, suppliers and payment exposure</h1><p>Track material buying patterns, vendor concentration and outstanding obligations.</p></div><div class="section-stat"><strong id="purchaseHeroValue">—</strong><span>Purchase value</span></div></div>
+          <div class="kpi-grid compact" id="purchaseKpis"></div>
+          <div class="dashboard-grid">
+            <article class="panel span-8"><header><div><span class="panel-kicker">SPEND VELOCITY</span><h3>Purchase history</h3></div></header><div class="chart chart-xl"><canvas id="purchaseTrendChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">MATERIAL MIX</span><h3>Spend allocation</h3></div></header><div class="chart chart-xl"><canvas id="purchaseMaterialChart"></canvas></div></article>
+            <article class="panel span-7"><header><div><span class="panel-kicker">SUPPLIER CONCENTRATION</span><h3>Top vendors</h3></div></header><div class="chart chart-lg"><canvas id="vendorSpendChart"></canvas></div></article>
+            <article class="panel span-5"><header><div><span class="panel-kicker">PAYMENT CONTROL</span><h3>Bill status</h3></div></header><div class="chart chart-lg"><canvas id="paymentStatusChart"></canvas></div></article>
+            <article class="panel span-12"><header><div><span class="panel-kicker">PURCHASE REGISTER</span><h3>Latest bills</h3></div></header><div class="table-wrap"><table><thead><tr><th>Date</th><th>Material</th><th>Supplier</th><th>Invoice</th><th>Payment</th><th>Due</th><th>Value</th></tr></thead><tbody id="recentPurchasesTable"></tbody></table></div></article>
+          </div>
+        </section>
+
+        <section class="page" data-page-panel="requirements">
+          <div class="section-hero cyan"><div><p class="eyebrow">REQUIREMENT CONTROL</p><h1>From demand to prepared diamond bag</h1><p>Measure request load, readiness, turnaround and overdue preparation.</p></div><div class="section-stat"><strong id="requirementHeroValue">—</strong><span>Fulfilment rate</span></div></div>
+          <div class="kpi-grid compact" id="requirementKpis"></div>
+          <div class="dashboard-grid">
+            <article class="panel span-8"><header><div><span class="panel-kicker">REQUIREMENT FLOW</span><h3>Raised vs ready</h3></div></header><div class="chart chart-xl"><canvas id="requirementTrendChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">WORKFLOW STATE</span><h3>Requirement status</h3></div></header><div class="chart chart-xl"><canvas id="requirementStatusChart"></canvas></div></article>
+            <article class="panel span-12"><header><div><span class="panel-kicker">RECENT REQUIREMENTS</span><h3>Preparation queue</h3></div></header><div class="table-wrap"><table><thead><tr><th>Requirement</th><th>Order</th><th>Requested by</th><th>Assigned to</th><th>Required by</th><th>Status</th></tr></thead><tbody id="requirementsTable"></tbody></table></div></article>
+          </div>
+        </section>
+
+        <section class="page" data-page-panel="inventory">
+          <div class="section-hero green"><div><p class="eyebrow">INVENTORY PULSE</p><h1>Capital, quantity and stock risk</h1><p>Monitor gold, diamond, stone and finished jewellery in real time.</p></div><div class="section-stat"><strong id="inventoryHeroValue">—</strong><span>Total inventory value</span></div></div>
+          <div class="material-cards" id="materialCards"></div>
+          <div class="dashboard-grid">
+            <article class="panel span-6"><header><div><span class="panel-kicker">VALUE ALLOCATION</span><h3>Inventory capital mix</h3></div></header><div class="chart chart-xl"><canvas id="inventoryValueChart"></canvas></div></article>
+            <article class="panel span-6"><header><div><span class="panel-kicker">STOCK DEPTH</span><h3>SKU coverage & exceptions</h3></div></header><div class="chart chart-xl"><canvas id="inventorySkuChart"></canvas></div></article>
+          </div>
+        </section>
+
+        <section class="page" data-page-panel="team">
+          <div class="section-hero pink"><div><p class="eyebrow">PEOPLE PERFORMANCE</p><h1>Execution quality, not just activity</h1><p>Scores combine tasks, follow-ups, order entry, purchases, issuements and completion ratings.</p></div><div class="section-stat"><strong id="teamHeroValue">—</strong><span>Average score</span></div></div>
+          <div class="kpi-grid compact" id="teamKpis"></div>
+          <div class="dashboard-grid">
+            <article class="panel span-8"><header><div><span class="panel-kicker">PERFORMANCE LEAGUE</span><h3>Employee score indicator</h3></div></header><div class="chart chart-xl"><canvas id="employeeScoreChart"></canvas></div></article>
+            <article class="panel span-4"><header><div><span class="panel-kicker">DELIVERY DISCIPLINE</span><h3>On-time vs overdue</h3></div></header><div class="chart chart-xl"><canvas id="teamDisciplineChart"></canvas></div></article>
+            <article class="panel span-12"><header><div><span class="panel-kicker">DETAILED SCORECARD</span><h3>Employee performance indicators</h3></div></header><div class="employee-grid" id="employeeCards"></div></article>
+          </div>
+        </section>
+
+        <section class="page" data-page-panel="relationships">
+          <div class="section-hero gold"><div><p class="eyebrow">RELATIONSHIP INTELLIGENCE</p><h1>Customers, karigars and vendors</h1><p>Identify commercial concentration, repeat behaviour and production partners.</p></div><div class="section-stat"><strong id="relationshipHeroValue">—</strong><span>Repeat customer rate</span></div></div>
+          <div class="dashboard-grid">
+            <article class="panel span-6"><header><div><span class="panel-kicker">CUSTOMER PORTFOLIO</span><h3>Value leaders</h3></div></header><div class="chart chart-xl"><canvas id="customerPortfolioChart"></canvas></div></article>
+            <article class="panel span-6"><header><div><span class="panel-kicker">PRODUCTION PARTNERS</span><h3>Karigar completion output</h3></div></header><div class="chart chart-xl"><canvas id="karigarChart"></canvas></div></article>
+            <article class="panel span-12"><header><div><span class="panel-kicker">SUPPLIER NETWORK</span><h3>Vendor spend map</h3></div></header><div class="chart chart-lg"><canvas id="relationshipVendorChart"></canvas></div></article>
+          </div>
+        </section>
+      </div>
+      <footer><span>Read-only intelligence · Synced from Aabhushan ERP</span><span id="lastUpdated">Not refreshed yet</span></footer>
+    </main>
+  </div>
+
+  <script src="vendor/chart.min.js"></script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>

@@ -93,6 +93,8 @@ phpunit
 # Composer
 #-------------------------
 vendor/
+!public/analytics/vendor/
+!public/analytics/vendor/chart.min.js
 
 #-------------------------
 # IDE / Development Files
