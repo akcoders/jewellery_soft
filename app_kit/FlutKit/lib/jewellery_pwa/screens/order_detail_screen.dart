@@ -6,6 +6,7 @@ import 'package:flutkit/jewellery_pwa/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_pwa/widgets/app_status_badge.dart';
 import 'package:flutkit/jewellery_pwa/widgets/full_screen_loader.dart';
 import 'package:flutkit/jewellery_pwa/screens/order_followup_form_screen.dart';
+import 'package:flutkit/jewellery_pwa/screens/order_receiving_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
@@ -43,6 +44,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _canChangeFollower = false;
   bool _followupGalleryEnabled = false;
   bool _canRateOrder = false;
+  bool _canReceiveOrder = false;
+  Map<String, dynamic> _receipt = {};
   Map<String, dynamic> _pendingFollowupApproval = {};
   List<dynamic> _staffFollowers = [];
   List<String> _allowedStages = const [];
@@ -109,6 +112,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             data['followup_gallery_enabled'] == 1;
         _canRateOrder =
             data['can_rate_order'] == true || data['can_rate_order'] == 1;
+        _canReceiveOrder =
+            data['can_receive_order'] == true || data['can_receive_order'] == 1;
+        _receipt = (data['receipt'] as Map?)?.cast<String, dynamic>() ?? {};
         _pendingFollowupApproval =
             (data['pending_followup_approval'] as Map?)
                 ?.cast<String, dynamic>() ??
@@ -146,6 +152,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     if (result == true) {
       _load();
     }
+  }
+
+  Future<void> _receiveOrder() async {
+    final received = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            OrderReceivingScreen(api: widget.api, orderId: widget.orderId),
+      ),
+    );
+    if (received == true) await _load();
   }
 
   Future<void> _rateOrder() async {
@@ -1136,6 +1152,51 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       ),
                     ),
                   ],
+                  if (_canReceiveOrder) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    FilledButton.icon(
+                      onPressed: _receiveOrder,
+                      icon: const Icon(LucideIcons.package_check),
+                      label: const Text('Receive finished jewellery'),
+                    ),
+                  ],
+                  if (_receipt.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Card(
+                      color: AppColors.success.withValues(alpha: .06),
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  LucideIcons.circle_check,
+                                  color: AppColors.success,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Receiving posted',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Gross ${_weight(_receipt['gross_weight_gm'])} gm · Net ${_weight(_receipt['net_gold_weight_gm'])} gm · Pure ${_weight(_receipt['pure_gold_weight_gm'])} gm',
+                            ),
+                            Text(
+                              'Received by ${_receipt['received_by_name'] ?? 'Admin'} · valuation ₹${AppFormatters.amount(_receipt['total_valuation'])}',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   const AppSectionTitle('People & responsibility'),
                   const SizedBox(height: 14),
@@ -1741,4 +1802,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       ),
     ),
   );
+
+  String _weight(dynamic value) {
+    final number = value is num
+        ? value.toDouble()
+        : double.tryParse('$value') ?? 0;
+    return number.toStringAsFixed(3);
+  }
 }

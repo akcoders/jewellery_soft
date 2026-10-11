@@ -234,8 +234,8 @@ class DeliveryChallanService
             }
             $pcs = (float) ($input['pcs'] ?? 0);
             $value = round((float) ($input['value'] ?? 0), 2);
-            if ($pcs <= 0 || floor($pcs) !== $pcs || $value <= 0) {
-                throw new RuntimeException('Line ' . ($index + 1) . ': whole PCS and positive value are required.');
+            if ($pcs <= 0 || floor($pcs) !== $pcs || $value < 0) {
+                throw new RuntimeException('Line ' . ($index + 1) . ': whole PCS and a non-negative value are required.');
             }
             $item = [
                 'item_type' => $type,

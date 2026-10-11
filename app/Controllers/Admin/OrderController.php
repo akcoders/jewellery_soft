@@ -874,7 +874,8 @@ class OrderController extends BaseController
         $currentAdminId = (int) session('admin_id');
         $canChangeFollower = $this->rbacService->userCan($currentAdminId, 'orders.assign');
         $canViewFollowups = $canChangeFollower
-            || (int) ($order['followup_assigned_to'] ?? 0) === $currentAdminId;
+            || (int) ($order['followup_assigned_to'] ?? 0) === $currentAdminId
+            || (int) ($order['created_by'] ?? 0) === $currentAdminId;
         $followups = [];
         if ($canViewFollowups) {
             $followups = $this->followupModel
@@ -929,6 +930,10 @@ class OrderController extends BaseController
                 && $hasActiveReceiveMovement
                 && $this->rbacService->userCan((int) session('admin_id'), 'orders.receive'),
             'canChangeFollower' => $canChangeFollower,
+            'canRateOrder' => $canChangeFollower
+                && is_array($receiveSummary)
+                && $receiveSummary !== []
+                && in_array((string) ($order['status'] ?? ''), ['Completed', 'Complete', 'Delivered'], true),
             'staffFollowers' => $canChangeFollower ? $this->staffPerformanceService->staffOptions() : [],
         ]);
     }
@@ -1311,8 +1316,9 @@ class OrderController extends BaseController
         if (! is_array($order)) {
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Order not found.');
         }
-        if (in_array((string) ($order['status'] ?? ''), ['Cancelled', 'Completed'], true)) {
-            return redirect()->to(site_url('admin/orders/' . $id))->with('error', 'Cancelled or completed order cannot be received again.');
+        $alreadyReceived = $this->receiveSummaryModel->where('order_id', $id)->countAllResults() > 0;
+        if ((string) ($order['status'] ?? '') === 'Cancelled' || $alreadyReceived) {
+            return redirect()->to(site_url('admin/orders/' . $id))->with('error', 'Cancelled or already received order cannot be received again.');
         }
         if ((int) ($order['assigned_karigar_id'] ?? 0) <= 0) {
             return redirect()->to(site_url('admin/orders/' . $id))->with('error', 'Assign a karigar before receiving finished jewellery.');
@@ -1411,6 +1417,34 @@ class OrderController extends BaseController
         }
 
         return redirect()->back()->with('success', 'Order status updated.');
+    }
+
+    public function rate(int $id)
+    {
+        $order = $this->orderModel->find($id);
+        if (! $order) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Order not found.');
+        }
+        $adminId = $this->currentAuditUserId();
+        if (! $this->rbacService->userCan($adminId, 'orders.assign')) {
+            return redirect()->back()->with('error', 'You cannot rate completed orders.');
+        }
+        $hasReceipt = $this->receiveSummaryModel->where('order_id', $id)->countAllResults() > 0;
+        if (! $hasReceipt || ! in_array((string) ($order['status'] ?? ''), ['Completed', 'Complete', 'Delivered'], true)) {
+            return redirect()->back()->with('error', 'Rating is available only after completed order receiving.');
+        }
+        $rating = (int) $this->request->getPost('rating');
+        $comment = mb_substr(trim((string) $this->request->getPost('comment')), 0, 500);
+        if ($rating < 1 || $rating > 5) {
+            return redirect()->back()->withInput()->with('error', 'Select a rating from 1 to 5 stars.');
+        }
+        $this->orderModel->update($id, [
+            'completion_rating' => $rating,
+            'rating_comment' => $comment !== '' ? $comment : null,
+            'rated_by' => $adminId,
+            'rated_at' => date('Y-m-d H:i:s'),
+        ]);
+        return redirect()->back()->with('success', 'Order star rating and remark saved.');
     }
 
     public function cancel(int $id)
@@ -1915,8 +1949,9 @@ class OrderController extends BaseController
         if (! $order) {
             return $this->finishedReceiptFailure('Order not found.', 404);
         }
-        if (in_array((string) ($order['status'] ?? ''), ['Cancelled', 'Completed'], true)) {
-            return $this->finishedReceiptFailure('Cancelled or completed order cannot be received again.');
+        $alreadyReceived = $this->receiveSummaryModel->where('order_id', $orderId)->countAllResults() > 0;
+        if ((string) ($order['status'] ?? '') === 'Cancelled' || $alreadyReceived) {
+            return $this->finishedReceiptFailure('Cancelled or already received order cannot be received again.');
         }
 
         $karigarId = (int) ($order['assigned_karigar_id'] ?? 0);
@@ -2067,7 +2102,8 @@ class OrderController extends BaseController
                 $notes,
                 $adminId,
                 null,
-                $stoneCts
+                $stoneCts,
+                true
             );
             $wastageVoucherId = $materialAccounting->postLabourWastageCharge(
                 $orderId,
@@ -2080,7 +2116,9 @@ class OrderController extends BaseController
                     $wastagePercent,
                     $pureWastageWeightGm
                 ),
-                $adminId
+                $adminId,
+                null,
+                true
             );
 
             $this->persistReceiveSnapshot(
@@ -2119,7 +2157,15 @@ class OrderController extends BaseController
                 ]
             );
 
-            $this->orderModel->update($orderId, ['status' => 'Completed']);
+            $orderUpdate = ['status' => 'Completed'];
+            if ($db->fieldExists('receiving_status', 'orders')) {
+                $orderUpdate += [
+                    'receiving_status' => 'received',
+                    'received_at' => date('Y-m-d H:i:s'),
+                    'received_by' => $adminId,
+                ];
+            }
+            $this->orderModel->update($orderId, $orderUpdate);
             $this->orderItemModel->where('order_id', $orderId)->set(['item_status' => 'Completed'])->update();
             $this->historyModel->insert([
                 'order_id' => $orderId,
@@ -2520,8 +2566,15 @@ class OrderController extends BaseController
             ->get()->getRowArray() ?? [];
         $poolCts = round(max(0, (float) ($pool['cts'] ?? 0)), 3);
         $poolPcs = round(max(0, (float) ($pool['pcs'] ?? 0)), 3);
+        $manualOption = [
+            'value' => '__manual_negative__',
+            'label' => 'Manual diamond (negative balance allowed)',
+            'available_cts' => 0.0,
+            'available_pcs' => 0.0,
+            'allow_negative' => true,
+        ];
         if ($poolCts <= 0 && $poolPcs <= 0) {
-            return [];
+            return [$manualOption];
         }
 
         $items = (new DiamondBagTraceService($db))->receiptOptions($karigarId, $orderId);
@@ -2582,7 +2635,7 @@ class OrderController extends BaseController
                 'label' => 'Diamond (pooled balance)',
                 'available_cts' => $poolCts,
                 'available_pcs' => $poolPcs,
-            ]];
+            ], $manualOption];
         }
 
         // The account balance is authoritative after finished receipts. Cap the
@@ -2603,6 +2656,7 @@ class OrderController extends BaseController
             }
         }
 
+        $options[] = $manualOption;
         return $options;
     }
 
@@ -2656,6 +2710,21 @@ class OrderController extends BaseController
                 $selectionOptions[] = $option;
                 $totalAvailablePcs += (float) ($option['available_pcs'] ?? 0);
                 $totalAvailableCts += (float) ($option['available_cts'] ?? 0);
+            }
+
+            $manual = count(array_filter($selectionOptions, static fn(array $option): bool => ! empty($option['allow_negative']))) > 0;
+            if ($manual) {
+                if (count($selectionOptions) > 1) {
+                    return 'Manual diamond cannot be combined with issued bag lines.';
+                }
+                if ($pcs <= 0 || floor($pcs) !== $pcs || $cts <= 0) {
+                    return 'Whole-number PCS and positive CTS are required for manual diamond receiving.';
+                }
+                $expanded = $row;
+                $expanded['name'] = trim((string) ($row['display_name'] ?? '')) ?: 'Manual diamond';
+                $expanded['line_total'] = round($cts * (float) ($row['rate'] ?? 0), 2);
+                $expandedRows[] = $expanded;
+                continue;
             }
 
             $displayName = trim((string) ($row['display_name'] ?? ''));

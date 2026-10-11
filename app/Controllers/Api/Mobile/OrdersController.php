@@ -14,6 +14,7 @@ use App\Services\MobileUserPolicyService;
 use App\Services\OrderCategoryService;
 use App\Services\OrderFollowupService;
 use App\Services\OrderNumberService;
+use App\Services\OrderReceivingService;
 use App\Services\OrderWhatsAppService;
 use App\Services\RbacService;
 use App\Services\StaffPerformanceService;
@@ -53,11 +54,20 @@ class OrdersController extends MobileBaseController
         $offset = ($page - 1) * $limit;
 
         $builder = $db->table('orders o')
-            ->select('o.id, o.order_no, o.order_name, o.status, o.priority, o.due_date, o.order_type, o.created_at, o.followup_assigned_to, o.followup_due_at, c.name as customer_name, k.name as karigar_name, follower.name as follower_name, oc.name as order_category_name, oc.code as order_category_code')
+            ->select('o.id, o.order_no, o.order_name, o.status, o.receiving_status, o.received_at, o.priority, o.due_date, o.order_type, o.created_at, o.created_by, o.followup_assigned_to, o.followup_due_at, c.name as customer_name, k.name as karigar_name, follower.name as follower_name, oc.name as order_category_name, oc.code as order_category_code')
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
             ->join('admin_users follower', 'follower.id = o.followup_assigned_to', 'left');
         $builder->join('order_categories oc', 'oc.id = o.order_category_id', 'left');
+
+        $mobileUserId = (int) ($this->mobileAdmin['id'] ?? 0);
+        $canManageOrders = $this->rbacService->userCan($mobileUserId, 'orders.assign');
+        if (! $canManageOrders) {
+            $builder->groupStart()
+                ->where('o.followup_assigned_to', $mobileUserId)
+                ->orWhere('o.created_by', $mobileUserId)
+                ->groupEnd();
+        }
 
         if ($status !== '') {
             $builder->where('o.status', $status);
@@ -66,8 +76,7 @@ class OrdersController extends MobileBaseController
             $builder
                 ->where('o.followup_due_at IS NOT NULL', null, false)
                 ->whereNotIn('o.status', ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled']);
-            $mobileUserId = (int) ($this->mobileAdmin['id'] ?? 0);
-            if (! $this->rbacService->userCan($mobileUserId, 'orders.assign')) {
+            if (! $canManageOrders) {
                 $builder->where('o.followup_assigned_to', $mobileUserId);
             }
         }
@@ -86,8 +95,7 @@ class OrdersController extends MobileBaseController
         $rows = $builder->orderBy('o.id', 'DESC')->limit($limit, $offset)->get()->getResultArray();
 
         $rows = $this->appendLatestFollowup($rows);
-        $mobileUserId = (int) ($this->mobileAdmin['id'] ?? 0);
-        $canManageFollowers = $this->rbacService->userCan($mobileUserId, 'orders.assign');
+        $canManageFollowers = $canManageOrders;
         if (! $canManageFollowers) {
             foreach ($rows as &$row) {
                 if ((int) ($row['followup_assigned_to'] ?? 0) === $mobileUserId) {
@@ -410,7 +418,8 @@ class OrdersController extends MobileBaseController
 
         $viewerId = (int) ($this->mobileAdmin['id'] ?? 0);
         if (! $this->rbacService->userCan($viewerId, 'orders.assign')
-            && (int) ($order['followup_assigned_to'] ?? 0) !== $viewerId) {
+            && (int) ($order['followup_assigned_to'] ?? 0) !== $viewerId
+            && (int) ($order['created_by'] ?? 0) !== $viewerId) {
             return $this->fail('You cannot view this order.', 403);
         }
 
@@ -426,11 +435,15 @@ class OrdersController extends MobileBaseController
         $mobileUserId = (int) ($this->mobileAdmin['id'] ?? 0);
         $canChangeFollower = $this->rbacService->userCan($mobileUserId, 'orders.assign');
         $canViewFollowups = $canChangeFollower
-            || (int) ($order['followup_assigned_to'] ?? 0) === $mobileUserId;
+            || (int) ($order['followup_assigned_to'] ?? 0) === $mobileUserId
+            || (int) ($order['created_by'] ?? 0) === $mobileUserId;
         $followups = $canViewFollowups ? $this->followupRows($id) : [];
         $pendingFollowupApproval = (new MobileApprovalService())->pendingForSubject('followup', 'orders', $id);
         $documents = $this->documentLinks($order);
         $media = $this->orderMedia($id);
+        $receivingService = new OrderReceivingService($db);
+        $receipt = $receivingService->receiptSummary($id);
+        $isReceived = $receipt !== [];
         $followupClosed = in_array(
             (string) ($order['status'] ?? ''),
             ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'],
@@ -447,7 +460,13 @@ class OrdersController extends MobileBaseController
             'can_view_followups' => $canViewFollowups,
             'pending_followup_approval' => $pendingFollowupApproval,
             'followup_gallery_enabled' => (new MobileUserPolicyService())->followupGalleryEnabled($mobileUserId),
-            'can_rate_order' => in_array((string) ($order['status'] ?? ''), ['Completed', 'Complete', 'Delivered'], true)
+            'receipt' => $receipt,
+            'is_received' => $isReceived,
+            'can_receive_order' => ! $isReceived
+                && (string) ($order['status'] ?? '') !== 'Cancelled'
+                && (int) ($order['assigned_karigar_id'] ?? 0) > 0,
+            'can_rate_order' => $isReceived
+                && in_array((string) ($order['status'] ?? ''), ['Completed', 'Complete', 'Delivered'], true)
                 && $canChangeFollower,
             'can_change_follower' => $canChangeFollower,
             'can_assign_karigar' => $canChangeFollower && empty($order['assigned_karigar_id']),
@@ -474,7 +493,7 @@ class OrdersController extends MobileBaseController
         }
 
         $order = db_connect()->table('orders')
-            ->select('id, followup_assigned_to')
+            ->select('id, followup_assigned_to, created_by')
             ->where('id', $id)
             ->get()
             ->getRowArray();
@@ -484,6 +503,7 @@ class OrdersController extends MobileBaseController
 
         $mobileUserId = (int) ($this->mobileAdmin['id'] ?? 0);
         if ((int) ($order['followup_assigned_to'] ?? 0) !== $mobileUserId
+            && (int) ($order['created_by'] ?? 0) !== $mobileUserId
             && ! $this->rbacService->userCan($mobileUserId, 'orders.assign')) {
             return $this->fail('Only the assigned follower or an authorised admin can view these follow-ups.', 403);
         }
@@ -615,8 +635,9 @@ class OrdersController extends MobileBaseController
         $db = db_connect();
         $order = $db->table('orders')->where('id', $id)->get()->getRowArray();
         if (! is_array($order)) return $this->fail('Order not found.', 404);
-        if (! in_array((string) ($order['status'] ?? ''), ['Completed', 'Complete', 'Delivered'], true)) {
-            return $this->fail('Rating is available only after the order is completed.', 422);
+        $receipt = (new OrderReceivingService($db))->receiptSummary($id);
+        if ($receipt === [] || ! in_array((string) ($order['status'] ?? ''), ['Completed', 'Complete', 'Delivered'], true)) {
+            return $this->fail('Rating is available only after finished jewellery is received and the order is completed.', 422);
         }
         $userId = (int) ($this->mobileAdmin['id'] ?? 0);
         if (! $this->rbacService->userCan($userId, 'orders.assign')) {
@@ -634,6 +655,37 @@ class OrdersController extends MobileBaseController
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
         return $this->ok(['order_id' => $id, 'rating' => $rating], 'Order completion rating saved.');
+    }
+
+    public function receiveForm(int $id)
+    {
+        if ($failure = $this->requireMobileAuth()) return $failure;
+        $db = db_connect();
+        $order = $db->table('orders')->select('id, created_by, followup_assigned_to')->where('id', $id)->get()->getRowArray();
+        if (! $order) return $this->fail('Order not found.', 404);
+        $userId = (int) ($this->mobileAdmin['id'] ?? 0);
+        if (! $this->canAccessOrder($order, $userId)) return $this->fail('You cannot receive this order.', 403);
+        try {
+            return $this->ok((new OrderReceivingService($db))->formData($id));
+        } catch (Throwable $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
+    }
+
+    public function receiveOrder(int $id)
+    {
+        if ($failure = $this->requireMobileAuth()) return $failure;
+        $db = db_connect();
+        $order = $db->table('orders')->select('id, created_by, followup_assigned_to')->where('id', $id)->get()->getRowArray();
+        if (! $order) return $this->fail('Order not found.', 404);
+        $userId = (int) ($this->mobileAdmin['id'] ?? 0);
+        if (! $this->canAccessOrder($order, $userId)) return $this->fail('You cannot receive this order.', 403);
+        try {
+            $receipt = (new OrderReceivingService($db))->receive($id, $this->payload(), $userId);
+            return $this->ok($receipt, 'Finished jewellery received and inventory created.', 201);
+        } catch (Throwable $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
     }
 
     public function updateFollower(int $id)
@@ -1041,5 +1093,15 @@ class OrdersController extends MobileBaseController
             'name' => $name,
             'path' => 'uploads/orders/followups/' . $name,
         ];
+    }
+
+    /** @param array<string,mixed> $order */
+    private function canAccessOrder(array $order, int $userId): bool
+    {
+        return $userId > 0 && (
+            $this->rbacService->userCan($userId, 'orders.assign')
+            || (int) ($order['followup_assigned_to'] ?? 0) === $userId
+            || (int) ($order['created_by'] ?? 0) === $userId
+        );
     }
 }

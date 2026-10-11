@@ -45,6 +45,7 @@ class PurchaseHeaderModel extends Model
         'verification_status',
         'account_voucher_id',
         'notes',
+        'created_by',
     ];
 
     protected $useTimestamps = true;

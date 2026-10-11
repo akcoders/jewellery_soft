@@ -120,6 +120,7 @@ $canCreateDiamondBag = (bool) ($canCreateDiamondBag ?? false);
 $canDeleteOrder = (bool) ($canDeleteOrder ?? false);
 $canReverseReceive = (bool) ($canReverseReceive ?? false);
 $canChangeFollower = (bool) ($canChangeFollower ?? false);
+$canRateOrder = (bool) ($canRateOrder ?? false);
 $staffFollowers = is_array($staffFollowers ?? null) ? $staffFollowers : [];
 $photoGallery = [];
 $imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
@@ -151,7 +152,7 @@ foreach ($readyImages as $readyImage) {
 $photoGallery = array_values($photoGallery);
 $primaryPhoto = $photoGallery[0] ?? null;
 $status = (string) ($order['status'] ?? '');
-$canReceive = ! in_array($status, ['Cancelled', 'Completed'], true) && (int) ($order['assigned_karigar_id'] ?? 0) > 0;
+$canReceive = $receiveSummary === [] && $status !== 'Cancelled' && (int) ($order['assigned_karigar_id'] ?? 0) > 0;
 $followupClosed = in_array($status, ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'], true);
 $formatDate = static function (?string $value): string {
     $timestamp = strtotime(trim((string) $value));
@@ -188,6 +189,7 @@ $statusClass = match ($status) {
                 <?php if ($canCreateDiamondBag): ?><a class="btn btn-warning" href="<?= site_url('admin/diamond-inventory/bags/create?order_id=' . (int) $order['id']) ?>"><i class="fe fe-package me-1"></i>Create Diamond Bag</a><?php endif; ?>
                 <?php if (! in_array($status, ['Cancelled', 'Completed'], true)): ?><a href="<?= site_url('admin/orders/' . $order['id'] . '/edit') ?>" class="btn btn-light"><i class="fe fe-edit me-1"></i>Edit</a><?php endif; ?>
                 <?php if ($canReceive): ?><a href="<?= site_url('admin/orders/' . $order['id'] . '/receive') ?>" class="btn btn-success"><i class="fe fe-check-circle me-1"></i>Receive Jewellery</a><?php endif; ?>
+                <?php if ($canRateOrder): ?><button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#rateOrderModal"><i class="fe fe-star me-1"></i><?= empty($order['completion_rating']) ? 'Rate Order' : 'Update Rating' ?></button><?php endif; ?>
                 <?php if ($canReverseReceive): ?><button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#reverseReceiveModal"><i class="fe fe-rotate-ccw me-1"></i>Reverse Receiving</button><?php endif; ?>
                 <?php if ($canDeleteOrder): ?><button type="button" class="btn btn-light text-danger" data-bs-toggle="modal" data-bs-target="#deleteOrderModal"><i class="fe fe-trash-2 me-1"></i>Delete Order</button><?php endif; ?>
                 <a href="<?= site_url((string) $order['order_type'] === 'Repair' ? 'admin/orders/repair' : 'admin/orders') ?>" class="btn btn-outline-light"><i class="fe fe-arrow-left me-1"></i>Order List</a>
@@ -222,6 +224,7 @@ $statusClass = match ($status) {
                         ['Advance Amount', $formatAmount($order['advance_amount'] ?? 0), 'fe fe-check-circle'],
                         ['Approx. Balance', $formatAmount(max(0, (float) ($order['approximate_price'] ?? 0) - (float) ($order['advance_amount'] ?? 0))), 'fe fe-pie-chart'],
                         ['Order Type', ($order['order_type'] ?? '') ?: '-', 'fe fe-shopping-bag'],
+                        ['Receiving Status', $receiveSummary !== [] ? 'Received' : 'Pending receiving', 'fe fe-download-cloud'],
                         ['Design Type', ($order['order_design_type'] ?? '') ?: 'Fresh', 'fe fe-repeat'],
                         ['Created On', $formatDate((string) ($order['created_at'] ?? '')), 'fe fe-clock'],
                     ]; ?>
@@ -292,6 +295,12 @@ $statusClass = match ($status) {
                         <div class="order-weight-card"><i class="<?= esc($icon, 'attr') ?>"></i><span><small><?= esc($label) ?></small><strong><?= esc($value) ?></strong></span></div>
                     <?php endforeach; ?>
                 </div>
+                <?php if (! empty($order['completion_rating'])): ?>
+                    <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <div><strong><?= str_repeat('★', (int) $order['completion_rating']) ?><?= str_repeat('☆', 5 - (int) $order['completion_rating']) ?></strong> · Admin completion rating</div>
+                        <?php if (! empty($order['rating_comment'])): ?><span><?= esc((string) $order['rating_comment']) ?></span><?php endif; ?>
+                    </div>
+                <?php endif; ?>
             <?php else: ?>
                 <div class="alert alert-light border text-muted">Finished jewellery receiving summary is not available yet.</div>
             <?php endif; ?>
@@ -302,6 +311,35 @@ $statusClass = match ($status) {
         </div>
     </div>
 </div>
+
+<?php if ($canRateOrder): ?>
+<div class="modal fade" id="rateOrderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="post" action="<?= site_url('admin/orders/' . (int) $order['id'] . '/rating') ?>">
+            <?= csrf_field() ?>
+            <div class="modal-header">
+                <div><h5 class="modal-title">Completion Rating</h5><div class="small text-muted"><?= esc((string) $order['order_no']) ?></div></div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label">Stars <span class="text-danger">*</span></label>
+                <select class="form-select mb-3" name="rating" required>
+                    <?php for ($star = 5; $star >= 1; $star--): ?>
+                        <option value="<?= $star ?>" <?= (int) ($order['completion_rating'] ?? 5) === $star ? 'selected' : '' ?>><?= str_repeat('★', $star) ?><?= str_repeat('☆', 5 - $star) ?> (<?= $star ?>/5)</option>
+                    <?php endfor; ?>
+                </select>
+                <label class="form-label">Admin Remark</label>
+                <textarea class="form-control" name="comment" rows="4" maxlength="500" placeholder="Quality, timing, finishing or any correction note"><?= esc((string) ($order['rating_comment'] ?? '')) ?></textarea>
+                <div class="form-text">Rating is enabled only after finished jewellery is actually received.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-warning"><i class="fe fe-star me-1"></i>Save Rating</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if ($canChangeFollower): ?>
 <div class="modal fade" id="changeFollowerModal" tabindex="-1" aria-hidden="true">

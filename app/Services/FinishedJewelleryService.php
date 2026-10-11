@@ -20,6 +20,11 @@ class FinishedJewelleryService
         if (! $order || (string) ($order['status'] ?? '') !== 'Completed') {
             return null;
         }
+        $hasReceipt = $this->db->tableExists('order_receive_summaries')
+            && $this->db->table('order_receive_summaries')->where('order_id', $orderId)->countAllResults() > 0;
+        if (! $hasReceipt) {
+            return null;
+        }
         $existing = $this->db->table('fg_items')->select('id')->where('order_id', $orderId)->get()->getRowArray();
         if ($existing) {
             $this->syncFinishedPhoto((int) $existing['id'], $orderId);

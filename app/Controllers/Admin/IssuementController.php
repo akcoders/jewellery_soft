@@ -79,7 +79,7 @@ class IssuementController extends BaseController
             ->getResultArray();
         $rows = [];
         foreach ($goldRows as $row) {
-            $row['voucher_url'] = site_url('admin/issuements/voucher/' . rawurlencode((string) ($row['voucher_no'] ?? '')));
+            $row['voucher_url'] = $this->issuementUrl('voucher', (string) ($row['voucher_no'] ?? ''));
             $row['view_url'] = site_url('admin/gold-inventory/issues/view/' . (int) ($row['id'] ?? 0));
             $row['attachment_url'] = ((string) ($row['attachment_path'] ?? '') !== '') ? base_url((string) $row['attachment_path']) : '';
             $goldList[] = $row;
@@ -99,7 +99,7 @@ class IssuementController extends BaseController
             ->get()
             ->getResultArray();
         foreach ($diamondRows as $row) {
-            $row['voucher_url'] = site_url('admin/issuements/voucher/' . rawurlencode((string) ($row['voucher_no'] ?? '')));
+            $row['voucher_url'] = $this->issuementUrl('voucher', (string) ($row['voucher_no'] ?? ''));
             $row['view_url'] = site_url('admin/diamond-inventory/issues/view/' . (int) ($row['id'] ?? 0));
             $row['attachment_url'] = ((string) ($row['attachment_path'] ?? '') !== '') ? base_url((string) $row['attachment_path']) : '';
             $diamondList[] = $row;
@@ -119,7 +119,7 @@ class IssuementController extends BaseController
             ->get()
             ->getResultArray();
         foreach ($stoneRows as $row) {
-            $row['voucher_url'] = site_url('admin/issuements/voucher/' . rawurlencode((string) ($row['voucher_no'] ?? '')));
+            $row['voucher_url'] = $this->issuementUrl('voucher', (string) ($row['voucher_no'] ?? ''));
             $row['view_url'] = site_url('admin/stone-inventory/issues/view/' . (int) ($row['id'] ?? 0));
             $row['attachment_url'] = ((string) ($row['attachment_path'] ?? '') !== '') ? base_url((string) $row['attachment_path']) : '';
             $stoneList[] = $row;
@@ -163,9 +163,9 @@ class IssuementController extends BaseController
             $primaryVoucherNo = $voucherList !== [] ? (string) $voucherList[0] : (string) ($row['voucher_no'] ?? '');
             $row['voucher_no'] = $primaryVoucherNo;
             if ((string) ($row['material_type'] ?? '') === 'Mixed') {
-                $row['view_url'] = site_url('admin/issuements/view/' . rawurlencode($primaryVoucherNo));
+                $row['view_url'] = $this->issuementUrl('view', $primaryVoucherNo);
             }
-            $row['voucher_url'] = site_url('admin/issuements/voucher/' . rawurlencode($primaryVoucherNo));
+            $row['voucher_url'] = $this->issuementUrl('voucher', $primaryVoucherNo);
             $rows[] = $row;
         }
 
@@ -222,6 +222,11 @@ class IssuementController extends BaseController
         ]);
     }
 
+    public function showQuery(): string
+    {
+        return $this->show((string) $this->request->getGet('voucher_no'));
+    }
+
     public function voucher(string $voucherNoParam): string
     {
         $voucherNo = trim(urldecode($voucherNoParam));
@@ -239,6 +244,16 @@ class IssuementController extends BaseController
             'stoneLines' => $bundle['stoneLines'],
             'totalValue' => $bundle['totalValue'],
         ]);
+    }
+
+    public function voucherQuery(): string
+    {
+        return $this->voucher((string) $this->request->getGet('voucher_no'));
+    }
+
+    private function issuementUrl(string $action, string $voucherNo): string
+    {
+        return site_url('admin/issuements/' . $action) . '?' . http_build_query(['voucher_no' => $voucherNo]);
     }
 
     public function store()

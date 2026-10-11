@@ -21,6 +21,7 @@ class CompanySettingModel extends Model
         'logo_path',
         'issuement_suffix',
         'issuement_start_count',
+        'issuement_last_number',
         'delivery_challan_suffix',
         'delivery_challan_last_number',
         'mumbai_branch_address',

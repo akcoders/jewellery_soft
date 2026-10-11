@@ -78,7 +78,7 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
                         <td>
                             <select multiple class="form-select js-diamond-balance-select">
                                 <?php foreach ($karigarDiamondOptions as $option): ?>
-                                    <option value="<?= esc((string) $option['value'], 'attr') ?>" data-final-name="<?= esc((string) $option['label'], 'attr') ?>" data-available-cts="<?= esc((string) $option['available_cts'], 'attr') ?>" data-available-pcs="<?= esc((string) $option['available_pcs'], 'attr') ?>"><?= esc((string) $option['label']) ?> · <?= number_format((float) $option['available_cts'], 3) ?> cts / <?= number_format((float) $option['available_pcs'], 0) ?> pcs</option>
+                                    <option value="<?= esc((string) $option['value'], 'attr') ?>" data-final-name="<?= esc((string) $option['label'], 'attr') ?>" data-available-cts="<?= esc((string) $option['available_cts'], 'attr') ?>" data-available-pcs="<?= esc((string) $option['available_pcs'], 'attr') ?>" data-manual="<?= ! empty($option['allow_negative']) ? '1' : '0' ?>"><?= esc((string) $option['label']) ?><?= empty($option['allow_negative']) ? ' · ' . number_format((float) $option['available_cts'], 3) . ' cts / ' . number_format((float) $option['available_pcs'], 0) . ' pcs' : '' ?></option>
                                 <?php endforeach; ?>
                             </select>
                             <input type="hidden" name="studded_diamond_type[]" class="js-dia-type">
@@ -168,8 +168,9 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
         const used = selectedElsewhere(current);
         return diamondOptions.map(item => {
             const value = String(item.value || '');
-            const label = String(item.label || value) + ' · ' + n(item.available_cts).toFixed(3) + ' cts / ' + n(item.available_pcs).toFixed(0) + ' pcs';
-            return '<option value="' + escapeHtml(value) + '" data-final-name="' + escapeHtml(item.label || value) + '" data-available-cts="' + n(item.available_cts).toFixed(3) + '" data-available-pcs="' + n(item.available_pcs).toFixed(3) + '"' + (selected.has(value) ? ' selected' : '') + (used.has(value) ? ' disabled' : '') + '>' + escapeHtml(label) + '</option>';
+            const manual = item.allow_negative ? '1' : '0';
+            const label = String(item.label || value) + (manual === '1' ? '' : ' · ' + n(item.available_cts).toFixed(3) + ' cts / ' + n(item.available_pcs).toFixed(0) + ' pcs');
+            return '<option value="' + escapeHtml(value) + '" data-final-name="' + escapeHtml(item.label || value) + '" data-available-cts="' + n(item.available_cts).toFixed(3) + '" data-available-pcs="' + n(item.available_pcs).toFixed(3) + '" data-manual="' + manual + '"' + (selected.has(value) ? ' selected' : '') + (used.has(value) ? ' disabled' : '') + '>' + escapeHtml(label) + '</option>';
         }).join('');
     }
 
@@ -228,6 +229,7 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
         const selectedValues = window.jQuery ? window.jQuery(select).val() || [] : Array.from(select.selectedOptions).map(option => option.value);
         const selectedSet = new Set(Array.isArray(selectedValues) ? selectedValues.map(String) : [String(selectedValues)]);
         const selected = Array.from(select.options).filter(option => selectedSet.has(option.value));
+        const manual = selected.some(option => option.dataset.manual === '1');
         const pcs = selected.reduce((sum, option) => sum + n(option.dataset.availablePcs), 0);
         const cts = selected.reduce((sum, option) => sum + n(option.dataset.availableCts), 0);
         const hidden = row.querySelector('.js-dia-type');
@@ -235,8 +237,8 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
         const weight = row.querySelector('.js-dia-weight');
         const name = row.querySelector('.js-dia-name');
         if (hidden) hidden.value = selected.length ? JSON.stringify(selected.map(option => option.value)) : '';
-        if (pcsInput) pcsInput.value = pcs > 0 ? String(Math.floor(pcs)) : '';
-        if (weight) weight.value = cts.toFixed(3);
+        if (pcsInput && !manual) pcsInput.value = pcs > 0 ? String(Math.floor(pcs)) : '';
+        if (weight && !manual) weight.value = cts.toFixed(3);
         if (name && name.dataset.edited !== '1') name.value = selected.map(option => option.dataset.finalName || option.textContent.trim()).join(' + ');
         syncSelectors();
         recalc();

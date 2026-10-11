@@ -142,7 +142,7 @@ class InventoryController extends MobileBaseController
         foreach ($rows as &$row) {
             $voucherNo = trim((string) ($row['voucher_no'] ?? ''));
             $row['voucher_url'] = $voucherNo !== ''
-                ? base_url('admin/issuements/voucher/' . rawurlencode($voucherNo) . '?download=1')
+                ? site_url('admin/issuements/voucher') . '?' . http_build_query(['voucher_no' => $voucherNo, 'download' => 1])
                 : null;
         }
         unset($row);
@@ -205,7 +205,7 @@ class InventoryController extends MobileBaseController
         foreach ($rows as &$row) {
             $voucherNo = trim((string) ($row['voucher_no'] ?? ''));
             $row['voucher_url'] = $voucherNo !== ''
-                ? base_url('admin/issuements/voucher/' . rawurlencode($voucherNo) . '?download=1')
+                ? site_url('admin/issuements/voucher') . '?' . http_build_query(['voucher_no' => $voucherNo, 'download' => 1])
                 : null;
         }
         unset($row);
@@ -279,7 +279,7 @@ class InventoryController extends MobileBaseController
         foreach ($rows as &$row) {
             $voucherNo = trim((string) ($row['voucher_no'] ?? ''));
             $row['voucher_url'] = $voucherNo !== ''
-                ? base_url('admin/issuements/voucher/' . rawurlencode($voucherNo) . '?download=1')
+                ? site_url('admin/issuements/voucher') . '?' . http_build_query(['voucher_no' => $voucherNo, 'download' => 1])
                 : null;
         }
         unset($row);

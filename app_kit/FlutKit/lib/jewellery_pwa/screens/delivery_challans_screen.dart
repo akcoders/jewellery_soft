@@ -662,7 +662,12 @@ class _DeliveryChallanCreateScreenState
               _number(line.diamond, 'Diamond Weight (ct) *')
             else
               _number(line.net, 'Gold Weight (gm) *'),
-            _number(line.value, 'Total Value (₹) *', recalculate: true),
+            _number(
+              line.value,
+              'Declared Value (₹)',
+              recalculate: true,
+              allowZero: true,
+            ),
           ],
         ),
       ),
@@ -674,6 +679,7 @@ class _DeliveryChallanCreateScreenState
     String label, {
     bool whole = false,
     bool recalculate = false,
+    bool allowZero = false,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
     child: TextFormField(
@@ -686,6 +692,7 @@ class _DeliveryChallanCreateScreenState
       validator: (value) {
         final number = double.tryParse(value?.trim() ?? '') ?? 0;
         if (label.endsWith('*') && number <= 0) return 'Enter positive value';
+        if (allowZero && number < 0) return 'Value cannot be negative';
         if (whole && number != number.roundToDouble()) return 'Enter whole PCS';
         return null;
       },

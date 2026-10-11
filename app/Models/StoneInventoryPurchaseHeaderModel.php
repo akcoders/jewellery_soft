@@ -33,6 +33,7 @@ class StoneInventoryPurchaseHeaderModel extends Model
         'round_off_amount',
         'invoice_total',
         'notes',
+        'created_by',
     ];
 
     protected $useTimestamps = true;

@@ -9,7 +9,7 @@
     </div>
     <div class="d-flex flex-wrap gap-2">
         <a href="<?= site_url('admin/issuements') ?>" class="btn btn-outline-primary">Back</a>
-        <a href="<?= site_url('admin/issuements/voucher/' . rawurlencode((string) ($voucherNo ?? ''))) ?>" target="_blank" class="btn btn-primary"><i class="fe fe-printer"></i> Print Voucher</a>
+        <a href="<?= site_url('admin/issuements/voucher') . '?' . http_build_query(['voucher_no' => (string) ($voucherNo ?? '')]) ?>" target="_blank" class="btn btn-primary"><i class="fe fe-printer"></i> Print Voucher</a>
     </div>
 </div>
 

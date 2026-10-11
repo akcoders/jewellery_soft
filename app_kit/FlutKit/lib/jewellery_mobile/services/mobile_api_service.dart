@@ -87,6 +87,22 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<Map<String, dynamic>> fetchOrderReceiving(int orderId) async {
+    final res = await _get('/api/mobile/orders/$orderId/receive');
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> receiveOrder(
+    int orderId,
+    Map<String, dynamic> payload,
+  ) async {
+    final res = await _post(
+      '/api/mobile/orders/$orderId/receive',
+      body: payload,
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<Map<String, dynamic>> fetchOrderFormOptions() async {
     final res = await _get('/api/mobile/orders-form-options');
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -235,6 +251,11 @@ class MobileApiService {
     if (year != null) query['year'] = '$year';
     if (month != null) query['month'] = '$month';
     final res = await _get('/api/mobile/performance', query: query);
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> fetchBusinessAnalytics({int days = 90}) async {
+    final res = await _get('/api/mobile/analytics', query: {'days': '$days'});
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 

@@ -148,6 +148,7 @@ class PurchasesController extends BaseController
                 'stock_posted' => 1,
                 'verification_status' => 'Manual Entry',
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
+                'created_by' => (int) session('admin_id'),
             ], true);
 
             foreach ($parsed['lines'] as $line) {

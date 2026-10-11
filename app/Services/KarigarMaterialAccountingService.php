@@ -155,7 +155,8 @@ class KarigarMaterialAccountingService
         string $remarks,
         int $createdBy = 0,
         ?string $voucherDate = null,
-        float $stoneCts = 0.0
+        float $stoneCts = 0.0,
+        bool $allowNegative = false
     ): int {
         if ($karigarId <= 0) {
             throw new RuntimeException('An assigned karigar is required before receiving jewellery.');
@@ -177,7 +178,9 @@ class KarigarMaterialAccountingService
 
         $karigarAccountId = $this->karigarAccountId($karigarId);
         foreach ($lines as $line) {
-            $this->assertAvailableBalance($karigarAccountId, $line);
+            if (! $allowNegative) {
+                $this->assertAvailableBalance($karigarAccountId, $line);
+            }
         }
 
         $finishedAccountId = $this->postingService->ensureAccount(
@@ -217,7 +220,8 @@ class KarigarMaterialAccountingService
         float $wastagePercent,
         string $remarks,
         int $createdBy = 0,
-        ?string $voucherDate = null
+        ?string $voucherDate = null,
+        bool $allowNegative = false
     ): ?int {
         $pureWastageGm = round(max(0, $pureWastageGm), 3);
         $wastagePercent = round(max(0, $wastagePercent), 3);
@@ -232,7 +236,9 @@ class KarigarMaterialAccountingService
         $line = $this->goldLine($pureWastageGm);
         $line['material_name'] = 'Labour Wastage Gold';
         $line['remarks'] = sprintf('Labour Wastage Charge @ %.3f%%', $wastagePercent);
-        $this->assertAvailableBalance($karigarAccountId, $line);
+        if (! $allowNegative) {
+            $this->assertAvailableBalance($karigarAccountId, $line);
+        }
 
         $wastageAccountId = $this->postingService->ensureAccount(
             'LABOUR_WASTAGE',

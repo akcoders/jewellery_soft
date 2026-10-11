@@ -15,6 +15,10 @@ class StaffPerformanceService
     public const FOLLOWUP_ON_TIME_POINTS = 1.0;
     public const FOLLOWUP_LATE_POINTS = -1.0;
     public const RATING_POINT_STEP = 5.0;
+    public const ORDER_ENTRY_POINTS = 0.5;
+    public const PROPER_FOLLOWUP_POINTS = 1.0;
+    public const ISSUEMENT_POINTS = 0.5;
+    public const PURCHASE_POINTS = 0.5;
 
     private const TIMEZONE = 'Asia/Kolkata';
     private const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OWNER'];
@@ -236,6 +240,7 @@ class StaffPerformanceService
         $tasks = $this->taskRows($staffIds, $start, $end);
         $followups = $this->followupRows($staffIds, $start, $end);
         $ratings = $this->ratingRows($staffIds, $start, $end);
+        $activities = $this->activityRows($staffIds, $start, $end);
 
         $rows = [];
         $eventsByUser = [];
@@ -244,9 +249,10 @@ class StaffPerformanceService
             $personTasks = array_values(array_filter($tasks, static fn(array $row): bool => (int) $row['admin_user_id'] === $id));
             $personFollowups = array_values(array_filter($followups, static fn(array $row): bool => (int) $row['assigned_to'] === $id));
             $personRatings = array_values(array_filter($ratings, static fn(array $row): bool => (int) $row['followup_assigned_to'] === $id));
-            $metrics = $this->metrics($personTasks, $personFollowups, $personRatings);
+            $personActivities = array_values(array_filter($activities, static fn(array $row): bool => (int) $row['user_id'] === $id));
+            $metrics = $this->metrics($personTasks, $personFollowups, $personRatings, $personActivities);
             $rows[] = $person + $metrics;
-            $eventsByUser[$id] = $this->events($personTasks, $personFollowups, $personRatings);
+            $eventsByUser[$id] = $this->events($personTasks, $personFollowups, $personRatings, $personActivities);
         }
 
         usort($rows, static fn(array $a, array $b): int => [$b['score'], $b['on_time_rate']] <=> [$a['score'], $a['on_time_rate']]);
@@ -305,6 +311,10 @@ class StaffPerformanceService
             'followup_overdue' => 0,
             'rating_count' => 0,
             'rating_average' => 0,
+            'order_entries' => 0,
+            'proper_followups' => 0,
+            'issuements' => 0,
+            'purchases' => 0,
         ];
         return [
             'year' => $year,
@@ -324,6 +334,10 @@ class StaffPerformanceService
             'followup_on_time' => 0,
             'followup_late_or_overdue' => 0,
             'rating_point_step' => self::RATING_POINT_STEP,
+            'order_entry' => self::ORDER_ENTRY_POINTS,
+            'proper_followup' => self::PROPER_FOLLOWUP_POINTS,
+            'issuement' => self::ISSUEMENT_POINTS,
+            'purchase' => self::PURCHASE_POINTS,
         ];
     }
 
@@ -383,7 +397,59 @@ class StaffPerformanceService
             ->get()->getResultArray();
     }
 
-    private function metrics(array $tasks, array $followups, array $ratings): array
+    private function activityRows(array $staffIds, string $start, string $end): array
+    {
+        $db = db_connect();
+        if ($staffIds === []) {
+            return [];
+        }
+        $rows = [];
+        if ($db->tableExists('orders') && $db->fieldExists('created_by', 'orders')) {
+            foreach ($db->table('orders')->select('id, order_no, order_name, created_by, created_at')
+                ->whereIn('created_by', $staffIds)->where('created_at >=', $start)->where('created_at <', $end)->get()->getResultArray() as $row) {
+                $rows[] = $this->activity((int) $row['created_by'], 'Order Entry', (string) (($row['order_no'] ?? '') ?: ('Order #' . $row['id'])), (string) ($row['order_name'] ?? ''), (string) $row['created_at'], self::ORDER_ENTRY_POINTS, (int) $row['id']);
+            }
+        }
+        if ($db->tableExists('order_followups')) {
+            foreach ($db->table('order_followups f')->select('f.id, f.order_id, f.stage, f.description, f.followup_taken_by, f.followup_taken_on, o.order_no')
+                ->join('orders o', 'o.id = f.order_id', 'left')->whereIn('f.followup_taken_by', $staffIds)
+                ->where('f.followup_taken_on >=', $start)->where('f.followup_taken_on <', $end)->get()->getResultArray() as $row) {
+                $rows[] = $this->activity((int) $row['followup_taken_by'], 'Proper Follow-up', (string) (($row['order_no'] ?? '') ?: ('Order #' . $row['order_id'])), (string) (($row['stage'] ?? '') ?: ($row['description'] ?? '')), (string) $row['followup_taken_on'], self::PROPER_FOLLOWUP_POINTS, (int) $row['order_id']);
+            }
+        }
+
+        $issuements = [];
+        foreach (['gold_inventory_issue_headers', 'issue_headers', 'stone_inventory_issue_headers'] as $table) {
+            if (! $db->tableExists($table) || ! $db->fieldExists('created_by', $table)) {
+                continue;
+            }
+            foreach ($db->table($table)->select('id, voucher_no, issue_date, created_by, created_at')->whereIn('created_by', $staffIds)
+                ->where('issue_date >=', substr($start, 0, 10))->where('issue_date <', substr($end, 0, 10))->get()->getResultArray() as $row) {
+                $voucher = trim((string) ($row['voucher_no'] ?? ''));
+                $key = (int) $row['created_by'] . '|' . ($voucher !== '' ? $voucher : ($table . ':' . $row['id']));
+                $issuements[$key] = $this->activity((int) $row['created_by'], 'Issuement', $voucher !== '' ? $voucher : ('Issue #' . $row['id']), 'Material issued', (string) (($row['created_at'] ?? '') ?: $row['issue_date']), self::ISSUEMENT_POINTS);
+            }
+        }
+        array_push($rows, ...array_values($issuements));
+
+        foreach (['gold_inventory_purchase_headers', 'purchase_headers', 'stone_inventory_purchase_headers'] as $table) {
+            if (! $db->tableExists($table) || ! $db->fieldExists('created_by', $table)) {
+                continue;
+            }
+            foreach ($db->table($table)->select('id, invoice_no, supplier_name, purchase_date, created_by, created_at')->whereIn('created_by', $staffIds)
+                ->where('purchase_date >=', substr($start, 0, 10))->where('purchase_date <', substr($end, 0, 10))->get()->getResultArray() as $row) {
+                $rows[] = $this->activity((int) $row['created_by'], 'Purchase', (string) (($row['invoice_no'] ?? '') ?: ('Purchase #' . $row['id'])), (string) ($row['supplier_name'] ?? ''), (string) (($row['created_at'] ?? '') ?: $row['purchase_date']), self::PURCHASE_POINTS);
+            }
+        }
+        return $rows;
+    }
+
+    private function activity(int $userId, string $type, string $title, string $reference, string $at, float $points, int $orderId = 0): array
+    {
+        return ['user_id' => $userId, 'type' => $type, 'title' => $title, 'reference' => $reference, 'occurred_at' => $at, 'score_delta' => $points, 'status' => 'completed', 'order_id' => $orderId];
+    }
+
+    private function metrics(array $tasks, array $followups, array $ratings, array $activities): array
     {
         $now = $this->now();
         $taskOnTime = $taskLate = $taskOverdue = 0;
@@ -429,7 +495,12 @@ class StaffPerformanceService
             $delta >= 0 ? $earned += $delta : $lost += abs($delta);
         }
 
-        $completed = $taskOnTime + $taskLate;
+        foreach ($activities as $activity) {
+            $earned += max(0, (float) ($activity['score_delta'] ?? 0));
+        }
+
+        $activityCounts = array_count_values(array_column($activities, 'type'));
+        $completed = $taskOnTime + $taskLate + count($activities);
         $onTime = $taskOnTime;
         $overdue = $taskOverdue;
         $dueActions = $completed + $overdue;
@@ -445,6 +516,10 @@ class StaffPerformanceService
             'followup_overdue' => $followupOverdue,
             'rating_count' => count($ratings),
             'rating_average' => count($ratings) > 0 ? round($ratingTotal / count($ratings), 1) : 0,
+            'order_entries' => (int) ($activityCounts['Order Entry'] ?? 0),
+            'proper_followups' => (int) ($activityCounts['Proper Follow-up'] ?? 0),
+            'issuements' => (int) ($activityCounts['Issuement'] ?? 0),
+            'purchases' => (int) ($activityCounts['Purchase'] ?? 0),
             'completed_actions' => $completed,
             'on_time_actions' => $onTime,
             'overdue_actions' => $overdue,
@@ -452,7 +527,7 @@ class StaffPerformanceService
         ];
     }
 
-    private function events(array $tasks, array $followups, array $ratings): array
+    private function events(array $tasks, array $followups, array $ratings, array $activities): array
     {
         $events = [];
         $now = $this->now();
@@ -504,6 +579,19 @@ class StaffPerformanceService
                 'proof_url' => null,
                 'rating' => $value,
                 'comment' => (string) ($rating['rating_comment'] ?? ''),
+            ];
+        }
+        foreach ($activities as $activity) {
+            $events[] = [
+                'type' => (string) $activity['type'],
+                'title' => (string) $activity['title'],
+                'reference' => (string) $activity['reference'],
+                'due_at' => (string) $activity['occurred_at'],
+                'completed_at' => (string) $activity['occurred_at'],
+                'status' => 'completed',
+                'score_delta' => (float) $activity['score_delta'],
+                'order_id' => (int) ($activity['order_id'] ?? 0),
+                'proof_url' => null,
             ];
         }
         usort($events, static fn(array $a, array $b): int => strcmp((string) $b['due_at'], (string) $a['due_at']));

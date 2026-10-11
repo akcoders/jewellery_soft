@@ -129,6 +129,7 @@ class TransactionsController extends MobileBaseController
                 'stock_posted' => 1,
                 'verification_status' => 'Manual Entry',
                 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
+                'created_by' => (int) ($this->mobileAdmin['id'] ?? 0),
             ], true);
 
             $lineModel = new PurchaseLineModel();
@@ -570,6 +571,7 @@ class TransactionsController extends MobileBaseController
                 'stock_posted' => 1,
                 'location_id' => $locationId,
                 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
+                'created_by' => (int) ($this->mobileAdmin['id'] ?? 0),
             ], true);
 
             $lineModel = new GoldInventoryPurchaseLineModel();
@@ -991,6 +993,7 @@ class TransactionsController extends MobileBaseController
                 'gst_amount' => $tax['gst_amount'], 'round_off_amount' => $tax['round_off_amount'],
                 'invoice_total' => $tax['invoice_total'],
                 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
+                'created_by' => (int) ($this->mobileAdmin['id'] ?? 0),
             ], true);
 
             $lineModel = new StoneInventoryPurchaseLineModel();

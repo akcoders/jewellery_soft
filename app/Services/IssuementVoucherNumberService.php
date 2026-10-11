@@ -23,6 +23,7 @@ class IssuementVoucherNumberService
         $setting = $this->setting();
         $prefix = $this->prefix((string) ($setting['issuement_suffix'] ?? 'ISS'));
         $nextSerial = max(1, (int) ($setting['issuement_start_count'] ?? 1));
+        $nextSerial = max($nextSerial, ((int) ($setting['issuement_last_number'] ?? 0)) + 1);
         $pattern = '/^' . preg_quote($prefix, '/') . '(\d+)$/';
 
         foreach (self::TABLES as $table) {
@@ -128,7 +129,8 @@ class IssuementVoucherNumberService
     private function prefix(string $prefix): string
     {
         $prefix = strtoupper(trim($prefix));
-        $prefix = preg_replace('/[^A-Z0-9]/', '', $prefix) ?? '';
+        $prefix = preg_replace('/\s+/', '-', $prefix) ?? '';
+        $prefix = preg_replace('/[^A-Z0-9\/_-]/', '', $prefix) ?? '';
         return $prefix !== '' ? $prefix : 'ISS';
     }
 }

@@ -191,6 +191,8 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
 
     $routes->get('issuements', 'Admin\IssuementController::index', ['filter' => 'permission:issuements.read']);
     $routes->get('issuements/create', 'Admin\IssuementController::create', ['filter' => 'permission:issuements.create']);
+    $routes->get('issuements/view', 'Admin\IssuementController::showQuery', ['filter' => 'permission:issuements.read']);
+    $routes->get('issuements/voucher', 'Admin\IssuementController::voucherQuery', ['filter' => 'permission:issuements.print']);
     $routes->get('issuements/view/(:segment)', 'Admin\IssuementController::show/$1', ['filter' => 'permission:issuements.read']);
     $routes->get('issuements/voucher/(:segment)', 'Admin\IssuementController::voucher/$1', ['filter' => 'permission:issuements.print']);
     $routes->post('issuements', 'Admin\IssuementController::store', ['filter' => 'permission:issuements.create']);
@@ -372,6 +374,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('orders/(:num)/follower', 'Admin\OrderController::updateFollower/$1', ['filter' => 'permission:orders.assign']);
     $routes->post('orders/(:num)/attachments', 'Admin\OrderController::addAttachment/$1', ['filter' => 'permission:orders.documents']);
     $routes->post('orders/(:num)/receive', 'Admin\OrderController::addReceive/$1', ['filter' => 'permission:orders.receive']);
+    $routes->post('orders/(:num)/rating', 'Admin\OrderController::rate/$1', ['filter' => 'permission:orders.assign']);
     $routes->post('orders/(:num)/reverse-receive', 'Admin\OrderController::reverseReceive/$1', ['filter' => 'permission:orders.receive']);
     $routes->post('orders/(:num)/assign', 'Admin\OrderController::assignKarigar/$1', ['filter' => 'permission:orders.assign']);
     $routes->get('orders/(:num)/packing-list/generate', 'Admin\OrderController::generatePackingList/$1', ['filter' => 'permission:orders.documents']);
@@ -442,6 +445,7 @@ $routes->group('api', static function ($routes): void {
         $routes->post('admin-tasks', 'Api\Mobile\AdminTasksController::create');
         $routes->post('admin-tasks/(:num)/cancel', 'Api\Mobile\AdminTasksController::cancel/$1');
         $routes->get('performance', 'Api\Mobile\PerformanceController::index');
+        $routes->get('analytics', 'Api\Mobile\AnalyticsController::index');
         $routes->get('notifications', 'Api\Mobile\NotificationsController::index');
         $routes->get('notifications/status', 'Api\Mobile\NotificationsController::status');
         $routes->get('app-update', 'Api\Mobile\AppUpdateController::status');
@@ -455,6 +459,8 @@ $routes->group('api', static function ($routes): void {
         $routes->get('orders/(:num)/followups', 'Api\Mobile\OrdersController::followups/$1');
         $routes->post('orders/(:num)/followups', 'Api\Mobile\OrdersController::addFollowup/$1');
         $routes->post('orders/(:num)/rating', 'Api\Mobile\OrdersController::rate/$1');
+        $routes->get('orders/(:num)/receive', 'Api\Mobile\OrdersController::receiveForm/$1');
+        $routes->post('orders/(:num)/receive', 'Api\Mobile\OrdersController::receiveOrder/$1');
         $routes->post('orders/(:num)/follower', 'Api\Mobile\OrdersController::updateFollower/$1');
         $routes->post('orders/(:num)/assign', 'Api\Mobile\OrdersController::assignKarigar/$1');
         $routes->get('order-work-requests', 'Api\Mobile\OrderWorkRequestsController::index');

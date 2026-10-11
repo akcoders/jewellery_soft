@@ -95,7 +95,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
               WorkspaceMetricCard(
                 label: 'Points earned',
                 value:
-                    '+${_number(_summary['points_earned']).toStringAsFixed(0)}',
+                    '+${_number(_summary['points_earned']).toStringAsFixed(1)}',
                 color: AppColors.success,
                 icon: LucideIcons.trending_up,
               ),
@@ -284,7 +284,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Points come from task completion and completed-order ratings.',
+              'Points include orders, proper follow-ups, issuements, purchases, tasks and completion ratings.',
               style: TextStyle(
                 color: Color(0xFFD6C4CE),
                 fontSize: 12,
@@ -334,19 +334,32 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           LucideIcons.clock_3,
         ),
         _breakdownRow(
-          'Followups on time',
-          _integer(_summary['followup_on_time']),
-          'Task scored',
+          'Proper follow-ups',
+          _integer(_summary['proper_followups']),
+          _ruleLabel('proper_followup'),
           AppColors.success,
           LucideIcons.calendar_check,
         ),
         _breakdownRow(
-          'Followups late / overdue',
-          _integer(_summary['followup_late']) +
-              _integer(_summary['followup_overdue']),
-          'Task scored',
-          AppColors.danger,
-          LucideIcons.calendar_clock,
+          'Order entries',
+          _integer(_summary['order_entries']),
+          _ruleLabel('order_entry'),
+          AppColors.diamond,
+          LucideIcons.clipboard_plus,
+        ),
+        _breakdownRow(
+          'Issuements',
+          _integer(_summary['issuements']),
+          _ruleLabel('issuement'),
+          AppColors.gold,
+          LucideIcons.send,
+        ),
+        _breakdownRow(
+          'Purchases',
+          _integer(_summary['purchases']),
+          _ruleLabel('purchase'),
+          AppColors.stone,
+          LucideIcons.shopping_bag,
         ),
         _breakdownRow(
           'Completion ratings',
@@ -363,7 +376,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
   String _ruleLabel(String key) {
     if (!_rules.containsKey(key)) return 'Task scored';
     final points = _number(_rules[key]);
-    return '${points > 0 ? '+' : ''}${points.toStringAsFixed(0)} each';
+    return '${points > 0 ? '+' : ''}${points.toStringAsFixed(1)} each';
   }
 
   Widget _breakdownRow(
@@ -461,7 +474,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
               ),
               const SizedBox(width: 10),
               WorkspaceBadge(
-                '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(0)} pts',
+                '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)} pts',
                 color: color,
               ),
             ],
@@ -469,7 +482,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           const SizedBox(height: 14),
           WorkspaceMetadata(
             icon: LucideIcons.calendar_days,
-            text: 'Due ${AppFormatters.dateTime(event['due_at'])}',
+            text: 'Activity ${AppFormatters.dateTime(event['due_at'])}',
           ),
           if (status.isNotEmpty) ...[
             const SizedBox(height: 7),

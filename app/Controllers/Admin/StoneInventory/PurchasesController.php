@@ -127,6 +127,7 @@ class PurchasesController extends BaseController
                 'round_off_amount' => $tax['round_off_amount'],
                 'invoice_total' => $tax['invoice_total'],
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
+                'created_by' => (int) session('admin_id'),
             ], true);
 
             foreach ($parsed['lines'] as $line) {

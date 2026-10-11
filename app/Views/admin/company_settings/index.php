@@ -50,11 +50,17 @@
                 <div class="col-md-3">
                     <label class="form-label">Issuement Prefix</label>
                     <input type="text" name="issuement_suffix" class="form-control" value="<?= esc((string) old('issuement_suffix', (string) ($setting['issuement_suffix'] ?? 'ISS'))) ?>">
+                    <small class="text-muted">Slash is allowed, for example ISS/ or AB/ISS/.</small>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Issuement Start Count</label>
+                    <label class="form-label">Issuement Minimum Start</label>
                     <input type="number" min="1" max="999999999" step="1" name="issuement_start_count" class="form-control" required value="<?= esc((string) old('issuement_start_count', (string) ($setting['issuement_start_count'] ?? '1'))) ?>">
                     <small class="text-muted">Minimum serial used for the next auto voucher.</small>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Last Issuement Number</label>
+                    <input type="number" min="0" max="999999999" step="1" name="issuement_last_number" class="form-control" value="<?= esc((string) old('issuement_last_number', (string) ($setting['issuement_last_number'] ?? '0'))) ?>">
+                    <small class="text-muted">The next issuement will use this number + 1.</small>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Delivery Challan Prefix</label>

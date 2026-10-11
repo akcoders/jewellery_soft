@@ -322,6 +322,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     LucideIcons.calendar_days,
                     'Due ${AppFormatters.date(row['due_date'])}',
                   ),
+                  _infoChip(
+                    row['receiving_status'] == 'received'
+                        ? LucideIcons.package_check
+                        : LucideIcons.package_open,
+                    row['receiving_status'] == 'received'
+                        ? 'Received'
+                        : 'Receiving pending',
+                  ),
                   if ('${row['last_followup_stage'] ?? ''}'.isNotEmpty)
                     _infoChip(
                       LucideIcons.list_checks,
