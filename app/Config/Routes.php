@@ -39,6 +39,8 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->get('delivery-challans/create', 'Admin\DeliveryChallanController::create', ['filter' => 'permission:orders.documents']);
     $routes->post('delivery-challans', 'Admin\DeliveryChallanController::store', ['filter' => 'permission:orders.documents']);
     $routes->get('delivery-challans/(:num)/pdf', 'Admin\DeliveryChallanController::pdf/$1', ['filter' => 'permission:orders.documents']);
+    $routes->get('packing-lists', 'Admin\PackingListController::index', ['filter' => 'permission:orders.documents']);
+    $routes->post('packing-lists/pdf', 'Admin\PackingListController::pdf', ['filter' => 'permission:orders.documents']);
     $routes->get('mobile-approvals', 'Admin\MobileApprovalController::index');
     $routes->post('mobile-approvals/(:num)/review', 'Admin\MobileApprovalController::review/$1', ['filter' => 'csrf']);
 
@@ -470,6 +472,8 @@ $routes->group('api', static function ($routes): void {
         $routes->get('delivery-challans/create', 'Api\Mobile\DeliveryChallansController::createForm');
         $routes->post('delivery-challans', 'Api\Mobile\DeliveryChallansController::store');
         $routes->get('delivery-challans/(:num)/pdf', 'Api\Mobile\DeliveryChallansController::pdf/$1');
+        $routes->get('packing-lists', 'Api\Mobile\PackingListsController::index');
+        $routes->post('packing-lists/pdf', 'Api\Mobile\PackingListsController::pdf');
         $routes->get('diamond-requirements', 'Api\Mobile\DiamondRequirementsController::index');
         $routes->get('diamond-requirements/(:num)', 'Api\Mobile\DiamondRequirementsController::show/$1');
         $routes->get('diamond-bags', 'Api\Mobile\DiamondBagsController::index');

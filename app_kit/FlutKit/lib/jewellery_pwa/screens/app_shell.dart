@@ -16,6 +16,7 @@ import 'package:flutkit/jewellery_pwa/screens/order_create_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/order_work_requests_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/orders_screen.dart';
+import 'package:flutkit/jewellery_pwa/screens/packing_lists_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/performance_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/purchase_create_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/task_scheduler_screen.dart';
@@ -270,6 +271,8 @@ class _AppShellState extends State<AppShell> {
           key: ValueKey('delivery_challans_$_refreshTick'),
           api: _api,
         );
+      case 'packing_lists':
+        return PackingListsScreen(api: _api);
       case 'diamond_requirements':
         return DiamondBagsScreen(
           key: ValueKey('diamond_requirements_$_refreshTick'),
@@ -586,6 +589,11 @@ class _AppShellState extends State<AppShell> {
                   LucideIcons.scroll_text,
                 ),
                 _drawerItem(
+                  'packing_lists',
+                  'Packing Lists',
+                  LucideIcons.package_check,
+                ),
+                _drawerItem(
                   'followups',
                   'Followups',
                   LucideIcons.calendar_clock,
@@ -776,6 +784,8 @@ class _AppShellState extends State<AppShell> {
         return AppColors.diamond;
       case 'delivery_challans':
         return AppColors.gold;
+      case 'packing_lists':
+        return AppColors.gold;
       case 'mobile_approvals':
         return AppColors.plum;
       case 'gold_returns':
@@ -803,6 +813,8 @@ class _AppShellState extends State<AppShell> {
         return 'Issuements';
       case 'delivery_challans':
         return 'Delivery Challans';
+      case 'packing_lists':
+        return 'Packing Lists';
       case 'mobile_approvals':
         return widget.session.isAdmin ? 'Approval Desk' : 'Customer & Karigar';
       case 'diamond_requirements':

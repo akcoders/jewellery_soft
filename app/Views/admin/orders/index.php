@@ -39,6 +39,9 @@
         <p class="mb-0">Track customer orders, assignments, production and delivery status.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+        <?php if (admin_can('orders.documents')): ?>
+            <a href="<?= site_url('admin/packing-lists') ?>" class="btn btn-outline-dark"><i class="fe fe-package"></i> Multi Packing List</a>
+        <?php endif; ?>
         <?php if (admin_can('orders.create') && ! in_array($orderMode, ['repair', 'ready'], true)): ?>
             <a href="<?= site_url('admin/orders/create') ?>" class="btn btn-primary"><i class="fe fe-plus"></i> Create Order</a>
         <?php endif; ?>

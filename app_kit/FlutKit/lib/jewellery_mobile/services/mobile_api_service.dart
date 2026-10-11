@@ -259,6 +259,41 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<List<dynamic>> fetchPackingListOrders() async {
+    final res = await _get('/api/mobile/packing-lists');
+    return (res['data'] as List?) ?? <dynamic>[];
+  }
+
+  Future<String> downloadBatchPackingList(List<int> orderIds) async {
+    if (orderIds.isEmpty) throw Exception('Select at least one order.');
+    final uri = Uri.parse('$_baseUrl/api/mobile/packing-lists/pdf');
+    final response = await _safeRequest(
+      () => _client.post(
+        uri,
+        headers: _headers(withAuth: true),
+        body: jsonEncode({'order_ids': orderIds}),
+      ),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        _extractDownloadError(response) ?? 'Unable to generate packing list.',
+      );
+    }
+    final contentType = response.headers['content-type']?.toLowerCase() ?? '';
+    if (!contentType.contains('application/pdf') ||
+        response.bodyBytes.isEmpty) {
+      throw Exception(
+        _extractDownloadError(response) ?? 'Server did not return a PDF file.',
+      );
+    }
+    final fallback =
+        'packing_list_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    return saveDownloadedFile(
+      response.bodyBytes,
+      _resolvedFileName(response, fallback),
+    );
+  }
+
   Future<List<dynamic>> fetchNotifications() async {
     final res = await _get('/api/mobile/notifications');
     return (res['data'] as List?) ?? <dynamic>[];

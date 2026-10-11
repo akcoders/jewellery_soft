@@ -9,6 +9,7 @@ $assetBase = base_url($assetBasePath);
 $isDash     = $segment2 === 'dashboard';
 $isCustomers= $segment2 === 'customers';
 $isDeliveryChallans = $segment2 === 'delivery-challans';
+$isPackingLists = $segment2 === 'packing-lists';
 $isMobileApprovals = $segment2 === 'mobile-approvals';
 $isOrders   = $segment2 === 'orders';
 $isOrdersAll   = $isOrders && ($segment3 === '' || $segment3 === 'fresh' || ctype_digit($segment3));
@@ -1723,6 +1724,9 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
                         </li>
                         <?php endif; ?>
                         <?php if ($canDeliveryChallans): ?>
+                        <li class="<?= $isPackingLists ? 'active' : '' ?>">
+                            <a class="<?= $isPackingLists ? 'active' : '' ?>" href="<?= site_url('admin/packing-lists') ?>"><i class="fe fe-package"></i> <span>Packing Lists</span></a>
+                        </li>
                         <li class="<?= $isDeliveryChallans ? 'active' : '' ?>">
                             <a class="<?= $isDeliveryChallans ? 'active' : '' ?>" href="<?= site_url('admin/delivery-challans') ?>"><i class="fe fe-file-text"></i> <span>Delivery Challans</span></a>
                         </li>
