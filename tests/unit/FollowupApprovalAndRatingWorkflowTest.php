@@ -50,6 +50,26 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('Next follow-up', $appDesk);
     }
 
+    public function testApprovalDeskDefaultsToPendingAndKeepsReviewedRequestsInHistory(): void
+    {
+        $service = $this->source('Services/MobileApprovalService.php');
+        $controller = $this->source('Controllers/Admin/MobileApprovalController.php');
+        $webDesk = $this->source('Views/admin/mobile_approvals/index.php');
+        $appDesk = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_pwa/screens/mobile_approvals_screen.dart'
+        );
+
+        $this->assertStringContainsString("elseif (\$status === 'history')", $service);
+        $this->assertStringContainsString("\$service->list(null, 'pending')", $controller);
+        $this->assertStringContainsString("\$service->list(null, 'history')", $controller);
+        $this->assertStringContainsString('pending-approvals-tab', $webDesk);
+        $this->assertStringContainsString('class="table datatable', $webDesk);
+        $this->assertStringContainsString('approvalHistoryModal', $webDesk);
+        $this->assertStringContainsString("String _statusFilter = 'pending';", $appDesk);
+        $this->assertStringContainsString('DataTable(', $appDesk);
+        $this->assertStringContainsString('_showRequestDetails', $appDesk);
+    }
+
     public function testCompletionRatingFeedsPerformanceAndDeliveryPdfIsSafe(): void
     {
         $performance = $this->source('Services/StaffPerformanceService.php');

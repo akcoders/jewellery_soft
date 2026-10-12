@@ -41,6 +41,7 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
   List<Map<String, dynamic>> _diamondBagLines = [];
   int? _locationId;
   int? _purityId;
+  String _wastageType = 'normal';
   bool _loading = true;
   bool _saving = false;
   String _error = '';
@@ -135,6 +136,7 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
         'gold_rate_per_gm': _decimal(_goldRate),
         'labour_rate_per_gm': _decimal(_labourRate),
         'wastage_percent': _decimal(_wastage),
+        'wastage_type': _wastageType,
         'notes': _notes.text.trim(),
         if (photo.isNotEmpty) 'finish_photo_base64': photo,
         'diamonds': _diamonds.map((row) => row.json()).toList(),
@@ -172,6 +174,27 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
                 children: [
                   _hero(),
+                  if ((_order['order_type'] ?? '').toString().toLowerCase() ==
+                      'repair') ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      color: AppColors.paleGold,
+                      child: ListTile(
+                        leading: const Icon(LucideIcons.history),
+                        title: const Text('Old Ornament Gross Weight'),
+                        subtitle: const Text(
+                          'Repair ornament issued to karigar',
+                        ),
+                        trailing: Text(
+                          '${_weight(_number(_order['repair_issue_weight_gm']) > 0 ? _order['repair_issue_weight_gm'] : _order['repair_receive_weight_gm'])} gm',
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   const AppSectionTitle('Actual finished weight'),
                   const SizedBox(height: 12),
@@ -315,6 +338,20 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
         _numberField(_gross, 'Gross weight (gm) *', positive: true),
         _numberField(_goldRate, 'Gold rate / gm *', positive: true),
         _numberField(_labourRate, 'Labour rate / gm'),
+        DropdownButtonFormField<String>(
+          initialValue: _wastageType,
+          decoration: const InputDecoration(labelText: 'Wastage type *'),
+          items: const [
+            DropdownMenuItem(value: 'normal', child: Text('Normal')),
+            DropdownMenuItem(
+              value: 'direct',
+              child: Text('Direct (add to purity %)'),
+            ),
+          ],
+          onChanged: (value) => setState(
+            () => _wastageType = value == 'direct' ? 'direct' : 'normal',
+          ),
+        ),
         _numberField(_wastage, 'Wastage %', max: 100),
       ];
       if (box.maxWidth < 680)
@@ -413,7 +450,7 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
   );
 
   Future<void> _addDiamondLine() async {
-    final row = _DiamondLine();
+    final row = _DiamondLine(_refreshCalculations);
     final selected = await _selectDiamondBagLines(row);
     if (selected == null || selected.isEmpty || !mounted) {
       row.dispose();
@@ -526,6 +563,8 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
           ),
         ),
         const SizedBox(height: 10),
+        _numberField(row.rate, 'Diamond rate / ct'),
+        const SizedBox(height: 10),
         Row(
           children: [
             Expanded(child: _readOnlyMetric('PCS', _displayNumber(row.pcs))),
@@ -588,7 +627,14 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
     final safeNet = net > 0 ? net : 0.0;
     final pure = safeNet * purity / 100;
     final wastageWeight = safeNet * _decimal(_wastage) / 100;
-    final pureWastage = wastageWeight * purity / 100;
+    final wastagePercent = _decimal(_wastage);
+    final pureWastage = _wastageType == 'direct'
+        ? safeNet * wastagePercent / 100
+        : wastageWeight * purity / 100;
+    final equivalentWastage = purity > 0 ? pureWastage / (purity / 100) : 0.0;
+    final effectivePurity = safeNet > 0
+        ? (pure + pureWastage) / safeNet * 100
+        : purity;
     final labour = safeNet * _decimal(_labourRate);
     final goldAmount = safeNet * _decimal(_goldRate);
     final components =
@@ -608,8 +654,11 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
       ('Stone', '${_weight(stoneCts)} cts'),
       ('Net gold', '${_weight(net)} gm'),
       ('Pure gold', '${_weight(pure)} gm'),
-      ('Wastage', '${_weight(wastageWeight)} gm'),
+      ('Wastage type', _wastageType == 'direct' ? 'Direct' : 'Normal'),
+      ('Wastage', '${_weight(equivalentWastage)} gm'),
       ('Pure wastage', '${_weight(pureWastage)} gm'),
+      ('Effective purity', '${_weight(effectivePurity)}%'),
+      ('Total pure deduction', '${_weight(pure + pureWastage)} gm'),
       ('Labour', '₹${labour.toStringAsFixed(2)}'),
       ('Calculated value', '₹${total.toStringAsFixed(2)}'),
     ];
@@ -808,11 +857,16 @@ class _ComponentLine {
 }
 
 class _DiamondLine {
+  _DiamondLine(VoidCallback onChanged) {
+    rate.addListener(onChanged);
+  }
+
   final name = TextEditingController();
+  final rate = TextEditingController(text: '0');
   final Set<int> issueLineIds = <int>{};
   double pcs = 0;
   double cts = 0;
-  double amount = 0;
+  double get amount => cts * (double.tryParse(rate.text) ?? 0);
 
   void setSelections(Set<int> selected, List<Map<String, dynamic>> options) {
     issueLineIds
@@ -829,13 +883,14 @@ class _DiamondLine {
       0,
       (sum, option) => sum + _number(option['available_cts']),
     );
-    amount = chosen.fold<double>(
+    final sourceAmount = chosen.fold<double>(
       0,
       (sum, option) =>
           sum +
           (_number(option['available_cts']) *
               _number(option['rate_per_carat'])),
     );
+    rate.text = cts > 0 ? (sourceAmount / cts).toStringAsFixed(2) : '0';
     if (name.text.trim().isEmpty) {
       final descriptions = chosen
           .map((option) => (option['diamond_type'] ?? 'Diamond').toString())
@@ -848,9 +903,13 @@ class _DiamondLine {
   Map<String, dynamic> json() => {
     'name': name.text.trim(),
     'issue_line_ids': issueLineIds.toList(),
+    'rate': double.tryParse(rate.text) ?? 0,
   };
 
-  void dispose() => name.dispose();
+  void dispose() {
+    name.dispose();
+    rate.dispose();
+  }
 }
 
 Map<String, dynamic> _map(dynamic value) =>

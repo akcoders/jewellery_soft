@@ -465,6 +465,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     DateTime dueAt = DateTime.now().add(const Duration(days: 1));
     var saving = false;
     String error = '';
+    final isRepair =
+        (_order['order_type'] ?? '').toString().toLowerCase() == 'repair';
+    final repairIssueWeight = TextEditingController(
+      text: isRepair && _number(_order['repair_receive_weight_gm']) > 0
+          ? _number(_order['repair_receive_weight_gm']).toStringAsFixed(3)
+          : '',
+    );
     final karigars = _karigars
         .whereType<Map>()
         .map((e) => e.cast<String, dynamic>())
@@ -579,6 +586,23 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       'First follow-up: ${AppFormatters.dateTime(dueAt)}',
                     ),
                   ),
+                  if (isRepair) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    TextFormField(
+                      controller: repairIssueWeight,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText:
+                            'Old ornament gross weight issued to karigar (gm) *',
+                        helperText:
+                            _number(_order['repair_receive_weight_gm']) > 0
+                            ? 'Customer se received: ${_weight(_order['repair_receive_weight_gm'])} gm'
+                            : 'Required for repair orders',
+                      ),
+                    ),
+                  ],
                   if (error.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.md),
                     Text(
@@ -604,10 +628,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       if ((customers.isNotEmpty && customerId == null) ||
                           karigarId == null ||
                           followerId == null ||
+                          (isRepair &&
+                              (double.tryParse(repairIssueWeight.text.trim()) ??
+                                      0) <=
+                                  0) ||
                           !dueAt.isAfter(DateTime.now())) {
                         update(
-                          () => error =
-                              'Select customer, karigar, follower and a future follow-up time.',
+                          () => error = isRepair
+                              ? 'Select team, future follow-up and enter issued old ornament gross weight.'
+                              : 'Select customer, karigar, follower and a future follow-up time.',
                         );
                         return;
                       }
@@ -622,6 +651,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           karigarId: karigarId!,
                           followerId: followerId!,
                           followupDueAt: _dateTimeValue(dueAt),
+                          repairIssueWeightGm: isRepair
+                              ? double.tryParse(repairIssueWeight.text.trim())
+                              : null,
                         );
                         if (dialogContext.mounted)
                           Navigator.pop(dialogContext, true);
@@ -638,6 +670,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         ),
       ),
     );
+    repairIssueWeight.dispose();
     if (saved == true) await _load();
   }
 
@@ -799,7 +832,25 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Future<void> _reviewWorkRequest(Map<String, dynamic> row) async {
     final type = '${row['request_type']}';
     int? assignee;
-    DateTime dueAt = DateTime.now().add(const Duration(days: 1));
+    final requestedDueAt = DateTime.tryParse(
+      (row['requested_due_at'] ?? '').toString(),
+    );
+    final currentOrderDueAt = DateTime.tryParse(
+      (row['due_date'] ?? '').toString(),
+    );
+    final tomorrow = DateUtils.dateOnly(
+      DateTime.now().add(const Duration(days: 1)),
+    );
+    final minimumDelayDueAt =
+        currentOrderDueAt != null &&
+            !DateUtils.dateOnly(currentOrderDueAt).isBefore(tomorrow)
+        ? DateUtils.dateOnly(currentOrderDueAt.add(const Duration(days: 1)))
+        : tomorrow;
+    DateTime dueAt =
+        requestedDueAt != null &&
+            !DateUtils.dateOnly(requestedDueAt).isBefore(minimumDelayDueAt)
+        ? requestedDueAt
+        : minimumDelayDueAt;
     final note = TextEditingController();
     final staff = _staffFollowers
         .whereType<Map>()
@@ -820,6 +871,28 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text('${row['details']}'),
+                  if (type == 'order_delay') ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    OutlinedButton.icon(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              final day = await showDatePicker(
+                                context: dialogContext,
+                                initialDate: DateUtils.dateOnly(dueAt),
+                                firstDate: minimumDelayDueAt,
+                                lastDate: minimumDelayDueAt.add(
+                                  const Duration(days: 730),
+                                ),
+                              );
+                              if (day != null) update(() => dueAt = day);
+                            },
+                      icon: const Icon(LucideIcons.calendar_days),
+                      label: Text(
+                        'Updated order due date: ${AppFormatters.date(dueAt)}',
+                      ),
+                    ),
+                  ],
                   if (type == 'gold_requirement' ||
                       type == 'diamond_requirement' ||
                       type == 'follower_change') ...[
@@ -885,8 +958,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   TextField(
                     controller: note,
                     maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Decision note (required to reject)',
+                    decoration: InputDecoration(
+                      labelText: type == 'order_delay'
+                          ? 'Admin note *'
+                          : 'Decision note (required to reject)',
                     ),
                   ),
                   if (error.isNotEmpty) ...[
@@ -937,6 +1012,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               onPressed: saving
                   ? null
                   : () async {
+                      if (type == 'order_delay' &&
+                          (note.text.trim().isEmpty ||
+                              !DateUtils.dateOnly(
+                                dueAt,
+                              ).isAfter(DateUtils.dateOnly(DateTime.now())))) {
+                        update(
+                          () => error =
+                              'Enter an admin note and select a future updated due date.',
+                        );
+                        return;
+                      }
                       if ((type == 'gold_requirement' ||
                               type == 'diamond_requirement' ||
                               type == 'follower_change') &&
@@ -953,6 +1039,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             .reviewOrderWorkRequest(int.parse('${row['id']}'), {
                               'decision': 'approve',
                               'review_note': note.text.trim(),
+                              if (type == 'order_delay')
+                                'approved_due_at': _dateValue(dueAt),
                               if (assignee != null) 'assigned_to': assignee,
                               if (type == 'gold_requirement')
                                 'task_due_at': _dateTimeValue(dueAt),
@@ -1186,6 +1274,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               'Gross ${_weight(_receipt['gross_weight_gm'])} gm · Net ${_weight(_receipt['net_gold_weight_gm'])} gm · Pure ${_weight(_receipt['pure_gold_weight_gm'])} gm',
                             ),
                             Text(
+                              '${(_receipt['wastage_type'] ?? 'normal').toString().toUpperCase()} wastage ${_weight(_receipt['wastage_percent'])}% · Effective purity ${_weight(_receipt['effective_purity_percent'])}% · Total pure deduction ${_weight(_number(_receipt['pure_gold_weight_gm']) + _number(_receipt['pure_wastage_weight_gm']))} gm',
+                            ),
+                            Text(
                               'Received by ${_receipt['received_by_name'] ?? 'Admin'} · valuation ₹${AppFormatters.amount(_receipt['total_valuation'])}',
                               style: const TextStyle(
                                 color: AppColors.textSecondary,
@@ -1327,6 +1418,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 '${row['details']}',
                                 style: const TextStyle(height: 1.6),
                               ),
+                              if (type == 'order_delay')
+                                _detailLine(
+                                  LucideIcons.calendar_clock,
+                                  row['approved_due_at'] != null
+                                      ? 'Updated due ${AppFormatters.date(row['approved_due_at'])}'
+                                      : 'Requested due ${AppFormatters.date(row['requested_due_at'])}',
+                                ),
                               if (type == 'gold_requirement')
                                 _detailLine(
                                   LucideIcons.gem,
@@ -1803,10 +1901,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   );
 
   String _weight(dynamic value) {
-    final number = value is num
-        ? value.toDouble()
-        : double.tryParse('$value') ?? 0;
-    return number.toStringAsFixed(3);
+    return _number(value).toStringAsFixed(3);
+  }
+
+  double _number(dynamic value) {
+    return value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
   }
 }
 

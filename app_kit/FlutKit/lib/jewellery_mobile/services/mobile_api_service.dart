@@ -180,6 +180,7 @@ class MobileApiService {
     int? customerId,
     required int followerId,
     required String followupDueAt,
+    double? repairIssueWeightGm,
   }) async {
     final res = await _post(
       '/api/mobile/orders/$orderId/assign',
@@ -188,6 +189,8 @@ class MobileApiService {
         if (customerId != null) 'customer_id': customerId,
         'followup_assigned_to': followerId,
         'followup_due_at': followupDueAt,
+        if (repairIssueWeightGm != null)
+          'repair_issue_weight_gm': repairIssueWeightGm,
       },
     );
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};

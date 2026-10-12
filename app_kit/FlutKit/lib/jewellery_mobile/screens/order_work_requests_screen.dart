@@ -1,5 +1,6 @@
 import 'package:flutkit/jewellery_mobile/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
@@ -100,7 +101,10 @@ class _OrderWorkRequestsScreenState extends State<OrderWorkRequestsScreen> {
         subtitle: Padding(
           padding: const EdgeInsets.only(top: AppSpacing.sm),
           child: Text(
-            '${row['details']}\nBy ${row['requester_name'] ?? 'Staff'} · ${row['status']}',
+            '${row['details']}'
+            '${'${row['request_type']}' == 'order_delay' ? '\n${row['approved_due_at'] != null ? 'Updated order due date' : 'Requested delivery date'}: ${AppFormatters.date(row['approved_due_at'] ?? row['requested_due_at'])}' : ''}'
+            '${(row['review_note'] ?? '').toString().isNotEmpty ? '\nAdmin note: ${row['review_note']}' : ''}'
+            '\nBy ${row['requester_name'] ?? 'Staff'} · ${row['status']}',
           ),
         ),
         isThreeLine: true,

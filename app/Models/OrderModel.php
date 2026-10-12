@@ -48,6 +48,7 @@ class OrderModel extends Model
         'repair_ornament_details',
         'repair_work_details',
         'repair_receive_weight_gm',
+        'repair_issue_weight_gm',
         'repair_received_at',
         'cancel_reason',
         'cancelled_at',

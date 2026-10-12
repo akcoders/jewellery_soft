@@ -17,17 +17,39 @@ class KarigarMaterialAccountingService
         $this->adminPostingService = new AdminPostingService($this->postingService);
     }
 
-    /** @return array{ornament_weight_gm:float,pure_weight_gm:float} */
-    public static function calculateLabourWastage(float $netGoldGm, float $purityPercent, float $wastagePercent): array
+    /** @return array{ornament_weight_gm:float,pure_weight_gm:float,effective_purity_percent:float,total_pure_weight_gm:float} */
+    public static function calculateLabourWastage(
+        float $netGoldGm,
+        float $purityPercent,
+        float $wastagePercent,
+        string $wastageType = 'normal'
+    ): array
     {
         $netGoldGm = max(0, $netGoldGm);
         $purityPercent = max(0, min(100, $purityPercent));
         $wastagePercent = max(0, min(100, $wastagePercent));
-        $ornamentWeightGm = round($netGoldGm * ($wastagePercent / 100), 3);
+        $wastageType = strtolower(trim($wastageType)) === 'direct' ? 'direct' : 'normal';
+        $basePureWeightGm = $netGoldGm * ($purityPercent / 100);
+
+        if ($wastageType === 'direct') {
+            $pureWeightGm = $netGoldGm * ($wastagePercent / 100);
+            $ornamentWeightGm = $purityPercent > 0
+                ? $pureWeightGm / ($purityPercent / 100)
+                : 0.0;
+            $effectivePurityPercent = $purityPercent + $wastagePercent;
+        } else {
+            $ornamentWeightGm = $netGoldGm * ($wastagePercent / 100);
+            $pureWeightGm = $ornamentWeightGm * ($purityPercent / 100);
+            $effectivePurityPercent = $netGoldGm > 0
+                ? (($basePureWeightGm + $pureWeightGm) / $netGoldGm) * 100
+                : $purityPercent;
+        }
 
         return [
-            'ornament_weight_gm' => $ornamentWeightGm,
-            'pure_weight_gm' => round($netGoldGm * ($wastagePercent / 100) * ($purityPercent / 100), 3),
+            'ornament_weight_gm' => round($ornamentWeightGm, 3),
+            'pure_weight_gm' => round($pureWeightGm, 3),
+            'effective_purity_percent' => round($effectivePurityPercent, 3),
+            'total_pure_weight_gm' => round($basePureWeightGm + $pureWeightGm, 3),
         ];
     }
 

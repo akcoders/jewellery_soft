@@ -43,6 +43,8 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('packing-lists/pdf', 'Admin\PackingListController::pdf', ['filter' => 'permission:orders.documents']);
     $routes->get('mobile-approvals', 'Admin\MobileApprovalController::index');
     $routes->post('mobile-approvals/(:num)/review', 'Admin\MobileApprovalController::review/$1', ['filter' => 'csrf']);
+    $routes->get('order-requests', 'Admin\OrderWorkRequestController::index', ['filter' => 'permission:orders.assign']);
+    $routes->post('order-requests/(:num)/review', 'Admin\OrderWorkRequestController::review/$1', ['filter' => ['permission:orders.assign', 'csrf']]);
 
     $routes->get('designs', 'Admin\DesignController::index', ['filter' => 'permission:masters.designs.read']);
     $routes->get('designs/create', 'Admin\DesignController::create', ['filter' => 'permission:masters.designs.manage']);

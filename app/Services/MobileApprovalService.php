@@ -79,7 +79,7 @@ class MobileApprovalService
     }
 
     /** @return list<array<string,mixed>> */
-    public function list(?int $requestedBy = null): array
+    public function list(?int $requestedBy = null, ?string $status = null): array
     {
         $builder = $this->db->table('mobile_approval_requests ar')
             ->select('ar.*, requester.name AS requested_by_name, reviewer.name AS reviewed_by_name')
@@ -87,6 +87,12 @@ class MobileApprovalService
             ->join('admin_users reviewer', 'reviewer.id = ar.reviewed_by', 'left');
         if (($requestedBy ?? 0) > 0) {
             $builder->where('ar.requested_by', $requestedBy);
+        }
+        $status = strtolower(trim((string) $status));
+        if (in_array($status, ['pending', 'approved', 'rejected'], true)) {
+            $builder->where('ar.status', $status);
+        } elseif ($status === 'history') {
+            $builder->whereIn('ar.status', ['approved', 'rejected']);
         }
         $rows = $builder->orderBy("CASE WHEN ar.status = 'pending' THEN 0 ELSE 1 END", 'ASC', false)
             ->orderBy('ar.id', 'DESC')->limit(500)->get()->getResultArray();

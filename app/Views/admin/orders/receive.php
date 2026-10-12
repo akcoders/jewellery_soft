@@ -53,6 +53,9 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
     <form id="receive-form" method="post" action="<?= site_url('admin/orders/' . $order['id'] . '/receive') ?>">
         <?= csrf_field() ?>
         <div class="alert alert-info">Select the issued diamond bag lines for this order. You can combine several lines into one named finished piece. Stone shortage is automatically deducted from Stone Inventory.</div>
+        <?php if (strcasecmp((string) ($order['order_type'] ?? ''), 'Repair') === 0): $oldOrnamentWeight = (float) (($order['repair_issue_weight_gm'] ?? 0) ?: ($order['repair_receive_weight_gm'] ?? 0)); ?>
+            <div class="alert alert-warning d-flex align-items-center justify-content-between"><span><strong>Old Ornament Gross Weight</strong><br><small>Repair ornament issued to karigar</small></span><strong class="fs-5"><?= number_format($oldOrnamentWeight, 3) ?> gm</strong></div>
+        <?php endif; ?>
 
         <section class="card receive-section">
             <div class="card-header"><strong>1. Weight &amp; Purity</strong></div>
@@ -73,7 +76,7 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
             <div class="card-header"><strong>2. Studded Diamond</strong><button type="button" class="btn btn-sm btn-outline-primary js-add-row" data-kind="dia"><i class="fe fe-plus me-1"></i>Add Row</button></div>
             <div class="table-responsive">
                 <table class="table table-bordered align-middle mb-0 receive-table receive-diamond-table">
-                    <thead><tr><th>Available Bag Lines</th><th>PCS</th><th>Weight (cts)</th><th>Rate</th><th>Total</th><th></th></tr></thead>
+                    <thead><tr><th>Available Bag Lines</th><th>PCS</th><th>Weight (cts)</th><th>Diamond Rate / ct</th><th>Total</th><th></th></tr></thead>
                     <tbody class="js-dia-body"><tr>
                         <td>
                             <select multiple class="form-select js-diamond-balance-select">
@@ -118,8 +121,11 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
                 <div class="row g-3">
                     <div class="col-md-3"><label class="form-label">Labour Rate / gm</label><input type="number" step="0.01" min="0" name="labour_rate_per_gm" class="form-control js-labour-rate" value="0"></div>
                     <div class="col-md-3"><label class="form-label">Labour Amount</label><input type="text" class="form-control js-labour-total" value="0.00" readonly></div>
-                    <div class="col-md-3"><label class="form-label">Wastage %</label><input type="number" step="0.001" min="0" max="100" name="wastage_percent" class="form-control js-wastage-percent" value="0" required><small class="text-muted"><span class="js-wastage-weight-text">0.000</span> gm at ornament purity</small></div>
-                    <div class="col-md-3"><label class="form-label">Pure Gold Wastage Deduction</label><input type="text" class="form-control js-pure-wastage-weight" value="0.000" readonly><small class="text-muted">Deducted from karigar pure-gold ledger</small></div>
+                    <div class="col-md-3"><label class="form-label">Wastage Type *</label><select name="wastage_type" class="form-select js-wastage-type" required><option value="normal">Normal</option><option value="direct">Direct (add to purity %)</option></select></div>
+                    <div class="col-md-3"><label class="form-label">Wastage %</label><input type="number" step="0.001" min="0" max="100" name="wastage_percent" class="form-control js-wastage-percent" value="0" required><small class="text-muted">Equivalent ornament weight: <span class="js-wastage-weight-text">0.000</span> gm</small></div>
+                    <div class="col-md-3"><label class="form-label">Pure Gold Wastage</label><input type="text" class="form-control js-pure-wastage-weight" value="0.000" readonly><small class="text-muted">Calculated automatically</small></div>
+                    <div class="col-md-3"><label class="form-label">Effective Purity</label><input type="text" class="form-control js-effective-purity" value="0.000%" readonly><small class="text-muted">Direct: purity + wastage</small></div>
+                    <div class="col-md-3"><label class="form-label">Total Pure Gold Deduction</label><input type="text" class="form-control js-total-pure-deduction" value="0.000" readonly><small class="text-muted">Total deducted from karigar ledger</small></div>
                 </div>
             </div>
         </section>
@@ -266,9 +272,18 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
         set('.js-gold-total', (safeNet * n(form.querySelector('.js-gold-rate').value)).toFixed(2));
         set('.js-labour-total', (safeNet * n(form.querySelector('.js-labour-rate').value)).toFixed(2));
         const wastage = n(form.querySelector('.js-wastage-percent').value);
+        const wastageType = (form.querySelector('.js-wastage-type') || {}).value === 'direct' ? 'direct' : 'normal';
+        const basePure = safeNet * purity / 100;
+        const pureWastage = wastageType === 'direct'
+            ? safeNet * wastage / 100
+            : basePure * wastage / 100;
+        const ornamentWastage = purity > 0 ? pureWastage / (purity / 100) : 0;
+        const effectivePurity = safeNet > 0 ? (basePure + pureWastage) / safeNet * 100 : purity;
         const wastageText = form.querySelector('.js-wastage-weight-text');
-        if (wastageText) wastageText.textContent = (safeNet * wastage / 100).toFixed(3);
-        set('.js-pure-wastage-weight', (safeNet * purity / 100 * wastage / 100).toFixed(3));
+        if (wastageText) wastageText.textContent = ornamentWastage.toFixed(3);
+        set('.js-pure-wastage-weight', pureWastage.toFixed(3));
+        set('.js-effective-purity', effectivePurity.toFixed(3) + '%');
+        set('.js-total-pure-deduction', (basePure + pureWastage).toFixed(3));
     }
 
     form.addEventListener('click', event => {

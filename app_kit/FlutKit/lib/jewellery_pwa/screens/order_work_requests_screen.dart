@@ -1,5 +1,6 @@
 import 'package:flutkit/jewellery_pwa/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_pwa/theme/app_theme.dart';
 import 'package:flutkit/jewellery_pwa/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_pwa/widgets/full_screen_loader.dart';
@@ -194,6 +195,19 @@ class _OrderWorkRequestsScreenState extends State<OrderWorkRequestsScreen> {
                 '${row['details'] ?? ''}',
                 style: const TextStyle(height: 1.6),
               ),
+              if ('${row['request_type']}' == 'order_delay') ...[
+                const SizedBox(height: 8),
+                Text(
+                  row['approved_due_at'] != null
+                      ? 'Updated order due date: ${AppFormatters.date(row['approved_due_at'])}'
+                      : 'Requested delivery date: ${AppFormatters.date(row['requested_due_at'])}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+              if ((row['review_note'] ?? '').toString().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Admin note: ${row['review_note']}'),
+              ],
               const Divider(height: 28),
               Row(
                 children: [

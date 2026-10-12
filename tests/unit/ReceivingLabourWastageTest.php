@@ -15,6 +15,21 @@ final class ReceivingLabourWastageTest extends CIUnitTestCase
         $this->assertSame(0.375, $result['pure_weight_gm']);
     }
 
+    public function testDirectWastageAddsItsPercentageToPurityForKarigarDeduction(): void
+    {
+        $result = KarigarMaterialAccountingService::calculateLabourWastage(
+            10.000,
+            75.000,
+            8.000,
+            'direct'
+        );
+
+        $this->assertSame(1.067, $result['ornament_weight_gm']);
+        $this->assertSame(0.800, $result['pure_weight_gm']);
+        $this->assertSame(83.000, $result['effective_purity_percent']);
+        $this->assertSame(8.300, $result['total_pure_weight_gm']);
+    }
+
     public function testReceivingUsesPurityMasterAndPostsOneNamedWastageCharge(): void
     {
         $controller = (string) file_get_contents(APPPATH . 'Controllers/Admin/OrderController.php');

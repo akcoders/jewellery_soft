@@ -19,7 +19,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
   bool _loading = true;
   bool _canReview = false;
   String _error = '';
-  String _statusFilter = 'all';
+  String _statusFilter = 'pending';
   List<dynamic> _items = [];
 
   @override
@@ -158,18 +158,22 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
     if (_error.isNotEmpty && _items.isEmpty) {
       return AppErrorState(message: _error, onRetry: _load);
     }
-    final pending = _items
+    final pendingItems = _items
         .where((raw) => _map(raw)['status'] == 'pending')
-        .length;
+        .toList();
+    final historyItems = _items
+        .where((raw) => _map(raw)['status'] != 'pending')
+        .toList();
+    final pending = pendingItems.length;
     final approved = _items
         .where((raw) => _map(raw)['status'] == 'approved')
         .length;
     final rejected = _items
         .where((raw) => _map(raw)['status'] == 'rejected')
         .length;
-    final visibleItems = !_canReview || _statusFilter == 'all'
-        ? _items
-        : _items.where((raw) => _map(raw)['status'] == _statusFilter).toList();
+    final visibleItems = _statusFilter == 'history'
+        ? historyItems
+        : pendingItems;
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -241,18 +245,19 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
               label: const Text('Employee Approval & Camera Controls'),
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _deskFilter('all', 'All ${_items.length}'),
-                _deskFilter('pending', 'Pending $pending'),
-                _deskFilter('approved', 'Approved $approved'),
-                _deskFilter('rejected', 'Rejected $rejected'),
-              ],
-            ),
-            const SizedBox(height: 10),
           ],
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _deskFilter('pending', 'Pending $pending'),
+              _deskFilter(
+                'history',
+                'History ${historyItems.length} ($approved approved, $rejected disapproved)',
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
               final buttonWidth = constraints.maxWidth < 430
@@ -285,16 +290,111 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
           const SizedBox(height: 18),
           if (visibleItems.isEmpty)
             AppEmptyState(
-              title: _items.isEmpty
-                  ? 'No requests yet'
-                  : 'No matching requests',
-              message: _items.isEmpty
-                  ? 'Approval requests will appear here.'
-                  : 'Choose another Approval Desk filter.',
+              title: _statusFilter == 'history'
+                  ? 'No approval history'
+                  : 'No pending requests',
+              message: _statusFilter == 'history'
+                  ? 'Approved and disapproved requests will appear here.'
+                  : 'New requests waiting for approval will appear here.',
             )
+          else if (_statusFilter == 'history')
+            _historyTable(visibleItems)
           else
             ...visibleItems.map((raw) => _requestCard(_map(raw))),
         ],
+      ),
+    );
+  }
+
+  Widget _historyTable(List<dynamic> items) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor: WidgetStateProperty.all(const Color(0xFFF8F3E7)),
+          columns: const [
+            DataColumn(label: Text('Request')),
+            DataColumn(label: Text('Type')),
+            DataColumn(label: Text('Status')),
+            DataColumn(label: Text('Reviewed')),
+            DataColumn(label: Text('Action')),
+          ],
+          rows: items.map((raw) {
+            final item = _map(raw);
+            final status = (item['status'] ?? '').toString();
+            final reviewedAt = (item['reviewed_at'] ?? '').toString();
+            return DataRow(
+              cells: [
+                DataCell(Text('#${item['id']}')),
+                DataCell(
+                  Text(_typeLabel((item['request_type'] ?? '').toString())),
+                ),
+                DataCell(
+                  Text(
+                    status == 'rejected' ? 'Disapproved' : 'Approved',
+                    style: TextStyle(
+                      color: status == 'approved'
+                          ? Colors.green.shade700
+                          : Colors.red.shade700,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  Text(
+                    reviewedAt.isEmpty
+                        ? '-'
+                        : AppFormatters.dateTime(reviewedAt),
+                  ),
+                ),
+                DataCell(
+                  OutlinedButton.icon(
+                    onPressed: () => _showRequestDetails(item),
+                    icon: const Icon(LucideIcons.eye, size: 16),
+                    label: const Text('View'),
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRequestDetails(Map<String, dynamic> item) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: .92,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Approval request #${item['id']}',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(LucideIcons.x),
+                  tooltip: 'Close',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _requestCard(item),
+          ],
+        ),
       ),
     );
   }

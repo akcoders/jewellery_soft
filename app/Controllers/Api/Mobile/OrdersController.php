@@ -777,12 +777,15 @@ class OrdersController extends MobileBaseController
         $karigarId = (int) ($payload['karigar_id'] ?? 0);
         $customerId = (int) ($order['customer_id'] ?: ($payload['customer_id'] ?? 0));
         $followerId = (int) ($payload['followup_assigned_to'] ?? 0);
+        $isRepairOrder = strcasecmp((string) ($order['order_type'] ?? ''), 'Repair') === 0;
+        $repairIssueWeightGm = round((float) ($payload['repair_issue_weight_gm'] ?? 0), 3);
         $dueValue = trim((string) ($payload['followup_due_at'] ?? ''));
         $dueStamp = strtotime($dueValue);
         if (! $db->table('karigars')->where('id', $karigarId)->where('is_active', 1)->countAllResults()) return $this->fail('Select an active karigar.', 422);
         if (! $db->table('customers')->where('id', $customerId)->where('is_active', 1)->countAllResults()) return $this->fail('Select an active customer.', 422);
         if (! $this->staffPerformanceService->isStaffUser($followerId)) return $this->fail('Select an active staff follower.', 422);
         if ($dueValue === '' || $dueStamp === false || $dueStamp <= time()) return $this->fail('Select a future first follow-up time.', 422);
+        if ($isRepairOrder && $repairIssueWeightGm <= 0) return $this->fail('Enter the old ornament gross weight issued to the karigar.', 422);
         $dueAt = date('Y-m-d H:i:s', $dueStamp);
         try {
             $db->transException(true)->transStart();
@@ -790,6 +793,7 @@ class OrdersController extends MobileBaseController
                 'customer_id' => $customerId,
                 'assigned_karigar_id' => $karigarId,
                 'assigned_at' => date('Y-m-d H:i:s'),
+                'repair_issue_weight_gm' => $isRepairOrder ? $repairIssueWeightGm : null,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
             if ($db->affectedRows() !== 1) throw new \RuntimeException('Order was already assigned.');

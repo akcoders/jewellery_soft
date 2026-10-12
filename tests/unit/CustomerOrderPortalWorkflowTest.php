@@ -61,7 +61,10 @@ final class CustomerOrderPortalWorkflowTest extends CIUnitTestCase
         $adminController = (string) file_get_contents(APPPATH . 'Controllers/Admin/OrderController.php');
         $adminForm = (string) file_get_contents(APPPATH . 'Views/admin/orders/create.php');
 
-        $this->assertStringNotContainsString('order-request', $routes);
+        $this->assertStringContainsString(
+            "OrderWorkRequestController::index', ['filter' => 'permission:orders.assign']",
+            $routes
+        );
         $this->assertStringContainsString("['filter' => 'customerAuth']", $routes);
         $this->assertFileDoesNotExist(APPPATH . 'Controllers/PublicOrderRequestController.php');
         $this->assertFileDoesNotExist(APPPATH . 'Views/public/order_request.php');

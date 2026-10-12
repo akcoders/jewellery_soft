@@ -13,11 +13,16 @@ class MobileApprovalController extends BaseController
         if (! $this->isAdminReviewer()) {
             return redirect()->to(site_url('admin/dashboard'))->with('error', 'Admin approval access is required.');
         }
-        $items = (new MobileApprovalService())->list();
+        $service = new MobileApprovalService();
+        $items = $service->list(null, 'pending');
+        $historyItems = $service->list(null, 'history');
         return view('admin/mobile_approvals/index', [
             'title' => 'Mobile Approvals',
             'items' => $items,
-            'pendingCount' => count(array_filter($items, static fn(array $row): bool => ($row['status'] ?? '') === 'pending')),
+            'historyItems' => $historyItems,
+            'pendingCount' => count($items),
+            'approvedCount' => count(array_filter($historyItems, static fn(array $row): bool => ($row['status'] ?? '') === 'approved')),
+            'rejectedCount' => count(array_filter($historyItems, static fn(array $row): bool => ($row['status'] ?? '') === 'rejected')),
         ]);
     }
 

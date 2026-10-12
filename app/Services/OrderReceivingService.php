@@ -69,12 +69,19 @@ class OrderReceivingService
         $goldRate = round((float) ($payload['gold_rate_per_gm'] ?? 0), 2);
         $labourRate = round(max(0, (float) ($payload['labour_rate_per_gm'] ?? 0)), 2);
         $wastagePercent = round(max(0, (float) ($payload['wastage_percent'] ?? 0)), 3);
+        $wastageType = strtolower(trim((string) ($payload['wastage_type'] ?? 'normal')));
+        if (! in_array($wastageType, ['normal', 'direct'], true)) {
+            throw new RuntimeException('Select a valid wastage type.');
+        }
         $purityPercent = round((float) ($purity['purity_percent'] ?? 0), 3);
         if ($gross <= 0 || $goldRate <= 0) {
             throw new RuntimeException('Gross weight and gold rate must be greater than zero.');
         }
         if ($purityPercent <= 0 || $purityPercent > 100 || $wastagePercent > 100) {
             throw new RuntimeException('Purity or wastage percentage is invalid.');
+        }
+        if ($wastageType === 'direct' && $purityPercent + $wastagePercent > 100) {
+            throw new RuntimeException('Direct wastage plus ornament purity cannot exceed 100%.');
         }
 
         $diamonds = $this->diamondRows(
@@ -95,7 +102,12 @@ class OrderReceivingService
             throw new RuntimeException('Net gold weight must be greater than zero. Check component weights.');
         }
         $pureGold = round($netGold * $purityPercent / 100, 3);
-        $wastage = KarigarMaterialAccountingService::calculateLabourWastage($netGold, $purityPercent, $wastagePercent);
+        $wastage = KarigarMaterialAccountingService::calculateLabourWastage(
+            $netGold,
+            $purityPercent,
+            $wastagePercent,
+            $wastageType
+        );
         $goldAmount = round($netGold * $goldRate, 2);
         $labourAmount = round($netGold * $labourRate, 2);
         $diamondAmount = $this->sum($diamonds, 'line_total', 2);
@@ -104,10 +116,14 @@ class OrderReceivingService
         $totalValuation = round($goldAmount + $labourAmount + $diamondAmount + $stoneAmount + $otherAmount, 2);
         $notes = trim((string) ($payload['notes'] ?? ''));
         $calculation = sprintf(
-            'PWA receiving: Gross %.3f gm, Net %.3f gm, Pure %.3f gm, Diamond %.3f cts, Stone %.3f cts',
+            'PWA receiving: Gross %.3f gm, Net %.3f gm, Pure %.3f gm, Wastage %s %.3f%%, Effective purity %.3f%%, Total pure deduction %.3f gm, Diamond %.3f cts, Stone %.3f cts',
             $gross,
             $netGold,
             $pureGold,
+            ucfirst($wastageType),
+            $wastagePercent,
+            (float) $wastage['effective_purity_percent'],
+            (float) $wastage['total_pure_weight_gm'],
             $diamondCts,
             $stoneCts
         );
@@ -174,6 +190,7 @@ class OrderReceivingService
                 'order_id' => $orderId,
                 'gold_purity_id' => $purityId,
                 'purity_percent' => $purityPercent,
+                'effective_purity_percent' => (float) $wastage['effective_purity_percent'],
                 'gross_weight_gm' => $gross,
                 'net_gold_weight_gm' => $netGold,
                 'pure_gold_weight_gm' => $pureGold,
@@ -189,6 +206,7 @@ class OrderReceivingService
                 'labour_rate_per_gm' => $labourRate,
                 'labour_amount' => $labourAmount,
                 'wastage_percent' => $wastagePercent,
+                'wastage_type' => $wastageType,
                 'wastage_weight_gm' => (float) $wastage['ornament_weight_gm'],
                 'pure_wastage_weight_gm' => (float) $wastage['pure_weight_gm'],
                 'total_valuation' => $totalValuation,
@@ -334,6 +352,7 @@ class OrderReceivingService
             }
 
             $description = mb_substr(trim((string) ($input['name'] ?? '')), 0, 120);
+            $enteredRate = round(max(0, (float) ($input['rate'] ?? 0)), 2);
             foreach ($issueLineIds as $issueLineId) {
                 if (isset($selected[$issueLineId])) {
                     throw new RuntimeException('A diamond bag line can be selected only once.');
@@ -345,7 +364,9 @@ class OrderReceivingService
                 $selected[$issueLineId] = true;
                 $pcs = round((float) ($option['available_pcs'] ?? 0), 3);
                 $weightCts = round((float) ($option['available_cts'] ?? 0), 3);
-                $rate = round(max(0, (float) ($option['rate_per_carat'] ?? 0)), 2);
+                $rate = $enteredRate > 0
+                    ? $enteredRate
+                    : round(max(0, (float) ($option['rate_per_carat'] ?? 0)), 2);
                 if ($weightCts <= 0) {
                     throw new RuntimeException('Selected diamond bag line has no available carat weight.');
                 }

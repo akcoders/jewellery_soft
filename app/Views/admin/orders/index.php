@@ -148,6 +148,8 @@
                                                         data-order-id="<?= esc((string) $order['id']) ?>"
                                                         data-order-no="<?= esc($order['order_no']) ?>"
                                                         data-order-from="<?= esc((string) ($order['order_from'] ?? ''), 'attr') ?>"
+                                                        data-order-type="<?= esc((string) ($order['order_type'] ?? ''), 'attr') ?>"
+                                                        data-repair-receive-weight="<?= esc((string) ($order['repair_receive_weight_gm'] ?? ''), 'attr') ?>"
                                                         data-customer-id="<?= esc((string) ($order['customer_id'] ?? '')) ?>"
                                                         data-followup-assigned-to="<?= esc((string) ($order['followup_assigned_to'] ?? '')) ?>"
                                                         data-followup-due-at="<?= ! empty($order['followup_due_at']) ? esc(date('Y-m-d\\TH:i', strtotime((string) $order['followup_due_at'])), 'attr') : '' ?>"
@@ -243,6 +245,11 @@
                             <label class="form-label">First Follow-up Date <span class="text-danger">*</span></label>
                             <input type="datetime-local" class="form-control" id="assign-followup-due" name="followup_due_at" value="<?= esc(date('Y-m-d\\T11:00', strtotime('+1 day')), 'attr') ?>" required>
                         </div>
+                    </div>
+                    <div class="mb-3 d-none" id="assign-repair-weight-wrap">
+                        <label class="form-label">Old Ornament Gross Weight Issued to Karigar (gm) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.001" min="0.001" class="form-control" id="assign-repair-issue-weight" name="repair_issue_weight_gm">
+                        <div class="form-text" id="assign-repair-received-help">Required for repair orders.</div>
                     </div>
                     <div class="border rounded p-3 bg-light">
                         <h6 class="mb-2">Current Load</h6>
@@ -530,6 +537,9 @@
         const karigarSelect = document.getElementById('assign-karigar-select');
         const followerSelect = document.getElementById('assign-follower-select');
         const followupDueInput = document.getElementById('assign-followup-due');
+        const repairWeightWrap = document.getElementById('assign-repair-weight-wrap');
+        const repairIssueWeightInput = document.getElementById('assign-repair-issue-weight');
+        const repairReceivedHelp = document.getElementById('assign-repair-received-help');
         const totalGoldEl = document.getElementById('kg-total-gold');
         const pendingOrdersEl = document.getElementById('kg-pending-orders');
         const pendingGoldEl = document.getElementById('kg-pending-gold');
@@ -787,7 +797,9 @@
             const hasCustomer = !!(customerSelect && customerSelect.value);
             const hasFollower = !!(followerSelect && followerSelect.value);
             const hasFollowupDue = !!(followupDueInput && followupDueInput.value);
-            assignSubmitBtn.disabled = !!loading || !hasKarigar || !hasCustomer || !hasFollower || !hasFollowupDue;
+            const repairWeightRequired = repairWeightWrap && !repairWeightWrap.classList.contains('d-none');
+            const hasRepairWeight = !repairWeightRequired || num(repairIssueWeightInput && repairIssueWeightInput.value) > 0;
+            assignSubmitBtn.disabled = !!loading || !hasKarigar || !hasCustomer || !hasFollower || !hasFollowupDue || !hasRepairWeight;
         }
 
         function renderOrderDetails(orders) {
@@ -836,6 +848,16 @@
                     if (window.jQuery) jQuery(followerSelect).trigger('change.select2');
                 }
                 if (followupDueInput) followupDueInput.value = btn.getAttribute('data-followup-due-at') || '<?= date('Y-m-d\\T11:00', strtotime('+1 day')) ?>';
+                const isRepair = String(btn.getAttribute('data-order-type') || '').toLowerCase() === 'repair';
+                const receivedRepairWeight = num(btn.getAttribute('data-repair-receive-weight'));
+                if (repairWeightWrap) repairWeightWrap.classList.toggle('d-none', !isRepair);
+                if (repairIssueWeightInput) {
+                    repairIssueWeightInput.required = isRepair;
+                    repairIssueWeightInput.value = isRepair && receivedRepairWeight > 0 ? receivedRepairWeight.toFixed(3) : '';
+                }
+                if (repairReceivedHelp) repairReceivedHelp.textContent = receivedRepairWeight > 0
+                    ? 'Customer se received old ornament weight: ' + receivedRepairWeight.toFixed(3) + ' gm'
+                    : 'Required for repair orders.';
                 if (karigarSelect) karigarSelect.value = '';
                 resetKarigarSummary();
             }
@@ -919,6 +941,9 @@
                 updateAssignSubmitState(false);
             });
         }
+        if (repairIssueWeightInput) repairIssueWeightInput.addEventListener('input', function () {
+            updateAssignSubmitState(false);
+        });
         [followerSelect, followupDueInput].forEach(function (field) {
             if (field) field.addEventListener('change', function () { updateAssignSubmitState(false); });
         });
