@@ -1,4 +1,5 @@
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_pwa/theme/app_theme.dart';
 import 'package:flutkit/jewellery_pwa/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_pwa/widgets/full_screen_loader.dart';
@@ -18,6 +19,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
   bool _loading = true;
   bool _canReview = false;
   String _error = '';
+  String _statusFilter = 'all';
   List<dynamic> _items = [];
 
   @override
@@ -65,6 +67,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
 
   Future<void> _review(Map<String, dynamic> item, String decision) async {
     final note = TextEditingController();
+    final isReapproval = decision == 'approve' && item['can_reapprove'] == true;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -76,7 +79,11 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
           size: 36,
         ),
         title: Text(
-          decision == 'approve' ? 'Approve request?' : 'Reject request?',
+          isReapproval
+              ? 'Re-approve issuement?'
+              : decision == 'approve'
+              ? 'Approve request?'
+              : 'Reject request?',
         ),
         content: TextField(
           controller: note,
@@ -99,7 +106,13 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                   : Colors.red.shade700,
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: Text(decision == 'approve' ? 'Approve & Process' : 'Reject'),
+            child: Text(
+              isReapproval
+                  ? 'Re-approve & Process'
+                  : decision == 'approve'
+                  ? 'Approve & Process'
+                  : 'Reject',
+            ),
           ),
         ],
       ),
@@ -117,7 +130,9 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            decision == 'approve'
+            isReapproval
+                ? 'Issuement re-approved and processed.'
+                : decision == 'approve'
                 ? 'Request approved.'
                 : item['request_type'] == 'followup'
                 ? 'Followup disapproved.'
@@ -146,6 +161,15 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
     final pending = _items
         .where((raw) => _map(raw)['status'] == 'pending')
         .length;
+    final approved = _items
+        .where((raw) => _map(raw)['status'] == 'approved')
+        .length;
+    final rejected = _items
+        .where((raw) => _map(raw)['status'] == 'rejected')
+        .length;
+    final visibleItems = !_canReview || _statusFilter == 'all'
+        ? _items
+        : _items.where((raw) => _map(raw)['status'] == _statusFilter).toList();
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -217,6 +241,17 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
               label: const Text('Employee Approval & Camera Controls'),
             ),
             const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _deskFilter('all', 'All ${_items.length}'),
+                _deskFilter('pending', 'Pending $pending'),
+                _deskFilter('approved', 'Approved $approved'),
+                _deskFilter('rejected', 'Rejected $rejected'),
+              ],
+            ),
+            const SizedBox(height: 10),
           ],
           LayoutBuilder(
             builder: (context, constraints) {
@@ -248,13 +283,17 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
             },
           ),
           const SizedBox(height: 18),
-          if (_items.isEmpty)
-            const AppEmptyState(
-              title: 'No requests yet',
-              message: 'Customer and karigar requests will appear here.',
+          if (visibleItems.isEmpty)
+            AppEmptyState(
+              title: _items.isEmpty
+                  ? 'No requests yet'
+                  : 'No matching requests',
+              message: _items.isEmpty
+                  ? 'Approval requests will appear here.'
+                  : 'Choose another Approval Desk filter.',
             )
           else
-            ..._items.map((raw) => _requestCard(_map(raw))),
+            ...visibleItems.map((raw) => _requestCard(_map(raw))),
         ],
       ),
     );
@@ -267,6 +306,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
     final isIssue = type == 'issuement';
     final isFollowup = type == 'followup';
     final isChallan = type == 'delivery_challan';
+    final canReapprove = item['can_reapprove'] == true;
     final statusLabel = status == 'rejected'
         ? 'DISAPPROVED'
         : status.toUpperCase();
@@ -393,16 +433,20 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                 children: [
                   _chip(LucideIcons.shopping_bag, payload['order_no'] ?? '-'),
                   _chip(LucideIcons.activity, payload['stage'] ?? '-'),
-                  if ((payload['next_followup_date'] ?? '')
-                      .toString()
-                      .isNotEmpty)
-                    _chip(
-                      LucideIcons.calendar_clock,
-                      payload['next_followup_date'],
-                    ),
                 ],
               ),
               const SizedBox(height: 10),
+              _followupContext(payload),
+              const SizedBox(height: 10),
+              Text(
+                'New follow-up',
+                style: TextStyle(
+                  color: AppColors.plum,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 3),
               Text(
                 (payload['description'] ?? '').toString(),
                 style: const TextStyle(height: 1.5),
@@ -501,9 +545,86 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                   ),
                 ],
               ),
+            ] else if (_canReview && canReapprove) ...[
+              const SizedBox(height: 15),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _review(item, 'approve'),
+                  icon: const Icon(LucideIcons.refresh_cw),
+                  label: const Text('Re-approve & Process'),
+                ),
+              ),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _deskFilter(String value, String label) => FilterChip(
+    selected: _statusFilter == value,
+    label: Text(label),
+    onSelected: (_) => setState(() => _statusFilter = value),
+  );
+
+  Widget _followupContext(Map<String, dynamic> payload) {
+    final previous = _map(payload['previous_followup']);
+    final previousDescription = (previous['description'] ?? '').toString();
+    final previousStage = (previous['stage'] ?? '').toString();
+    final previousTakenOn = (previous['followup_taken_on'] ?? '').toString();
+    final nextFollowup = (payload['next_followup_date'] ?? '').toString();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF7F9),
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Previous follow-up',
+            style: TextStyle(
+              color: AppColors.plum,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            previousDescription.isEmpty
+                ? 'No previous follow-up recorded.'
+                : '${previousStage.isEmpty ? '' : '$previousStage · '}$previousDescription',
+            style: const TextStyle(height: 1.45),
+          ),
+          if (previousTakenOn.isNotEmpty)
+            Text(
+              '${AppFormatters.dateTime(previousTakenOn)}${(previous['followup_taken_by_name'] ?? '').toString().isEmpty ? '' : ' · ${previous['followup_taken_by_name']}'}',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+          const Divider(height: 22),
+          const Text(
+            'Next follow-up',
+            style: TextStyle(
+              color: AppColors.plum,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            nextFollowup.isEmpty
+                ? 'Not scheduled (terminal stage)'
+                : AppFormatters.dateTime(nextFollowup),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ],
       ),
     );
   }

@@ -51,6 +51,16 @@ $icon = static fn(string $type): string => match ($type) {
                         </div></div>
                     <?php endforeach; ?>
                     </div>
+                <?php elseif ($type === 'followup'): $previous = is_array($payload['previous_followup'] ?? null) ? $payload['previous_followup'] : []; ?>
+                    <div class="row g-3">
+                        <div class="col-md-4"><div class="approval-material"><small class="text-muted">Order</small><strong class="d-block"><?= esc((string) ($payload['order_no'] ?? '-')) ?></strong></div></div>
+                        <div class="col-md-4"><div class="approval-material"><small class="text-muted">Proposed Stage</small><strong class="d-block"><?= esc((string) ($payload['stage'] ?? '-')) ?></strong></div></div>
+                        <div class="col-md-4"><div class="approval-material"><small class="text-muted">Next Follow-up</small><strong class="d-block"><?= ! empty($payload['next_followup_date']) ? esc(date('d M Y, h:i A', strtotime((string) $payload['next_followup_date']))) : 'Not scheduled' ?></strong></div></div>
+                        <div class="col-12"><div class="approval-material"><small class="text-muted">New Follow-up</small><strong class="d-block"><?= esc((string) ($payload['description'] ?? '-')) ?></strong></div></div>
+                        <div class="col-12"><div class="approval-material"><small class="text-muted">Previous Follow-up</small>
+                            <?php if ($previous !== []): ?><strong class="d-block"><?= esc((string) (($previous['stage'] ?? '') ?: '-')) ?> · <?= esc((string) (($previous['description'] ?? '') ?: '-')) ?></strong><span class="small text-muted"><?= ! empty($previous['followup_taken_on']) ? esc(date('d M Y, h:i A', strtotime((string) $previous['followup_taken_on']))) : '' ?><?= ! empty($previous['followup_taken_by_name']) ? ' · ' . esc((string) $previous['followup_taken_by_name']) : '' ?></span><?php else: ?><strong class="d-block">No previous follow-up recorded.</strong><?php endif; ?>
+                        </div></div>
+                    </div>
                 <?php else: ?>
                     <div class="row g-3">
                         <?php foreach ($payload as $key => $value): if (is_array($value)) continue; if ((string) $value === '') continue; ?>
@@ -67,11 +77,16 @@ $icon = static fn(string $type): string => match ($type) {
                     <?php endif; ?>
                 <?php endif; ?>
                 <?php if (! empty($row['attachment_url'])): ?><div class="mt-3"><small class="text-muted d-block mb-2">REQUEST IMAGE / ATTACHMENT</small><a href="<?= esc($row['attachment_url']) ?>" target="_blank"><img class="approval-photo" src="<?= esc($row['attachment_url']) ?>" alt="Request attachment"></a></div><?php endif; ?>
+                <?php if ($status !== 'pending' && (! empty($row['review_note']) || ! empty($row['reviewed_by_name']))): ?><div class="alert alert-light border mt-3 mb-0"><strong><?= esc(ucfirst($status)) ?> by <?= esc($row['reviewed_by_name'] ?? '-') ?></strong><?= ! empty($row['review_note']) ? ' · ' . esc($row['review_note']) : '' ?><?= ! empty($row['result_reference']) ? ' · Reference ' . esc($row['result_reference']) : '' ?></div><?php endif; ?>
                 <?php if ($status === 'pending'): ?>
                     <form method="post" action="<?= site_url('admin/mobile-approvals/' . (int) $row['id'] . '/review') ?>" class="mt-4 p-3 rounded bg-light">
                         <?= csrf_field() ?><div class="row g-2 align-items-end"><div class="col-md"><label class="form-label">Admin note</label><input class="form-control" name="note" maxlength="500" placeholder="Optional approval / rejection note"></div><div class="col-md-auto d-flex gap-2"><button class="btn btn-outline-danger" name="decision" value="reject" onclick="return confirm('Reject this request?')"><i class="fe fe-x me-1"></i>Reject</button><button class="btn btn-success" name="decision" value="approve" onclick="return confirm('Approve and process this request?')"><i class="fe fe-check me-1"></i>Approve & Process</button></div></div>
                     </form>
-                <?php elseif (! empty($row['review_note']) || ! empty($row['reviewed_by_name'])): ?><div class="alert alert-light border mt-3 mb-0"><strong><?= esc(ucfirst($status)) ?> by <?= esc($row['reviewed_by_name'] ?? '-') ?></strong><?= ! empty($row['review_note']) ? ' · ' . esc($row['review_note']) : '' ?><?= ! empty($row['result_reference']) ? ' · Reference ' . esc($row['result_reference']) : '' ?></div><?php endif; ?>
+                <?php elseif (! empty($row['can_reapprove'])): ?>
+                    <form method="post" action="<?= site_url('admin/mobile-approvals/' . (int) $row['id'] . '/review') ?>" class="mt-3 p-3 rounded bg-light">
+                        <?= csrf_field() ?><div class="row g-2 align-items-end"><div class="col-md"><label class="form-label">Re-approval note</label><input class="form-control" name="note" maxlength="500" placeholder="Why this rejected issuement is being approved"></div><div class="col-md-auto"><button class="btn btn-success" name="decision" value="approve" onclick="return confirm('Re-approve and process this rejected issuement?')"><i class="fe fe-refresh-cw me-1"></i>Re-approve &amp; Process</button></div></div>
+                    </form>
+                <?php endif; ?>
             </div>
         </div>
     <?php endforeach; ?>

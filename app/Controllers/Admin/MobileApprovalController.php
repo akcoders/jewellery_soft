@@ -37,9 +37,11 @@ class MobileApprovalController extends BaseController
             } else {
                 $request = $service->reject($id, (int) session('admin_id'), (string) $this->request->getPost('note'));
             }
-            $message = $decision === 'approve'
+            $message = ! empty($request['was_reapproved'])
+                ? 'Issuement re-approved and processed successfully.'
+                : ($decision === 'approve'
                 ? 'Request approved successfully.'
-                : (($request['request_type'] ?? '') === 'followup' ? 'Followup disapproved.' : 'Request disapproved successfully.');
+                : (($request['request_type'] ?? '') === 'followup' ? 'Followup disapproved.' : 'Request disapproved successfully.'));
             return redirect()->back()->with('success', $message);
         } catch (Throwable $e) {
             return redirect()->back()->with('error', $e->getMessage());

@@ -90,7 +90,9 @@ class MobileApprovalService
         }
         $rows = $builder->orderBy("CASE WHEN ar.status = 'pending' THEN 0 ELSE 1 END", 'ASC', false)
             ->orderBy('ar.id', 'DESC')->limit(500)->get()->getResultArray();
-        return array_map(fn(array $row): array => $this->hydrate($row), $rows);
+        return $this->withFollowupContexts(
+            array_map(fn(array $row): array => $this->hydrate($row), $rows)
+        );
     }
 
     public function find(int $id): ?array
@@ -100,7 +102,10 @@ class MobileApprovalService
             ->join('admin_users requester', 'requester.id = ar.requested_by', 'left')
             ->join('admin_users reviewer', 'reviewer.id = ar.reviewed_by', 'left')
             ->where('ar.id', $id)->get()->getRowArray();
-        return is_array($row) ? $this->hydrate($row) : null;
+        if (! is_array($row)) {
+            return null;
+        }
+        return $this->withFollowupContexts([$this->hydrate($row)])[0] ?? null;
     }
 
     public function reject(int $id, int $reviewerId, string $note = ''): array
@@ -133,7 +138,10 @@ class MobileApprovalService
                 'SELECT * FROM mobile_approval_requests WHERE id = ? FOR UPDATE',
                 [$id]
             )->getRowArray();
-            if (! is_array($request) || (string) ($request['status'] ?? '') !== 'pending') {
+            $status = (string) ($request['status'] ?? '');
+            $isReapprovable = $status === 'rejected'
+                && (string) ($request['request_type'] ?? '') === 'issuement';
+            if (! is_array($request) || ($status !== 'pending' && ! $isReapprovable)) {
                 throw new RuntimeException('Request is no longer pending.');
             }
             $payload = json_decode((string) ($request['payload_json'] ?? '{}'), true, 512, JSON_THROW_ON_ERROR);
@@ -176,6 +184,7 @@ class MobileApprovalService
             }
         }
         $approved = $this->find($id) ?? [];
+        $approved['was_reapproved'] = $isReapprovable;
         try {
             (new MobileNotificationEventService())->notifyApprovalOutcome($approved, true);
         } catch (Throwable $e) {
@@ -447,7 +456,81 @@ class MobileApprovalService
         unset($row['payload_json']);
         $row['attachment_url'] = ! empty($row['attachment_path'])
             ? base_url(ltrim((string) $row['attachment_path'], '/')) : null;
+        $row['can_reapprove'] = (string) ($row['status'] ?? '') === 'rejected'
+            && (string) ($row['request_type'] ?? '') === 'issuement';
         return $row;
+    }
+
+    /**
+     * Adds the last completed follow-up that existed when each approval request
+     * was submitted. This also enriches requests created before this context was
+     * added to the approval desk.
+     *
+     * @param list<array<string,mixed>> $requests
+     * @return list<array<string,mixed>>
+     */
+    private function withFollowupContexts(array $requests): array
+    {
+        $orderIds = [];
+        foreach ($requests as $request) {
+            if ((string) ($request['request_type'] ?? '') !== 'followup') {
+                continue;
+            }
+            $payload = is_array($request['payload'] ?? null) ? $request['payload'] : [];
+            $orderId = (int) ($payload['order_id'] ?? $request['subject_id'] ?? 0);
+            if ($orderId > 0) {
+                $orderIds[$orderId] = $orderId;
+            }
+        }
+        if ($orderIds === []) {
+            return $requests;
+        }
+
+        $followups = $this->db->table('order_followups ofu')
+            ->select('ofu.id, ofu.order_id, ofu.stage, ofu.description, ofu.next_followup_date, ofu.followup_taken_on, ofu.created_at, au.name AS followup_taken_by_name')
+            ->join('admin_users au', 'au.id = ofu.followup_taken_by', 'left')
+            ->whereIn('ofu.order_id', array_values($orderIds))
+            ->orderBy('ofu.id', 'DESC')
+            ->get()->getResultArray();
+        $byOrder = [];
+        foreach ($followups as $followup) {
+            $byOrder[(int) ($followup['order_id'] ?? 0)][] = $followup;
+        }
+
+        foreach ($requests as &$request) {
+            if ((string) ($request['request_type'] ?? '') !== 'followup') {
+                continue;
+            }
+            $payload = is_array($request['payload'] ?? null) ? $request['payload'] : [];
+            $orderId = (int) ($payload['order_id'] ?? $request['subject_id'] ?? 0);
+            $requestCreatedAt = strtotime((string) ($request['created_at'] ?? '')) ?: null;
+            $resultId = (int) ($request['result_id'] ?? 0);
+            $previous = null;
+            foreach ($byOrder[$orderId] ?? [] as $followup) {
+                if ($resultId > 0 && (int) ($followup['id'] ?? 0) === $resultId) {
+                    continue;
+                }
+                $followupCreatedAt = strtotime((string) ($followup['created_at'] ?? '')) ?: null;
+                if ($requestCreatedAt !== null && $followupCreatedAt !== null
+                    && $followupCreatedAt > $requestCreatedAt) {
+                    continue;
+                }
+                $previous = [
+                    'id' => (int) ($followup['id'] ?? 0),
+                    'stage' => (string) ($followup['stage'] ?? ''),
+                    'description' => (string) ($followup['description'] ?? ''),
+                    'next_followup_date' => $followup['next_followup_date'] ?? null,
+                    'followup_taken_on' => $followup['followup_taken_on'] ?? null,
+                    'followup_taken_by_name' => (string) ($followup['followup_taken_by_name'] ?? ''),
+                ];
+                break;
+            }
+            $payload['previous_followup'] = $previous;
+            $request['payload'] = $payload;
+        }
+        unset($request);
+
+        return $requests;
     }
 
     private function nullable(mixed $value): ?string

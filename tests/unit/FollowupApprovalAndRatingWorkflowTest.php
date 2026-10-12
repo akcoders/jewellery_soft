@@ -32,6 +32,24 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("'Followup disapproved'", $events);
     }
 
+    public function testApprovalDeskSupportsIssuementReapprovalAndFollowupContext(): void
+    {
+        $approval = $this->source('Services/MobileApprovalService.php');
+        $webDesk = $this->source('Views/admin/mobile_approvals/index.php');
+        $appDesk = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_pwa/screens/mobile_approvals_screen.dart'
+        );
+
+        $this->assertStringContainsString("\$status === 'rejected'", $approval);
+        $this->assertStringContainsString("\$request['request_type'] ?? '') === 'issuement'", $approval);
+        $this->assertStringContainsString("'can_reapprove'", $approval);
+        $this->assertStringContainsString("'previous_followup'", $approval);
+        $this->assertStringContainsString('Re-approve &amp; Process', $webDesk);
+        $this->assertStringContainsString('Re-approve & Process', $appDesk);
+        $this->assertStringContainsString('Previous follow-up', $appDesk);
+        $this->assertStringContainsString('Next follow-up', $appDesk);
+    }
+
     public function testCompletionRatingFeedsPerformanceAndDeliveryPdfIsSafe(): void
     {
         $performance = $this->source('Services/StaffPerformanceService.php');

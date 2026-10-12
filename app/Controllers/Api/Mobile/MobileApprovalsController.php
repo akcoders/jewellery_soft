@@ -95,9 +95,11 @@ class MobileApprovalsController extends MobileBaseController
             $request = $decision === 'approve'
                 ? $service->approve($id, $userId, (string) ($payload['note'] ?? ''))
                 : $service->reject($id, $userId, (string) ($payload['note'] ?? ''));
-            $message = $decision === 'approve'
+            $message = ! empty($request['was_reapproved'])
+                ? 'Issuement re-approved and processed.'
+                : ($decision === 'approve'
                 ? 'Request approved.'
-                : (($request['request_type'] ?? '') === 'followup' ? 'Followup disapproved.' : 'Request disapproved.');
+                : (($request['request_type'] ?? '') === 'followup' ? 'Followup disapproved.' : 'Request disapproved.'));
             return $this->ok(['request' => $request], $message);
         } catch (Throwable $e) {
             return $this->fail($e->getMessage(), 422);
