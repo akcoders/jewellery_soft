@@ -27,6 +27,8 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('public const TASK_LATE_POINTS = -2.0', $service);
         $this->assertStringContainsString('public const FOLLOWUP_ON_TIME_POINTS = 1.0', $service);
         $this->assertStringContainsString('public const FOLLOWUP_LATE_POINTS = -2.0', $service);
+        $this->assertStringContainsString("\$request['status'] === 'approved'", $service);
+        $this->assertStringContainsString("'followup_approval_credit_per_day' => abs(self::FOLLOWUP_LATE_POINTS)", $service);
         $this->assertStringContainsString("private const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OWNER']", $service);
         $this->assertStringContainsString("'events_by_user'", $service);
     }
@@ -56,6 +58,7 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertSame(2, $summary['followup_late']);
         $this->assertSame(0, $summary['followup_overdue']);
         $this->assertSame(5, $summary['followup_delay_days']);
+        $this->assertSame(0.0, $summary['points_earned']);
     }
 
     public function testLateFollowupDaysAreCountedInTheMonthTheyOccur(): void
@@ -88,7 +91,7 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertSame(2, $summary['followup_delay_days']);
     }
 
-    public function testRejectedFollowupReviewTimeIsPausedUntilTheNextSubmission(): void
+    public function testRejectedFollowupDoesNotEarnApprovalDelayCredit(): void
     {
         $service = new \App\Services\StaffPerformanceService();
         $metrics = new \ReflectionMethod($service, 'metrics');
@@ -105,6 +108,31 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
 
         $this->assertSame(6.0, $summary['points_lost']);
         $this->assertSame(3, $summary['followup_delay_days']);
+        $this->assertSame(0.0, $summary['points_earned']);
+        $this->assertSame(0, $summary['followup_approval_credit_days']);
+    }
+
+    public function testTimelySubmittedFollowupGetsTwoPointsPerFullDayUntilApproved(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [], [[
+            'status' => 'completed_on_time',
+            'due_at' => '2026-10-01 10:00:00',
+            'created_at' => '2026-09-30 10:00:00',
+            'completed_at' => '2026-10-01 09:00:00',
+            'completed_followup_id' => 45,
+            'approval_credit_intervals' => [[
+                'start_at' => '2026-10-01 09:00:00',
+                'end_at' => '2026-10-04 09:00:00',
+            ]],
+        ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(0.0, $summary['points_lost']);
+        $this->assertSame(6.0, $summary['points_earned']);
+        $this->assertSame(106.0, $summary['score']);
+        $this->assertSame(3, $summary['followup_approval_credit_days']);
+        $this->assertSame(6.0, $summary['followup_approval_credit_points']);
     }
 
     public function testFollowerIsAssignedWithKarigarAndEveryDueFollowupIsTracked(): void

@@ -293,7 +293,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Follow-up delay is measured at submission, not approval: −2 points per overdue day.',
+              'On-time submissions delayed by approval earn +2 points per full approval-delay day. Rejected requests do not earn this credit.',
               style: TextStyle(
                 color: Color(0xFFD6C4CE),
                 fontSize: 12,
@@ -355,6 +355,13 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           _ruleLabel('followup_delay_per_day'),
           AppColors.danger,
           LucideIcons.clock_3,
+        ),
+        _breakdownRow(
+          'On-time approval delay days',
+          _integer(_summary['followup_approval_credit_days']),
+          _ruleLabel('followup_approval_credit_per_day'),
+          AppColors.success,
+          LucideIcons.circle_check,
         ),
         _breakdownRow(
           'Proper follow-ups',

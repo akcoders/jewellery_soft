@@ -298,6 +298,12 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           AppColors.danger,
         ),
         _breakdownRow(
+          'On-time follow-up approval delay',
+          _integer(_summary['followup_approval_credit_days']),
+          '+2 per day',
+          AppColors.success,
+        ),
+        _breakdownRow(
           'Follow-up delay days',
           _integer(_summary['followup_delay_days']),
           '−2 per day',

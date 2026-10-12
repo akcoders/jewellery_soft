@@ -310,6 +310,8 @@ class StaffPerformanceService
             'followup_late' => 0,
             'followup_overdue' => 0,
             'followup_delay_days' => 0,
+            'followup_approval_credit_days' => 0,
+            'followup_approval_credit_points' => 0,
             'rating_count' => 0,
             'rating_average' => 0,
             'order_entries' => 0,
@@ -335,6 +337,7 @@ class StaffPerformanceService
             'followup_on_time' => 0,
             'followup_late_or_overdue' => self::FOLLOWUP_LATE_POINTS,
             'followup_delay_per_day' => self::FOLLOWUP_LATE_POINTS,
+            'followup_approval_credit_per_day' => abs(self::FOLLOWUP_LATE_POINTS),
             'rating_point_step' => self::RATING_POINT_STEP,
             'order_entry' => self::ORDER_ENTRY_POINTS,
             'proper_followup' => self::PROPER_FOLLOWUP_POINTS,
@@ -370,7 +373,50 @@ class StaffPerformanceService
         if ($staffIds === [] || ! $db->tableExists('order_followup_schedules')) {
             return [];
         }
-        $followups = $db->table('order_followup_schedules s')
+
+        $approvalRequestsByOrder = [];
+        $approvedFollowupIds = [];
+        if ($db->tableExists('mobile_approval_requests')) {
+            $requests = $db->table('mobile_approval_requests')
+                ->select('subject_id, requested_by, status, result_id, payload_json, created_at, reviewed_at')
+                ->where('request_type', 'followup')
+                ->whereIn('status', ['pending', 'approved', 'rejected'])
+                ->whereIn('requested_by', $staffIds)
+                ->orderBy('id', 'ASC')
+                ->get()->getResultArray();
+            foreach ($requests as $request) {
+                $payload = json_decode((string) ($request['payload_json'] ?? '{}'), true);
+                if (! is_array($payload)) {
+                    continue;
+                }
+                $orderId = (int) ($payload['order_id'] ?? $request['subject_id'] ?? 0);
+                if ($orderId <= 0) {
+                    continue;
+                }
+                $submittedAt = $this->normalizeDateTime((string) ($payload['followup_taken_on'] ?? ''))
+                    ?? $this->normalizeDateTime((string) ($request['created_at'] ?? ''));
+                $reviewedAt = $this->normalizeDateTime((string) ($request['reviewed_at'] ?? ''));
+                if ($submittedAt !== null) {
+                    $approvalRequestsByOrder[$orderId][] = [
+                        'requested_by' => (int) ($request['requested_by'] ?? 0),
+                        'status' => (string) ($request['status'] ?? ''),
+                        'result_id' => (int) ($request['result_id'] ?? 0),
+                        'submitted_at' => $submittedAt,
+                        'reviewed_at' => $reviewedAt,
+                    ];
+                }
+                $resultId = (int) ($request['result_id'] ?? 0);
+                if ((string) ($request['status'] ?? '') === 'approved'
+                    && $resultId > 0
+                    && $reviewedAt !== null
+                    && $reviewedAt >= $start
+                    && $reviewedAt < $end) {
+                    $approvedFollowupIds[$resultId] = $resultId;
+                }
+            }
+        }
+
+        $builder = $db->table('order_followup_schedules s')
             ->select('s.*, o.order_no, au.name as completed_by_name')
             ->join('orders o', 'o.id = s.order_id', 'left')
             ->join('admin_users au', 'au.id = s.completed_by', 'left')
@@ -380,50 +426,25 @@ class StaffPerformanceService
             ->groupStart()
                 ->where('s.status', 'pending')
                 ->orWhere('s.completed_at >=', $start)
-                ->orWhere('s.due_at >=', $start)
-            ->groupEnd()
+                ->orWhere('s.due_at >=', $start);
+        if ($approvedFollowupIds !== []) {
+            $builder->orWhereIn('s.completed_followup_id', array_values($approvedFollowupIds));
+        }
+        $followups = $builder->groupEnd()
             ->orderBy('s.due_at', 'DESC')
             ->get()->getResultArray();
-
-        if ($followups === [] || ! $db->tableExists('mobile_approval_requests')) {
+        if ($followups === [] || $approvalRequestsByOrder === []) {
             return $followups;
-        }
-
-        $approvalRequestsByOrder = [];
-        $requests = $db->table('mobile_approval_requests')
-            ->select('subject_id, requested_by, status, payload_json, created_at, reviewed_at')
-            ->where('request_type', 'followup')
-            ->whereIn('status', ['pending', 'rejected'])
-            ->whereIn('requested_by', $staffIds)
-            ->orderBy('id', 'ASC')
-            ->get()->getResultArray();
-        foreach ($requests as $request) {
-            $payload = json_decode((string) ($request['payload_json'] ?? '{}'), true);
-            if (! is_array($payload)) {
-                continue;
-            }
-            $orderId = (int) ($payload['order_id'] ?? $request['subject_id'] ?? 0);
-            if ($orderId <= 0) {
-                continue;
-            }
-            $submittedAt = $this->normalizeDateTime((string) ($payload['followup_taken_on'] ?? ''))
-                ?? $this->normalizeDateTime((string) ($request['created_at'] ?? ''));
-            if ($submittedAt !== null) {
-                $approvalRequestsByOrder[$orderId][] = [
-                    'requested_by' => (int) ($request['requested_by'] ?? 0),
-                    'status' => (string) ($request['status'] ?? ''),
-                    'submitted_at' => $submittedAt,
-                    'reviewed_at' => $this->normalizeDateTime((string) ($request['reviewed_at'] ?? '')),
-                ];
-            }
         }
 
         foreach ($followups as &$followup) {
             $orderId = (int) ($followup['order_id'] ?? 0);
             $assignedTo = (int) ($followup['assigned_to'] ?? 0);
             $cycleStart = (string) (($followup['created_at'] ?? '') ?: ($followup['due_at'] ?? ''));
+            $completedFollowupId = (int) ($followup['completed_followup_id'] ?? 0);
             $pendingApproval = null;
             $pauseIntervals = [];
+            $creditIntervals = [];
             foreach ($approvalRequestsByOrder[$orderId] ?? [] as $request) {
                 if ((int) $request['requested_by'] !== $assignedTo
                     || (string) $request['submitted_at'] < $cycleStart) {
@@ -438,6 +459,15 @@ class StaffPerformanceService
                         'start_at' => $request['submitted_at'],
                         'end_at' => $request['reviewed_at'],
                     ];
+                } elseif ($request['status'] === 'approved'
+                    && $completedFollowupId > 0
+                    && $request['result_id'] === $completedFollowupId
+                    && $request['reviewed_at'] !== null
+                    && (string) ($followup['due_at'] ?? '') >= $request['submitted_at']) {
+                    $creditIntervals[] = [
+                        'start_at' => $request['submitted_at'],
+                        'end_at' => $request['reviewed_at'],
+                    ];
                 }
             }
             if ($pendingApproval !== null && (string) ($followup['status'] ?? '') === 'pending') {
@@ -445,6 +475,9 @@ class StaffPerformanceService
             }
             if ($pauseIntervals !== []) {
                 $followup['approval_pause_intervals'] = $pauseIntervals;
+            }
+            if ($creditIntervals !== []) {
+                $followup['approval_credit_intervals'] = $creditIntervals;
             }
         }
         unset($followup);
@@ -534,6 +567,7 @@ class StaffPerformanceService
         $taskOnTime = $taskLate = $taskOverdue = 0;
         $followupOnTime = $followupLate = $followupOverdue = 0;
         $followupDelayDays = 0;
+        $followupApprovalCreditDays = 0;
         $earned = $lost = 0.0;
 
         foreach ($tasks as $task) {
@@ -555,12 +589,13 @@ class StaffPerformanceService
         foreach ($followups as $followup) {
             $status = strtolower((string) ($followup['status'] ?? 'pending'));
             $effectiveAt = (string) (($followup['performance_until_at'] ?? '') ?: $now);
+            $delay = $this->followupDelayBreakdown($followup, $periodStart, $periodEnd, $now);
             if (str_starts_with($status, 'completed')) {
                 $onTime = $status === 'completed_on_time' || (float) ($followup['score_delta'] ?? 0) > 0;
-                $delta = $this->followupDelayPoints($followup, $periodStart, $periodEnd, $now);
+                $delta = $delay['penalty_days'] * self::FOLLOWUP_LATE_POINTS;
                 $onTime ? $followupOnTime++ : $followupLate++;
             } elseif ($effectiveAt > (string) ($followup['due_at'] ?? '')) {
-                $delta = $this->followupDelayPoints($followup, $periodStart, $periodEnd, $now);
+                $delta = $delay['penalty_days'] * self::FOLLOWUP_LATE_POINTS;
                 if (! empty($followup['performance_until_at'])) {
                     $followupLate++;
                 } else {
@@ -569,7 +604,10 @@ class StaffPerformanceService
             } else {
                 $delta = 0.0;
             }
-            $followupDelayDays += (int) round(abs($delta) / abs(self::FOLLOWUP_LATE_POINTS));
+            $approvalCredit = $delay['approval_credit_days'] * abs(self::FOLLOWUP_LATE_POINTS);
+            $followupDelayDays += $delay['penalty_days'];
+            $followupApprovalCreditDays += $delay['approval_credit_days'];
+            $earned += $approvalCredit;
             $delta >= 0 ? $earned += $delta : $lost += abs($delta);
         }
 
@@ -601,6 +639,8 @@ class StaffPerformanceService
             'followup_late' => $followupLate,
             'followup_overdue' => $followupOverdue,
             'followup_delay_days' => $followupDelayDays,
+            'followup_approval_credit_days' => $followupApprovalCreditDays,
+            'followup_approval_credit_points' => round($followupApprovalCreditDays * abs(self::FOLLOWUP_LATE_POINTS), 1),
             'rating_count' => count($ratings),
             'rating_average' => count($ratings) > 0 ? round($ratingTotal / count($ratings), 1) : 0,
             'order_entries' => (int) ($activityCounts['Order Entry'] ?? 0),
@@ -647,7 +687,8 @@ class StaffPerformanceService
             $status = strtolower((string) ($followup['status'] ?? 'pending'));
             $evaluatedAt = (string) ($followup['performance_until_at'] ?? $now);
             $overdue = $status === 'pending' && (string) ($followup['due_at'] ?? '') < $evaluatedAt;
-            $delta = $this->followupDelayPoints($followup, $periodStart, $periodEnd, $now);
+            $delay = $this->followupDelayBreakdown($followup, $periodStart, $periodEnd, $now);
+            $delta = $delay['penalty_days'] * self::FOLLOWUP_LATE_POINTS;
             $events[] = [
                 'type' => 'Follow-up',
                 'title' => 'Order ' . (string) (($followup['order_no'] ?? '') ?: ('#' . ($followup['order_id'] ?? ''))),
@@ -659,6 +700,19 @@ class StaffPerformanceService
                 'order_id' => (int) ($followup['order_id'] ?? 0),
                 'proof_url' => null,
             ];
+            if ($delay['approval_credit_days'] > 0) {
+                $events[] = [
+                    'type' => 'Approval delay credit',
+                    'title' => 'Order ' . (string) (($followup['order_no'] ?? '') ?: ('#' . ($followup['order_id'] ?? ''))),
+                    'reference' => $delay['approval_credit_days'] . ' approval-delayed day(s)',
+                    'due_at' => (string) ($followup['completed_at'] ?? $followup['due_at'] ?? ''),
+                    'completed_at' => (string) ($followup['completed_at'] ?? ''),
+                    'status' => 'credited',
+                    'score_delta' => $delay['approval_credit_days'] * abs(self::FOLLOWUP_LATE_POINTS),
+                    'order_id' => (int) ($followup['order_id'] ?? 0),
+                    'proof_url' => null,
+                ];
+            }
         }
         foreach ($ratings as $rating) {
             $value = max(1, min(5, (int) ($rating['completion_rating'] ?? 0)));
@@ -694,16 +748,16 @@ class StaffPerformanceService
     }
 
     /** @param array<string,mixed> $followup */
-    private function followupDelayPoints(
+    private function followupDelayBreakdown(
         array $followup,
         string $periodStart,
         string $periodEnd,
         string $now
-    ): float
+    ): array
     {
         $status = strtolower((string) ($followup['status'] ?? 'pending'));
         if ($status === 'completed_by_other') {
-            return 0.0;
+            return ['penalty_days' => 0, 'approval_credit_days' => 0];
         }
         $endAt = str_starts_with($status, 'completed')
             ? (string) ($followup['completed_at'] ?? '')
@@ -713,7 +767,7 @@ class StaffPerformanceService
         $periodStartAt = strtotime($periodStart);
         $periodEndAt = strtotime($periodEnd);
         if ($dueAt === false || $end === false || $periodStartAt === false || $periodEndAt === false) {
-            return 0.0;
+            return ['penalty_days' => 0, 'approval_credit_days' => 0];
         }
         $createdAt = strtotime((string) ($followup['created_at'] ?? ''));
         if ($createdAt !== false) {
@@ -721,8 +775,13 @@ class StaffPerformanceService
         }
         $periodEndAt--;
         $end = min($end, $periodEndAt);
+        $approvalCreditDays = $this->approvalCreditDays(
+            (array) ($followup['approval_credit_intervals'] ?? []),
+            $periodStartAt,
+            $periodEndAt
+        );
         if ($end <= $dueAt) {
-            return 0.0;
+            return ['penalty_days' => 0, 'approval_credit_days' => $approvalCreditDays];
         }
 
         $pauses = [];
@@ -773,7 +832,33 @@ class StaffPerformanceService
         }
         $countActiveSegment($cursor, $end);
 
-        return round($daysLate * self::FOLLOWUP_LATE_POINTS, 2);
+        return [
+            'penalty_days' => $daysLate,
+            'approval_credit_days' => $approvalCreditDays,
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $intervals */
+    private function approvalCreditDays(array $intervals, int $periodStartAt, int $periodEndAt): int
+    {
+        $days = 0;
+        foreach ($intervals as $interval) {
+            if (! is_array($interval)) {
+                continue;
+            }
+            $approvalStart = strtotime((string) ($interval['start_at'] ?? ''));
+            $approvalEnd = strtotime((string) ($interval['end_at'] ?? ''));
+            if ($approvalStart === false || $approvalEnd === false || $approvalEnd <= $approvalStart) {
+                continue;
+            }
+            for ($dayEnd = $approvalStart + 86400; $dayEnd <= $approvalEnd; $dayEnd += 86400) {
+                if ($dayEnd >= $periodStartAt && $dayEnd < $periodEndAt) {
+                    $days++;
+                }
+            }
+        }
+
+        return $days;
     }
 
     private function monthRange(int $year, int $month): array

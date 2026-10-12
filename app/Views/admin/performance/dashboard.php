@@ -23,6 +23,7 @@ $statusClass = static function (float $score): string {
         <div class="col-6 col-lg"><div class="performance-rule"><span>Task on time</span><strong>+<?= number_format((float) ($rules['task_on_time'] ?? 2), 0) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Task late</span><strong><?= number_format((float) ($rules['task_late_or_overdue'] ?? -2), 0) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Follow-up delay / day</span><strong><?= number_format((float) ($rules['followup_delay_per_day'] ?? -2), 0) ?></strong></div></div>
+        <div class="col-6 col-lg"><div class="performance-rule"><span>On-time approval delay / day</span><strong>+<?= number_format((float) ($rules['followup_approval_credit_per_day'] ?? 2), 0) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Order entry</span><strong>+<?= number_format((float) ($rules['order_entry'] ?? .5), 1) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Proper follow-up</span><strong>+<?= number_format((float) ($rules['proper_followup'] ?? 1), 1) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Issuement</span><strong>+<?= number_format((float) ($rules['issuement'] ?? .5), 1) ?></strong></div></div>
@@ -47,7 +48,7 @@ $statusClass = static function (float $score): string {
     <div class="col-6 col-xl"><div class="card performance-stat"><div class="card-body"><small>Orders Missing Follower</small><strong class="text-warning"><?= (int) ($totals['unassigned_open_orders'] ?? 0) ?></strong></div></div></div>
 </div>
 
-<div class="card mb-4"><div class="card-header"><div><h5 class="card-title mb-1">Employee Scoreboard</h5><small class="text-muted">Admin and SuperAdmin accounts are excluded automatically.</small></div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover datatable performance-table mb-0"><thead><tr><th>Employee</th><th>Score</th><th>Points</th><th>Tasks</th><th>Business Activity</th><th>Order Follow-ups</th><th>Completion Rating</th><th>On-time Rate</th><th>Overdue</th></tr></thead><tbody>
+<div class="card mb-4"><div class="card-header"><div><h5 class="card-title mb-1">Employee Scoreboard</h5><small class="text-muted">Admin and SuperAdmin accounts are excluded automatically.</small></div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover datatable performance-table mb-0"><thead><tr><th>Employee</th><th>Score</th><th>Points</th><th>Tasks</th><th>Business Activity</th><th>Order Follow-ups</th><th>Approval Delay Credit</th><th>Completion Rating</th><th>On-time Rate</th><th>Overdue</th></tr></thead><tbody>
 <?php foreach (($rows ?? []) as $row): ?><tr>
     <td><strong><?= esc((string) ($row['name'] ?? '-')) ?></strong><div class="small text-muted"><?= esc((string) ($row['role_label'] ?? 'Staff')) ?><br><?= esc((string) ($row['email'] ?? '')) ?></div></td>
     <td><span class="score-pill <?= $statusClass((float) ($row['score'] ?? 0)) ?>"><?= number_format((float) ($row['score'] ?? 0), 1) ?></span></td>
@@ -55,6 +56,7 @@ $statusClass = static function (float $score): string {
     <td><div class="metric-pair"><span class="metric-badge">On time <?= (int) ($row['task_on_time'] ?? 0) ?></span><span class="metric-badge">Late <?= (int) ($row['task_late'] ?? 0) ?></span></div></td>
     <td><div class="small">Orders <?= (int) ($row['order_entries'] ?? 0) ?> · Issues <?= (int) ($row['issuements'] ?? 0) ?><br>Purchases <?= (int) ($row['purchases'] ?? 0) ?></div></td>
     <td><div class="metric-pair"><span class="metric-badge">Proper <?= (int) ($row['proper_followups'] ?? 0) ?></span><span class="metric-badge">Late <?= (int) ($row['followup_late'] ?? 0) ?></span></div></td>
+    <td><div class="small text-success">Approval delay credit: +<?= number_format((float) ($row['followup_approval_credit_points'] ?? 0), 1) ?> pts (<?= (int) ($row['followup_approval_credit_days'] ?? 0) ?> day(s))</div></td>
     <td><strong><?= number_format((float) ($row['rating_average'] ?? 0), 1) ?>/5</strong><div class="small text-muted"><?= (int) ($row['rating_count'] ?? 0) ?> rated order(s)</div></td>
     <td><strong><?= number_format((float) ($row['on_time_rate'] ?? 0), 1) ?>%</strong><div class="progress mt-2"><div class="progress-bar bg-success" style="width:<?= min(100, max(0, (float) ($row['on_time_rate'] ?? 0))) ?>%"></div></div></td>
     <td><span class="badge <?= (int) ($row['overdue_actions'] ?? 0) > 0 ? 'bg-danger' : 'bg-success' ?>"><?= (int) ($row['overdue_actions'] ?? 0) ?></span></td>
