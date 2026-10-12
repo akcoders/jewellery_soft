@@ -22,6 +22,7 @@ $statusClass = static function (float $score): string {
         <div class="col-6 col-lg"><div class="performance-rule"><span>Start</span><strong><?= number_format((float) ($rules['base_score'] ?? 100), 0) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Task on time</span><strong>+<?= number_format((float) ($rules['task_on_time'] ?? 2), 0) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Task late</span><strong><?= number_format((float) ($rules['task_late_or_overdue'] ?? -2), 0) ?></strong></div></div>
+        <div class="col-6 col-lg"><div class="performance-rule"><span>Follow-up delay / day</span><strong><?= number_format((float) ($rules['followup_delay_per_day'] ?? -2), 0) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Order entry</span><strong>+<?= number_format((float) ($rules['order_entry'] ?? .5), 1) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Proper follow-up</span><strong>+<?= number_format((float) ($rules['proper_followup'] ?? 1), 1) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Issuement</span><strong>+<?= number_format((float) ($rules['issuement'] ?? .5), 1) ?></strong></div></div>

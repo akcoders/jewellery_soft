@@ -287,14 +287,20 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         _breakdownRow(
           'Follow-ups on time',
           _integer(_summary['followup_on_time']),
-          'task scored',
+          'no penalty',
           AppColors.success,
         ),
         _breakdownRow(
           'Follow-ups late / overdue',
           _integer(_summary['followup_late']) +
               _integer(_summary['followup_overdue']),
-          'task scored',
+          'tracked',
+          AppColors.danger,
+        ),
+        _breakdownRow(
+          'Follow-up delay days',
+          _integer(_summary['followup_delay_days']),
+          '−2 per day',
           AppColors.danger,
           divider: false,
         ),

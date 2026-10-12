@@ -291,6 +291,15 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                 height: 1.5,
               ),
             ),
+            const SizedBox(height: 6),
+            const Text(
+              'Follow-up delay is measured at submission, not approval: −2 points per overdue day.',
+              style: TextStyle(
+                color: Color(0xFFD6C4CE),
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
           ],
         );
         if (constraints.maxWidth < 520) {
@@ -330,6 +339,20 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           'Tasks completed late',
           _integer(_summary['task_late']),
           _ruleLabel('task_late_or_overdue'),
+          AppColors.danger,
+          LucideIcons.clock_3,
+        ),
+        _breakdownRow(
+          'Order follow-ups on time',
+          _integer(_summary['followup_on_time']),
+          'no penalty',
+          AppColors.success,
+          LucideIcons.calendar_check,
+        ),
+        _breakdownRow(
+          'Follow-up delay days',
+          _integer(_summary['followup_delay_days']),
+          _ruleLabel('followup_delay_per_day'),
           AppColors.danger,
           LucideIcons.clock_3,
         ),
@@ -376,6 +399,9 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
   String _ruleLabel(String key) {
     if (!_rules.containsKey(key)) return 'Task scored';
     final points = _number(_rules[key]);
+    if (key == 'followup_delay_per_day') {
+      return '${points.toStringAsFixed(1)} per day';
+    }
     return '${points > 0 ? '+' : ''}${points.toStringAsFixed(1)} each';
   }
 

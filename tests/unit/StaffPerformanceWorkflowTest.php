@@ -26,9 +26,85 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('public const TASK_ON_TIME_POINTS = 2.0', $service);
         $this->assertStringContainsString('public const TASK_LATE_POINTS = -2.0', $service);
         $this->assertStringContainsString('public const FOLLOWUP_ON_TIME_POINTS = 1.0', $service);
-        $this->assertStringContainsString('public const FOLLOWUP_LATE_POINTS = -1.0', $service);
+        $this->assertStringContainsString('public const FOLLOWUP_LATE_POINTS = -2.0', $service);
         $this->assertStringContainsString("private const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OWNER']", $service);
         $this->assertStringContainsString("'events_by_user'", $service);
+    }
+
+    public function testFollowupDelayCostsTwoPointsPerDayUsingSubmissionTimeNotApprovalTime(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [], [
+            [
+                'status' => 'completed_late',
+                'due_at' => '2026-10-01 10:00:00',
+                'completed_at' => '2026-10-03 10:00:00',
+                'approved_at' => '2026-10-12 10:00:00',
+                'score_delta' => 0,
+            ],
+            [
+                'status' => 'pending',
+                'due_at' => '2026-10-01 10:00:00',
+                'performance_until_at' => '2026-10-04 10:00:00',
+                'approval_review_delayed_until' => '2026-10-12 10:00:00',
+            ],
+        ], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(10.0, $summary['points_lost']);
+        $this->assertSame(90.0, $summary['score']);
+        $this->assertSame(2, $summary['followup_late']);
+        $this->assertSame(0, $summary['followup_overdue']);
+        $this->assertSame(5, $summary['followup_delay_days']);
+    }
+
+    public function testLateFollowupDaysAreCountedInTheMonthTheyOccur(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [], [[
+            'status' => 'completed_late',
+            'due_at' => '2026-09-30 10:00:00',
+            'completed_at' => '2026-10-02 10:00:00',
+            'score_delta' => 0,
+        ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(4.0, $summary['points_lost']);
+        $this->assertSame(2, $summary['followup_delay_days']);
+    }
+
+    public function testApprovalDelayBeforeTheNextFollowupExistsDoesNotAddDelayPoints(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [], [[
+            'status' => 'pending',
+            'due_at' => '2026-10-08 10:00:00',
+            'created_at' => '2026-10-10 10:00:00',
+            'performance_until_at' => '2026-10-12 10:00:00',
+        ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(4.0, $summary['points_lost']);
+        $this->assertSame(2, $summary['followup_delay_days']);
+    }
+
+    public function testRejectedFollowupReviewTimeIsPausedUntilTheNextSubmission(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [], [[
+            'status' => 'pending',
+            'due_at' => '2026-10-01 10:00:00',
+            'created_at' => '2026-09-30 10:00:00',
+            'performance_until_at' => '2026-10-09 10:00:00',
+            'approval_pause_intervals' => [[
+                'start_at' => '2026-10-02 10:00:00',
+                'end_at' => '2026-10-07 10:00:00',
+            ]],
+        ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(6.0, $summary['points_lost']);
+        $this->assertSame(3, $summary['followup_delay_days']);
     }
 
     public function testFollowerIsAssignedWithKarigarAndEveryDueFollowupIsTracked(): void
