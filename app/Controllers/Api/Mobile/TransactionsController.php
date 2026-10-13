@@ -311,12 +311,16 @@ class TransactionsController extends MobileBaseController
         $issueId = (int) ($payload['issue_id'] ?? 0);
         $karigarId = (int) ($payload['karigar_id'] ?? 0);
         $purpose = trim((string) ($payload['purpose'] ?? ''));
+        $brokenCarat = round((float) ($payload['broken_carat'] ?? 0), 3);
 
         if ($returnDate === '' || strtotime($returnDate) === false) {
             return $this->fail('Return date is required.', 422);
         }
         if ($issueId <= 0) {
             return $this->fail('Issue reference is required.', 422);
+        }
+        if ($brokenCarat < 0 || $brokenCarat > 999999.999) {
+            return $this->fail('Broken diamond weight must be between 0 and 999999.999 CTS.', 422);
         }
 
         $issueBuilder = db_connect()->table('issue_headers')
@@ -332,8 +336,8 @@ class TransactionsController extends MobileBaseController
         if ($parsed['error'] !== null) {
             return $this->fail($parsed['error'], 422);
         }
-        if ($parsed['lines'] === []) {
-            return $this->fail('At least one return line is required.', 422);
+        if ($parsed['lines'] === [] && $brokenCarat <= 0) {
+            return $this->fail('Add an issued diamond return line or enter broken diamond weight.', 422);
         }
 
         $attachment = $this->saveBase64Attachment(
@@ -371,6 +375,20 @@ class TransactionsController extends MobileBaseController
             ], true);
 
             $lineModel = new ReturnLineModel();
+            if ($brokenCarat > 0) {
+                $parsed['lines'][] = [
+                    'item_id' => $service->brokenDiamondItemId(),
+                    'issue_line_id' => null,
+                    'bag_id' => null,
+                    'bag_item_id' => null,
+                    'allocation_order_id' => null,
+                    'is_broken' => 1,
+                    'pcs' => 0,
+                    'carat' => $brokenCarat,
+                    'rate_per_carat' => null,
+                    'line_value' => null,
+                ];
+            }
             foreach ($parsed['lines'] as $line) {
                 $itemId = (int) ($line['item_id'] ?? 0);
                 if ($itemId <= 0) {
@@ -384,6 +402,7 @@ class TransactionsController extends MobileBaseController
                     'bag_id' => (int) ($line['bag_id'] ?? 0) ?: null,
                     'bag_item_id' => (int) ($line['bag_item_id'] ?? 0) ?: null,
                     'allocation_order_id' => (int) ($line['allocation_order_id'] ?? 0) ?: null,
+                    'is_broken' => (int) ($line['is_broken'] ?? 0),
                     'pcs' => $line['pcs'],
                     'carat' => $line['carat'],
                     'rate_per_carat' => $line['rate_per_carat'],
@@ -1693,6 +1712,9 @@ class TransactionsController extends MobileBaseController
             $carat = (float) ($line['carat'] ?? 0);
             $rateRaw = $line['rate_per_carat'] ?? null;
             $rate = $rateRaw === null || $rateRaw === '' ? null : (float) $rateRaw;
+            if ($issueLineId <= 0 && $pcs <= 0 && $carat <= 0 && $rate === null) {
+                continue;
+            }
             if ($issueLineId <= 0 || ! isset($available[$issueLineId])) {
                 return ['lines' => [], 'error' => 'Select an exact line from the selected diamond issue.'];
             }
@@ -1715,6 +1737,7 @@ class TransactionsController extends MobileBaseController
                 'bag_id' => (int) ($source['bag_id'] ?? 0) ?: null,
                 'bag_item_id' => (int) ($source['bag_item_id'] ?? 0) ?: null,
                 'allocation_order_id' => (int) ($source['allocation_order_id'] ?? 0) ?: null,
+                'is_broken' => 0,
                 'pcs' => (int) $pcs,
                 'carat' => round($carat, 3),
                 'rate_per_carat' => $rate === null ? null : round($rate, 2),
@@ -1912,8 +1935,13 @@ class TransactionsController extends MobileBaseController
 
     private function diamondLineTotals(string $table, string $field, int $headerId): array
     {
+        $select = 'COALESCE(SUM(pcs),0) as total_pcs, COALESCE(SUM(carat),0) as total_carat, '
+            . 'COALESCE(SUM(line_value),0) as total_value';
+        $select .= $table === 'return_lines'
+            ? ', COALESCE(SUM(CASE WHEN is_broken=1 THEN carat ELSE 0 END),0) as broken_carat'
+            : ', 0 as broken_carat';
         $row = db_connect()->table($table)
-            ->select('COALESCE(SUM(pcs),0) as total_pcs, COALESCE(SUM(carat),0) as total_carat, COALESCE(SUM(line_value),0) as total_value', false)
+            ->select($select, false)
             ->where($field, $headerId)
             ->get()
             ->getRowArray();
@@ -1921,6 +1949,7 @@ class TransactionsController extends MobileBaseController
         return [
             'total_pcs' => (float) ($row['total_pcs'] ?? 0),
             'total_carat' => (float) ($row['total_carat'] ?? 0),
+            'broken_carat' => (float) ($row['broken_carat'] ?? 0),
             'total_value' => (float) ($row['total_value'] ?? 0),
         ];
     }

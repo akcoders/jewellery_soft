@@ -41,13 +41,14 @@
                         <th>Purpose</th>
                         <th>Lines</th>
                         <th>Total Carat</th>
+                        <th>Broken CTS</th>
                         <th>Total Value</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (($returns ?? []) === []): ?>
-                        <tr><td colspan="10" class="text-center text-muted">No return records found.</td></tr>
+                        <tr><td colspan="11" class="text-center text-muted">No return records found.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($returns ?? []) as $return): ?>
                         <tr>
@@ -59,6 +60,7 @@
                             <td><?= esc((string) ($return['purpose'] ?? '-')) ?></td>
                             <td><?= (int) $return['line_count'] ?></td>
                             <td><?= number_format((float) $return['total_carat'], 3) ?></td>
+                            <td><?= number_format((float) ($return['broken_carat'] ?? 0), 3) ?></td>
                             <td><?= number_format((float) $return['total_value'], 2) ?></td>
                             <td>
                                 <div class="d-flex gap-1">

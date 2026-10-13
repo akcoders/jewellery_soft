@@ -303,7 +303,9 @@ class DiamondBagController extends BaseController
             'items' => $bagItems,
             'inventoryItems' => $db->table('items i')
                 ->select('i.*, COALESCE(s.pcs_balance,0) AS pcs_balance, COALESCE(s.carat_balance,0) AS carat_balance, COALESCE(s.avg_cost_per_carat,0) AS avg_cost_per_carat', false)
-                ->join('stock s', 's.item_id = i.id', 'left')->orderBy('i.diamond_type', 'ASC')->get()->getResultArray(),
+                ->join('stock s', 's.item_id = i.id', 'left')
+                ->where("LOWER(TRIM(i.diamond_type)) <> 'broken'", null, false)
+                ->orderBy('i.diamond_type', 'ASC')->get()->getResultArray(),
             'shapes' => $db->table('diamond_shape_masters')->where('is_active', 1)->orderBy('sort_order', 'ASC')->orderBy('name', 'ASC')->get()->getResultArray(),
             'sizes' => $db->table('diamond_size_masters sz')->select('sz.*, gs.group_id')
                 ->join('diamond_chalni_group_sizes gs', 'gs.size_id = sz.id', 'inner')
@@ -356,6 +358,9 @@ class DiamondBagController extends BaseController
                 ->where('sz.is_active', 1)->get()->getRowArray() : null;
             if (! $item || ! $shape || ! $group || ($sizeId > 0 && ! $size)) {
                 return ['rows' => [], 'error' => 'Selected diamond item, shape, chalni group or exact size is invalid.'];
+            }
+            if (strtolower(trim((string) ($item['diamond_type'] ?? ''))) === 'broken') {
+                return ['rows' => [], 'error' => 'Broken diamond cannot be prepared or issued in a bag. Add its weight during diamond return.'];
             }
             $rows[] = [
                 'inventory_item_id' => $itemId, 'shape_master_id' => $shapeId,

@@ -96,10 +96,18 @@ class DiamondBagTraceService
             ->get()
             ->getResultArray();
 
+        $brokenByIssue = $this->brokenReturnedByIssue(array_map(
+            static fn(array $row): int => (int) ($row['issue_id'] ?? 0),
+            $rows
+        ));
         $options = [];
         foreach ($rows as $row) {
+            $issueId = (int) ($row['issue_id'] ?? 0);
             $availablePcs = round(max(0, (float) $row['issued_pcs'] - (float) $row['returned_pcs'] - (float) $row['studded_pcs']), 3);
             $availableCts = round(max(0, (float) $row['issued_cts'] - (float) $row['returned_cts'] - (float) $row['studded_cts']), 3);
+            $brokenApplied = min($availableCts, (float) ($brokenByIssue[$issueId] ?? 0));
+            $availableCts = round(max(0, $availableCts - $brokenApplied), 3);
+            $brokenByIssue[$issueId] = round(max(0, (float) ($brokenByIssue[$issueId] ?? 0) - $brokenApplied), 3);
             if ($availableCts <= self::EPSILON) {
                 continue;
             }
@@ -159,13 +167,24 @@ class DiamondBagTraceService
         }
 
         $rows = $builder->orderBy('ih.issue_date', 'DESC')->orderBy('il.id', 'ASC')->get()->getResultArray();
+        $brokenByIssue = $this->brokenReturnedByIssue(array_map(
+            static fn(array $row): int => (int) ($row['issue_id'] ?? 0),
+            $rows
+        ), $excludeReturnId);
         $options = [];
         foreach ($rows as $row) {
             $lineId = (int) $row['issue_line_id'];
+            $rowIssueId = (int) ($row['issue_id'] ?? 0);
             $consumed = $this->consumedAgainstIssueLine($lineId, 0, $excludeReturnId);
             $availablePcs = round(max(0, (float) $row['issued_pcs'] - $consumed['pcs']), 3);
             $availableCts = round(max(0, (float) $row['issued_cts'] - $consumed['carat']), 3);
-            if (! $includeConsumed && $availablePcs <= self::EPSILON && $availableCts <= self::EPSILON) {
+            $brokenApplied = min($availableCts, (float) ($brokenByIssue[$rowIssueId] ?? 0));
+            $availableCts = round(max(0, $availableCts - $brokenApplied), 3);
+            $brokenByIssue[$rowIssueId] = round(max(0, (float) ($brokenByIssue[$rowIssueId] ?? 0) - $brokenApplied), 3);
+            if ($availableCts <= self::EPSILON) {
+                $availablePcs = 0.0;
+            }
+            if (! $includeConsumed && $availableCts <= self::EPSILON) {
                 continue;
             }
 
@@ -520,6 +539,36 @@ class DiamondBagTraceService
             'pcs' => round((float) ($returned['pcs'] ?? 0) + (float) ($received['pcs'] ?? 0), 3),
             'carat' => round((float) ($returned['carat'] ?? 0) + (float) ($received['carat'] ?? 0), 3),
         ];
+    }
+
+    /**
+     * Broken diamonds have no dependable PCS count. Their returned CTS are
+     * therefore consumed across the issue's remaining lines in issue-line order.
+     *
+     * @param list<int> $issueIds
+     * @return array<int,float>
+     */
+    private function brokenReturnedByIssue(array $issueIds, int $excludeReturnId = 0): array
+    {
+        $issueIds = array_values(array_unique(array_filter(array_map('intval', $issueIds))));
+        if ($issueIds === [] || ! $this->db->fieldExists('is_broken', 'return_lines')) {
+            return [];
+        }
+
+        $builder = $this->db->table('return_lines rl')
+            ->select('rh.issue_id, COALESCE(SUM(rl.carat),0) AS carat', false)
+            ->join('return_headers rh', 'rh.id = rl.return_id', 'inner')
+            ->where('rl.is_broken', 1)
+            ->whereIn('rh.issue_id', $issueIds);
+        if ($excludeReturnId > 0) {
+            $builder->where('rl.return_id !=', $excludeReturnId);
+        }
+
+        $result = [];
+        foreach ($builder->groupBy('rh.issue_id')->get()->getResultArray() as $row) {
+            $result[(int) $row['issue_id']] = round((float) ($row['carat'] ?? 0), 3);
+        }
+        return $result;
     }
 
     /** @return list<array<string,mixed>> */

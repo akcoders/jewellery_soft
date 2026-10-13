@@ -369,6 +369,7 @@ class DiamondRequirementService
             'inventory_items' => $this->db->table('items i')
                 ->select('i.id, i.diamond_type, i.shape, i.color, i.clarity, COALESCE(s.carat_balance,0) AS carat_balance, COALESCE((SELECT SUM(bi.weight_cts_available) FROM diamond_bag_items bi WHERE bi.inventory_item_id = i.id),0) AS bagged_cts', false)
                 ->join('stock s', 's.item_id = i.id', 'left')
+                ->where("LOWER(TRIM(i.diamond_type)) <> 'broken'", null, false)
                 ->orderBy('i.diamond_type', 'ASC')->get()->getResultArray(),
             'shapes' => $this->db->table('diamond_shape_masters')->where('is_active', 1)->orderBy('sort_order', 'ASC')->orderBy('name', 'ASC')->get()->getResultArray(),
             'sizes' => $this->db->table('diamond_size_masters')->where('is_active', 1)->orderBy('sort_order', 'ASC')->orderBy('size_label', 'ASC')->get()->getResultArray(),
@@ -437,6 +438,9 @@ class DiamondRequirementService
             $size = $this->db->table('diamond_size_masters')->where('id', $sizeId)->where('shape_id', $shapeId)->where('is_active', 1)->get()->getRowArray();
             if (! $item || ! $shape || ! $size) {
                 throw new RuntimeException('Row ' . ($index + 1) . ': selected diamond item, shape or shape-wise size is invalid.');
+            }
+            if (strtolower(trim((string) ($item['diamond_type'] ?? ''))) === 'broken') {
+                throw new RuntimeException('Broken diamond cannot be prepared or issued in a bag. Add its weight during diamond return.');
             }
             $rows[] = [
                 'inventory_item_id' => $itemId,

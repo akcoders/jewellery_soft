@@ -47,6 +47,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   String _supplierName = '';
   String _terms = '';
   String _dueDate = '';
+  String _brokenCarat = '';
 
   int? _karigarId;
   int? _locationId;
@@ -219,6 +220,9 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         payload['purpose'] = _purpose.trim();
         payload['notes'] = _notes.trim();
         payload['attachment_base64'] = base64Attachment;
+        if (widget.material == 'diamond') {
+          payload['broken_carat'] = double.tryParse(_brokenCarat.trim()) ?? 0;
+        }
       }
 
       if (widget.material == 'diamond') {
@@ -500,6 +504,33 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                     v == null ? 'Issue reference is required' : null,
               ),
               const SizedBox(height: AppSpacing.md),
+              if (widget.material == 'diamond') ...[
+                TextFormField(
+                  initialValue: _brokenCarat,
+                  decoration: InputDecoration(
+                    labelText: 'Broken Diamond Weight (CTS)',
+                    prefixIcon: const Icon(Icons.broken_image_outlined),
+                    helperText:
+                        'PCS is not required. Added to Broken inventory; issue usage closes by CTS.',
+                    filled: true,
+                    fillColor: Colors.amber.withValues(alpha: 0.08),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  validator: (value) {
+                    final raw = value?.trim() ?? '';
+                    if (raw.isEmpty) return null;
+                    final weight = double.tryParse(raw);
+                    if (weight == null || weight < 0 || weight > 999999.999) {
+                      return 'Enter a valid broken weight';
+                    }
+                    return null;
+                  },
+                  onChanged: (value) => setState(() => _brokenCarat = value),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
             ],
             if (widget.action == 'issue') ...[
               TextFormField(
@@ -592,6 +623,10 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
               bagWise: widget.material == 'diamond' && widget.action == 'issue',
               exactReturn:
                   widget.material == 'diamond' && widget.action == 'return',
+              allowBlankExactReturn:
+                  widget.material == 'diamond' &&
+                  widget.action == 'return' &&
+                  (double.tryParse(_brokenCarat.trim()) ?? 0) > 0,
               orderAllocations: _diamondOrderAllocations,
               onChanged: () => setState(() {}),
               onRemove: _lines.length == 1
@@ -766,6 +801,7 @@ class _LineCard extends StatelessWidget {
     required this.includePcs,
     required this.bagWise,
     required this.exactReturn,
+    required this.allowBlankExactReturn,
     required this.orderAllocations,
     this.onChanged,
     this.onRemove,
@@ -778,6 +814,7 @@ class _LineCard extends StatelessWidget {
   final bool includePcs;
   final bool bagWise;
   final bool exactReturn;
+  final bool allowBlankExactReturn;
   final List<dynamic> orderAllocations;
   final VoidCallback? onChanged;
   final VoidCallback? onRemove;
@@ -861,7 +898,12 @@ class _LineCard extends StatelessWidget {
                   (value ?? 0) == 0;
               onChanged?.call();
             },
-            validator: (v) => v == null ? 'Item is required' : null,
+            validator: (v) {
+              if (exactReturn && allowBlankExactReturn && v == null) {
+                return null;
+              }
+              return v == null ? 'Item is required' : null;
+            },
           ),
           if (bagWise) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -974,6 +1016,12 @@ class _LineCard extends StatelessWidget {
                     keyboardType: TextInputType.number,
                     validator: (bagWise || exactReturn)
                         ? (value) {
+                            if (exactReturn &&
+                                allowBlankExactReturn &&
+                                line.itemId == null &&
+                                (value?.trim().isEmpty ?? true)) {
+                              return null;
+                            }
                             final number = int.tryParse(value?.trim() ?? '');
                             return number == null || number <= 0
                                 ? 'Whole PCS required'
@@ -992,6 +1040,12 @@ class _LineCard extends StatelessWidget {
                     keyboardType: TextInputType.number,
                     validator: (bagWise || exactReturn)
                         ? (value) {
+                            if (exactReturn &&
+                                allowBlankExactReturn &&
+                                line.itemId == null &&
+                                (value?.trim().isEmpty ?? true)) {
+                              return null;
+                            }
                             final number = double.tryParse(value?.trim() ?? '');
                             return number == null || number <= 0
                                 ? 'CTS required'

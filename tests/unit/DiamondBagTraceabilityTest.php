@@ -65,6 +65,38 @@ final class DiamondBagTraceabilityTest extends CIUnitTestCase
         $this->assertStringContainsString("'allocation_order_id' =>", $mobile);
     }
 
+    public function testBrokenDiamondReturnIsWeightOnlyAndNeverPreparedInBags(): void
+    {
+        $migration = (string) file_get_contents(
+            APPPATH . 'Database/Migrations/2026-10-13-000106_AddBrokenDiamondReturnLines.php'
+        );
+        $stock = (string) file_get_contents(APPPATH . 'Services/DiamondInventory/StockService.php');
+        $trace = (string) file_get_contents(APPPATH . 'Services/DiamondBagTraceService.php');
+        $bagService = (string) file_get_contents(APPPATH . 'Services/DiamondBagService.php');
+        $adminReturn = (string) file_get_contents(APPPATH . 'Controllers/Admin/DiamondInventory/ReturnsController.php');
+        $mobileReturn = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/TransactionsController.php');
+        $adminForm = (string) file_get_contents(APPPATH . 'Views/admin/diamond_inventory/returns/form.php');
+        $native = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/transaction_create_screen.dart'
+        );
+        $pwa = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_pwa/screens/transaction_create_screen.dart'
+        );
+
+        $this->assertStringContainsString("'is_broken'", $migration);
+        $this->assertStringContainsString('brokenDiamondItemId', $stock);
+        $this->assertStringContainsString('including broken weight', $stock);
+        $this->assertStringContainsString("->where('rd.component_type', 'diamond')", $stock);
+        $this->assertStringContainsString('brokenReturnedByIssue', $trace);
+        $this->assertStringContainsString('if ($availableCts <= self::EPSILON)', $trace);
+        $this->assertStringContainsString("LOWER(TRIM(i.diamond_type)) <> 'broken'", $bagService);
+        $this->assertStringContainsString("'is_broken' => 1", $adminReturn);
+        $this->assertStringContainsString("'is_broken' => 1", $mobileReturn);
+        $this->assertStringContainsString('name="broken_carat"', $adminForm);
+        $this->assertStringContainsString("payload['broken_carat']", $native);
+        $this->assertStringContainsString("payload['broken_carat']", $pwa);
+    }
+
     public function testIssuedBagsAppearInOrderWorkspacesAndOpenFullDetails(): void
     {
         $service = (string) file_get_contents(APPPATH . 'Services/DiamondBagService.php');

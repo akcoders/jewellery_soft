@@ -24,6 +24,7 @@
             <div class="col-md-3"><strong>Karigar:</strong> <?= esc((string) ($return['karigar_name'] ?? '-')) ?></div>
             <div class="col-md-3"><strong>Purpose:</strong> <?= esc((string) ($return['purpose'] ?: '-')) ?></div>
             <div class="col-md-3 mt-2"><strong>Total Carat:</strong> <?= number_format((float) $totals['total_carat'], 3) ?></div>
+            <div class="col-md-3 mt-2"><strong>Broken Weight:</strong> <?= number_format((float) ($totals['broken_carat'] ?? 0), 3) ?> CTS</div>
             <div class="col-md-3 mt-2"><strong>Total PCS:</strong> <?= number_format((float) $totals['total_pcs'], 3) ?></div>
             <div class="col-md-3 mt-2"><strong>Total Value:</strong> <?= number_format((float) $totals['total_value'], 2) ?></div>
             <div class="col-md-6 mt-2"><strong>Notes:</strong> <?= esc((string) ($return['notes'] ?: '-')) ?></div>
@@ -62,13 +63,13 @@
                     <?php endif; ?>
                     <?php foreach (($lines ?? []) as $line): ?>
                         <tr>
-                            <td><span class="badge bg-primary"><?= esc((string) (($line['bag_no'] ?? '') ?: 'Legacy')) ?></span></td>
+                            <td><span class="badge <?= (int) ($line['is_broken'] ?? 0) === 1 ? 'bg-warning text-dark' : 'bg-primary' ?>"><?= esc((int) ($line['is_broken'] ?? 0) === 1 ? 'Direct inventory' : (string) (($line['bag_no'] ?? '') ?: 'Legacy')) ?></span></td>
                             <td><?= esc((string) (($line['diamond_type'] ?? '') ?: '-')) ?></td>
                             <td><?= esc(trim((string) (($line['bag_shape'] ?? $line['shape'] ?? '-') . ' / ' . ($line['bag_size'] ?? '-')), ' /')) ?></td>
                             <td><?= esc((string) (($line['allocation_order_no'] ?? '') ?: 'Unallocated')) ?></td>
                             <td><?= esc((string) ($line['color'] ?? '-')) ?></td>
                             <td><?= esc((string) ($line['clarity'] ?? '-')) ?></td>
-                            <td><?= number_format((float) $line['pcs'], 0) ?></td>
+                            <td><?= (int) ($line['is_broken'] ?? 0) === 1 ? '-' : number_format((float) $line['pcs'], 0) ?></td>
                             <td><?= number_format((float) $line['carat'], 3) ?></td>
                             <td><?= $line['rate_per_carat'] === null ? '-' : number_format((float) $line['rate_per_carat'], 2) ?></td>
                             <td><?= $line['line_value'] === null ? '-' : number_format((float) $line['line_value'], 2) ?></td>

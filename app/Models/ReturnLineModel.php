@@ -16,6 +16,7 @@ class ReturnLineModel extends Model
         'bag_id',
         'bag_item_id',
         'allocation_order_id',
+        'is_broken',
         'pcs',
         'carat',
         'rate_per_carat',

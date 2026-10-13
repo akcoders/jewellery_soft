@@ -299,6 +299,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         _statTile('CTS', AppFormatters.quantity(totals['total_carat'])),
       );
     }
+    if ((double.tryParse('${totals['broken_carat'] ?? 0}') ?? 0) > 0) {
+      cards.add(
+        _statTile('Broken CTS', AppFormatters.quantity(totals['broken_carat'])),
+      );
+    }
     if (totals.containsKey('total_weight')) {
       cards.add(
         _statTile('Weight', AppFormatters.quantity(totals['total_weight'])),
@@ -403,6 +408,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 
   String _lineTitle(Map<String, dynamic> row) {
+    if ('${row['is_broken'] ?? 0}' == '1') {
+      return 'Broken Diamond · Direct inventory';
+    }
     final diamond = row['diamond_type'] ?? '';
     if (diamond.toString().isNotEmpty) {
       final bag = row['bag_no'] ?? '';
@@ -440,7 +448,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     if ((row['allocation_order_no'] ?? '').toString().isNotEmpty) {
       meta.add(MapEntry('Order', row['allocation_order_no'].toString()));
     }
-    if (row.containsKey('pcs')) {
+    if (row.containsKey('pcs') && '${row['is_broken'] ?? 0}' != '1') {
       meta.add(MapEntry('PCS', AppFormatters.quantity(row['pcs'])));
     }
     if (row.containsKey('carat')) {

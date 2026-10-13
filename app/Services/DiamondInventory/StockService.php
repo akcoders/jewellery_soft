@@ -80,6 +80,20 @@ class StockService
         return $itemId;
     }
 
+    public function brokenDiamondItemId(): int
+    {
+        return $this->upsertItemFromSignature([
+            'diamond_type' => 'Broken',
+            'shape' => 'Mixed',
+            'chalni_from' => null,
+            'chalni_to' => null,
+            'color' => 'Mix',
+            'clarity' => 'Mix',
+            'cut' => null,
+            'remarks' => 'Broken Mix',
+        ]);
+    }
+
     public function applyPurchase(int $purchaseId): void
     {
         $rows = $this->groupedPurchaseLines($purchaseId);
@@ -262,6 +276,7 @@ class StockService
             ->join('return_headers rh', 'rh.id = rl.return_id', 'inner')
             ->where('rh.issue_id', $issueId)
             ->where('rl.return_id !=', $returnId)
+            ->where('rl.is_broken', 0)
             ->groupBy('rl.item_id')
             ->get()
             ->getResultArray();
@@ -274,7 +289,38 @@ class StockService
             ];
         }
 
+        $issuedTotalCarat = array_sum(array_map(
+            static fn(array $row): float => (float) ($row['carat'] ?? 0),
+            $this->groupedIssueLines($issueId)
+        ));
+        $previousTotalRow = $this->db->table('return_lines rl')
+            ->select('COALESCE(SUM(rl.carat),0) AS carat', false)
+            ->join('return_headers rh', 'rh.id = rl.return_id', 'inner')
+            ->where('rh.issue_id', $issueId)
+            ->where('rl.return_id !=', $returnId)
+            ->get()->getRowArray() ?? [];
+        $studdedTotalRow = $this->db->table('order_receive_details rd')
+            ->select('COALESCE(SUM(rd.weight_cts),0) AS carat', false)
+            ->join('issue_lines il', 'il.id = rd.diamond_issue_line_id', 'inner')
+            ->where('il.issue_id', $issueId)
+            ->where('rd.component_type', 'diamond')
+            ->get()->getRowArray() ?? [];
+        $currentTotalCarat = array_sum(array_map(
+            static fn(array $row): float => (float) ($row['carat'] ?? 0),
+            $rows
+        ));
+        if ((float) ($previousTotalRow['carat'] ?? 0)
+            + (float) ($studdedTotalRow['carat'] ?? 0)
+            + $currentTotalCarat > $issuedTotalCarat + 0.0005) {
+            throw new RuntimeException(
+                'Total used/returned CTS, including broken weight, exceeds the selected issue balance.'
+            );
+        }
+
         foreach ($rows as $row) {
+            if ((int) ($row['is_broken'] ?? 0) === 1) {
+                continue;
+            }
             $itemId = (int) ($row['item_id'] ?? 0);
             $returnPcs = (float) ($row['pcs'] ?? 0);
             $returnCarat = (float) ($row['carat'] ?? 0);
@@ -615,9 +661,9 @@ class StockService
     private function groupedReturnLines(int $returnId): array
     {
         $rows = $this->db->table('return_lines')
-            ->select('item_id, SUM(pcs) as pcs, SUM(carat) as carat', false)
+            ->select('item_id, is_broken, SUM(pcs) as pcs, SUM(carat) as carat', false)
             ->where('return_id', $returnId)
-            ->groupBy('item_id')
+            ->groupBy('item_id, is_broken')
             ->orderBy('item_id', 'ASC')
             ->get()
             ->getResultArray();

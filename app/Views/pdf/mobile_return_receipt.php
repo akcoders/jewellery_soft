@@ -51,6 +51,9 @@
     $lineDescription = static function (array $row, string $type): string {
         $type = strtolower($type);
         if ($type === 'diamond') {
+            if ((int) ($row['is_broken'] ?? 0) === 1) {
+                return 'Broken Diamond / Direct inventory';
+            }
             return trim(implode(' / ', array_filter([
                 (string) ($row['bag_no'] ?? ''),
                 (string) ($row['diamond_type'] ?? ''),
@@ -70,6 +73,9 @@
     $lineGrade = static function (array $row, string $type): string {
         $type = strtolower($type);
         if ($type === 'diamond') {
+            if ((int) ($row['is_broken'] ?? 0) === 1) {
+                return 'Weight-only return';
+            }
             return trim(implode(' / ', array_filter([
                 trim(((string) ($row['chalni_from'] ?? '')) !== '' || ((string) ($row['chalni_to'] ?? '')) !== '' ? ((string) ($row['chalni_from'] ?? '')) . '-' . ((string) ($row['chalni_to'] ?? '')) : ''),
                 (string) ($row['color'] ?? ''),
@@ -87,6 +93,9 @@
     $pcsValue = static function (array $row, string $type): string {
         $type = strtolower($type);
         if ($type === 'diamond') {
+            if ((int) ($row['is_broken'] ?? 0) === 1) {
+                return '-';
+            }
             return number_format((float) ($row['pcs'] ?? 0), 3);
         }
         if ($type === 'stone') {

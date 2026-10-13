@@ -162,7 +162,7 @@ class InventoryController extends MobileBaseController
         }
 
         $rows = db_connect()->table('return_headers rh')
-            ->select('rh.id, rh.voucher_no, rh.return_date, rh.return_from, rh.purpose, rh.notes, rh.created_at, rh.issue_id, rh.karigar_id, k.name as karigar_name')
+            ->select('rh.id, rh.voucher_no, rh.return_date, rh.return_from, rh.purpose, rh.notes, rh.created_at, rh.issue_id, rh.karigar_id, k.name as karigar_name, COALESCE((SELECT SUM(rl.carat) FROM return_lines rl WHERE rl.return_id=rh.id AND rl.is_broken=1),0) AS broken_carat', false)
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
             ->orderBy('rh.id', 'DESC')
             ->get(200)

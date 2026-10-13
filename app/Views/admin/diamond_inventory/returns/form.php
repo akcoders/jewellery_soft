@@ -1,5 +1,6 @@
 <?php
 $oldIssueLines = old('issue_line_id');
+$brokenCarat = (string) old('broken_carat', '');
 $rows = [];
 if (is_array($oldIssueLines)) {
     $oldPcs = (array) old('pcs');
@@ -16,6 +17,10 @@ if (is_array($oldIssueLines)) {
     }
 } elseif (($lines ?? []) !== []) {
     foreach ($lines as $line) {
+        if ((int) ($line['is_broken'] ?? 0) === 1) {
+            $brokenCarat = number_format((float) ($line['carat'] ?? 0), 3, '.', '');
+            continue;
+        }
         $rows[] = [
             'issue_line_id' => (string) ($line['issue_line_id'] ?? ''),
             'pcs' => (string) ($line['pcs'] ?? ''),
@@ -107,11 +112,28 @@ $renderOptions = static function (string $selected = '') use ($lineOptions): str
     </div>
 </div>
 
+<div class="card border-warning mb-3">
+    <div class="card-body">
+        <div class="row align-items-end g-3">
+            <div class="col-md-5">
+                <label class="form-label fw-bold">Broken Diamond Weight (CTS)</label>
+                <input type="number" step="0.001" min="0" max="999999.999" name="broken_carat" class="form-control" value="<?= esc($brokenCarat) ?>" placeholder="0.000">
+            </div>
+            <div class="col-md-7">
+                <div class="alert alert-warning mb-0 py-2">
+                    <strong>Weight only — PCS is not required.</strong><br>
+                    This quantity goes directly into Broken diamond inventory and is never returned to an issued bag. Issue usage is closed by total CTS, so uncounted broken PCS will not leave it partially used.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card erp-data-card mb-3">
     <div class="card-header d-flex align-items-center justify-content-between">
         <div>
             <h6 class="mb-1">Exact Bag Returns</h6>
-            <small class="text-muted">Return against the original issue row so shape, size and order trail stay intact.</small>
+            <small class="text-muted">Return against the original issue row so shape, size and order trail stay intact. Leave these rows blank for a broken-weight-only return.</small>
         </div>
         <button type="button" class="btn btn-sm btn-primary" id="add-return-line"><i class="fe fe-plus"></i> Add Line</button>
     </div>
@@ -122,9 +144,9 @@ $renderOptions = static function (string $selected = '') use ($lineOptions): str
                 <tbody id="return-lines-body">
                     <?php foreach ($rows as $row): ?>
                         <tr>
-                            <td><select name="issue_line_id[]" class="form-select issue-line-select" required><?= $renderOptions((string) $row['issue_line_id']) ?></select><small class="availability text-muted"></small></td>
-                            <td><input type="number" step="1" min="1" name="pcs[]" class="form-control line-pcs" required value="<?= esc($row['pcs']) ?>"></td>
-                            <td><input type="number" step="0.001" min="0.001" name="carat[]" class="form-control line-carat" required value="<?= esc($row['carat']) ?>"></td>
+                            <td><select name="issue_line_id[]" class="form-select issue-line-select"><?= $renderOptions((string) $row['issue_line_id']) ?></select><small class="availability text-muted"></small></td>
+                            <td><input type="number" step="1" min="1" name="pcs[]" class="form-control line-pcs" value="<?= esc($row['pcs']) ?>"></td>
+                            <td><input type="number" step="0.001" min="0.001" name="carat[]" class="form-control line-carat" value="<?= esc($row['carat']) ?>"></td>
                             <td><input type="number" step="0.01" min="0" name="rate_per_carat[]" class="form-control line-rate" value="<?= esc($row['rate_per_carat']) ?>"></td>
                             <td><input class="form-control line-value" readonly></td>
                             <td><button type="button" class="btn btn-sm btn-outline-danger remove-line"><i class="fe fe-trash-2"></i></button></td>
@@ -136,12 +158,12 @@ $renderOptions = static function (string $selected = '') use ($lineOptions): str
     </div>
 </div>
 
-<button type="submit" class="btn btn-primary mb-4">Save Exact Return</button>
+<button type="submit" class="btn btn-primary mb-4">Save Diamond Return</button>
 
 <template id="return-line-template"><tr>
-    <td><select name="issue_line_id[]" class="form-select issue-line-select" required><?= $renderOptions('') ?></select><small class="availability text-muted"></small></td>
-    <td><input type="number" step="1" min="1" name="pcs[]" class="form-control line-pcs" required></td>
-    <td><input type="number" step="0.001" min="0.001" name="carat[]" class="form-control line-carat" required></td>
+    <td><select name="issue_line_id[]" class="form-select issue-line-select"><?= $renderOptions('') ?></select><small class="availability text-muted"></small></td>
+    <td><input type="number" step="1" min="1" name="pcs[]" class="form-control line-pcs"></td>
+    <td><input type="number" step="0.001" min="0.001" name="carat[]" class="form-control line-carat"></td>
     <td><input type="number" step="0.01" min="0" name="rate_per_carat[]" class="form-control line-rate"></td>
     <td><input class="form-control line-value" readonly></td>
     <td><button type="button" class="btn btn-sm btn-outline-danger remove-line"><i class="fe fe-trash-2"></i></button></td>

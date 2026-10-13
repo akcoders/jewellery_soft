@@ -35,7 +35,7 @@ class ReturnsController extends BaseController
         $to = trim((string) $this->request->getGet('to'));
 
         $builder = db_connect()->table('return_headers rh')
-            ->select('rh.*, ih.voucher_no as issue_voucher_no, k.name as karigar_name, COUNT(rl.id) as line_count, COALESCE(SUM(rl.carat), 0) as total_carat, COALESCE(SUM(rl.line_value), 0) as total_value', false)
+            ->select('rh.*, ih.voucher_no as issue_voucher_no, k.name as karigar_name, COUNT(rl.id) as line_count, COALESCE(SUM(rl.carat), 0) as total_carat, COALESCE(SUM(CASE WHEN rl.is_broken=1 THEN rl.carat ELSE 0 END),0) as broken_carat, COALESCE(SUM(rl.line_value), 0) as total_value', false)
             ->join('return_lines rl', 'rl.return_id = rh.id', 'left')
             ->join('issue_headers ih', 'ih.id = rh.issue_id', 'left')
             ->join('karigars k', 'k.id = rh.karigar_id', 'left')
@@ -135,6 +135,7 @@ class ReturnsController extends BaseController
                     'bag_id' => (int) ($line['bag_id'] ?? 0) ?: null,
                     'bag_item_id' => (int) ($line['bag_item_id'] ?? 0) ?: null,
                     'allocation_order_id' => (int) ($line['allocation_order_id'] ?? 0) ?: null,
+                    'is_broken' => (int) ($line['is_broken'] ?? 0),
                     'pcs' => $line['pcs'],
                     'carat' => $line['carat'],
                     'rate_per_carat' => $line['rate_per_carat'],
@@ -293,6 +294,7 @@ class ReturnsController extends BaseController
                     'bag_id' => (int) ($line['bag_id'] ?? 0) ?: null,
                     'bag_item_id' => (int) ($line['bag_item_id'] ?? 0) ?: null,
                     'allocation_order_id' => (int) ($line['allocation_order_id'] ?? 0) ?: null,
+                    'is_broken' => (int) ($line['is_broken'] ?? 0),
                     'pcs' => $line['pcs'],
                     'carat' => $line['carat'],
                     'rate_per_carat' => $line['rate_per_carat'],
@@ -351,6 +353,10 @@ class ReturnsController extends BaseController
         $pcs = (array) $this->request->getPost('pcs');
         $carats = (array) $this->request->getPost('carat');
         $rates = (array) $this->request->getPost('rate_per_carat');
+        $brokenCarat = round((float) ($this->request->getPost('broken_carat') ?? 0), 3);
+        if ($brokenCarat < 0 || $brokenCarat > 999999.999) {
+            return ['lines' => [], 'error' => 'Broken diamond weight must be between 0 and 999999.999 CTS.'];
+        }
         $max = max(count($issueLineIds), count($pcs), count($carats), count($rates));
 
         $availableRows = (new DiamondBagTraceService(db_connect()))
@@ -399,10 +405,36 @@ class ReturnsController extends BaseController
                 'bag_id' => (int) ($source['bag_id'] ?? 0) ?: null,
                 'bag_item_id' => (int) ($source['bag_item_id'] ?? 0) ?: null,
                 'allocation_order_id' => (int) ($source['allocation_order_id'] ?? 0) ?: null,
+                'is_broken' => 0,
                 'pcs' => (int) $pcsValue,
                 'carat' => round($caratValue, 3),
                 'rate_per_carat' => $rateValue === null ? null : round($rateValue, 2),
                 'line_value' => $lineValue,
+            ];
+        }
+
+        if ($brokenCarat > 0) {
+            $lines[] = [
+                'item_id' => 0,
+                'issue_line_id' => null,
+                'bag_id' => null,
+                'bag_item_id' => null,
+                'allocation_order_id' => null,
+                'is_broken' => 1,
+                'pcs' => 0,
+                'carat' => $brokenCarat,
+                'rate_per_carat' => null,
+                'line_value' => null,
+                'signature' => [
+                    'diamond_type' => 'Broken',
+                    'shape' => 'Mixed',
+                    'chalni_from' => null,
+                    'chalni_to' => null,
+                    'color' => 'Mix',
+                    'clarity' => 'Mix',
+                    'cut' => null,
+                    'remarks' => 'Broken Mix',
+                ],
             ];
         }
 
@@ -484,7 +516,7 @@ class ReturnsController extends BaseController
     private function lineTotals(string $table, string $headerField, int $headerId): array
     {
         $row = db_connect()->table($table)
-            ->select('COALESCE(SUM(pcs),0) as total_pcs, COALESCE(SUM(carat),0) as total_carat, COALESCE(SUM(line_value),0) as total_value', false)
+            ->select('COALESCE(SUM(pcs),0) as total_pcs, COALESCE(SUM(carat),0) as total_carat, COALESCE(SUM(CASE WHEN is_broken=1 THEN carat ELSE 0 END),0) as broken_carat, COALESCE(SUM(line_value),0) as total_value', false)
             ->where($headerField, $headerId)
             ->get()
             ->getRowArray();
@@ -492,6 +524,7 @@ class ReturnsController extends BaseController
         return [
             'total_pcs' => (float) ($row['total_pcs'] ?? 0),
             'total_carat' => (float) ($row['total_carat'] ?? 0),
+            'broken_carat' => (float) ($row['broken_carat'] ?? 0),
             'total_value' => (float) ($row['total_value'] ?? 0),
         ];
     }

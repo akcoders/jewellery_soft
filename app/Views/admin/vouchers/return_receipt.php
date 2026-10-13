@@ -204,13 +204,16 @@ $blankRows = $minRows > count($rows) ? $minRows - count($rows) : 0;
                         ?>
                     <?php else: ?>
                         <?php
-                        $desc = trim((string) ((isset($line['bag_no']) && $line['bag_no'] !== '' ? ('Bag ' . $line['bag_no'] . ' · ') : '') . (isset($line['diamond_type']) ? $line['diamond_type'] : '-')));
+                        $isBroken = (int) ($line['is_broken'] ?? 0) === 1;
+                        $desc = $isBroken
+                            ? 'Broken Diamond · Direct inventory'
+                            : trim((string) ((isset($line['bag_no']) && $line['bag_no'] !== '' ? ('Bag ' . $line['bag_no'] . ' · ') : '') . (isset($line['diamond_type']) ? $line['diamond_type'] : '-')));
                         $chalni = (isset($line['chalni_from']) && $line['chalni_from'] !== null && isset($line['chalni_to']) && $line['chalni_to'] !== null)
                             ? ($line['chalni_from'] . '-' . $line['chalni_to'])
                             : 'NA';
                         $size = (string) (($line['bag_size'] ?? '') ?: $chalni);
-                        $grade = trim((string) (($line['bag_shape'] ?? $line['shape'] ?? '-') . ' / ' . $size . ' / ' . (isset($line['color']) ? $line['color'] : '-') . ' / ' . (isset($line['clarity']) ? $line['clarity'] : '-') . (($line['allocation_order_no'] ?? '') !== '' ? (' / Order ' . $line['allocation_order_no']) : '')));
-                        $pcs = number_format((float) (isset($line['pcs']) ? $line['pcs'] : 0), 0);
+                        $grade = $isBroken ? 'Weight-only return' : trim((string) (($line['bag_shape'] ?? $line['shape'] ?? '-') . ' / ' . $size . ' / ' . (isset($line['color']) ? $line['color'] : '-') . ' / ' . (isset($line['clarity']) ? $line['clarity'] : '-') . (($line['allocation_order_no'] ?? '') !== '' ? (' / Order ' . $line['allocation_order_no']) : '')));
+                        $pcs = $isBroken ? '-' : number_format((float) (isset($line['pcs']) ? $line['pcs'] : 0), 0);
                         $weight = number_format((float) (isset($line['carat']) ? $line['carat'] : 0), 3) . ' cts';
                         $rate = isset($line['rate_per_carat']) && $line['rate_per_carat'] !== null ? number_format((float) $line['rate_per_carat'], 2) : '-';
                         $value = isset($line['line_value']) && $line['line_value'] !== null ? number_format((float) $line['line_value'], 2) : '-';
