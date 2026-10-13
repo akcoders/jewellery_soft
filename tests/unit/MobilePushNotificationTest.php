@@ -48,7 +48,7 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString('claimForDispatch', $service);
         $this->assertStringContainsString('isStillRelevant', $service);
         $this->assertStringContainsString('next_attempt_at', $service);
-        $this->assertStringContainsString("'existing_android_channel_id' => 'aabhushan_alerts_v3'", $service);
+        $this->assertStringContainsString("'existing_android_channel_id' => NotificationSoundCatalog::channelId(\$soundKey)", $service);
         $this->assertStringContainsString("'android_group' => \$displayKey", $service);
         $this->assertStringContainsString("'web_push_topic' => \$displayKey", $service);
         $this->assertStringContainsString("\$payload['app_url'] = \$appUrl", $service);
@@ -93,9 +93,27 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString('supplied by the application owner', $notices);
         $this->assertStringContainsString('22.05 kHz, mono, 160 kbps', $notices);
         $this->assertStringContainsString('android:name=".AabhushanApplication"', $manifest);
-        $this->assertStringContainsString('NOTIFICATION_CHANNEL_ID = "aabhushan_alerts_v3"', $application);
+        $this->assertStringContainsString('SoundChannel("aabhushan_alerts_v3"', $application);
         $this->assertStringContainsString('R.raw.aabhushan_alert', $application);
-        $this->assertStringContainsString("channelId = 'aabhushan_alerts_v3'", $localNotifications);
+        $this->assertStringContainsString('NotificationSoundCatalog.sounds', $localNotifications);
+    }
+
+    public function testNotificationSoundCatalogIsTrustedAndContainsTenBundledChoices(): void
+    {
+        $options = \App\Services\NotificationSoundCatalog::options();
+
+        $this->assertCount(10, $options);
+        $this->assertSame('aabhushan_alerts_v3', \App\Services\NotificationSoundCatalog::channelId('signature'));
+        $this->assertSame('aabhushan_alerts_v3', \App\Services\NotificationSoundCatalog::channelId('not-user-controlled'));
+        $this->assertFalse(\App\Services\NotificationSoundCatalog::isAllowed('not-user-controlled'));
+
+        foreach ($options as $option) {
+            $resource = ROOTPATH . 'app_kit/FlutKit/android/app/src/main/res/raw/' . $option['android_resource'];
+            $this->assertTrue(
+                is_file($resource . '.mp3') || is_file($resource . '.wav'),
+                'Missing bundled notification sound: ' . $option['android_resource']
+            );
+        }
     }
 
     public function testDelayedFollowupsAreLatestOnlyTerminalSafeAndHourlyDeduplicated(): void

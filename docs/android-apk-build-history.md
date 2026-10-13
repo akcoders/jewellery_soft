@@ -14,8 +14,8 @@ published. Update it for every Android release.
 | Update feed | `GET /api/mobile/app-release?platform=android` |
 | Release configuration | `app/Config/MobileAppRelease.php` |
 | Push provider | OneSignal, delivered to Android through Firebase Cloud Messaging |
-| Notification channel | `aabhushan_alerts_v3` |
-| Notification sound | `android/app/src/main/res/raw/aabhushan_alert.mp3` |
+| Notification channels | Ten bundled, versioned channels selected per employee |
+| Notification sounds | `android/app/src/main/res/raw/aabhushan_*` |
 
 ## Release history
 
@@ -23,6 +23,7 @@ published. Update it for every Android release.
 | --- | --- | ---: | --- | --- | --- |
 | 2026-10-13 | 1.0.4 | 5 | `android-v1.0.4-build5` | `00830d798dc1c81ec3054b25580335a18ef3c97cfbb0c6efe9877b9d1cb5fd1d` | Versioned custom notification channel and automatic update alert |
 | 2026-10-13 | 1.0.5 | 6 | `android-v1.0.5-build6` | `9abeeae69488de92c27d3ca33948a8cd3abe5cf16e286683b31245b3a44d5dcd` | Required verified in-app updater, employee camera/gallery policy, and owner-supplied notification sound |
+| 2026-10-13 | 1.0.6 | 7 | `android-v1.0.6-build7` | `30746a5dac6deeac9c10a6e083bcc98c5022b49cd9531b91ac6bc7db2fdaab3f` | Ten per-user notification sounds with preview, persisted selection, and matching OneSignal/local-reminder channels |
 
 ## Prerequisites
 
@@ -43,10 +44,11 @@ this file or in Git.
    Android version code.
 2. Update the version, version code, release URL, required flag, size label,
    message, and later the APK checksum in `app/Config/MobileAppRelease.php`.
-3. When changing a notification sound, replace the single
-   `res/raw/aabhushan_alert` resource and increment the channel ID everywhere.
-   Android keeps a channel's original sound permanently, so reusing an old
-   channel ID will continue playing the old/default sound on existing devices.
+3. When changing a notification sound, update its `res/raw/aabhushan_*`
+   resource and increment that sound's channel ID in the server and Flutter
+   catalogs plus `AabhushanApplication.kt`. Android keeps a channel's original
+   sound permanently, so reusing an old channel ID will continue playing the
+   old/default sound on existing devices.
 4. Resolve dependencies and format the changed Dart files:
 
    ```bash

@@ -1,4 +1,5 @@
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutkit/jewellery_mobile/services/local_notification_service.dart';
 import 'package:flutkit/jewellery_mobile/services/pwa_install_service.dart';
 import 'package:flutkit/jewellery_mobile/widgets/pwa_install_prompt.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
@@ -51,6 +52,14 @@ class _LoginScreenState extends State<LoginScreen> {
         deviceName: kIsWeb ? 'Aabhushan PWA' : 'Android App',
       );
       final me = await api.me();
+      if (!kIsWeb) {
+        await LocalNotificationService.instance.selectSound(
+          (me['notification_sound'] ??
+                  loginData['user']?['notification_sound'] ??
+                  'signature')
+              .toString(),
+        );
+      }
       if (!mounted) return;
       await widget.onLoginSuccess(
         baseUrl: api.baseUrl,

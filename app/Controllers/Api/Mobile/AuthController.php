@@ -4,6 +4,7 @@ namespace App\Controllers\Api\Mobile;
 
 use App\Models\AdminUserModel;
 use App\Models\MobileApiTokenModel;
+use App\Services\NotificationSoundCatalog;
 
 class AuthController extends MobileBaseController
 {
@@ -48,6 +49,7 @@ class AuthController extends MobileBaseController
                 'email' => (string) ($admin['email'] ?? ''),
                 'role_codes' => $roleCodes,
                 'is_admin' => $this->isAdminRole($roleCodes),
+                'notification_sound' => NotificationSoundCatalog::normalize($admin['notification_sound'] ?? null),
             ],
         ], 'Login successful.');
     }
@@ -66,7 +68,42 @@ class AuthController extends MobileBaseController
             'email' => (string) ($this->mobileAdmin['email'] ?? ''),
             'role_codes' => $roleCodes,
             'is_admin' => $this->isAdminRole($roleCodes),
+            'notification_sound' => NotificationSoundCatalog::normalize($this->mobileAdmin['notification_sound'] ?? null),
         ]);
+    }
+
+    public function notificationSounds()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        return $this->ok([
+            'selected' => NotificationSoundCatalog::normalize($this->mobileAdmin['notification_sound'] ?? null),
+            'options' => NotificationSoundCatalog::options(),
+        ]);
+    }
+
+    public function updateNotificationSound()
+    {
+        $authFail = $this->requireMobileAuth();
+        if ($authFail) {
+            return $authFail;
+        }
+
+        $key = strtolower(trim((string) ($this->payload()['sound'] ?? '')));
+        if (! NotificationSoundCatalog::isAllowed($key)) {
+            return $this->fail('Please choose a valid bundled notification sound.', 422);
+        }
+
+        $adminUserId = (int) ($this->mobileAdmin['id'] ?? 0);
+        (new AdminUserModel())->update($adminUserId, ['notification_sound' => $key]);
+
+        return $this->ok([
+            'selected' => $key,
+            'android_channel_id' => NotificationSoundCatalog::channelId($key),
+        ], 'Notification sound updated.');
     }
 
     public function logout()

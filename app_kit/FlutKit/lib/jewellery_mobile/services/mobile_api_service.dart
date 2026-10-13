@@ -56,6 +56,19 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<Map<String, dynamic>> fetchNotificationSoundSettings() async {
+    final res = await _get('/api/mobile/notification-sounds');
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  Future<Map<String, dynamic>> updateNotificationSound(String sound) async {
+    final res = await _post(
+      '/api/mobile/notification-sound',
+      body: {'sound': sound.trim().toLowerCase()},
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<Map<String, dynamic>> fetchAppUpdateStatus({
     String platform = '',
     int? versionCode,

@@ -1,18 +1,16 @@
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
+import 'package:flutkit/jewellery_mobile/services/notification_sound_catalog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalNotificationService {
   LocalNotificationService._();
 
-  // Android permanently retains a channel's original sound settings. Increment
-  // this ID whenever the bundled sound changes so upgrades receive the new sound.
-  static const String channelId = 'aabhushan_alerts_v3';
-  static const String channelName = 'Aabhushan Alerts';
-  static const String customSoundName = 'aabhushan_alert';
+  static const String _preferenceKey = 'aabhushan_notification_sound';
 
   static final LocalNotificationService instance = LocalNotificationService._();
 
@@ -20,11 +18,13 @@ class LocalNotificationService {
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
   String? _lastError;
+  AppNotificationSound _selected = NotificationSoundCatalog.resolve(null);
 
   bool get isSupported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   bool get isInitialized => _initialized;
   String? get lastError => _lastError;
+  AppNotificationSound get selectedSound => _selected;
 
   Future<void> init() async {
     if (_initialized || !isSupported) return;
@@ -43,27 +43,41 @@ class LocalNotificationService {
       tz.initializeTimeZones();
       tz.setLocalLocation(tz.getLocation(timeZoneName));
 
+      final preferences = await SharedPreferences.getInstance();
+      _selected = NotificationSoundCatalog.resolve(
+        preferences.getString(_preferenceKey),
+      );
+
       final androidPlugin = _plugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >();
-      await androidPlugin?.createNotificationChannel(
-        const AndroidNotificationChannel(
-          channelId,
-          channelName,
-          description: 'Task and followup reminders',
-          importance: Importance.high,
-          playSound: true,
-          showBadge: true,
-          sound: RawResourceAndroidNotificationSound(customSoundName),
-        ),
-      );
+      for (final sound in NotificationSoundCatalog.sounds) {
+        await androidPlugin?.createNotificationChannel(
+          AndroidNotificationChannel(
+            sound.channelId,
+            sound.label,
+            description: 'Task and follow-up reminders using ${sound.label}',
+            importance: Importance.high,
+            playSound: true,
+            showBadge: true,
+            sound: RawResourceAndroidNotificationSound(sound.resourceName),
+          ),
+        );
+      }
       _initialized = true;
       _lastError = null;
     } catch (error) {
       _initialized = false;
       _lastError = error.toString();
     }
+  }
+
+  Future<void> selectSound(String key) async {
+    _selected = NotificationSoundCatalog.resolve(key);
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_preferenceKey, _selected.key);
+    if (!_initialized) await init();
   }
 
   Future<bool> requestPermission() async {
@@ -99,13 +113,14 @@ class LocalNotificationService {
         ? now.add(const Duration(seconds: 5))
         : scheduledAt;
 
+    final sound = _selected;
     final androidDetails = AndroidNotificationDetails(
-      channelId,
-      channelName,
+      sound.channelId,
+      sound.label,
       channelDescription: 'Task reminders for scheduled followups',
       importance: Importance.high,
       priority: Priority.high,
-      sound: const RawResourceAndroidNotificationSound(customSoundName),
+      sound: RawResourceAndroidNotificationSound(sound.resourceName),
       playSound: true,
     );
 

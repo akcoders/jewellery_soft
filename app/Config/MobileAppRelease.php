@@ -6,11 +6,11 @@ use CodeIgniter\Config\BaseConfig;
 
 class MobileAppRelease extends BaseConfig
 {
-    public string $androidVersion = '1.0.5';
-    public int $androidVersionCode = 6;
-    public string $androidDownloadUrl = 'https://github.com/akcoders/jewellery_soft/releases/download/android-v1.0.5-build6/aabhushan-erp-1.0.5-build6.apk';
-    public string $androidSha256 = '9abeeae69488de92c27d3ca33948a8cd3abe5cf16e286683b31245b3a44d5dcd';
-    public string $androidSizeLabel = '105.4 MB';
+    public string $androidVersion = '1.0.6';
+    public int $androidVersionCode = 7;
+    public string $androidDownloadUrl = 'https://github.com/akcoders/jewellery_soft/releases/download/android-v1.0.6-build7/aabhushan-erp-1.0.6-build7.apk';
+    public string $androidSha256 = '30746a5dac6deeac9c10a6e083bcc98c5022b49cd9531b91ac6bc7db2fdaab3f';
+    public string $androidSizeLabel = '106.2 MB';
     public bool $androidRequired = true;
-    public string $androidMessage = 'Install the latest Aabhushan app for required updates, employee camera controls, and the new notification sound.';
+    public string $androidMessage = 'Install the latest Aabhushan app to choose and preview your personal notification sound.';
 }

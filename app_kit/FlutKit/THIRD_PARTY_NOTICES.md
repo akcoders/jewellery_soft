@@ -12,3 +12,12 @@
 The application owner is responsible for confirming the redistribution rights
 for supplied media. The information above is retained to make replacements
 auditable.
+
+## Original bundled sound choices
+
+The nine additional notification sounds (`aabhushan_bright.wav`,
+`aabhushan_classic.wav`, `aabhushan_crystal.wav`, `aabhushan_gentle.wav`,
+`aabhushan_minimal.wav`, `aabhushan_reminder.wav`, `aabhushan_royal.wav`,
+`aabhushan_sparkle.wav`, and `aabhushan_urgent.wav`) are original synthetic
+tones generated specifically for this application. They contain no sampled or
+third-party audio. Each file is mono, 16-bit PCM at 44.1 kHz.

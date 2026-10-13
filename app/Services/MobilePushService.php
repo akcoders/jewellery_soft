@@ -217,6 +217,10 @@ class MobilePushService
         $notificationData = $this->decodedPayload($row['payload_json'] ?? null);
         $notificationData['notification_id'] = $notificationId;
         $displayKey = 'aabhushan_notification_' . $notificationId;
+        $recipient = $this->adminUserModel->find((int) ($row['admin_user_id'] ?? 0));
+        $soundKey = NotificationSoundCatalog::normalize(
+            is_array($recipient) ? ($recipient['notification_sound'] ?? null) : null
+        );
         $payload = [
             'app_id' => (string) $config['onesignal_app_id'],
             'include_aliases' => [
@@ -227,8 +231,8 @@ class MobilePushService
             'contents' => ['en' => (string) ($row['message'] ?? '')],
             'data' => $notificationData,
             'small_icon' => 'ic_stat_onesignal_default',
-            'existing_android_channel_id' => 'aabhushan_alerts_v3',
-            'android_sound' => 'aabhushan_alert',
+            'existing_android_channel_id' => NotificationSoundCatalog::channelId($soundKey),
+            'android_sound' => NotificationSoundCatalog::resourceName($soundKey),
             'android_group' => $displayKey,
             'web_push_topic' => $displayKey,
             'priority' => 10,

@@ -444,6 +444,8 @@ $routes->group('api', static function ($routes): void {
     $routes->group('mobile', static function ($routes): void {
         $routes->post('login', 'Api\Mobile\AuthController::login');
         $routes->get('me', 'Api\Mobile\AuthController::me');
+        $routes->get('notification-sounds', 'Api\Mobile\AuthController::notificationSounds');
+        $routes->post('notification-sound', 'Api\Mobile\AuthController::updateNotificationSound');
         $routes->post('logout', 'Api\Mobile\AuthController::logout');
         $routes->get('tasks', 'Api\Mobile\TasksController::index');
         $routes->post('tasks/(:num)/complete', 'Api\Mobile\TasksController::complete/$1');

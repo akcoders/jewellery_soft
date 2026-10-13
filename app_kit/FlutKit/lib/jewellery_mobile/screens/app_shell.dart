@@ -9,6 +9,7 @@ import 'package:flutkit/jewellery_mobile/screens/inventory_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/issuement_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/issuements_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/notification_center_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/notification_sound_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_work_requests_screen.dart';
@@ -636,7 +637,13 @@ class _AppShellState extends State<AppShell> {
             ),
             PopupMenuButton<String>(
               onSelected: (value) async {
-                if (value == 'logout') {
+                if (value == 'notification_sound') {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => NotificationSoundScreen(api: _api),
+                    ),
+                  );
+                } else if (value == 'logout') {
                   await widget.onLogout();
                 }
               },
@@ -658,6 +665,16 @@ class _AppShellState extends State<AppShell> {
                   ),
                 ),
                 const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'notification_sound',
+                  child: Row(
+                    children: [
+                      Icon(Icons.music_note_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Notification sound'),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'logout',
                   child: Row(

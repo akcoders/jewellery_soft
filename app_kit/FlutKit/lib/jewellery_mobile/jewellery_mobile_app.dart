@@ -2,6 +2,7 @@ import 'package:flutkit/jewellery_mobile/screens/app_shell.dart';
 import 'package:flutkit/jewellery_mobile/screens/login_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/brand_splash_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutkit/jewellery_mobile/services/local_notification_service.dart';
 import 'package:flutkit/jewellery_mobile/services/onesignal_service.dart';
 import 'package:flutkit/jewellery_mobile/session/mobile_session_store.dart';
 import 'package:flutter/material.dart';
@@ -40,6 +41,9 @@ class _JewelleryMobileAppState extends State<JewelleryMobileApp> {
         token: existing.token,
       );
       final me = await api.me();
+      await LocalNotificationService.instance.selectSound(
+        (me['notification_sound'] ?? 'signature').toString(),
+      );
       final refreshed = MobileSession(
         baseUrl: existing.baseUrl,
         token: existing.token,

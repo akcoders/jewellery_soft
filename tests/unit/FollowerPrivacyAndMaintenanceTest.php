@@ -72,9 +72,9 @@ final class FollowerPrivacyAndMaintenanceTest extends CIUnitTestCase
             ROOTPATH . 'app_kit/FlutKit/android/app/src/main/AndroidManifest.xml'
         );
 
-        $this->assertStringContainsString("androidVersion = '1.0.5'", $release);
-        $this->assertStringContainsString('androidVersionCode = 6', $release);
-        $this->assertStringContainsString('releases/download/android-v1.0.5-build6/', $release);
+        $this->assertStringContainsString("androidVersion = '1.0.6'", $release);
+        $this->assertStringContainsString('androidVersionCode = 7', $release);
+        $this->assertStringContainsString('releases/download/android-v1.0.6-build7/', $release);
         $this->assertStringContainsString("\$platform === 'android'", $endpoint);
         $this->assertStringContainsString("'version_code' => \$release->androidVersionCode", $endpoint);
         $this->assertStringContainsString('A new update is ready', $shell);

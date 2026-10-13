@@ -18,6 +18,7 @@ class AdminUserModel extends Model
         'issuement_requires_approval',
         'delivery_challan_requires_approval',
         'followup_gallery_enabled',
+        'notification_sound',
     ];
 
     protected $useTimestamps = true;
