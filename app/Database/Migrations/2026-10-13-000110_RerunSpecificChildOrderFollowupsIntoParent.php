@@ -15,19 +15,6 @@ class RerunSpecificChildOrderFollowupsIntoParent extends Migration
             throw new \RuntimeException('Cannot merge follow-ups: the orders table does not exist.');
         }
 
-        $parent = $this->db->table('orders')->where('order_no', self::PARENT_ORDER_NO)->get()->getRowArray();
-        $child = $this->db->table('orders')->where('order_no', self::CHILD_ORDER_NO)->get()->getRowArray();
-        if (! is_array($parent) || ! is_array($child)) {
-            throw new \RuntimeException(sprintf(
-                'Cannot merge follow-ups: parent order %s or child order %s was not found.',
-                self::PARENT_ORDER_NO,
-                self::CHILD_ORDER_NO
-            ));
-        }
-        if ((int) $parent['id'] === (int) $child['id']) {
-            throw new \RuntimeException('Cannot merge follow-ups: parent and child orders resolve to the same record.');
-        }
-
         if (! $this->db->fieldExists('parent_order_id', 'orders')) {
             $this->forge->addColumn('orders', [
                 'parent_order_id' => [
@@ -42,6 +29,25 @@ class RerunSpecificChildOrderFollowupsIntoParent extends Migration
         $indexes = $this->db->getIndexData('orders');
         if (! isset($indexes['idx_orders_parent_order'])) {
             $this->db->query('ALTER TABLE `orders` ADD INDEX `idx_orders_parent_order` (`parent_order_id`)');
+        }
+
+        $parent = $this->db->table('orders')->where('order_no', self::PARENT_ORDER_NO)->get()->getRowArray();
+        $child = $this->db->table('orders')->where('order_no', self::CHILD_ORDER_NO)->get()->getRowArray();
+        if (! is_array($parent) || ! is_array($child)) {
+            log_message(
+                'warning',
+                sprintf(
+                    'Order follow-up merge was not applied: parent order %s %s found; child order %s %s found.',
+                    self::PARENT_ORDER_NO,
+                    is_array($parent) ? 'was' : 'was not',
+                    self::CHILD_ORDER_NO,
+                    is_array($child) ? 'was' : 'was not'
+                )
+            );
+            return;
+        }
+        if ((int) $parent['id'] === (int) $child['id']) {
+            throw new \RuntimeException('Cannot merge follow-ups: parent and child orders resolve to the same record.');
         }
 
         $parentId = (int) $parent['id'];
