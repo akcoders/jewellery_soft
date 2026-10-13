@@ -580,6 +580,7 @@ class StaffPerformanceService
             return [];
         }
         $rows = [];
+        $disapprovedFollowupIds = [];
         if ($db->tableExists('orders') && $db->fieldExists('created_by', 'orders')) {
             foreach ($db->table('orders')->select('id, order_no, order_name, created_by, created_at')
                 ->whereIn('created_by', $staffIds)->where('created_at >=', $start)->where('created_at <', $end)->get()->getResultArray() as $row) {
@@ -602,6 +603,9 @@ class StaffPerformanceService
                     ? base_url(ltrim((string) $row['image_path'], '/'))
                     : null;
                 foreach ($quality->scoreEvents($row) as $scoreEvent) {
+                    if ($scoreEvent['type'] === 'Disapproved follow-up') {
+                        $disapprovedFollowupIds[(int) $row['id']] = true;
+                    }
                     $reference = $scoreEvent['type'] === 'Approved follow-up'
                         ? (string) (($row['stage'] ?? '') ?: ($row['description'] ?? ''))
                         : $scoreEvent['reason'];
@@ -611,6 +615,45 @@ class StaffPerformanceService
                         'proof_url' => $proofUrl,
                     ]);
                 }
+            }
+        }
+        if ($db->tableExists('mobile_approval_requests')) {
+            $rejectedFollowupRequests = $db->table('mobile_approval_requests')
+                ->select('id, subject_table, subject_id, requested_by, payload_json, review_note, reviewed_at')
+                ->where('request_type', 'followup')
+                ->where('status', 'rejected')
+                ->whereIn('requested_by', $staffIds)
+                ->where('reviewed_at >=', $start)
+                ->where('reviewed_at <', $end)
+                ->orderBy('id', 'ASC')
+                ->get()->getResultArray();
+            foreach ($rejectedFollowupRequests as $request) {
+                $payload = json_decode((string) ($request['payload_json'] ?? '{}'), true);
+                $payload = is_array($payload) ? $payload : [];
+                $followupId = (string) ($request['subject_table'] ?? '') === 'order_followups'
+                    ? (int) ($request['subject_id'] ?? 0)
+                    : (int) ($payload['followup_id'] ?? 0);
+                if ($followupId > 0 && isset($disapprovedFollowupIds[$followupId])) {
+                    continue;
+                }
+                if ($followupId > 0) {
+                    $disapprovedFollowupIds[$followupId] = true;
+                }
+                $orderId = (int) ($payload['order_id'] ?? 0);
+                $reason = 'Follow-up disapproved by administrator.';
+                if (trim((string) ($request['review_note'] ?? '')) !== '') {
+                    $reason .= ' ' . trim((string) $request['review_note']);
+                }
+                $rows[] = $this->activity(
+                    (int) $request['requested_by'],
+                    'Disapproved follow-up',
+                    $orderId > 0 ? 'Order #' . $orderId : 'Rejected follow-up request #' . $request['id'],
+                    $reason,
+                    (string) $request['reviewed_at'],
+                    self::DISAPPROVED_FOLLOWUP_POINTS,
+                    $orderId,
+                    ['followup_id' => $followupId]
+                );
             }
         }
 

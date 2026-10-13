@@ -30,6 +30,7 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('public const FOLLOWUP_LATE_POINTS = -2.0', $service);
         $this->assertStringContainsString('public const DISAPPROVED_FOLLOWUP_POINTS = 0.0', $service);
         $this->assertStringContainsString("orNotLike('t.reference_type', 'inventory_%')", $service);
+        $this->assertStringContainsString("->where('status', 'rejected')", $service);
         $this->assertStringContainsString("\$request['status'] === 'approved'", $service);
         $this->assertStringContainsString("'followup_approval_credit_per_day' => abs(self::FOLLOWUP_LATE_POINTS)", $service);
         $this->assertStringContainsString("private const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OWNER']", $service);
