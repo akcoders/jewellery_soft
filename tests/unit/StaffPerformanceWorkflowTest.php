@@ -135,6 +135,84 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertSame(6.0, $summary['followup_approval_credit_points']);
     }
 
+    public function testPerformanceAnalysisIncludesFollowupQualityAndScheduleDiscipline(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [[
+            'status' => 'completed_on_time', 'is_done' => 1, 'score_delta' => 2,
+        ]], [[
+            'status' => 'completed_on_time', 'due_at' => '2026-10-10 10:00:00',
+            'completed_at' => '2026-10-10 09:00:00', 'score_delta' => 0,
+        ]], [], [
+            ['type' => 'Proper Follow-up', 'score_delta' => 1],
+            ['type' => 'Meaningful update', 'score_delta' => .25],
+            ['type' => 'Duplicate follow-up', 'score_delta' => -1],
+            ['type' => 'Image evidence missing', 'score_delta' => -.5],
+        ], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(2, $summary['followup_submission_count']);
+        $this->assertSame(1, $summary['meaningful_updates']);
+        $this->assertSame(1, $summary['duplicate_followups']);
+        $this->assertSame(1, $summary['missing_image_followups']);
+        $this->assertSame(50.0, $summary['evidence_compliance_rate']);
+        $this->assertSame(50.0, $summary['unique_update_rate']);
+        $this->assertSame(100.0, $summary['on_time_rate']);
+        $this->assertSame('Needs review', $summary['performance_band']);
+        $this->assertTrue($summary['needs_attention']);
+        $this->assertTrue($summary['has_scored_activity']);
+        $this->assertSame(2, $summary['due_action_count']);
+        $this->assertSame(2.0, $summary['point_earned_breakdown']['Completed tasks']);
+        $this->assertSame(1.0, $summary['point_earned_breakdown']['Proper Follow-up']);
+        $this->assertSame(.25, $summary['point_earned_breakdown']['Meaningful update']);
+        $this->assertSame(1.0, $summary['point_loss_breakdown']['Duplicate follow-up']);
+        $this->assertSame(.5, $summary['point_loss_breakdown']['Image evidence missing']);
+    }
+
+    public function testPerformanceViewShowsManagementQualityAndRiskAnalysis(): void
+    {
+        $view = $this->source('Views/admin/performance/dashboard.php');
+
+        $this->assertStringContainsString('Follow-up Quality', $view);
+        $this->assertStringContainsString('Management Focus', $view);
+        $this->assertStringContainsString('Evidence Compliance', $view);
+        $this->assertStringContainsString('Employee Performance Analysis', $view);
+        $this->assertStringContainsString("analysis_summary", $view);
+        $this->assertStringContainsString('staff-points-chart', $view);
+        $this->assertStringContainsString('loss-reasons-chart', $view);
+        $this->assertStringContainsString('earned-reasons-chart', $view);
+        $this->assertStringContainsString('team-discipline-chart', $view);
+        $this->assertStringContainsString('Follow-up Evidence &amp; Scoring Audit', $view);
+        $this->assertStringContainsString('id="followup-audit-table"', $view);
+        $this->assertStringContainsString('apexcharts.min.js', $view);
+        $this->assertStringNotContainsString('activity-row', $view);
+    }
+
+    public function testDuplicateAuditEventKeepsFollowupAndMatchedIdsForAdminReview(): void
+    {
+        $events = new \ReflectionMethod(new \App\Services\StaffPerformanceService(), 'events');
+        $rows = $events->invoke(new \App\Services\StaffPerformanceService(), [], [], [], [[
+            'type' => 'Duplicate follow-up', 'title' => 'ORD-1', 'reference' => 'Matched follow-up #4',
+            'occurred_at' => '2026-10-13 10:00:00', 'score_delta' => -1, 'order_id' => 9,
+            'followup_id' => 12, 'matched_followup_id' => 4,
+        ]], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(12, $rows[0]['followup_id']);
+        $this->assertSame(4, $rows[0]['matched_followup_id']);
+    }
+
+    public function testFollowupAuditEventKeepsValidEvidenceLink(): void
+    {
+        $events = new \ReflectionMethod(new \App\Services\StaffPerformanceService(), 'events');
+        $rows = $events->invoke(new \App\Services\StaffPerformanceService(), [], [], [], [[
+            'type' => 'Meaningful update', 'title' => 'ORD-2', 'reference' => 'Unique update',
+            'occurred_at' => '2026-10-13 11:00:00', 'score_delta' => .25, 'order_id' => 10,
+            'followup_id' => 13, 'proof_url' => 'http://localhost/uploads/followups/evidence.jpg',
+        ]], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame('http://localhost/uploads/followups/evidence.jpg', $rows[0]['proof_url']);
+    }
+
     public function testFollowerIsAssignedWithKarigarAndEveryDueFollowupIsTracked(): void
     {
         $controller = $this->source('Controllers/Admin/OrderController.php');
