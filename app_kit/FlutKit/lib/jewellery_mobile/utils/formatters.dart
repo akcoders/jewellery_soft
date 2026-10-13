@@ -5,6 +5,7 @@ class AppFormatters {
 
   static final NumberFormat _amount = NumberFormat('#,##0.00');
   static final NumberFormat _quantity = NumberFormat('#,##0.###');
+  static final NumberFormat _points = NumberFormat('0.##');
   static final DateFormat _dateTime = DateFormat('dd MMM yyyy, hh:mm a');
   static final DateFormat _date = DateFormat('dd MMM yyyy');
 
@@ -16,6 +17,10 @@ class AppFormatters {
   static String quantity(dynamic value) {
     final number = _toDouble(value);
     return _quantity.format(number);
+  }
+
+  static String points(dynamic value) {
+    return _points.format(_toDouble(value));
   }
 
   static String dateTime(dynamic value) {

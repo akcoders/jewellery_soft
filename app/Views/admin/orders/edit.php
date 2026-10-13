@@ -6,6 +6,7 @@ $orderTypeValue = (string) old('order_type', (string) ($order['order_type'] ?? '
 $selectedCustomerId = (string) old('customer_id', (string) ($order['customer_id'] ?? ''));
 $selectedSalesPersonId = (string) old('sales_person_user_id', (string) ($order['sales_person_user_id'] ?? ''));
 $selectedCategoryId = (string) old('order_category_id', (string) ($order['order_category_id'] ?? ''));
+$selectedParentOrderId = (string) old('parent_order_id', (string) ($order['parent_order_id'] ?? ''));
 $selectedMaterialCategory = (string) old('material_category', (string) ($order['material_category'] ?? 'Gold'));
 $selectedGoldRateStatus = (string) old('gold_rate_block_status', (string) ($order['gold_rate_block_status'] ?? 'Not Fixed'));
 $showRepairFields = $orderTypeValue === 'Repair';
@@ -50,6 +51,18 @@ $showRepairFields = $orderTypeValue === 'Repair';
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Order From</label>
                     <input type="text" name="order_from" class="form-control" maxlength="150" value="<?= esc((string) old('order_from', (string) ($order['order_from'] ?? ''))) ?>" placeholder="Website, WhatsApp, showroom, reference">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Parent Order <span class="text-muted">(Optional)</span></label>
+                    <select name="parent_order_id" id="parent-order-select" class="form-control js-searchable-select" data-placeholder="Search parent order">
+                        <option value="">No parent order — follow up separately</option>
+                        <?php foreach (($parentOrders ?? []) as $parentOrder): ?>
+                            <option value="<?= (int) $parentOrder['id'] ?>" <?= $selectedParentOrderId === (string) $parentOrder['id'] ? 'selected' : '' ?>>
+                                <?= esc((string) $parentOrder['order_no']) ?><?= trim((string) ($parentOrder['order_name'] ?? '')) !== '' ? ' · ' . esc((string) $parentOrder['order_name']) : '' ?><?= trim((string) ($parentOrder['customer_name'] ?? '')) !== '' ? ' · ' . esc((string) $parentOrder['customer_name']) : '' ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text">Linked child orders use the parent order’s follow-up and approval chain.</div>
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Customer</label>

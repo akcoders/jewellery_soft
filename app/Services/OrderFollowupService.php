@@ -25,7 +25,7 @@ class OrderFollowupService
             $this->db->transRollback();
             throw $e;
         }
-        $this->notifyCreated($orderId, (int) $created['id']);
+        $this->notifyCreated((int) $created['order_id'], (int) $created['id']);
         return $created;
     }
 
@@ -36,6 +36,12 @@ class OrderFollowupService
         try {
             $created = $this->save($orderId, $payload, $submittedBy, $imageName, $imagePath, 'pending');
             $payload['followup_id'] = (int) $created['id'];
+            $payload['order_id'] = (int) $created['order_id'];
+            $payload['order_no'] = (string) $created['order_no'];
+            $payload['followup_scope'] = (string) $created['followup_scope'];
+            if ((int) ($payload['order_id'] ?? 0) !== $orderId) {
+                $summary = 'Order ' . (string) $created['order_no'] . ' follow-up: ' . (string) $created['stage'];
+            }
             $approval = (new MobileApprovalService($this->db))->submit(
                 'followup',
                 $payload,
@@ -62,7 +68,7 @@ class OrderFollowupService
         } catch (Throwable $e) {
             log_message('error', 'Approval request notification failed: {message}', ['message' => $e->getMessage()]);
         }
-        $this->notifyCreated($orderId, (int) $created['id']);
+        $this->notifyCreated((int) $created['order_id'], (int) $created['id']);
 
         return $created + ['approval_request' => $approval];
     }
@@ -123,11 +129,19 @@ class OrderFollowupService
     private function save(int $orderId, array $payload, int $submittedBy, ?string $imageName, ?string $imagePath, string $approvalStatus): array
     {
         $scope = strtolower(trim((string) ($payload['followup_scope'] ?? 'order'))) === 'family' ? 'family' : 'order';
-        if ($scope === 'family') {
-            $root = (new OrderFamilyService($this->db))->root($orderId);
-            if (! is_array($root)) throw new RuntimeException('Order not found.');
+        $family = new OrderFamilyService($this->db);
+        $root = $family->root($orderId);
+        if (! is_array($root)) {
+            throw new RuntimeException('Order not found.');
+        }
+        $isChildOrder = (int) ($root['id'] ?? 0) !== $orderId;
+        if ($scope === 'family' || $isChildOrder) {
+            if ($isChildOrder) {
+                $scope = 'family';
+            }
             $orderId = (int) $root['id'];
             $payload['order_id'] = $orderId;
+            $payload['order_no'] = (string) ($root['order_no'] ?? ($payload['order_no'] ?? ''));
         }
         $stage = trim((string) ($payload['stage'] ?? ''));
         $description = trim((string) ($payload['description'] ?? ''));
@@ -221,6 +235,9 @@ class OrderFollowupService
             'id' => $followupId,
             'reference' => 'Order #' . $orderId,
             'order_id' => $orderId,
+            'order_no' => (string) ($order['order_no'] ?? ''),
+            'stage' => $stage,
+            'followup_scope' => $scope,
             'approval_status' => $approvalStatus,
         ];
     }

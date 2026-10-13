@@ -180,13 +180,13 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             children: [
               _metric(
                 'Points earned',
-                '+${_number(_summary['points_earned']).toStringAsFixed(0)}',
+                '+${AppFormatters.points(_summary['points_earned'])}',
                 AppColors.success,
                 Icons.trending_up,
               ),
               _metric(
                 'Points lost',
-                '-${_number(_summary['points_lost']).toStringAsFixed(0)}',
+                '-${AppFormatters.points(_summary['points_lost'])}',
                 AppColors.danger,
                 Icons.trending_down,
               ),
@@ -402,7 +402,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ),
           ),
           Text(
-            '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(0)}',
+            '${delta > 0 ? '+' : ''}${AppFormatters.points(delta)}',
             style: TextStyle(
               color: color,
               fontSize: 18,

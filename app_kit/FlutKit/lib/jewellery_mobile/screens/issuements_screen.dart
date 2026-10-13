@@ -190,6 +190,7 @@ class _IssuementDetailScreenState extends State<IssuementDetailScreen> {
         path:
             '/api/mobile/issuements/pdf?voucher_no=${Uri.encodeQueryComponent(widget.voucherNo)}',
         fileName: 'issuement_$safe.pdf',
+        folderName: 'Issuement',
       );
       if (mounted)
         ScaffoldMessenger.of(

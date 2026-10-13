@@ -45,12 +45,20 @@ class OrderFamilyService
         return array_values(array_map(static fn(array $row): int => (int) $row['id'], $this->orders($orderId)));
     }
 
-    public function options(): array
+    public function options(int $excludeId = 0, int $includeId = 0): array
     {
-        return $this->db->table('orders o')->select('o.id, o.order_no, o.order_name, c.name customer_name')
+        $builder = $this->db->table('orders o')->select('o.id, o.order_no, o.order_name, c.name customer_name')
             ->join('customers c', 'c.id = o.customer_id', 'left')->where('o.parent_order_id', null)
-            ->where('o.deleted_at', null)->whereNotIn('o.status', ['Cancelled', 'Completed', 'Complete', 'Delivered'])
-            ->orderBy('o.id', 'DESC')->limit(500)->get()->getResultArray();
+            ->where('o.deleted_at', null);
+        if ($excludeId > 0) {
+            $builder->where('o.id !=', $excludeId);
+        }
+        $builder->groupStart()
+            ->whereNotIn('o.status', ['Cancelled', 'Completed', 'Complete', 'Delivered']);
+        if ($includeId > 0) {
+            $builder->orWhere('o.id', $includeId);
+        }
+        return $builder->groupEnd()->orderBy('o.id', 'DESC')->limit(500)->get()->getResultArray();
     }
 
     public function history(int $orderId): array

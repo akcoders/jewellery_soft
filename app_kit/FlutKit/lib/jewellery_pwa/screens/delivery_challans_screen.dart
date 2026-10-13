@@ -48,6 +48,7 @@ class _DeliveryChallansScreenState extends State<DeliveryChallansScreen> {
       await widget.api.downloadPdf(
         path: '/api/mobile/delivery-challans/${row['id']}/pdf',
         fileName: 'delivery_challan_${row['challan_no'] ?? row['id']}.pdf',
+        folderName: 'Delivery Challan',
       );
       if (mounted) _message('Delivery challan PDF downloaded.');
     } catch (e) {

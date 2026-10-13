@@ -99,9 +99,9 @@ class MobileApprovalService
         }
         $rows = $builder->orderBy("CASE WHEN ar.status = 'pending' THEN 0 ELSE 1 END", 'ASC', false)
             ->orderBy('ar.id', 'DESC')->limit(500)->get()->getResultArray();
-        return $this->withFollowupContexts(
-            array_map(fn(array $row): array => $this->hydrate($row), $rows)
-        );
+        $requests = array_map(fn(array $row): array => $this->hydrate($row), $rows);
+        $requests = $this->withoutChildOrderFollowupApprovals($requests);
+        return $this->withFollowupContexts($requests);
     }
 
     public function find(int $id): ?array
@@ -590,6 +590,83 @@ class MobileApprovalService
         unset($request);
 
         return $requests;
+    }
+
+    /**
+     * Child-order follow-up approvals are represented by the parent order's
+     * follow-up on the approval desk; keep the child request out of every list.
+     *
+     * @param list<array<string,mixed>> $requests
+     * @return list<array<string,mixed>>
+     */
+    private function withoutChildOrderFollowupApprovals(array $requests): array
+    {
+        if (! $this->db->tableExists('orders') || ! $this->db->fieldExists('parent_order_id', 'orders')) {
+            return $requests;
+        }
+
+        $requestOrderIds = [];
+        $followupRequestIndexes = [];
+        $followupIds = [];
+        $orderIds = [];
+        foreach ($requests as $index => $request) {
+            if ((string) ($request['request_type'] ?? '') !== 'followup'
+                || (string) ($request['status'] ?? '') !== 'pending') {
+                continue;
+            }
+            $payload = is_array($request['payload'] ?? null) ? $request['payload'] : [];
+            $orderId = (int) ($payload['order_id'] ?? 0);
+            if ($orderId > 0) {
+                $orderIds[$orderId] = $orderId;
+                $requestOrderIds[$index] = $orderId;
+                continue;
+            }
+
+            $followupId = (string) ($request['subject_table'] ?? '') === 'order_followups'
+                ? (int) ($request['subject_id'] ?? 0)
+                : (int) ($payload['followup_id'] ?? 0);
+            if ($followupId > 0) {
+                $followupIds[$followupId] = $followupId;
+                $followupRequestIndexes[$followupId][] = $index;
+            }
+        }
+
+        if ($followupIds !== [] && $this->db->tableExists('order_followups')
+            && $this->db->fieldExists('order_id', 'order_followups')) {
+            foreach ($this->db->table('order_followups')->select('id, order_id')
+                ->whereIn('id', array_values($followupIds))->get()->getResultArray() as $followup) {
+                $followupId = (int) ($followup['id'] ?? 0);
+                $orderId = (int) ($followup['order_id'] ?? 0);
+                if ($orderId > 0) {
+                    $orderIds[$orderId] = $orderId;
+                    foreach ($followupRequestIndexes[$followupId] ?? [] as $index) {
+                        $requestOrderIds[$index] = $orderId;
+                    }
+                }
+            }
+        }
+
+        if ($orderIds === []) {
+            return $requests;
+        }
+
+        $childOrderIds = [];
+        foreach ($this->db->table('orders')->select('id, parent_order_id')
+            ->whereIn('id', array_values($orderIds))->get()->getResultArray() as $order) {
+            if ((int) ($order['parent_order_id'] ?? 0) > 0) {
+                $childOrderIds[(int) ($order['id'] ?? 0)] = true;
+            }
+        }
+        if ($childOrderIds === []) {
+            return $requests;
+        }
+
+        return array_values(array_filter(
+            $requests,
+            static fn(array $request, int $index): bool => ! isset($requestOrderIds[$index])
+                || ! isset($childOrderIds[$requestOrderIds[$index]]),
+            ARRAY_FILTER_USE_BOTH
+        ));
     }
 
     /** @param array<string,mixed> $request @param array<string,mixed>|null $payload */

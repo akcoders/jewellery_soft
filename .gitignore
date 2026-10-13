@@ -136,6 +136,12 @@ _modules/*
 /phpunit*.xml
 release.zip
 
+# Android APK signing material must stay outside version control.
+**/key.properties
+**/*.jks
+**/*.keystore
+**/*.p12
+
 # Runtime web files
 public/null/
 public/uploads/orders/*

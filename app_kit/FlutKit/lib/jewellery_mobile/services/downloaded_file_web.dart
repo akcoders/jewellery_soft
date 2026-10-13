@@ -4,7 +4,11 @@ import 'dart:async';
 import 'dart:html' as html;
 import 'dart:typed_data';
 
-Future<String> saveDownloadedFile(Uint8List bytes, String fileName) async {
+Future<String> saveDownloadedFile(
+  Uint8List bytes,
+  String fileName, {
+  String? folderName,
+}) async {
   final blob = html.Blob(<dynamic>[bytes], 'application/pdf');
   final url = html.Url.createObjectUrlFromBlob(blob);
   final anchor = html.AnchorElement(href: url)

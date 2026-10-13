@@ -959,6 +959,10 @@ class OrderController extends BaseController
             'customers'  => $this->customerModel->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'salesPeople'=> (new CustomerUserModel())->select('id, customer_id, name, mobile')->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'orderCategories' => $this->orderCategoryService->options(true, (int) ($order['order_category_id'] ?? 0)),
+            'parentOrders' => (new OrderFamilyService())->options(
+                $id,
+                (int) ($order['parent_order_id'] ?? 0)
+            ),
             'priorities' => $this->jewelleryConfig->orderPriorities,
         ]);
     }
@@ -999,6 +1003,7 @@ class OrderController extends BaseController
             'advance_amount' => 'permit_empty|decimal|greater_than_equal_to[0]',
             'customer_id' => 'permit_empty|integer',
             'sales_person_user_id' => 'permit_empty|integer',
+            'parent_order_id' => 'permit_empty|integer',
             'priority'    => 'required',
             'due_date'    => 'permit_empty|valid_date',
             'order_notes' => 'permit_empty',
@@ -1039,6 +1044,18 @@ class OrderController extends BaseController
             return redirect()->back()->withInput()->with('error', 'Selected sales person does not belong to the selected customer.');
         }
 
+        $familyService = new OrderFamilyService();
+        $parentOrderId = $this->nullableInt($this->request->getPost('parent_order_id'));
+        $parentOrder = $parentOrderId !== null
+            ? $familyService->selectableParent($parentOrderId, $id)
+            : null;
+        if ($parentOrderId !== null && ! is_array($parentOrder)) {
+            return redirect()->back()->withInput()->with('error', 'Selected parent order is not available.');
+        }
+        if ($parentOrderId !== null && $this->orderModel->where('parent_order_id', $id)->countAllResults() > 0) {
+            return redirect()->back()->withInput()->with('error', 'An order with child orders cannot be mapped under another parent.');
+        }
+
         $priority = (string) $this->request->getPost('priority');
         if (! in_array($priority, $this->jewelleryConfig->orderPriorities, true)) {
             return redirect()->back()->withInput()->with('error', 'Invalid order priority.');
@@ -1069,6 +1086,7 @@ class OrderController extends BaseController
             'advance_amount' => $detailedOrder['advance_amount'],
             'customer_id' => $customerId,
             'sales_person_user_id' => $salesPersonUserId,
+            'parent_order_id' => $parentOrder['id'] ?? null,
             'priority'    => $priority,
             'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
             'order_notes' => trim((string) $this->request->getPost('order_notes')),
@@ -1077,6 +1095,15 @@ class OrderController extends BaseController
             'repair_receive_weight_gm' => $isRepairOrder ? (float) $this->request->getPost('repair_receive_weight_gm') : null,
             'repair_received_at' => $isRepairOrder ? $this->nullableDate((string) $this->request->getPost('repair_received_at')) : null,
         ]);
+
+        if (is_array($parentOrder)) {
+            $familyService->syncFollower(
+                (int) $parentOrder['id'],
+                (int) ($parentOrder['followup_assigned_to'] ?? 0) ?: null,
+                (string) ($parentOrder['followup_due_at'] ?? '') ?: null,
+                (int) session('admin_id')
+            );
+        }
 
         $redirectList = $isRepairOrder ? 'admin/orders/repair' : 'admin/orders';
         return redirect()->to(site_url($redirectList))->with('success', 'Order updated successfully.');

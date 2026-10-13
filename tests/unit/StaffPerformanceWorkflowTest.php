@@ -251,7 +251,13 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("getPost('followup_due_at')", $controller);
         $this->assertStringContainsString('OrderFamilyService', $controller);
         $this->assertStringContainsString('syncFollower(', $controller);
+        $this->assertStringContainsString("'parent_order_id' => 'permit_empty|integer'", $controller);
+        $this->assertStringContainsString("'parent_order_id' => \$parentOrder['id'] ?? null", $controller);
+        $this->assertStringContainsString('name="parent_order_id"', $edit);
+        $this->assertStringContainsString('follow-up and approval chain', $edit);
         $this->assertStringContainsString('OrderFollowupService', $controller);
+        $this->assertStringContainsString('$isChildOrder = (int) ($root[\'id\'] ?? 0) !== $orderId', $followupService);
+        $this->assertStringContainsString('$payload[\'order_id\'] = (int) $created[\'order_id\']', $followupService);
         $this->assertStringContainsString('completeOrderFollowup(', $followupService);
         $this->assertStringContainsString('Only the assigned order follower can submit this follow-up.', $mobileController);
         $this->assertStringContainsString('Only the assigned order follower can submit this follow-up.', $controller);

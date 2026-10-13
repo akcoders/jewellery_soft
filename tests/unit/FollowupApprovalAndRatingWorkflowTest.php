@@ -83,6 +83,20 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('Approve +2', $appDesk);
     }
 
+    public function testChildOrderFollowupApprovalsAreHiddenFromWebAndMobileLists(): void
+    {
+        $approval = $this->source('Services/MobileApprovalService.php');
+        $webDesk = $this->source('Controllers/Admin/MobileApprovalController.php');
+        $mobileDesk = $this->source('Controllers/Api/Mobile/MobileApprovalsController.php');
+
+        $this->assertStringContainsString('$this->withoutChildOrderFollowupApprovals($requests)', $approval);
+        $this->assertStringContainsString("\$request['request_type'] ?? '') !== 'followup'", $approval);
+        $this->assertStringContainsString("\$request['status'] ?? '') !== 'pending'", $approval);
+        $this->assertStringContainsString("fieldExists('parent_order_id', 'orders')", $approval);
+        $this->assertStringContainsString('$service->list(null, \'pending\')', $webDesk);
+        $this->assertStringContainsString('(new MobileApprovalService())->list($isAdmin ? null : $userId)', $mobileDesk);
+    }
+
     public function testNativeAndroidShellExposesApprovalDeskAndNotificationRoute(): void
     {
         $nativeShell = (string) file_get_contents(

@@ -824,22 +824,33 @@ class MobileApiService {
   Future<String> downloadPdf({
     required String path,
     required String fileName,
+    String? folderName,
   }) async {
     final uri = Uri.parse('$_baseUrl$path');
-    return _downloadPdfUri(uri: uri, fileName: fileName);
+    return _downloadPdfUri(
+      uri: uri,
+      fileName: fileName,
+      folderName: folderName,
+    );
   }
 
   Future<String> downloadPdfFromUrl({
     required String url,
     required String fileName,
+    String? folderName,
   }) async {
     final uri = Uri.parse(url);
-    return _downloadPdfUri(uri: uri, fileName: fileName);
+    return _downloadPdfUri(
+      uri: uri,
+      fileName: fileName,
+      folderName: folderName,
+    );
   }
 
   Future<String> _downloadPdfUri({
     required Uri uri,
     required String fileName,
+    String? folderName,
   }) async {
     final response = await _safeRequest(
       () => _client.get(uri, headers: documentHeaders()),
@@ -864,7 +875,7 @@ class MobileApiService {
     }
 
     final safeName = _resolvedFileName(response, fileName);
-    return saveDownloadedFile(bytes, safeName);
+    return saveDownloadedFile(bytes, safeName, folderName: folderName);
   }
 
   Future<Map<String, dynamic>> _get(

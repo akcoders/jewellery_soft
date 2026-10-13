@@ -94,15 +94,13 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             children: [
               WorkspaceMetricCard(
                 label: 'Points earned',
-                value:
-                    '+${_number(_summary['points_earned']).toStringAsFixed(1)}',
+                value: '+${AppFormatters.points(_summary['points_earned'])}',
                 color: AppColors.success,
                 icon: LucideIcons.trending_up,
               ),
               WorkspaceMetricCard(
                 label: 'Points lost',
-                value:
-                    '−${_number(_summary['points_lost']).toStringAsFixed(0)}',
+                value: '−${AppFormatters.points(_summary['points_lost'])}',
                 color: AppColors.danger,
                 icon: LucideIcons.trending_down,
               ),
@@ -516,7 +514,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
               ),
               const SizedBox(width: 10),
               WorkspaceBadge(
-                '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)} pts',
+                '${delta > 0 ? '+' : ''}${AppFormatters.points(delta)} pts',
                 color: color,
               ),
             ],
