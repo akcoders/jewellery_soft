@@ -16,11 +16,46 @@ class MobileApprovalController extends BaseController
         $service = new MobileApprovalService();
         $items = $service->list(null, 'pending');
         $historyItems = $service->list(null, 'history');
+        $followupGroups = [];
+        $otherItems = [];
+        foreach ($items as $item) {
+            if ((string) ($item['request_type'] ?? '') !== 'followup') {
+                $otherItems[] = $item;
+                continue;
+            }
+
+            $payload = is_array($item['payload'] ?? null) ? $item['payload'] : [];
+            $orderId = (int) (($item['followup_order_id'] ?? 0) ?: ($payload['order_id'] ?? 0));
+            $key = $orderId > 0 ? 'order-' . $orderId : 'request-' . (int) ($item['id'] ?? 0);
+            if (! isset($followupGroups[$key])) {
+                $followupGroups[$key] = [
+                    'order_id' => $orderId,
+                    'order_no' => (string) (($item['followup_order_no'] ?? '') ?: ($payload['order_no'] ?? ('Order #' . $orderId))),
+                    'requests' => [],
+                    'chain' => is_array($item['followup_chain'] ?? null) ? $item['followup_chain'] : [],
+                    'oldest_created_at' => (string) ($item['created_at'] ?? ''),
+                ];
+            }
+            $followupGroups[$key]['requests'][] = $item;
+            $createdAt = (string) ($item['created_at'] ?? '');
+            if ($createdAt !== '' && ($followupGroups[$key]['oldest_created_at'] === '' || $createdAt < $followupGroups[$key]['oldest_created_at'])) {
+                $followupGroups[$key]['oldest_created_at'] = $createdAt;
+            }
+        }
+        foreach ($followupGroups as &$group) {
+            usort($group['requests'], static fn(array $a, array $b): int => strcmp((string) ($a['created_at'] ?? ''), (string) ($b['created_at'] ?? '')));
+        }
+        unset($group);
+        uasort($followupGroups, static fn(array $a, array $b): int => strcmp((string) ($a['oldest_created_at'] ?? ''), (string) ($b['oldest_created_at'] ?? '')));
+
         return view('admin/mobile_approvals/index', [
             'title' => 'Mobile Approvals',
             'items' => $items,
             'historyItems' => $historyItems,
             'pendingCount' => count($items),
+            'pendingFollowupCount' => count($items) - count($otherItems),
+            'followupGroups' => array_values($followupGroups),
+            'otherItems' => $otherItems,
             'approvedCount' => count(array_filter($historyItems, static fn(array $row): bool => ($row['status'] ?? '') === 'approved')),
             'rejectedCount' => count(array_filter($historyItems, static fn(array $row): bool => ($row['status'] ?? '') === 'rejected')),
         ]);

@@ -53,6 +53,17 @@ class _WorkflowApi extends MobileApiService {
     'can_change_follower': true,
     'can_add_followup': true,
     'can_raise_diamond_requirement': true,
+    'diamond_supported': true,
+    'diamond_bags': [
+      {
+        'id': 1,
+        'bag_no': 'BAG-2026-000001',
+        'issued_pcs': 300,
+        'issued_cts': 25.102,
+        'item_count': 4,
+        'last_issued_on': '2026-10-12',
+      },
+    ],
     'items': [
       {
         'design_name': 'Detailed diamond necklace with a long design name',
@@ -216,4 +227,30 @@ void main() {
       });
     }
   }
+
+  testWidgets('issued diamond bag opens its full detail from an order', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: OrderDetailScreen(api: _WorkflowApi(), orderId: 1),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('BAG-2026-000001'),
+      450,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('BAG-2026-000001'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DiamondBagDetailScreen), findsOneWidget);
+    expect(find.text('Calibrated contents'), findsOneWidget);
+  });
 }

@@ -925,6 +925,7 @@ class OrderController extends BaseController
             'readyImages' => $this->productionReadyImages($id),
             'receiveSummary' => is_array($receiveSummary) ? $receiveSummary : [],
             'studdedDetails' => $studdedDetails,
+            'diamondBags' => $this->diamondBagService->issuedForOrder($id),
             'canCreateDiamondBag' => $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage')
                 && $this->diamondBagService->canCreateForOrder($id, (int) session('admin_id'), true),
             'canDeleteOrder' => $this->rbacService->userCan((int) session('admin_id'), 'orders.delete'),

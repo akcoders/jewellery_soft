@@ -118,6 +118,52 @@ class DiamondBagService
     }
 
     /**
+     * Bags that have actually been issued against an order. A prepared but
+     * unissued bag is intentionally excluded from the order workspace.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function issuedForOrder(int $orderId): array
+    {
+        if ($orderId <= 0
+            || ! $this->db->tableExists('diamond_bags')
+            || ! $this->db->tableExists('diamond_bag_items')
+            || ! $this->db->tableExists('issue_headers')
+            || ! $this->db->tableExists('issue_lines')) {
+            return [];
+        }
+
+        $rows = $this->db->table('diamond_bags b')
+            ->select(
+                'b.id, b.bag_no, b.prepared_date, b.order_id, b.pcs_balance, b.cts_balance, '
+                . 'b.notes, b.audit_image_path, COUNT(DISTINCT il.id) AS issue_line_count, '
+                . 'COUNT(DISTINCT il.issue_id) AS voucher_count, '
+                . 'COALESCE(SUM(il.pcs),0) AS issued_pcs, COALESCE(SUM(il.carat),0) AS issued_cts, '
+                . 'MIN(ih.issue_date) AS first_issued_on, MAX(ih.issue_date) AS last_issued_on, '
+                . '(SELECT COUNT(*) FROM diamond_bag_items bi WHERE bi.bag_id = b.id) AS item_count',
+                false
+            )
+            ->join('issue_lines il', 'il.bag_id = b.id', 'inner')
+            ->join('issue_headers ih', 'ih.id = il.issue_id', 'left')
+            ->where('il.allocation_order_id', $orderId)
+            ->groupBy('b.id')
+            ->orderBy('last_issued_on', 'DESC')
+            ->orderBy('b.id', 'DESC')
+            ->get()->getResultArray();
+
+        foreach ($rows as &$row) {
+            $row['status'] = 'issued';
+            $row['audit_image_url'] = ! empty($row['audit_image_path'])
+                ? base_url(ltrim((string) $row['audit_image_path'], '/'))
+                : null;
+            unset($row['audit_image_path']);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
      * @return array{
      *   inventory_items:list<array<string,mixed>>,
      *   shapes:list<array<string,mixed>>,

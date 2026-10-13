@@ -55,10 +55,10 @@
                                 <button type="button" class="btn btn-sm btn-outline-primary mb-1 js-design-diamonds"
                                     data-url="<?= esc(site_url('admin/designs/' . (int) $design['id'] . '/diamonds'), 'attr') ?>"
                                     data-bs-toggle="modal" data-bs-target="#designDiamondModal"
-                                    aria-label="<?= esc('View diamonds used in ' . $design['design_code'], 'attr') ?>">
-                                    <i class="fe fe-eye me-1" aria-hidden="true"></i>Diamond · <?= number_format((float) ($design['diamond_weight_cts'] ?? 0), 3) ?> cts
+                                    aria-label="<?= esc('View diamonds used in finished jewellery ' . $design['design_code'], 'attr') ?>">
+                                    <i class="fe fe-eye me-1" aria-hidden="true"></i>Used Diamonds · <?= number_format((float) ($design['diamond_weight_cts'] ?? 0), 3) ?> cts
                                 </button>
-                                <div class="small text-muted">Click Diamond to view sizes</div>
+                                <div class="small text-muted">Open finished-jewellery diamond details</div>
                                 <small class="text-muted">Stone <?= number_format((float) ($design['stone_weight_cts'] ?? 0), 3) ?> cts</small>
                             </td>
                             <td><span class="badge bg-light text-dark border"><?= esc((string) ($design['source_type'] ?: 'Manual')) ?></span></td>
@@ -73,7 +73,7 @@
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="designDiamondModalLabel">Diamonds used in this design</h5>
+                <h5 class="modal-title" id="designDiamondModalLabel">Diamonds used in finished jewellery</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="design-diamond-content" aria-live="polite"></div>

@@ -122,8 +122,8 @@ class FinishedJewelleryService
     }
 
     /**
-     * A fresh completed design is saved only after a finish photo exists. Repeat orders
-     * already carry a design_id; matching photo hashes also reuse the original design.
+     * Every received completed item becomes a reusable design. A finish photo enriches
+     * the design and enables hash-based reuse, but is not required for inventory truth.
      */
     public function syncDesignForCompletedOrder(int $orderId, int $createdBy = 0): ?int
     {
@@ -167,24 +167,25 @@ class FinishedJewelleryService
                 $photo = $this->latestFinishPhoto($orderId);
                 $generalPhotoUsed = $photo !== null;
             }
-            if (! $photo) {
-                continue;
+            $imagePath = $photo ? trim((string) ($photo['file_path'] ?? '')) : '';
+            $imageHash = null;
+            if ($imagePath !== '') {
+                $absolutePath = FCPATH . ltrim($imagePath, '/');
+                $calculatedHash = is_file($absolutePath) ? hash_file('sha256', $absolutePath) : false;
+                $imageHash = is_string($calculatedHash) && $calculatedHash !== '' ? $calculatedHash : null;
             }
-            $absolutePath = FCPATH . ltrim((string) $photo['file_path'], '/');
-            $imageHash = is_file($absolutePath) ? hash_file('sha256', $absolutePath) : false;
-            if (! is_string($imageHash) || $imageHash === '') {
-                continue;
-            }
-            $sameDesign = $this->db->table('design_masters')->select('id')
-                ->where('source_image_sha256', $imageHash)->get()->getRowArray();
-            if ($sameDesign) {
-                $designId = (int) $sameDesign['id'];
-                $this->db->table('order_items')->where('id', (int) $item['id'])->update([
-                    'design_id' => $designId,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-                $firstDesignId ??= $designId;
-                continue;
+            if ($imageHash !== null) {
+                $sameDesign = $this->db->table('design_masters')->select('id')
+                    ->where('source_image_sha256', $imageHash)->get()->getRowArray();
+                if ($sameDesign) {
+                    $designId = (int) $sameDesign['id'];
+                    $this->db->table('order_items')->where('id', (int) $item['id'])->update([
+                        'design_id' => $designId,
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ]);
+                    $firstDesignId ??= $designId;
+                    continue;
+                }
             }
 
             $purity = $this->purityLabel(
@@ -205,7 +206,7 @@ class FinishedJewelleryService
                 'name' => $name,
                 'category' => $category,
                 'subcategory' => $subcategory,
-                'image_path' => (string) $photo['file_path'],
+                'image_path' => $imagePath !== '' ? $imagePath : null,
                 'source_order_id' => $orderId,
                 'source_order_item_id' => (int) $item['id'],
                 'source_karigar_id' => (int) ($order['assigned_karigar_id'] ?? 0) ?: null,

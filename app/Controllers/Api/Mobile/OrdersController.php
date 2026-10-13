@@ -480,6 +480,7 @@ class OrdersController extends MobileBaseController
                 ? $db->table('customers')->select('id, name')->where('is_active', 1)->orderBy('name')->get()->getResultArray()
                 : [],
             'diamond_supported' => $this->diamondBagService->supportsOrder($id),
+            'diamond_bags' => $this->diamondBagService->issuedForOrder($id),
             'can_create_diamond_bag' => $this->diamondBagService->canCreateForOrder(
                 $id,
                 $mobileUserId,

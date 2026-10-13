@@ -223,7 +223,11 @@ class DiamondBagController extends BaseController
             ->where('bm.bag_id', $id)->orderBy('bm.id', 'DESC')->get()->getResultArray();
 
         $bag['has_issue'] = $this->bagHasIssue($id);
-        return view('admin/diamond_bags/show', ['title' => 'Diamond Bag Details', 'bag' => $bag, 'items' => $items, 'movements' => $movements]);
+        $viewData = ['title' => 'Diamond Bag Details', 'bag' => $bag, 'items' => $items, 'movements' => $movements];
+        if ($this->request->isAJAX() || (string) $this->request->getGet('modal') === '1') {
+            return view('admin/diamond_bags/_order_modal_details', $viewData);
+        }
+        return view('admin/diamond_bags/show', $viewData);
     }
 
     /** @param array<string,mixed>|null $bag */

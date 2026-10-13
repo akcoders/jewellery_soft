@@ -65,6 +65,24 @@ final class DiamondBagTraceabilityTest extends CIUnitTestCase
         $this->assertStringContainsString("'allocation_order_id' =>", $mobile);
     }
 
+    public function testIssuedBagsAppearInOrderWorkspacesAndOpenFullDetails(): void
+    {
+        $service = (string) file_get_contents(APPPATH . 'Services/DiamondBagService.php');
+        $api = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/OrdersController.php');
+        $controller = (string) file_get_contents(APPPATH . 'Controllers/Admin/OrderController.php');
+        $web = (string) file_get_contents(APPPATH . 'Views/admin/orders/show.php');
+        $pwa = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/lib/jewellery_pwa/screens/order_detail_screen.dart');
+
+        $this->assertStringContainsString('function issuedForOrder', $service);
+        $this->assertStringContainsString("->where('il.allocation_order_id', \$orderId)", $service);
+        $this->assertStringContainsString("'diamond_bags' => \$this->diamondBagService->issuedForOrder(\$id)", $api);
+        $this->assertStringContainsString("'diamondBags' => \$this->diamondBagService->issuedForOrder(\$id)", $controller);
+        $this->assertStringContainsString('Diamond Bags Issued to This Order', $web);
+        $this->assertStringContainsString('orderDiamondBagModal', $web);
+        $this->assertStringContainsString("data['diamond_bags']", $pwa);
+        $this->assertStringContainsString('DiamondBagDetailScreen', $pwa);
+    }
+
     public function testSuppliedRoundPrincessAndMarquiseSizesAreSeededWithDimensions(): void
     {
         $migration = (string) file_get_contents(

@@ -7,6 +7,7 @@ import 'package:flutkit/jewellery_pwa/widgets/app_status_badge.dart';
 import 'package:flutkit/jewellery_pwa/widgets/full_screen_loader.dart';
 import 'package:flutkit/jewellery_pwa/screens/order_followup_form_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/order_receiving_screen.dart';
+import 'package:flutkit/jewellery_pwa/screens/diamond_bags_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
@@ -35,6 +36,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   List<dynamic> _items = [];
   List<dynamic> _followups = [];
   List<dynamic> _workRequests = [];
+  List<dynamic> _diamondBags = [];
   List<dynamic> _karigars = [];
   List<dynamic> _assignmentCustomers = [];
   bool _canAssignKarigar = false;
@@ -91,6 +93,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _items = (data['items'] as List?) ?? <dynamic>[];
         _followups = (data['followups'] as List?) ?? <dynamic>[];
         _workRequests = requests;
+        _diamondBags = (data['diamond_bags'] as List?) ?? <dynamic>[];
         _karigars = (data['karigars'] as List?) ?? <dynamic>[];
         _assignmentCustomers =
             (data['assignment_customers'] as List?) ?? <dynamic>[];
@@ -1085,6 +1088,111 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     if (changed == true) await _load();
   }
 
+  Future<void> _openDiamondBag(int bagId) async {
+    if (bagId <= 0) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => DiamondBagDetailScreen(api: widget.api, bagId: bagId),
+      ),
+    );
+  }
+
+  Widget _issuedDiamondBagCard(Map<String, dynamic> bag) {
+    final bagId = _int(bag['id']);
+    final imageUrl = (bag['audit_image_url'] ?? '').toString();
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: bagId > 0 ? () => _openDiamondBag(bagId) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: AppColors.diamond.withValues(alpha: .14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: imageUrl.isEmpty
+                    ? const Icon(LucideIcons.gem, color: AppColors.brandRed)
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          LucideIcons.gem,
+                          color: AppColors.brandRed,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            (bag['bag_no'] ?? 'Diamond bag').toString(),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          LucideIcons.chevron_right,
+                          size: 18,
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${AppFormatters.quantity(bag['issued_pcs'])} pcs · ${AppFormatters.quantity(bag['issued_cts'])} cts issued',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        AppStatusBadge(
+                          label: 'ISSUED TO ORDER',
+                          color: AppColors.success,
+                        ),
+                        Text(
+                          '${_int(bag['item_count'])} calibrated row${_int(bag['item_count']) == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if ((bag['last_issued_on'] ?? '').toString().isNotEmpty)
+                          Text(
+                            'Issued ${AppFormatters.date(bag['last_issued_on'])}',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String _dateValue(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
@@ -1459,7 +1567,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       );
                     }),
                   ],
-                  if (_diamondSupported) ...[
+                  if (_diamondSupported || _diamondBags.isNotEmpty) ...[
                     Row(
                       children: [
                         const Expanded(child: AppSectionTitle('Diamond Bag')),
@@ -1475,12 +1583,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    Text(
-                      _canCreateDiamondBag
-                          ? 'Create the size-wise bag directly for this Diamond / Jadau order.'
-                          : 'Ask an authorised admin to create the grouped diamond bag for this order.',
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
+                    if (_diamondBags.isEmpty)
+                      Text(
+                        _canCreateDiamondBag
+                            ? 'No diamond bag has been issued to this order yet. You can prepare a size-wise bag now.'
+                            : 'No diamond bag has been issued to this order yet.',
+                        style: const TextStyle(color: AppColors.textSecondary),
+                      )
+                    else
+                      ..._diamondBags.whereType<Map>().map(
+                        (bag) =>
+                            _issuedDiamondBagCard(bag.cast<String, dynamic>()),
+                      ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
                   if (imageUrl.isNotEmpty) ...[
@@ -1938,6 +2052,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   double _number(dynamic value) {
     return value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+  }
+
+  int _int(dynamic value) {
+    return value is num ? value.toInt() : int.tryParse('$value') ?? 0;
   }
 }
 

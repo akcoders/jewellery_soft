@@ -82,6 +82,18 @@
     .order-weight-card small { color: #8b95a5; font-size: 9px; font-weight: 750; margin-bottom: 5px; text-transform: uppercase; }
     .order-weight-card strong { color: #202939; font-size: 16px; }
     .order-component-badge { background: #f2f4f7; border: 1px solid #e4e7ec; border-radius: 999px; color: #344054; display: inline-flex; font-size: 9px; font-weight: 750; padding: 5px 8px; }
+    .order-bag-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .order-bag-card { align-items: center; background: linear-gradient(145deg, #fff, #fbf8ff); border: 1px solid #e8ddeb; border-radius: 14px; color: inherit; display: flex; gap: 12px; padding: 15px; text-align: left; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; width: 100%; }
+    .order-bag-card:hover { border-color: #c8a4bd; box-shadow: 0 10px 26px rgba(64, 24, 53, .1); transform: translateY(-2px); }
+    .order-bag-icon { align-items: center; background: #f8eecf; border-radius: 12px; color: #7b5a0d; display: flex; flex: 0 0 46px; height: 46px; justify-content: center; }
+    .order-bag-copy { min-width: 0; }
+    .order-bag-copy strong, .order-bag-copy small { display: block; }
+    .order-bag-copy strong { color: #34162e; font-size: 13px; }
+    .order-bag-copy small { color: #7a8493; font-size: 10px; line-height: 1.45; margin-top: 3px; }
+    .order-bag-open { color: #8f6a16; margin-left: auto; }
+    #orderDiamondBagModal .modal-content { border: 0; border-radius: 18px; overflow: hidden; }
+    #orderDiamondBagModal .modal-header { background: linear-gradient(135deg, #32142d, #76224f); color: #fff; }
+    #orderDiamondBagModal .btn-close { filter: invert(1); }
     .followup-description { color: #344054; line-height: 1.5; max-width: none; overflow-wrap: anywhere; white-space: normal !important; word-break: break-word; }
     .order-followups-table td:nth-child(1), .order-followups-table td:nth-child(3), .order-followups-table td:nth-child(4), .order-followups-table td:nth-child(5), .order-followups-table td:nth-child(6), .order-followups-table td:nth-child(7) { overflow-wrap: anywhere; white-space: normal !important; }
     .order-followups-table .badge { white-space: normal; }
@@ -91,6 +103,7 @@
         .order-fact:nth-child(n) { border-left: 0; }
         .order-fact:nth-child(even) { border-left: 1px solid #edf0f4; }
         .order-weight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .order-bag-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 767px) {
         .order-detail-hero { padding: 21px 18px; }
@@ -104,6 +117,7 @@
     }
     @media (max-width: 480px) {
         .order-weight-grid { grid-template-columns: 1fr; }
+        .order-bag-grid { grid-template-columns: 1fr; }
         .order-photo-thumbs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
 </style>
@@ -115,6 +129,7 @@ $attachments = is_array($attachments ?? null) ? $attachments : [];
 $readyImages = is_array($readyImages ?? null) ? $readyImages : [];
 $followups = is_array($followups ?? null) ? $followups : [];
 $studdedDetails = is_array($studdedDetails ?? null) ? $studdedDetails : [];
+$diamondBags = is_array($diamondBags ?? null) ? $diamondBags : [];
 $receiveSummary = is_array($receiveSummary ?? null) ? $receiveSummary : [];
 $items = is_array($items ?? null) ? $items : [];
 $canCreateDiamondBag = (bool) ($canCreateDiamondBag ?? false);
@@ -280,6 +295,26 @@ $statusClass = match ($status) {
     </div>
 
     <div class="card order-section-card mb-4">
+        <div class="card-header"><h5 class="order-section-title"><i class="fe fe-package"></i>Diamond Bags Issued to This Order</h5><span class="order-section-count"><?= count($diamondBags) ?> bag<?= count($diamondBags) === 1 ? '' : 's' ?></span></div>
+        <div class="card-body">
+            <?php if ($diamondBags === []): ?>
+                <div class="alert alert-light border text-muted mb-0">No prepared diamond bag has been issued against this order yet.</div>
+            <?php else: ?>
+                <div class="order-bag-grid">
+                    <?php foreach ($diamondBags as $bag): ?>
+                        <button type="button" class="order-bag-card js-order-diamond-bag" data-bs-toggle="modal" data-bs-target="#orderDiamondBagModal" data-url="<?= esc(site_url('admin/diamond-inventory/bags/' . (int) $bag['id'] . '?modal=1'), 'attr') ?>" data-bag-no="<?= esc((string) ($bag['bag_no'] ?? 'Diamond Bag'), 'attr') ?>">
+                            <span class="order-bag-icon"><i class="fe fe-gem"></i></span>
+                            <span class="order-bag-copy"><strong><?= esc((string) ($bag['bag_no'] ?? 'Diamond Bag')) ?></strong><small><?= number_format((float) ($bag['issued_pcs'] ?? 0), 0) ?> PCS · <?= number_format((float) ($bag['issued_cts'] ?? 0), 3) ?> CTS issued</small><small><?= (int) ($bag['item_count'] ?? 0) ?> calibrated row<?= (int) ($bag['item_count'] ?? 0) === 1 ? '' : 's' ?> · <?= (int) ($bag['voucher_count'] ?? 0) ?> voucher<?= (int) ($bag['voucher_count'] ?? 0) === 1 ? '' : 's' ?></small></span>
+                            <i class="fe fe-chevron-right order-bag-open" aria-hidden="true"></i>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+                <div class="small text-muted mt-3"><i class="fe fe-info me-1"></i>Select a bag to inspect calibrated contents and its complete issue-to-studding trail.</div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <div class="card order-section-card mb-4">
         <div class="card-header"><h5 class="order-section-title"><i class="fe fe-message-circle"></i>Follow-up History</h5><span class="order-section-count"><?= count($followups) ?> update<?= count($followups) === 1 ? '' : 's' ?></span></div>
         <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover order-followups-table mb-0" data-dt-skip="true"><thead><tr><th>Stage</th><th>Description</th><th>Approval</th><th>Next Follow-up</th><th>Taken By</th><th>Taken On</th><th>Image</th></tr></thead><tbody>
         <?php if ($followups === []): ?><tr><td colspan="7" class="text-center text-muted py-4">No follow-ups recorded for this order.</td></tr><?php endif; ?>
@@ -310,6 +345,16 @@ $statusClass = match ($status) {
             <?php if ($studdedDetails === []): ?><tr><td colspan="7" class="text-center text-muted py-4">Studded details will appear after receiving.</td></tr><?php endif; ?>
             <?php foreach ($studdedDetails as $detail): ?><tr><td><span class="order-component-badge"><?= esc(ucfirst((string) ($detail['component_type'] ?? '-'))) ?></span></td><td><?= esc(\App\Libraries\DiamondDisplay::componentName($detail)) ?></td><td><?= number_format((float) ($detail['pcs'] ?? 0), 3) ?></td><td><?= number_format((float) ($detail['weight_cts'] ?? 0), 3) ?></td><td><?= number_format((float) ($detail['weight_gm'] ?? 0), 3) ?></td><td>₹<?= number_format((float) ($detail['rate'] ?? 0), 2) ?></td><td><strong>₹<?= number_format((float) ($detail['line_total'] ?? 0), 2) ?></strong></td></tr><?php endforeach; ?>
             </tbody></table></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="orderDiamondBagModal" tabindex="-1" aria-labelledby="orderDiamondBagModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><div><small class="opacity-75">ORDER DIAMOND TRACE</small><h5 class="modal-title text-white" id="orderDiamondBagModalLabel">Diamond Bag Details</h5></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body p-4" id="order-diamond-bag-content" aria-live="polite"></div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
         </div>
     </div>
 </div>
@@ -519,6 +564,41 @@ $statusClass = match ($status) {
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
+<script>
+(function () {
+    const modal = document.getElementById('orderDiamondBagModal');
+    const content = document.getElementById('order-diamond-bag-content');
+    const title = document.getElementById('orderDiamondBagModalLabel');
+    if (!modal || !content) return;
+    let request;
+    modal.addEventListener('show.bs.modal', async function (event) {
+        if (request) request.abort();
+        request = new AbortController();
+        const current = request;
+        const trigger = event.relatedTarget;
+        title.textContent = trigger?.dataset.bagNo || 'Diamond Bag Details';
+        content.innerHTML = '<div class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Loading calibrated bag details…</div>';
+        try {
+            const response = await fetch(trigger.dataset.url, {
+                credentials: 'same-origin', cache: 'no-store', signal: current.signal,
+                headers: {'X-Requested-With': 'XMLHttpRequest'}
+            });
+            if (!response.ok || response.redirected) throw new Error('request_failed');
+            const html = await response.text();
+            if (current !== request) return;
+            content.innerHTML = html;
+        } catch (error) {
+            if (error.name === 'AbortError' || current !== request) return;
+            content.innerHTML = '<div class="alert alert-warning mb-0">Diamond bag details could not be loaded. Close this window and try again.</div>';
+        }
+    });
+    modal.addEventListener('hidden.bs.modal', function () {
+        if (request) request.abort();
+        request = null;
+        content.replaceChildren();
+    });
+})();
+</script>
 <script>
 (function () {
     const modal = document.getElementById('receiveModal');

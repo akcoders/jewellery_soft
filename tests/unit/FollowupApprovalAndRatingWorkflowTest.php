@@ -65,12 +65,19 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
     public function testMobileApprovalDeskGroupsFollowupsIntoOrderChains(): void
     {
         $approval = $this->source('Services/MobileApprovalService.php');
+        $controller = $this->source('Controllers/Admin/MobileApprovalController.php');
+        $webDesk = $this->source('Views/admin/mobile_approvals/index.php');
         $appDesk = (string) file_get_contents(
             ROOTPATH . 'app_kit/FlutKit/lib/jewellery_pwa/screens/mobile_approvals_screen.dart'
         );
         $this->assertStringContainsString("\$request['followup_chain']", $approval);
         $this->assertStringContainsString("\$request['followup_pending_position']", $approval);
         $this->assertStringContainsString("\$request['followup_is_oldest_pending']", $approval);
+        $this->assertStringContainsString("'followupGroups' => array_values(\$followupGroups)", $controller);
+        $this->assertStringContainsString('Follow-up approval chain', $webDesk);
+        $this->assertStringContainsString('Review first', $webDesk);
+        $this->assertStringContainsString('Approve · +2', $webDesk);
+        $this->assertStringContainsString('Disapprove · −2', $webDesk);
         $this->assertStringContainsString('FOLLOW-UP APPROVAL CHAINS', $appDesk);
         $this->assertStringContainsString('Review top to bottom to preserve the stage story.', $appDesk);
         $this->assertStringContainsString('Approve +2', $appDesk);
