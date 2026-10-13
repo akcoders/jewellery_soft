@@ -84,6 +84,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->get('performance/tasks', 'Admin\PerformanceController::tasks', ['filter' => 'permission:performance.tasks.read']);
     $routes->post('performance/tasks', 'Admin\PerformanceController::storeTask', ['filter' => 'permission:performance.tasks.manage']);
     $routes->post('performance/tasks/(:num)/cancel', 'Admin\PerformanceController::cancelTask/$1', ['filter' => 'permission:performance.tasks.manage']);
+    $routes->post('performance/followups/(:num)/duplicate-override', 'Admin\PerformanceController::overrideFollowupDuplicate/$1', ['filter' => 'permission:performance.tasks.manage']);
     $routes->get('access/roles', 'Admin\Access\RolesController::index', ['filter' => 'permission:access.roles.read']);
     $routes->get('access/roles/create', 'Admin\Access\RolesController::create', ['filter' => 'permission:access.roles.manage']);
     $routes->post('access/roles', 'Admin\Access\RolesController::store', ['filter' => 'permission:access.roles.manage']);

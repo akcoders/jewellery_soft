@@ -5,6 +5,7 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\MobileTaskModel;
 use App\Services\MobilePushService;
+use App\Services\FollowupQualityService;
 use App\Services\StaffPerformanceService;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -141,5 +142,20 @@ class PerformanceController extends BaseController
         $this->taskModel->update($id, ['status' => 'cancelled', 'is_done' => 1, 'score_delta' => 0]);
         $this->pushService->cancelByReference('mobile_tasks', $id);
         return redirect()->back()->with('success', 'Task cancelled. It will not affect performance.');
+    }
+
+    public function overrideFollowupDuplicate(int $id)
+    {
+        $reason = trim((string) $this->request->getPost('reason'));
+        $decision = (string) $this->request->getPost('is_duplicate');
+        if (! in_array($decision, ['0', '1'], true) || $reason === '') {
+            return redirect()->back()->with('error', 'Select the duplicate decision and enter an audit reason.');
+        }
+        try {
+            (new FollowupQualityService())->overrideDuplicate($id, $decision === '1', (int) session('admin_id'), $reason);
+        } catch (Throwable $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+        return redirect()->back()->with('success', 'Follow-up duplicate decision updated and its score recalculated.');
     }
 }

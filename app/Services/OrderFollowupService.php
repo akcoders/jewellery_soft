@@ -51,6 +51,7 @@ class OrderFollowupService
         $takenOn = trim((string) ($payload['followup_taken_on'] ?? ''));
         $takenTimestamp = $takenOn !== '' ? strtotime($takenOn) : false;
         $takenOn = $takenTimestamp === false ? date('Y-m-d H:i:s') : date('Y-m-d H:i:s', $takenTimestamp);
+        $quality = (new FollowupQualityService($this->db))->inspect($description, $orderId, $submittedBy, $takenOn);
 
         try {
             $this->db->transException(true)->transStart();
@@ -63,6 +64,10 @@ class OrderFollowupService
                 'followup_taken_on' => $takenOn,
                 'image_name' => $imageName,
                 'image_path' => $imagePath,
+                'normalized_text' => $quality['normalized'],
+                'normalized_fingerprint' => $quality['fingerprint'],
+                'duplicate_followup_id' => $quality['matched_followup_id'],
+                'duplicate_reason' => $quality['reason'],
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);

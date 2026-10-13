@@ -341,6 +341,9 @@ class StaffPerformanceService
             'rating_point_step' => self::RATING_POINT_STEP,
             'order_entry' => self::ORDER_ENTRY_POINTS,
             'proper_followup' => self::PROPER_FOLLOWUP_POINTS,
+            'meaningful_update' => 0.25,
+            'duplicate_followup' => -1.0,
+            'missing_followup_image' => -0.5,
             'issuement' => self::ISSUEMENT_POINTS,
             'purchase' => self::PURCHASE_POINTS,
         ];
@@ -516,10 +519,22 @@ class StaffPerformanceService
             }
         }
         if ($db->tableExists('order_followups')) {
-            foreach ($db->table('order_followups f')->select('f.id, f.order_id, f.stage, f.description, f.followup_taken_by, f.followup_taken_on, o.order_no')
+            $quality = new FollowupQualityService($db);
+            foreach ($db->table('order_followups f')->select('f.id, f.order_id, f.stage, f.description, f.followup_taken_by, f.followup_taken_on, f.image_path, f.duplicate_followup_id, f.duplicate_reason, f.duplicate_override, o.order_no')
                 ->join('orders o', 'o.id = f.order_id', 'left')->whereIn('f.followup_taken_by', $staffIds)
                 ->where('f.followup_taken_on >=', $start)->where('f.followup_taken_on <', $end)->get()->getResultArray() as $row) {
-                $rows[] = $this->activity((int) $row['followup_taken_by'], 'Proper Follow-up', (string) (($row['order_no'] ?? '') ?: ('Order #' . $row['order_id'])), (string) (($row['stage'] ?? '') ?: ($row['description'] ?? '')), (string) $row['followup_taken_on'], self::PROPER_FOLLOWUP_POINTS, (int) $row['order_id']);
+                $userId = (int) $row['followup_taken_by'];
+                $title = (string) (($row['order_no'] ?? '') ?: ('Order #' . $row['order_id']));
+                $at = (string) $row['followup_taken_on'];
+                $orderId = (int) $row['order_id'];
+                foreach ($quality->scoreEvents($row) as $scoreEvent) {
+                    $reference = $scoreEvent['type'] === 'Proper Follow-up'
+                        ? (string) (($row['stage'] ?? '') ?: ($row['description'] ?? ''))
+                        : $scoreEvent['reason'];
+                    $rows[] = $this->activity($userId, $scoreEvent['type'], $title, $reference, $at, $scoreEvent['score_delta'], $orderId, [
+                        'followup_id' => (int) $row['id'], 'matched_followup_id' => (int) ($row['duplicate_followup_id'] ?? 0),
+                    ]);
+                }
             }
         }
 
@@ -549,9 +564,9 @@ class StaffPerformanceService
         return $rows;
     }
 
-    private function activity(int $userId, string $type, string $title, string $reference, string $at, float $points, int $orderId = 0): array
+    private function activity(int $userId, string $type, string $title, string $reference, string $at, float $points, int $orderId = 0, array $details = []): array
     {
-        return ['user_id' => $userId, 'type' => $type, 'title' => $title, 'reference' => $reference, 'occurred_at' => $at, 'score_delta' => $points, 'status' => 'completed', 'order_id' => $orderId];
+        return ['user_id' => $userId, 'type' => $type, 'title' => $title, 'reference' => $reference, 'occurred_at' => $at, 'score_delta' => $points, 'status' => 'completed', 'order_id' => $orderId] + $details;
     }
 
     private function metrics(
@@ -620,11 +635,13 @@ class StaffPerformanceService
         }
 
         foreach ($activities as $activity) {
-            $earned += max(0, (float) ($activity['score_delta'] ?? 0));
+            $delta = (float) ($activity['score_delta'] ?? 0);
+            $delta >= 0 ? $earned += $delta : $lost += abs($delta);
         }
 
         $activityCounts = array_count_values(array_column($activities, 'type'));
-        $completed = $taskOnTime + $taskLate + count($activities);
+        $completedActivityTypes = ['Order Entry', 'Proper Follow-up', 'Issuement', 'Purchase'];
+        $completed = $taskOnTime + $taskLate + count(array_filter($activities, static fn(array $row): bool => in_array((string) ($row['type'] ?? ''), $completedActivityTypes, true)));
         $onTime = $taskOnTime;
         $overdue = $taskOverdue;
         $dueActions = $completed + $overdue;
@@ -699,6 +716,8 @@ class StaffPerformanceService
                 'score_delta' => $delta,
                 'order_id' => (int) ($followup['order_id'] ?? 0),
                 'proof_url' => null,
+                'followup_id' => (int) ($activity['followup_id'] ?? 0),
+                'matched_followup_id' => (int) ($activity['matched_followup_id'] ?? 0),
             ];
             if ($delay['approval_credit_days'] > 0) {
                 $events[] = [

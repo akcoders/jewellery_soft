@@ -19,6 +19,11 @@ class OrderFollowupModel extends Model
         'followup_taken_on',
         'image_name',
         'image_path',
+        'normalized_text',
+        'normalized_fingerprint',
+        'duplicate_followup_id',
+        'duplicate_reason',
+        'duplicate_override',
     ];
 
     protected $useTimestamps = true;
