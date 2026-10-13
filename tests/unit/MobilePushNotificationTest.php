@@ -54,6 +54,21 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringNotContainsString("'collapse_id' =>", $service);
     }
 
+    public function testBundledNotificationSoundHasRecordedCc0Provenance(): void
+    {
+        $sound = ROOTPATH . 'app_kit/FlutKit/android/app/src/main/res/raw/aabhushan_alert.wav';
+        $notices = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/THIRD_PARTY_NOTICES.md');
+
+        $this->assertFileExists($sound);
+        $this->assertSame(
+            'c1c7b1578d5ee2318975ba4e9529b7d496a599e11578a46ff9410fe2129054af',
+            hash_file('sha256', $sound)
+        );
+        $this->assertStringContainsString('Kenney Interface Sounds', $notices);
+        $this->assertStringContainsString('Creative Commons CC0', $notices);
+        $this->assertStringContainsString('confirmation_002.ogg', $notices);
+    }
+
     public function testDelayedFollowupsAreLatestOnlyTerminalSafeAndHourlyDeduplicated(): void
     {
         $events = (string) file_get_contents(APPPATH . 'Services/MobileNotificationEventService.php');
