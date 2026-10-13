@@ -187,6 +187,7 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString('notifyInventoryTransactionCreated(', $combinedIssuement);
         $this->assertStringContainsString('notifyInventoryTransactionCreated(', $legacyPurchase);
         $this->assertStringContainsString('Inventory transaction notification failed', $events);
+        $this->assertStringNotContainsString('recordCompletedInventoryWork(', $events);
     }
 
     public function testNotificationCycleHasOverlapLockAndRunsBothGenerationAndDispatch(): void

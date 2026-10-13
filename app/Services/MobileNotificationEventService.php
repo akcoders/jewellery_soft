@@ -482,20 +482,6 @@ class MobileNotificationEventService
             }
             $details = array_replace($row, $context);
 
-            // Stock has already been posted. Record the completed staff work once,
-            // while a linked gold request keeps its own assigned task.
-            if ($row !== [] && empty($context['work_request_id']) && $db->tableExists('mobile_tasks')
-                && $db->fieldExists('reference_type', 'mobile_tasks')) {
-                try {
-                    (new WorkflowTaskService())->recordCompletedInventoryWork(
-                        $referenceTable, $referenceId, (int) ($row['created_by'] ?? 0),
-                        ucfirst($materialType) . ' ' . $transactionType . ' #' . $referenceId
-                    );
-                } catch (\Throwable $e) {
-                    log_message('error', 'Inventory work task failed: {message}', ['message' => $e->getMessage()]);
-                }
-            }
-
             $referenceNo = $this->firstText($details, ['voucher_no', 'invoice_no', 'purchase_no', 'reference_no']);
             $partyName = $this->firstText($details, ['issue_to', 'return_from', 'supplier_name', 'party_name']);
             if ($partyName === '' && (int) ($details['vendor_id'] ?? 0) > 0 && $db->tableExists('vendors')) {

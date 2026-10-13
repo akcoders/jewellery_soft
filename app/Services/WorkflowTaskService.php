@@ -13,17 +13,6 @@ class WorkflowTaskService
         $this->db ??= db_connect();
     }
 
-    public function recordCompletedInventoryWork(string $referenceTable, int $referenceId, int $workerId, string $title): void
-    {
-        if ($workerId <= 0 || ! (new StaffPerformanceService())->isStaffUser($workerId)) {
-            return;
-        }
-        $type = 'inventory_' . $referenceTable;
-        $this->assign($type, $referenceId, $workerId, $title,
-            date('Y-m-d 23:59:59'), $workerId);
-        $this->complete($type, $referenceId, $workerId);
-    }
-
     public function assign(string $type, int $referenceId, int $userId, string $title, ?string $dueAt, ?int $assignedBy, string $note = ''): int
     {
         $tasks = new MobileTaskModel($this->db);

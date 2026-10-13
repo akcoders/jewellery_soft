@@ -429,6 +429,10 @@ class StaffPerformanceService
                 ->orGroupStart()->where('t.is_done', 0)->where('t.scheduled_at >=', $start)->where('t.scheduled_at <', $end)->groupEnd()
             ->groupEnd()
             ->where('t.status !=', 'cancelled')
+            ->groupStart()
+                ->where('t.reference_type', null)
+                ->orWhereNotLike('t.reference_type', 'inventory_%')
+            ->groupEnd()
             ->orderBy('t.scheduled_at', 'DESC')
             ->get()->getResultArray();
     }
