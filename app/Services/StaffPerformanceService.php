@@ -431,7 +431,7 @@ class StaffPerformanceService
             ->where('t.status !=', 'cancelled')
             ->groupStart()
                 ->where('t.reference_type', null)
-                ->orWhereNotLike('t.reference_type', 'inventory_%')
+                ->orNotLike('t.reference_type', 'inventory_%')
             ->groupEnd()
             ->orderBy('t.scheduled_at', 'DESC')
             ->get()->getResultArray();
