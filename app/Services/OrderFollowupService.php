@@ -17,6 +17,110 @@ class OrderFollowupService
     /** @param array<string,mixed> $payload @return array<string,mixed> */
     public function create(int $orderId, array $payload, int $submittedBy, ?string $imageName = null, ?string $imagePath = null): array
     {
+        $this->db->transException(true)->transStart();
+        try {
+            $created = $this->save($orderId, $payload, $submittedBy, $imageName, $imagePath, 'approved');
+            $this->db->transComplete();
+        } catch (Throwable $e) {
+            $this->db->transRollback();
+            throw $e;
+        }
+        $this->notifyCreated($orderId, (int) $created['id']);
+        return $created;
+    }
+
+    /** @param array<string,mixed> $payload @return array<string,mixed> */
+    public function createPendingApproval(int $orderId, array $payload, int $submittedBy, string $summary, ?string $imageName = null, ?string $imagePath = null): array
+    {
+        $this->db->transException(true)->transStart();
+        try {
+            $created = $this->save($orderId, $payload, $submittedBy, $imageName, $imagePath, 'pending');
+            $payload['followup_id'] = (int) $created['id'];
+            $approval = (new MobileApprovalService($this->db))->submit(
+                'followup',
+                $payload,
+                $submittedBy,
+                $summary,
+                $imageName,
+                $imagePath,
+                'order_followups',
+                (int) $created['id'],
+                false
+            );
+            $this->db->table('order_followups')->where('id', (int) $created['id'])->update([
+                'approval_request_id' => (int) ($approval['id'] ?? 0) ?: null,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+            $this->db->transComplete();
+        } catch (Throwable $e) {
+            $this->db->transRollback();
+            throw $e;
+        }
+
+        try {
+            (new MobileNotificationEventService())->notifyApprovalRequested($approval);
+        } catch (Throwable $e) {
+            log_message('error', 'Approval request notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+        $this->notifyCreated($orderId, (int) $created['id']);
+
+        return $created + ['approval_request' => $approval];
+    }
+
+    /** @return array<string,mixed> */
+    public function reviewPending(int $followupId, bool $approved, int $reviewerId, string $note = ''): array
+    {
+        $followup = $this->db->table('order_followups')->where('id', $followupId)->get()->getRowArray();
+        if (! is_array($followup)) {
+            throw new RuntimeException('Pending follow-up was not found.');
+        }
+        if ((string) ($followup['approval_status'] ?? 'approved') !== 'pending') {
+            throw new RuntimeException('Follow-up is no longer pending approval.');
+        }
+
+        if ($approved) {
+            $order = $this->db->table('orders')->where('id', (int) $followup['order_id'])->get()->getRowArray();
+            if (! is_array($order)) {
+                throw new RuntimeException('Order not found.');
+            }
+            $laterApproved = $this->db->table('order_followups')
+                ->select('id')
+                ->where('order_id', (int) $followup['order_id'])
+                ->where('approval_status', 'approved')
+                ->groupStart()
+                    ->where('followup_taken_on >', (string) ($followup['followup_taken_on'] ?? ''))
+                    ->orGroupStart()
+                        ->where('followup_taken_on', (string) ($followup['followup_taken_on'] ?? ''))
+                        ->where('id >', $followupId)
+                    ->groupEnd()
+                ->groupEnd()
+                ->get()->getRowArray();
+            if (! is_array($laterApproved)) {
+                $this->applyApprovedStage($order, $followup, (int) ($followup['followup_taken_by'] ?? 0));
+            }
+        }
+
+        $status = $approved ? 'approved' : 'rejected';
+        $this->db->table('order_followups')->where('id', $followupId)->update([
+            'approval_status' => $status,
+            'reviewed_by' => $reviewerId,
+            'reviewed_at' => date('Y-m-d H:i:s'),
+            'review_note' => trim($note) ?: null,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return [
+            'table' => 'order_followups',
+            'id' => $followupId,
+            'reference' => 'Order #' . (int) $followup['order_id'],
+            'order_id' => (int) $followup['order_id'],
+            'approval_status' => $status,
+        ];
+    }
+
+    /** @param array<string,mixed> $payload @return array<string,mixed> */
+    private function save(int $orderId, array $payload, int $submittedBy, ?string $imageName, ?string $imagePath, string $approvalStatus): array
+    {
         $stage = trim((string) ($payload['stage'] ?? ''));
         $description = trim((string) ($payload['description'] ?? ''));
         $nextFollowup = trim((string) ($payload['next_followup_date'] ?? ''));
@@ -53,9 +157,7 @@ class OrderFollowupService
         $takenOn = $takenTimestamp === false ? date('Y-m-d H:i:s') : date('Y-m-d H:i:s', $takenTimestamp);
         $quality = (new FollowupQualityService($this->db))->inspect($description, $orderId, $submittedBy, $takenOn);
 
-        try {
-            $this->db->transException(true)->transStart();
-            $this->db->table('order_followups')->insert([
+        $this->db->table('order_followups')->insert([
                 'order_id' => $orderId,
                 'stage' => $stage,
                 'description' => $description,
@@ -64,55 +166,71 @@ class OrderFollowupService
                 'followup_taken_on' => $takenOn,
                 'image_name' => $imageName,
                 'image_path' => $imagePath,
+                'approval_status' => $approvalStatus,
                 'normalized_text' => $quality['normalized'],
                 'normalized_fingerprint' => $quality['fingerprint'],
                 'duplicate_followup_id' => $quality['matched_followup_id'],
                 'duplicate_reason' => $quality['reason'],
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
-            ]);
-            $followupId = (int) $this->db->insertID();
-            if ($followupId <= 0) {
-                throw new RuntimeException('Follow-up could not be saved.');
-            }
-            $oldStatus = (string) ($order['status'] ?? '');
-            if ($oldStatus !== $stage) {
-                $this->db->table('orders')->where('id', $orderId)->update([
-                    'status' => $stage,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-                $this->db->table('order_items')->where('order_id', $orderId)->update([
-                    'item_status' => $stage,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-                $this->db->table('order_status_history')->insert([
-                    'order_id' => $orderId,
-                    'from_status' => $oldStatus !== '' ? $oldStatus : null,
-                    'to_status' => $stage,
-                    'remarks' => 'Updated from follow-up: ' . $description,
-                    'changed_by' => $submittedBy,
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-            }
-            (new StaffPerformanceService())->completeOrderFollowup(
-                $orderId,
-                $followupId,
-                $submittedBy,
-                $nextAt,
-                $takenOn
-            );
-            $this->db->transComplete();
-        } catch (Throwable $e) {
-            $this->db->transRollback();
-            throw $e;
+        ]);
+        $followupId = (int) $this->db->insertID();
+        if ($followupId <= 0) {
+            throw new RuntimeException('Follow-up could not be saved.');
         }
+        if ($approvalStatus === 'approved') {
+            $this->applyApprovedStage($order, [
+                'order_id' => $orderId,
+                'stage' => $stage,
+                'description' => $description,
+            ], $submittedBy);
+        }
+        (new StaffPerformanceService())->completeOrderFollowup(
+            $orderId,
+            $followupId,
+            $submittedBy,
+            $nextAt,
+            $takenOn
+        );
 
+        return [
+            'table' => 'order_followups',
+            'id' => $followupId,
+            'reference' => 'Order #' . $orderId,
+            'order_id' => $orderId,
+            'approval_status' => $approvalStatus,
+        ];
+    }
+
+    /** @param array<string,mixed> $order @param array<string,mixed> $followup */
+    private function applyApprovedStage(array $order, array $followup, int $changedBy): void
+    {
+        $stage = (string) ($followup['stage'] ?? '');
+        $oldStatus = (string) ($order['status'] ?? '');
+        if ($stage === '' || $oldStatus === $stage) {
+            return;
+        }
+        $now = date('Y-m-d H:i:s');
+        $orderId = (int) ($order['id'] ?? $followup['order_id'] ?? 0);
+        $this->db->table('orders')->where('id', $orderId)->update(['status' => $stage, 'updated_at' => $now]);
+        $this->db->table('order_items')->where('order_id', $orderId)->update(['item_status' => $stage, 'updated_at' => $now]);
+        $this->db->table('order_status_history')->insert([
+            'order_id' => $orderId,
+            'from_status' => $oldStatus !== '' ? $oldStatus : null,
+            'to_status' => $stage,
+            'remarks' => 'Updated from approved follow-up: ' . (string) ($followup['description'] ?? ''),
+            'changed_by' => $changedBy,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    private function notifyCreated(int $orderId, int $followupId): void
+    {
         try {
             (new MobileNotificationEventService())->notifyFollowupAdded($orderId, $followupId);
         } catch (Throwable $e) {
-            log_message('error', 'Approved follow-up notification failed: {message}', ['message' => $e->getMessage()]);
+            log_message('error', 'Follow-up notification failed: {message}', ['message' => $e->getMessage()]);
         }
-        return ['table' => 'order_followups', 'id' => $followupId, 'reference' => 'Order #' . $orderId, 'order_id' => $orderId];
     }
 }

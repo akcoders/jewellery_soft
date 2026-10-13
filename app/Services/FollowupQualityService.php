@@ -92,6 +92,18 @@ class FollowupQualityService
     /** @return list<array{type:string,score_delta:float,reason:string}> */
     public function scoreEvents(array $followup): array
     {
+        $approvalStatus = strtolower(trim((string) ($followup['approval_status'] ?? 'approved')));
+        if ($approvalStatus === 'pending') {
+            return [];
+        }
+        if ($approvalStatus === 'rejected') {
+            $reason = 'Follow-up disapproved by administrator.';
+            if (trim((string) ($followup['review_note'] ?? '')) !== '') {
+                $reason .= ' ' . trim((string) $followup['review_note']);
+            }
+            return [['type' => 'Disapproved follow-up', 'score_delta' => -2.0, 'reason' => $reason]];
+        }
+
         $events = [];
         if ($this->isDuplicate($followup)) {
             $matchedId = (int) ($followup['duplicate_followup_id'] ?? 0);
@@ -99,7 +111,7 @@ class FollowupQualityService
             if ($matchedId > 0) $reason .= ' Matched follow-up #' . $matchedId . '.';
             $events[] = ['type' => 'Duplicate follow-up', 'score_delta' => -1.0, 'reason' => $reason];
         } else {
-            $events[] = ['type' => 'Proper Follow-up', 'score_delta' => 1.0, 'reason' => 'Follow-up task completed.'];
+            $events[] = ['type' => 'Approved follow-up', 'score_delta' => 2.0, 'reason' => 'Follow-up approved by administrator.'];
             if ($this->hasValidImage($followup)) $events[] = ['type' => 'Meaningful update', 'score_delta' => 0.25, 'reason' => 'Valid unique update with image evidence.'];
         }
         if (! $this->hasValidImage($followup)) {

@@ -37,7 +37,8 @@ class MobileApprovalService
         ?string $attachmentName = null,
         ?string $attachmentPath = null,
         ?string $subjectTable = null,
-        ?int $subjectId = null
+        ?int $subjectId = null,
+        bool $sendNotification = true
     ): array {
         if (! in_array($type, self::TYPES, true) || $requestedBy <= 0) {
             throw new RuntimeException('Invalid approval request.');
@@ -70,10 +71,12 @@ class MobileApprovalService
             throw new RuntimeException('Approval request could not be saved.');
         }
         $request = $this->find($id) ?? ['id' => $id, 'status' => 'pending'];
-        try {
-            (new MobileNotificationEventService())->notifyApprovalRequested($request);
-        } catch (Throwable $e) {
-            log_message('error', 'Approval request notification failed: {message}', ['message' => $e->getMessage()]);
+        if ($sendNotification) {
+            try {
+                (new MobileNotificationEventService())->notifyApprovalRequested($request);
+            } catch (Throwable $e) {
+                log_message('error', 'Approval request notification failed: {message}', ['message' => $e->getMessage()]);
+            }
         }
         return $request;
     }
@@ -116,16 +119,29 @@ class MobileApprovalService
 
     public function reject(int $id, int $reviewerId, string $note = ''): array
     {
-        $before = $this->find($id);
-        $affected = $this->db->table('mobile_approval_requests')
-            ->where('id', $id)->where('status', 'pending')->update([
-                'status' => 'rejected', 'reviewed_by' => $reviewerId,
-                'reviewed_at' => date('Y-m-d H:i:s'),
-                'review_note' => trim($note) ?: null,
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]);
-        if (! $affected || $this->db->affectedRows() !== 1) {
-            throw new RuntimeException('Request is no longer pending.');
+        $this->db->transException(true)->transStart();
+        try {
+            $before = $this->find($id);
+            $affected = $this->db->table('mobile_approval_requests')
+                ->where('id', $id)->where('status', 'pending')->update([
+                    'status' => 'rejected', 'reviewed_by' => $reviewerId,
+                    'reviewed_at' => date('Y-m-d H:i:s'),
+                    'review_note' => trim($note) ?: null,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+            if (! $affected || $this->db->affectedRows() !== 1) {
+                throw new RuntimeException('Request is no longer pending.');
+            }
+            if (is_array($before) && (string) ($before['request_type'] ?? '') === 'followup') {
+                $followupId = $this->followupIdFromRequest($before);
+                if ($followupId > 0) {
+                    (new OrderFollowupService($this->db))->reviewPending($followupId, false, $reviewerId, $note);
+                }
+            }
+            $this->db->transComplete();
+        } catch (Throwable $e) {
+            $this->db->transRollback();
+            throw $e;
         }
         $request = $this->find($id) ?? [];
         try {
@@ -158,7 +174,7 @@ class MobileApprovalService
                 'customer_create' => $this->approveCustomer($payload),
                 'karigar_create' => $this->approveKarigar($payload),
                 'issuement' => $this->approveIssuement($payload, $request),
-                'followup' => $this->approveFollowup($payload, $request),
+                'followup' => $this->approveFollowup($payload, $request, $reviewerId, $note),
                 'delivery_challan' => $this->approveDeliveryChallan($payload, $request),
                 default => throw new RuntimeException('Unsupported request type.'),
             };
@@ -427,8 +443,12 @@ class MobileApprovalService
     }
 
     /** @param array<string,mixed> $payload @param array<string,mixed> $request */
-    private function approveFollowup(array $payload, array $request): array
+    private function approveFollowup(array $payload, array $request, int $reviewerId, string $note): array
     {
+        $followupId = $this->followupIdFromRequest($request, $payload);
+        if ($followupId > 0) {
+            return (new OrderFollowupService($this->db))->reviewPending($followupId, true, $reviewerId, $note);
+        }
         $orderId = (int) ($payload['order_id'] ?? $request['subject_id'] ?? 0);
         return (new OrderFollowupService($this->db))->create(
             $orderId,
@@ -511,8 +531,14 @@ class MobileApprovalService
             $orderId = (int) ($payload['order_id'] ?? $request['subject_id'] ?? 0);
             $requestCreatedAt = strtotime((string) ($request['created_at'] ?? '')) ?: null;
             $resultId = (int) ($request['result_id'] ?? 0);
+            $subjectFollowupId = (string) ($request['subject_table'] ?? '') === 'order_followups'
+                ? (int) ($request['subject_id'] ?? 0)
+                : (int) ($payload['followup_id'] ?? 0);
             $previous = null;
             foreach ($byOrder[$orderId] ?? [] as $followup) {
+                if ($subjectFollowupId > 0 && (int) ($followup['id'] ?? 0) === $subjectFollowupId) {
+                    continue;
+                }
                 if ($resultId > 0 && (int) ($followup['id'] ?? 0) === $resultId) {
                     continue;
                 }
@@ -537,6 +563,16 @@ class MobileApprovalService
         unset($request);
 
         return $requests;
+    }
+
+    /** @param array<string,mixed> $request @param array<string,mixed>|null $payload */
+    private function followupIdFromRequest(array $request, ?array $payload = null): int
+    {
+        $payload ??= is_array($request['payload'] ?? null) ? $request['payload'] : [];
+        if ((string) ($request['subject_table'] ?? '') === 'order_followups') {
+            return (int) ($request['subject_id'] ?? 0);
+        }
+        return (int) ($payload['followup_id'] ?? 0);
     }
 
     private function nullable(mixed $value): ?string

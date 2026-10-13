@@ -145,7 +145,7 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
             'status' => 'completed_on_time', 'due_at' => '2026-10-10 10:00:00',
             'completed_at' => '2026-10-10 09:00:00', 'score_delta' => 0,
         ]], [], [
-            ['type' => 'Proper Follow-up', 'score_delta' => 1],
+            ['type' => 'Approved follow-up', 'score_delta' => 2],
             ['type' => 'Meaningful update', 'score_delta' => .25],
             ['type' => 'Duplicate follow-up', 'score_delta' => -1],
             ['type' => 'Image evidence missing', 'score_delta' => -.5],
@@ -163,10 +163,30 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertTrue($summary['has_scored_activity']);
         $this->assertSame(2, $summary['due_action_count']);
         $this->assertSame(2.0, $summary['point_earned_breakdown']['Completed tasks']);
-        $this->assertSame(1.0, $summary['point_earned_breakdown']['Proper Follow-up']);
+        $this->assertSame(2.0, $summary['point_earned_breakdown']['Approved follow-up']);
         $this->assertSame(.25, $summary['point_earned_breakdown']['Meaningful update']);
         $this->assertSame(1.0, $summary['point_loss_breakdown']['Duplicate follow-up']);
         $this->assertSame(.5, $summary['point_loss_breakdown']['Image evidence missing']);
+    }
+
+    public function testPendingFollowupHasNoScoreAndDisapprovedFollowupLosesTwoPoints(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [], [[
+            'status' => 'completed_on_time',
+            'completed_followup_approval_status' => 'rejected',
+            'due_at' => '2026-10-10 10:00:00',
+            'completed_at' => '2026-10-10 09:00:00',
+        ]], [], [[
+            'type' => 'Disapproved follow-up', 'score_delta' => -2,
+        ]], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(2.0, $summary['points_lost']);
+        $this->assertSame(98.0, $summary['score']);
+        $this->assertSame(1, $summary['disapproved_followups']);
+        $this->assertSame(0, $summary['followup_on_time']);
+        $this->assertSame('Approval rejected', $summary['performance_band']);
     }
 
     public function testPerformanceViewShowsManagementQualityAndRiskAnalysis(): void

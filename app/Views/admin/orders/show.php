@@ -67,11 +67,12 @@
     .order-followups-table { min-width: 920px; table-layout: fixed; width: 100%; }
     .order-items-table tbody td, .order-components-table tbody td, .order-followups-table tbody td { font-size: 11px; padding: 13px 14px; vertical-align: middle; }
     .order-followups-table th:nth-child(1), .order-followups-table td:nth-child(1) { width: 12%; }
-    .order-followups-table th:nth-child(2), .order-followups-table td:nth-child(2) { width: 38%; }
-    .order-followups-table th:nth-child(3), .order-followups-table td:nth-child(3) { width: 14%; }
-    .order-followups-table th:nth-child(4), .order-followups-table td:nth-child(4) { width: 14%; }
-    .order-followups-table th:nth-child(5), .order-followups-table td:nth-child(5) { width: 14%; }
-    .order-followups-table th:nth-child(6), .order-followups-table td:nth-child(6) { width: 8%; }
+    .order-followups-table th:nth-child(2), .order-followups-table td:nth-child(2) { width: 31%; }
+    .order-followups-table th:nth-child(3), .order-followups-table td:nth-child(3) { width: 11%; }
+    .order-followups-table th:nth-child(4), .order-followups-table td:nth-child(4) { width: 13%; }
+    .order-followups-table th:nth-child(5), .order-followups-table td:nth-child(5) { width: 12%; }
+    .order-followups-table th:nth-child(6), .order-followups-table td:nth-child(6) { width: 13%; }
+    .order-followups-table th:nth-child(7), .order-followups-table td:nth-child(7) { width: 8%; }
     .order-design-code { color: var(--erp-red-dark); font-size: 11px; font-weight: 800; }
     .order-design-name { color: #8b95a5; font-size: 9px; margin-top: 3px; }
     .order-weight-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -82,7 +83,7 @@
     .order-weight-card strong { color: #202939; font-size: 16px; }
     .order-component-badge { background: #f2f4f7; border: 1px solid #e4e7ec; border-radius: 999px; color: #344054; display: inline-flex; font-size: 9px; font-weight: 750; padding: 5px 8px; }
     .followup-description { color: #344054; line-height: 1.5; max-width: none; overflow-wrap: anywhere; white-space: normal !important; word-break: break-word; }
-    .order-followups-table td:nth-child(1), .order-followups-table td:nth-child(3), .order-followups-table td:nth-child(4), .order-followups-table td:nth-child(5), .order-followups-table td:nth-child(6) { overflow-wrap: anywhere; white-space: normal !important; }
+    .order-followups-table td:nth-child(1), .order-followups-table td:nth-child(3), .order-followups-table td:nth-child(4), .order-followups-table td:nth-child(5), .order-followups-table td:nth-child(6), .order-followups-table td:nth-child(7) { overflow-wrap: anywhere; white-space: normal !important; }
     .order-followups-table .badge { white-space: normal; }
     .followup-image { border: 1px solid #e1e5eb; border-radius: 8px; height: 46px; object-fit: cover; width: 58px; }
     @media (max-width: 991px) {
@@ -280,9 +281,9 @@ $statusClass = match ($status) {
 
     <div class="card order-section-card mb-4">
         <div class="card-header"><h5 class="order-section-title"><i class="fe fe-message-circle"></i>Follow-up History</h5><span class="order-section-count"><?= count($followups) ?> update<?= count($followups) === 1 ? '' : 's' ?></span></div>
-        <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover order-followups-table mb-0" data-dt-skip="true"><thead><tr><th>Stage</th><th>Description</th><th>Next Follow-up</th><th>Taken By</th><th>Taken On</th><th>Image</th></tr></thead><tbody>
-        <?php if ($followups === []): ?><tr><td colspan="6" class="text-center text-muted py-4">No follow-ups recorded for this order.</td></tr><?php endif; ?>
-        <?php foreach ($followups as $followup): ?><tr><td><span class="badge bg-light text-dark border"><?= esc((string) (($followup['stage'] ?? '') ?: '-')) ?></span></td><td><div class="followup-description"><?= esc((string) (($followup['description'] ?? '') ?: '-')) ?></div></td><td><?= esc($formatDate((string) ($followup['next_followup_date'] ?? ''))) ?></td><td><?= esc((string) (($followup['followup_taken_by_name'] ?? '') ?: 'Admin')) ?></td><td><?= esc($formatDate((string) ($followup['followup_taken_on'] ?? ''))) ?></td><td><?php if (! empty($followup['image_path'])): ?><?php $followupImageUrl = base_url(ltrim((string) $followup['image_path'], '/')); ?><a href="<?= esc($followupImageUrl, 'attr') ?>" target="_blank" rel="noopener"><img class="followup-image js-order-image" src="<?= esc($followupImageUrl, 'attr') ?>" alt="Follow-up image" loading="lazy"></a><?php else: ?><span class="text-muted">—</span><?php endif; ?></td></tr><?php endforeach; ?>
+        <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover order-followups-table mb-0" data-dt-skip="true"><thead><tr><th>Stage</th><th>Description</th><th>Approval</th><th>Next Follow-up</th><th>Taken By</th><th>Taken On</th><th>Image</th></tr></thead><tbody>
+        <?php if ($followups === []): ?><tr><td colspan="7" class="text-center text-muted py-4">No follow-ups recorded for this order.</td></tr><?php endif; ?>
+        <?php foreach ($followups as $followup): ?><?php $approvalStatus = strtolower((string) ($followup['approval_status'] ?? 'approved')); $approvalClass = $approvalStatus === 'approved' ? 'bg-success' : ($approvalStatus === 'rejected' ? 'bg-danger' : 'bg-warning text-dark'); $approvalLabel = $approvalStatus === 'rejected' ? 'Disapproved' : ($approvalStatus === 'pending' ? 'Pending approval' : 'Approved'); ?><tr><td><span class="badge bg-light text-dark border"><?= esc((string) (($followup['stage'] ?? '') ?: '-')) ?></span></td><td><div class="followup-description"><?= esc((string) (($followup['description'] ?? '') ?: '-')) ?></div></td><td><span class="badge <?= $approvalClass ?>"><?= esc($approvalLabel) ?></span><?php if (trim((string) ($followup['review_note'] ?? '')) !== ''): ?><div class="small text-muted mt-1"><?= esc((string) $followup['review_note']) ?></div><?php endif; ?></td><td><?= esc($formatDate((string) ($followup['next_followup_date'] ?? ''))) ?></td><td><?= esc((string) (($followup['followup_taken_by_name'] ?? '') ?: 'Admin')) ?></td><td><?= esc($formatDate((string) ($followup['followup_taken_on'] ?? ''))) ?></td><td><?php if (! empty($followup['image_path'])): ?><?php $followupImageUrl = base_url(ltrim((string) $followup['image_path'], '/')); ?><a href="<?= esc($followupImageUrl, 'attr') ?>" target="_blank" rel="noopener"><img class="followup-image js-order-image" src="<?= esc($followupImageUrl, 'attr') ?>" alt="Follow-up image" loading="lazy"></a><?php else: ?><span class="text-muted">—</span><?php endif; ?></td></tr><?php endforeach; ?>
         </tbody></table></div></div>
     </div>
 

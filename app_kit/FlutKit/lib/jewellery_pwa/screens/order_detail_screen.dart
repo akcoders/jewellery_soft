@@ -1219,7 +1219,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           SizedBox(width: AppSpacing.sm),
                           Expanded(
                             child: Text(
-                              'Follow-up approval pending. The current follow-up remains pending until admin approves it.',
+                              'Follow-up approval pending. It is visible in the timeline, and you can continue with the next scheduled follow-up.',
                               style: TextStyle(fontWeight: FontWeight.w600),
                             ),
                           ),
@@ -1639,6 +1639,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ..._followups.map((rowRaw) {
                       final row = (rowRaw as Map).cast<String, dynamic>();
                       final imageUrl = (row['image_url'] ?? '').toString();
+                      final approvalStatus =
+                          (row['approval_status'] ?? 'approved')
+                              .toString()
+                              .toLowerCase();
                       return Container(
                         margin: const EdgeInsets.only(bottom: AppSpacing.md),
                         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -1671,6 +1675,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             const SizedBox(height: AppSpacing.sm),
                             Text((row['description'] ?? '').toString()),
                             const SizedBox(height: AppSpacing.sm),
+                            AppStatusBadge(
+                              label: _approvalLabel(approvalStatus),
+                              color: _approvalColor(approvalStatus),
+                            ),
+                            if ((row['review_note'] ?? '')
+                                .toString()
+                                .trim()
+                                .isNotEmpty) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              Text(
+                                'Review: ${row['review_note']}',
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
                             const Divider(height: 24),
                             _detailLine(
                               LucideIcons.calendar_clock,
@@ -1726,6 +1746,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         return AppColors.brandRed;
     }
   }
+
+  String _approvalLabel(String status) => switch (status) {
+    'pending' => 'Pending approval',
+    'rejected' => 'Disapproved',
+    _ => 'Approved',
+  };
+
+  Color _approvalColor(String status) => switch (status) {
+    'pending' => AppColors.warning,
+    'rejected' => AppColors.danger,
+    _ => AppColors.success,
+  };
 
   Widget _metaChip(String label, Object value) {
     return Container(

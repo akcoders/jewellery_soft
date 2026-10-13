@@ -104,6 +104,10 @@ class MobileNotificationEventService
             return $this->emptySummary('Invalid approval request.');
         }
         $type = (string) ($request['request_type'] ?? '');
+        $requestPayload = is_array($request['payload'] ?? null) ? $request['payload'] : [];
+        $orderId = $type === 'followup'
+            ? (int) ($requestPayload['order_id'] ?? 0)
+            : (int) ($request['subject_id'] ?? 0);
         $label = match ($type) {
             'followup' => 'Follow-up',
             'delivery_challan' => 'Delivery challan',
@@ -124,7 +128,7 @@ class MobileNotificationEventService
                 'screen' => 'approvals',
                 'approval_request_id' => $id,
                 'request_type' => $type,
-                'order_id' => (int) ($request['subject_id'] ?? 0),
+                'order_id' => $orderId,
             ],
         ]);
     }
@@ -138,6 +142,10 @@ class MobileNotificationEventService
             return $this->emptySummary('Invalid approval outcome.');
         }
         $type = (string) ($request['request_type'] ?? '');
+        $requestPayload = is_array($request['payload'] ?? null) ? $request['payload'] : [];
+        $orderId = $type === 'followup'
+            ? (int) ($requestPayload['order_id'] ?? 0)
+            : (int) ($request['subject_id'] ?? 0);
         $label = match ($type) {
             'followup' => 'Followup',
             'delivery_challan' => 'Delivery challan',
@@ -166,7 +174,7 @@ class MobileNotificationEventService
                 'screen' => $type === 'followup' ? 'followups' : 'approvals',
                 'approval_request_id' => $id,
                 'request_type' => $type,
-                'order_id' => (int) ($request['subject_id'] ?? 0),
+                'order_id' => $orderId,
             ],
         ]);
     }
@@ -179,7 +187,7 @@ class MobileNotificationEventService
 
         $db = db_connect();
         $row = $db->table('order_followups ofu')
-            ->select('ofu.id, ofu.order_id, ofu.stage, ofu.description, ofu.next_followup_date, o.order_no, o.status, o.followup_assigned_to')
+            ->select('ofu.id, ofu.order_id, ofu.stage, ofu.description, ofu.next_followup_date, ofu.approval_status, o.order_no, o.status, o.followup_assigned_to')
             ->join('orders o', 'o.id = ofu.order_id', 'inner')
             ->where('ofu.id', $followupId)
             ->where('ofu.order_id', $orderId)
@@ -194,20 +202,24 @@ class MobileNotificationEventService
 
         $orderNo = trim((string) ($row['order_no'] ?? '')) ?: ('#' . $orderId);
         $stage = trim((string) ($row['stage'] ?? '')) ?: 'Updated';
+        $approvalStatus = strtolower((string) ($row['approval_status'] ?? 'approved'));
         $followerId = (int) ($row['followup_assigned_to'] ?? 0);
         $immediate = $this->queueForFollower($followerId, [
             'type' => 'followup_added',
             'reference_table' => 'order_followups',
             'reference_id' => $followupId,
             'dedupe_key' => 'followup-added:' . $followupId,
-            'title' => 'Order Follow-up Added',
-            'message' => 'Order ' . $orderNo . ' follow-up updated to ' . $stage . '.',
+            'title' => $approvalStatus === 'pending' ? 'Follow-up Pending Approval' : 'Order Follow-up Added',
+            'message' => $approvalStatus === 'pending'
+                ? 'Order ' . $orderNo . ' follow-up was added and is awaiting approval. The next follow-up remains active.'
+                : 'Order ' . $orderNo . ' follow-up updated to ' . $stage . '.',
             'payload' => [
                 'type' => 'followup_added',
                 'order_id' => $orderId,
                 'order_no' => $orderNo,
                 'followup_id' => $followupId,
                 'stage' => $stage,
+                'approval_status' => $approvalStatus,
             ],
         ]);
 

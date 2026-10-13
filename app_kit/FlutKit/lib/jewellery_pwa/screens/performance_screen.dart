@@ -364,11 +364,20 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           LucideIcons.circle_check,
         ),
         _breakdownRow(
-          'Proper follow-ups',
-          _integer(_summary['proper_followups']),
-          _ruleLabel('proper_followup'),
+          'Approved follow-ups',
+          _integer(
+            _summary['approved_followups'] ?? _summary['proper_followups'],
+          ),
+          _ruleLabel('approved_followup'),
           AppColors.success,
           LucideIcons.calendar_check,
+        ),
+        _breakdownRow(
+          'Disapproved follow-ups',
+          _integer(_summary['disapproved_followups']),
+          _ruleLabel('disapproved_followup'),
+          AppColors.danger,
+          LucideIcons.circle_x,
         ),
         _breakdownRow(
           'Order entries',

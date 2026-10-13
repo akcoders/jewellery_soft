@@ -16,7 +16,8 @@ class StaffPerformanceService
     public const FOLLOWUP_LATE_POINTS = -2.0;
     public const RATING_POINT_STEP = 5.0;
     public const ORDER_ENTRY_POINTS = 0.5;
-    public const PROPER_FOLLOWUP_POINTS = 1.0;
+    public const PROPER_FOLLOWUP_POINTS = 2.0;
+    public const DISAPPROVED_FOLLOWUP_POINTS = -2.0;
     public const ISSUEMENT_POINTS = 0.5;
     public const PURCHASE_POINTS = 0.5;
 
@@ -272,8 +273,11 @@ class StaffPerformanceService
         $scoreTotal = array_sum(array_column($activeRows, 'score'));
         $followupSubmissions = array_sum(array_column($rows, 'followup_submission_count'));
         $meaningfulUpdates = array_sum(array_column($rows, 'meaningful_updates'));
+        $approvedFollowups = array_sum(array_column($rows, 'approved_followups'));
+        $disapprovedFollowups = array_sum(array_column($rows, 'disapproved_followups'));
         $duplicateFollowups = array_sum(array_column($rows, 'duplicate_followups'));
         $missingImageFollowups = array_sum(array_column($rows, 'missing_image_followups'));
+        $qualityReviewedFollowups = $approvedFollowups + $duplicateFollowups;
         $actionRequired = count(array_filter($rows, static fn(array $row): bool => (bool) ($row['needs_attention'] ?? false)));
         $topPerformer = $activeRows[0] ?? null;
         $earnedBreakdown = $lostBreakdown = [];
@@ -315,10 +319,12 @@ class StaffPerformanceService
                 'points_lost' => round(array_sum(array_column($rows, 'points_lost')), 1),
                 'followup_submissions' => $followupSubmissions,
                 'meaningful_updates' => $meaningfulUpdates,
+                'approved_followups' => $approvedFollowups,
+                'disapproved_followups' => $disapprovedFollowups,
                 'duplicate_followups' => $duplicateFollowups,
                 'missing_image_followups' => $missingImageFollowups,
-                'evidence_compliance_rate' => $followupSubmissions > 0 ? round(max(0, min(100, (($followupSubmissions - $missingImageFollowups) / $followupSubmissions) * 100)), 1) : 0,
-                'unique_update_rate' => $followupSubmissions > 0 ? round(max(0, min(100, (($followupSubmissions - $duplicateFollowups) / $followupSubmissions) * 100)), 1) : 0,
+                'evidence_compliance_rate' => $qualityReviewedFollowups > 0 ? round(max(0, min(100, (($qualityReviewedFollowups - $missingImageFollowups) / $qualityReviewedFollowups) * 100)), 1) : 0,
+                'unique_update_rate' => $qualityReviewedFollowups > 0 ? round(max(0, min(100, ($approvedFollowups / $qualityReviewedFollowups) * 100)), 1) : 0,
                 'action_required_count' => $actionRequired,
                 'top_performer_name' => is_array($topPerformer) ? (string) ($topPerformer['name'] ?? '') : '',
                 'top_performer_score' => is_array($topPerformer) ? (float) ($topPerformer['score'] ?? 0) : 0,
@@ -357,6 +363,8 @@ class StaffPerformanceService
             'rating_average' => 0,
             'order_entries' => 0,
             'proper_followups' => 0,
+            'approved_followups' => 0,
+            'disapproved_followups' => 0,
             'followup_submission_count' => 0,
             'meaningful_updates' => 0,
             'duplicate_followups' => 0,
@@ -394,6 +402,8 @@ class StaffPerformanceService
             'rating_point_step' => self::RATING_POINT_STEP,
             'order_entry' => self::ORDER_ENTRY_POINTS,
             'proper_followup' => self::PROPER_FOLLOWUP_POINTS,
+            'approved_followup' => self::PROPER_FOLLOWUP_POINTS,
+            'disapproved_followup' => self::DISAPPROVED_FOLLOWUP_POINTS,
             'meaningful_update' => 0.25,
             'duplicate_followup' => -1.0,
             'missing_followup_image' => -0.5,
@@ -473,9 +483,10 @@ class StaffPerformanceService
         }
 
         $builder = $db->table('order_followup_schedules s')
-            ->select('s.*, o.order_no, au.name as completed_by_name')
+            ->select('s.*, o.order_no, au.name as completed_by_name, completed_followup.approval_status as completed_followup_approval_status')
             ->join('orders o', 'o.id = s.order_id', 'left')
             ->join('admin_users au', 'au.id = s.completed_by', 'left')
+            ->join('order_followups completed_followup', 'completed_followup.id = s.completed_followup_id', 'left')
             ->whereIn('s.assigned_to', $staffIds)
             ->where('s.due_at <', $end)
             ->where('s.status !=', 'cancelled')
@@ -573,18 +584,21 @@ class StaffPerformanceService
         }
         if ($db->tableExists('order_followups')) {
             $quality = new FollowupQualityService($db);
-            foreach ($db->table('order_followups f')->select('f.id, f.order_id, f.stage, f.description, f.followup_taken_by, f.followup_taken_on, f.image_path, f.duplicate_followup_id, f.duplicate_reason, f.duplicate_override, o.order_no')
+            foreach ($db->table('order_followups f')->select('f.id, f.order_id, f.stage, f.description, f.followup_taken_by, f.followup_taken_on, f.image_path, f.approval_status, f.review_note, f.reviewed_at, f.duplicate_followup_id, f.duplicate_reason, f.duplicate_override, o.order_no')
                 ->join('orders o', 'o.id = f.order_id', 'left')->whereIn('f.followup_taken_by', $staffIds)
-                ->where('f.followup_taken_on >=', $start)->where('f.followup_taken_on <', $end)->get()->getResultArray() as $row) {
+                ->groupStart()
+                    ->groupStart()->where('f.reviewed_at >=', $start)->where('f.reviewed_at <', $end)->groupEnd()
+                    ->orGroupStart()->where('f.reviewed_at', null)->where('f.followup_taken_on >=', $start)->where('f.followup_taken_on <', $end)->groupEnd()
+                ->groupEnd()->get()->getResultArray() as $row) {
                 $userId = (int) $row['followup_taken_by'];
                 $title = (string) (($row['order_no'] ?? '') ?: ('Order #' . $row['order_id']));
-                $at = (string) $row['followup_taken_on'];
+                $at = (string) (($row['reviewed_at'] ?? '') ?: $row['followup_taken_on']);
                 $orderId = (int) $row['order_id'];
                 $proofUrl = $quality->hasValidImage($row)
                     ? base_url(ltrim((string) $row['image_path'], '/'))
                     : null;
                 foreach ($quality->scoreEvents($row) as $scoreEvent) {
-                    $reference = $scoreEvent['type'] === 'Proper Follow-up'
+                    $reference = $scoreEvent['type'] === 'Approved follow-up'
                         ? (string) (($row['stage'] ?? '') ?: ($row['description'] ?? ''))
                         : $scoreEvent['reason'];
                     $rows[] = $this->activity($userId, $scoreEvent['type'], $title, $reference, $at, $scoreEvent['score_delta'], $orderId, [
@@ -664,9 +678,12 @@ class StaffPerformanceService
 
         foreach ($followups as $followup) {
             $status = strtolower((string) ($followup['status'] ?? 'pending'));
+            $completedApprovalStatus = strtolower((string) ($followup['completed_followup_approval_status'] ?? 'approved'));
             $effectiveAt = (string) (($followup['performance_until_at'] ?? '') ?: $now);
             $delay = $this->followupDelayBreakdown($followup, $periodStart, $periodEnd, $now);
-            if (str_starts_with($status, 'completed')) {
+            if (str_starts_with($status, 'completed') && in_array($completedApprovalStatus, ['pending', 'rejected'], true)) {
+                $delta = 0.0;
+            } elseif (str_starts_with($status, 'completed')) {
                 $onTime = $status === 'completed_on_time' || (float) ($followup['score_delta'] ?? 0) > 0;
                 $delta = $delay['penalty_days'] * self::FOLLOWUP_LATE_POINTS;
                 $onTime ? $followupOnTime++ : $followupLate++;
@@ -708,28 +725,31 @@ class StaffPerformanceService
         }
 
         $activityCounts = array_count_values(array_column($activities, 'type'));
-        $properFollowups = (int) ($activityCounts['Proper Follow-up'] ?? 0);
+        $approvedFollowups = (int) ($activityCounts['Approved follow-up'] ?? 0);
+        $disapprovedFollowups = (int) ($activityCounts['Disapproved follow-up'] ?? 0);
         $duplicateFollowups = (int) ($activityCounts['Duplicate follow-up'] ?? 0);
         $missingImageFollowups = (int) ($activityCounts['Image evidence missing'] ?? 0);
         $meaningfulUpdates = (int) ($activityCounts['Meaningful update'] ?? 0);
-        $followupSubmissions = $properFollowups + $duplicateFollowups;
-        $evidenceComplianceRate = $followupSubmissions > 0
-            ? round(max(0, min(100, (($followupSubmissions - $missingImageFollowups) / $followupSubmissions) * 100)), 1)
+        $qualityReviewedFollowups = $approvedFollowups + $duplicateFollowups;
+        $followupSubmissions = $qualityReviewedFollowups + $disapprovedFollowups;
+        $evidenceComplianceRate = $qualityReviewedFollowups > 0
+            ? round(max(0, min(100, (($qualityReviewedFollowups - $missingImageFollowups) / $qualityReviewedFollowups) * 100)), 1)
             : 0.0;
-        $uniqueUpdateRate = $followupSubmissions > 0
-            ? round(($properFollowups / $followupSubmissions) * 100, 1)
+        $uniqueUpdateRate = $qualityReviewedFollowups > 0
+            ? round(($approvedFollowups / $qualityReviewedFollowups) * 100, 1)
             : 0.0;
-        $completedActivityTypes = ['Order Entry', 'Proper Follow-up', 'Issuement', 'Purchase'];
+        $completedActivityTypes = ['Order Entry', 'Approved follow-up', 'Issuement', 'Purchase'];
         $completed = $taskOnTime + $taskLate + count(array_filter($activities, static fn(array $row): bool => in_array((string) ($row['type'] ?? ''), $completedActivityTypes, true)));
         $onTime = $taskOnTime + $followupOnTime;
         $overdue = $taskOverdue + $followupOverdue;
         $dueActions = $taskOnTime + $taskLate + $taskOverdue + $followupOnTime + $followupLate + $followupOverdue;
         $score = max(0, round(self::BASE_SCORE + $earned - $lost, 1));
         $hasActivity = $dueActions > 0 || count($activities) > 0 || count($ratings) > 0;
-        $needsAttention = $duplicateFollowups > 0 || $missingImageFollowups > 0 || $overdue > 0 || $score < 90 || (count($ratings) > 0 && $ratingTotal / count($ratings) < 3);
+        $needsAttention = $disapprovedFollowups > 0 || $duplicateFollowups > 0 || $missingImageFollowups > 0 || $overdue > 0 || $score < 90 || (count($ratings) > 0 && $ratingTotal / count($ratings) < 3);
         [$performanceBand, $analysisSummary] = $this->performanceAssessment(
             $score,
             $hasActivity,
+            $disapprovedFollowups,
             $duplicateFollowups,
             $missingImageFollowups,
             $overdue,
@@ -752,7 +772,9 @@ class StaffPerformanceService
             'rating_count' => count($ratings),
             'rating_average' => count($ratings) > 0 ? round($ratingTotal / count($ratings), 1) : 0,
             'order_entries' => (int) ($activityCounts['Order Entry'] ?? 0),
-            'proper_followups' => $properFollowups,
+            'proper_followups' => $approvedFollowups,
+            'approved_followups' => $approvedFollowups,
+            'disapproved_followups' => $disapprovedFollowups,
             'followup_submission_count' => $followupSubmissions,
             'meaningful_updates' => $meaningfulUpdates,
             'duplicate_followups' => $duplicateFollowups,
@@ -776,9 +798,10 @@ class StaffPerformanceService
     }
 
     /** @return array{0:string,1:string} */
-    private function performanceAssessment(float $score, bool $hasActivity, int $duplicates, int $missingImages, int $overdue, float $ratingAverage, float $evidenceRate): array
+    private function performanceAssessment(float $score, bool $hasActivity, int $disapproved, int $duplicates, int $missingImages, int $overdue, float $ratingAverage, float $evidenceRate): array
     {
         if (! $hasActivity) return ['No activity', 'No scored activity was recorded for this period.'];
+        if ($disapproved > 0) return ['Approval rejected', $disapproved . ' follow-up' . ($disapproved === 1 ? ' was' : 's were') . ' disapproved and reduced the score.'];
         if ($duplicates > 0) return ['Needs review', $duplicates . ' duplicate follow-up' . ($duplicates === 1 ? '' : 's') . ' reduced the score.'];
         if ($missingImages > 0) return ['Evidence gap', $missingImages . ' follow-up' . ($missingImages === 1 ? ' is' : 's are') . ' missing valid image evidence.'];
         if ($overdue > 0) return ['Schedule risk', $overdue . ' assigned action' . ($overdue === 1 ? ' is' : 's are') . ' overdue.'];
@@ -820,17 +843,20 @@ class StaffPerformanceService
         }
         foreach ($followups as $followup) {
             $status = strtolower((string) ($followup['status'] ?? 'pending'));
+            $completedApprovalStatus = strtolower((string) ($followup['completed_followup_approval_status'] ?? 'approved'));
             $evaluatedAt = (string) ($followup['performance_until_at'] ?? $now);
             $overdue = $status === 'pending' && (string) ($followup['due_at'] ?? '') < $evaluatedAt;
             $delay = $this->followupDelayBreakdown($followup, $periodStart, $periodEnd, $now);
-            $delta = $delay['penalty_days'] * self::FOLLOWUP_LATE_POINTS;
+            $awaitingOrRejected = str_starts_with($status, 'completed')
+                && in_array($completedApprovalStatus, ['pending', 'rejected'], true);
+            $delta = $awaitingOrRejected ? 0.0 : $delay['penalty_days'] * self::FOLLOWUP_LATE_POINTS;
             $events[] = [
                 'type' => 'Follow-up',
                 'title' => 'Order ' . (string) (($followup['order_no'] ?? '') ?: ('#' . ($followup['order_id'] ?? ''))),
                 'reference' => (string) ($followup['order_no'] ?? ''),
                 'due_at' => (string) ($followup['due_at'] ?? ''),
                 'completed_at' => (string) (($followup['completed_at'] ?? '') ?: ($followup['performance_until_at'] ?? '')),
-                'status' => $overdue ? 'overdue' : $status,
+                'status' => $awaitingOrRejected ? 'approval_' . $completedApprovalStatus : ($overdue ? 'overdue' : $status),
                 'score_delta' => $delta,
                 'order_id' => (int) ($followup['order_id'] ?? 0),
                 'proof_url' => null,

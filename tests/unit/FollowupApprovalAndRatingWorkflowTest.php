@@ -20,14 +20,26 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString(': ImageSource.camera', $picker);
     }
 
-    public function testFollowupRejectionKeepsWorkPendingAndNotifiesEmployee(): void
+    public function testFollowupIsVisibleWhilePendingAndCanContinueScheduling(): void
     {
         $approval = $this->source('Services/MobileApprovalService.php');
         $orders = $this->source('Controllers/Api/Mobile/OrdersController.php');
+        $followups = $this->source('Services/OrderFollowupService.php');
+        $quality = $this->source('Services/FollowupQualityService.php');
+        $migration = $this->source('Database/Migrations/2026-10-13-000102_AddFollowupApprovalLifecycle.php');
+        $orderView = $this->source('Views/admin/orders/show.php');
         $events = $this->source('Services/MobileNotificationEventService.php');
 
         $this->assertStringContainsString("'followup' => \$this->approveFollowup", $approval);
         $this->assertStringContainsString("->where('status', 'pending')", $approval);
+        $this->assertStringContainsString('reviewPending($followupId, false', $approval);
+        $this->assertStringContainsString('createPendingApproval(', $orders);
+        $this->assertStringContainsString("\$this->save(\$orderId, \$payload, \$submittedBy, \$imageName, \$imagePath, 'pending')", $followups);
+        $this->assertStringContainsString('completeOrderFollowup(', $followups);
+        $this->assertStringContainsString("'approval_status'", $migration);
+        $this->assertStringContainsString('Pending approval', $orderView);
+        $this->assertStringContainsString("'Disapproved follow-up', 'score_delta' => -2.0", $quality);
+        $this->assertStringContainsString("'Approved follow-up', 'score_delta' => 2.0", $quality);
         $this->assertStringContainsString("'pending_followup_approval'", $orders);
         $this->assertStringContainsString("'Followup disapproved'", $events);
     }

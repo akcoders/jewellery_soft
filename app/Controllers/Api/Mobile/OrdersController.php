@@ -438,7 +438,11 @@ class OrdersController extends MobileBaseController
             || (int) ($order['followup_assigned_to'] ?? 0) === $mobileUserId
             || (int) ($order['created_by'] ?? 0) === $mobileUserId;
         $followups = $canViewFollowups ? $this->followupRows($id) : [];
-        $pendingFollowupApproval = (new MobileApprovalService())->pendingForSubject('followup', 'orders', $id);
+        $pendingFollowups = array_values(array_filter(
+            $followups,
+            static fn(array $row): bool => strtolower((string) ($row['approval_status'] ?? 'approved')) === 'pending'
+        ));
+        $pendingFollowupApproval = $pendingFollowups[0] ?? (new MobileApprovalService())->pendingForSubject('followup', 'orders', $id);
         $documents = $this->documentLinks($order);
         $media = $this->orderMedia($id);
         $receivingService = new OrderReceivingService($db);
@@ -455,10 +459,10 @@ class OrdersController extends MobileBaseController
             'items' => $items,
             'followups' => $followups,
             'can_add_followup' => ! $followupClosed
-                && (int) ($order['followup_assigned_to'] ?? 0) === $mobileUserId
-                && $pendingFollowupApproval === null,
+                && (int) ($order['followup_assigned_to'] ?? 0) === $mobileUserId,
             'can_view_followups' => $canViewFollowups,
             'pending_followup_approval' => $pendingFollowupApproval,
+            'pending_followup_approval_count' => count($pendingFollowups),
             'followup_gallery_enabled' => (new MobileUserPolicyService())->followupGalleryEnabled($mobileUserId),
             'receipt' => $receipt,
             'is_received' => $isReceived,
@@ -588,23 +592,23 @@ class OrdersController extends MobileBaseController
                 'followup_taken_on' => date('Y-m-d H:i:s'),
             ];
             if ($policy->requiresApproval($currentUserId, 'followup')) {
-                $approval = (new MobileApprovalService())->submit(
-                    'followup',
+                $created = (new OrderFollowupService($db))->createPendingApproval(
+                    $id,
                     $followupPayload,
                     $currentUserId,
                     'Order ' . (string) ($order['order_no'] ?? ('#' . $id)) . ' follow-up: ' . $stage,
                     $imageName,
-                    $imagePath,
-                    'orders',
-                    $id
+                    $imagePath
                 );
                 return $this->ok([
                     'order_id' => $id,
                     'status' => $currentStatus,
                     'approval_required' => true,
-                    'approval_request' => $approval,
-                    'submission_message' => 'Follow-up sent for admin approval.',
-                ], 'Follow-up sent for admin approval.', 201);
+                    'followup_id' => (int) ($created['id'] ?? 0),
+                    'approval_request' => $created['approval_request'] ?? [],
+                    'followups' => $this->followupRows($id),
+                    'submission_message' => 'Follow-up added to the order and sent for admin approval. The next follow-up is active.',
+                ], 'Follow-up added and sent for admin approval.', 201);
             }
             $created = (new OrderFollowupService($db))->create(
                 $id,

@@ -33,7 +33,6 @@ use App\Services\DiamondBagTraceService;
 use App\Services\FinishedJewelleryService;
 use App\Services\GoldInventory\StockService as GoldInventoryStockService;
 use App\Services\KarigarMaterialAccountingService;
-use App\Services\MobileApprovalService;
 use App\Services\MobileNotificationEventService;
 use App\Services\MobileUserPolicyService;
 use App\Services\OrderWhatsAppService;
@@ -393,6 +392,9 @@ class OrderController extends BaseController
                 'id' => (int) ($followup['id'] ?? 0),
                 'stage' => (string) ($followup['stage'] ?? '-'),
                 'description' => (string) ($followup['description'] ?? ''),
+                'approval_status' => (string) ($followup['approval_status'] ?? 'approved'),
+                'review_note' => (string) ($followup['review_note'] ?? ''),
+                'reviewed_at' => (string) ($followup['reviewed_at'] ?? ''),
                 'next_followup_date' => (string) ($followup['next_followup_date'] ?? ''),
                 'taken_by' => (string) (($followup['followup_taken_by_name'] ?? '') ?: 'Admin'),
                 'taken_on' => (string) ($followup['followup_taken_on'] ?? ''),
@@ -1622,20 +1624,18 @@ class OrderController extends BaseController
 
         try {
             if ((new MobileUserPolicyService())->requiresApproval($currentAdminId, 'followup')) {
-                (new MobileApprovalService())->submit(
-                    'followup',
+                (new OrderFollowupService())->createPendingApproval(
+                    $id,
                     $followupPayload,
                     $currentAdminId,
                     'Order ' . (string) ($order['order_no'] ?? ('#' . $id)) . ' follow-up: ' . $stage,
                     $imageName,
-                    $imagePath,
-                    'orders',
-                    $id
+                    $imagePath
                 );
                 $redirect = $this->isSafeAdminReturnUrl($returnTo)
                     ? redirect()->to($returnTo)
                     : redirect()->back();
-                return $redirect->with('success', 'Follow-up sent for admin approval.');
+                return $redirect->with('success', 'Follow-up added to the order and sent for admin approval. The next follow-up is active.');
             }
             (new OrderFollowupService())->create(
                 $id,
