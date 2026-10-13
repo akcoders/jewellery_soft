@@ -513,13 +513,20 @@ class MobileApprovalService
         }
 
         $followups = $this->db->table('order_followups ofu')
-            ->select('ofu.id, ofu.order_id, ofu.stage, ofu.description, ofu.next_followup_date, ofu.followup_taken_on, ofu.created_at, au.name AS followup_taken_by_name')
+            ->select('ofu.id, ofu.order_id, ofu.stage, ofu.description, ofu.next_followup_date, ofu.followup_taken_on, ofu.created_at, ofu.image_path, ofu.approval_status, ofu.approval_request_id, ofu.reviewed_at, ofu.review_note, au.name AS followup_taken_by_name, reviewer.name AS reviewed_by_name, o.order_no')
             ->join('admin_users au', 'au.id = ofu.followup_taken_by', 'left')
+            ->join('admin_users reviewer', 'reviewer.id = ofu.reviewed_by', 'left')
+            ->join('orders o', 'o.id = ofu.order_id', 'left')
             ->whereIn('ofu.order_id', array_values($orderIds))
-            ->orderBy('ofu.id', 'DESC')
+            ->orderBy('ofu.followup_taken_on', 'ASC')
+            ->orderBy('ofu.id', 'ASC')
             ->get()->getResultArray();
         $byOrder = [];
         foreach ($followups as $followup) {
+            $followup['image_url'] = ! empty($followup['image_path'])
+                ? base_url(ltrim((string) $followup['image_path'], '/'))
+                : null;
+            unset($followup['image_path']);
             $byOrder[(int) ($followup['order_id'] ?? 0)][] = $followup;
         }
 
@@ -534,8 +541,16 @@ class MobileApprovalService
             $subjectFollowupId = (string) ($request['subject_table'] ?? '') === 'order_followups'
                 ? (int) ($request['subject_id'] ?? 0)
                 : (int) ($payload['followup_id'] ?? 0);
+            $chain = $byOrder[$orderId] ?? [];
+            $pendingIds = array_values(array_map(
+                static fn(array $followup): int => (int) ($followup['id'] ?? 0),
+                array_filter($chain, static fn(array $followup): bool => (string) ($followup['approval_status'] ?? 'approved') === 'pending')
+            ));
+            $chainIds = array_values(array_map(static fn(array $followup): int => (int) ($followup['id'] ?? 0), $chain));
+            $chainPosition = array_search($subjectFollowupId, $chainIds, true);
+            $pendingPosition = array_search($subjectFollowupId, $pendingIds, true);
             $previous = null;
-            foreach ($byOrder[$orderId] ?? [] as $followup) {
+            foreach (array_reverse($chain) as $followup) {
                 if ($subjectFollowupId > 0 && (int) ($followup['id'] ?? 0) === $subjectFollowupId) {
                     continue;
                 }
@@ -559,6 +574,14 @@ class MobileApprovalService
             }
             $payload['previous_followup'] = $previous;
             $request['payload'] = $payload;
+            $request['followup_order_id'] = $orderId;
+            $request['followup_order_no'] = (string) (($payload['order_no'] ?? '') ?: ($chain[0]['order_no'] ?? ('#' . $orderId)));
+            $request['followup_chain'] = $chain;
+            $request['followup_chain_count'] = count($chain);
+            $request['followup_chain_position'] = $chainPosition === false ? null : $chainPosition + 1;
+            $request['followup_pending_count'] = count($pendingIds);
+            $request['followup_pending_position'] = $pendingPosition === false ? null : $pendingPosition + 1;
+            $request['followup_is_oldest_pending'] = $pendingIds !== [] && $pendingIds[0] === $subjectFollowupId;
         }
         unset($request);
 

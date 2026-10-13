@@ -20,6 +20,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
   bool _canReview = false;
   String _error = '';
   String _statusFilter = 'pending';
+  String _pendingTypeFilter = 'all';
   List<dynamic> _items = [];
 
   @override
@@ -68,6 +69,10 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
   Future<void> _review(Map<String, dynamic> item, String decision) async {
     final note = TextEditingController();
     final isReapproval = decision == 'approve' && item['can_reapprove'] == true;
+    final isFollowup = item['request_type'] == 'followup';
+    final payload = _map(item['payload']);
+    final chainPosition = _int(item['followup_chain_position']);
+    final chainCount = _int(item['followup_chain_count']);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -81,17 +86,102 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
         title: Text(
           isReapproval
               ? 'Re-approve issuement?'
+              : isFollowup
+              ? '${decision == 'approve' ? 'Approve' : 'Disapprove'} follow-up${chainPosition > 0 ? ' #$chainPosition' : ''}?'
               : decision == 'approve'
               ? 'Approve request?'
               : 'Reject request?',
         ),
-        content: TextField(
-          controller: note,
-          maxLength: 500,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Admin note (optional)',
-            border: OutlineInputBorder(),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isFollowup) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFAF7F9),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${item['followup_order_no'] ?? payload['order_no'] ?? '-'}${chainCount > 0 ? ' · Update $chainPosition of $chainCount' : ''}',
+                          style: const TextStyle(
+                            color: AppColors.plum,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          (payload['stage'] ?? '-').toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          (payload['description'] ?? '-').toString(),
+                          style: const TextStyle(height: 1.45),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Next reminder: ${(payload['next_followup_date'] ?? '').toString().isEmpty ? 'Not scheduled' : AppFormatters.dateTime(payload['next_followup_date'])}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (decision == 'approve' ? Colors.green : Colors.red)
+                          .withValues(alpha: .08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      decision == 'approve'
+                          ? 'Score impact: +2 for approval. Evidence and duplicate rules are calculated separately.'
+                          : 'Score impact: −2 only. The update remains visible in the order chain.',
+                      style: TextStyle(
+                        color: decision == 'approve'
+                            ? Colors.green.shade800
+                            : Colors.red.shade800,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                TextField(
+                  controller: note,
+                  maxLength: 500,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: decision == 'approve'
+                        ? 'Approval note (optional)'
+                        : 'Reason for disapproval',
+                    hintText: decision == 'approve'
+                        ? 'Add any instruction for the follower'
+                        : 'Explain what must be corrected',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -110,8 +200,8 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
               isReapproval
                   ? 'Re-approve & Process'
                   : decision == 'approve'
-                  ? 'Approve & Process'
-                  : 'Reject',
+                  ? (isFollowup ? 'Approve · +2' : 'Approve & Process')
+                  : (isFollowup ? 'Disapprove · −2' : 'Reject'),
             ),
           ),
         ],
@@ -174,6 +264,12 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
     final visibleItems = _statusFilter == 'history'
         ? historyItems
         : pendingItems;
+    final pendingFollowups = pendingItems
+        .where((raw) => _map(raw)['request_type'] == 'followup')
+        .toList();
+    final pendingOther = pendingItems
+        .where((raw) => _map(raw)['request_type'] != 'followup')
+        .toList();
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -257,6 +353,23 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
               ),
             ],
           ),
+          if (_statusFilter == 'pending' && pendingItems.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _queueSummary(pendingFollowups, pendingOther),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _typeFilter('all', 'All ${pendingItems.length}'),
+                _typeFilter(
+                  'followups',
+                  'Follow-up chains ${pendingFollowups.length}',
+                ),
+                _typeFilter('other', 'Other ${pendingOther.length}'),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -300,11 +413,594 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
           else if (_statusFilter == 'history')
             _historyTable(visibleItems)
           else
-            ...visibleItems.map((raw) => _requestCard(_map(raw))),
+            ..._pendingQueue(pendingFollowups, pendingOther),
         ],
       ),
     );
   }
+
+  Widget _queueSummary(List<dynamic> followups, List<dynamic> other) {
+    final orderIds = followups
+        .map((raw) {
+          final item = _map(raw);
+          return _int(
+            item['followup_order_id'] ?? _map(item['payload'])['order_id'],
+          );
+        })
+        .where((id) => id > 0)
+        .toSet();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _queueMetric(
+              '${orderIds.length}',
+              'Orders',
+              LucideIcons.shopping_bag,
+              AppColors.plum,
+            ),
+          ),
+          Container(width: 1, height: 44, color: AppColors.border),
+          Expanded(
+            child: _queueMetric(
+              '${followups.length}',
+              'Follow-ups',
+              LucideIcons.git_branch,
+              AppColors.gold,
+            ),
+          ),
+          Container(width: 1, height: 44, color: AppColors.border),
+          Expanded(
+            child: _queueMetric(
+              '${other.length}',
+              'Other',
+              LucideIcons.inbox,
+              AppColors.diamond,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _queueMetric(String value, String label, IconData icon, Color color) =>
+      Column(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+
+  List<Widget> _pendingQueue(List<dynamic> followups, List<dynamic> other) {
+    final widgets = <Widget>[];
+    if (_pendingTypeFilter != 'other') {
+      final groups = <String, List<Map<String, dynamic>>>{};
+      for (final raw in followups) {
+        final item = _map(raw);
+        final payload = _map(item['payload']);
+        final orderId = _int(item['followup_order_id'] ?? payload['order_id']);
+        final orderNo = (item['followup_order_no'] ?? payload['order_no'] ?? '')
+            .toString();
+        final key = orderId > 0 ? 'id:$orderId' : 'no:$orderNo';
+        groups.putIfAbsent(key, () => []).add(item);
+      }
+      final grouped = groups.values.toList()
+        ..sort(
+          (a, b) => (a.first['created_at'] ?? '').toString().compareTo(
+            (b.first['created_at'] ?? '').toString(),
+          ),
+        );
+      if (grouped.isNotEmpty) {
+        widgets.add(
+          _sectionCaption(
+            'FOLLOW-UP APPROVAL CHAINS',
+            '${grouped.length} order${grouped.length == 1 ? '' : 's'} · oldest pending first',
+          ),
+        );
+        widgets.addAll(grouped.map(_followupChainCard));
+      }
+    }
+    if (_pendingTypeFilter != 'followups' && other.isNotEmpty) {
+      widgets.add(
+        _sectionCaption(
+          'OTHER REQUESTS',
+          '${other.length} request${other.length == 1 ? '' : 's'} waiting',
+        ),
+      );
+      widgets.addAll(other.map((raw) => _requestCard(_map(raw))));
+    }
+    if (widgets.isEmpty) {
+      widgets.add(
+        const AppEmptyState(
+          title: 'No requests in this filter',
+          message: 'Choose another request type to view the approval queue.',
+        ),
+      );
+    }
+    return widgets;
+  }
+
+  Widget _sectionCaption(String title, String subtitle) => Padding(
+    padding: const EdgeInsets.only(top: 8, bottom: 10),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.plum,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
+        ),
+        Text(
+          subtitle,
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+        ),
+      ],
+    ),
+  );
+
+  Widget _followupChainCard(List<Map<String, dynamic>> requests) {
+    requests.sort(
+      (a, b) => (a['created_at'] ?? '').toString().compareTo(
+        (b['created_at'] ?? '').toString(),
+      ),
+    );
+    final first = requests.first;
+    final payload = _map(first['payload']);
+    final orderNo = (first['followup_order_no'] ?? payload['order_no'] ?? '-')
+        .toString();
+    final rawChain = first['followup_chain'] is List
+        ? first['followup_chain'] as List
+        : <dynamic>[];
+    final chain = rawChain
+        .whereType<Map>()
+        .map((row) => row.cast<String, dynamic>())
+        .toList();
+    final requestsByFollowup = <int, Map<String, dynamic>>{};
+    for (final request in requests) {
+      final followupId = _int(_map(request['payload'])['followup_id']);
+      if (followupId > 0) requestsByFollowup[followupId] = request;
+    }
+    final requestsById = <int, Map<String, dynamic>>{
+      for (final request in requests) _int(request['id']): request,
+    };
+    final timeline = <Map<String, dynamic>>[...chain];
+    for (final request in requests) {
+      final requestPayload = _map(request['payload']);
+      final followupId = _int(requestPayload['followup_id']);
+      if (followupId > 0 &&
+          timeline.any((row) => _int(row['id']) == followupId)) {
+        continue;
+      }
+      timeline.add({
+        'id': followupId,
+        'stage': requestPayload['stage'],
+        'description': requestPayload['description'],
+        'next_followup_date': requestPayload['next_followup_date'],
+        'followup_taken_on': requestPayload['followup_taken_on'],
+        'followup_taken_by_name': request['requested_by_name'],
+        'approval_status': request['status'],
+        'image_url': request['attachment_url'],
+        '_request_id': request['id'],
+      });
+    }
+    final recentStart = timeline.length > 8 ? timeline.length - 8 : 0;
+    final visibleTimeline = <Map<String, dynamic>>[];
+    for (var index = 0; index < timeline.length; index++) {
+      final row = timeline[index];
+      final hasPendingRequest =
+          requestsByFollowup.containsKey(_int(row['id'])) ||
+          requestsById.containsKey(_int(row['_request_id']));
+      if (index >= recentStart || hasPendingRequest) {
+        visibleTimeline.add(row);
+      }
+    }
+    final hiddenCount = timeline.length - visibleTimeline.length;
+    final reviewed = timeline
+        .where((row) => (row['approval_status'] ?? 'approved') != 'pending')
+        .length;
+    final progress = timeline.isEmpty ? 0.0 : reviewed / timeline.length;
+    final latestNext = timeline.isEmpty
+        ? ''
+        : (timeline.last['next_followup_date'] ?? '').toString();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: AppColors.plum.withValues(alpha: .18)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF3C1737), Color(0xFF70224F)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        LucideIcons.git_branch,
+                        color: Color(0xFFF5D98A),
+                      ),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            orderNo,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          Text(
+                            '${timeline.length} update${timeline.length == 1 ? '' : 's'} in chain · ${requests.length} pending',
+                            style: const TextStyle(
+                              color: Color(0xFFDCC9D7),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5D98A),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${requests.length} PENDING',
+                        style: const TextStyle(
+                          color: Color(0xFF4A3210),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 13),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 5,
+                    color: const Color(0xFFF5D98A),
+                    backgroundColor: Colors.white.withValues(alpha: .15),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Review top to bottom to preserve the stage story.',
+                      style: TextStyle(color: Colors.white70, fontSize: 10),
+                    ),
+                    if (latestNext.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Next ${AppFormatters.dateTime(latestNext)}',
+                        style: const TextStyle(
+                          color: Color(0xFFF5D98A),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (hiddenCount > 0)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+              color: const Color(0xFFF8F3E7),
+              child: Text(
+                '$hiddenCount earlier reviewed update${hiddenCount == 1 ? '' : 's'} hidden · latest context shown',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 16, 14, 4),
+            child: Column(
+              children: [
+                for (var i = 0; i < visibleTimeline.length; i++)
+                  _followupTimelineNode(
+                    visibleTimeline[i],
+                    requestsByFollowup[_int(visibleTimeline[i]['id'])] ??
+                        requestsById[_int(visibleTimeline[i]['_request_id'])],
+                    timeline.length - visibleTimeline.length + i + 1,
+                    timeline.length,
+                    i == visibleTimeline.length - 1,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _followupTimelineNode(
+    Map<String, dynamic> row,
+    Map<String, dynamic>? request,
+    int position,
+    int total,
+    bool isLast,
+  ) {
+    final status = (row['approval_status'] ?? request?['status'] ?? 'approved')
+        .toString()
+        .toLowerCase();
+    final MaterialColor color = switch (status) {
+      'approved' => Colors.green,
+      'rejected' => Colors.red,
+      _ => Colors.orange,
+    };
+    final statusLabel = switch (status) {
+      'rejected' => 'DISAPPROVED',
+      'pending' => 'PENDING REVIEW',
+      _ => 'APPROVED',
+    };
+    final imageUrl = (row['image_url'] ?? request?['attachment_url'] ?? '')
+        .toString();
+    final takenOn = (row['followup_taken_on'] ?? request?['created_at'] ?? '')
+        .toString();
+    final next = (row['next_followup_date'] ?? '').toString();
+    final isOldestPending = request?['followup_is_oldest_pending'] == true;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 38,
+            child: Column(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .12),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: color, width: 2),
+                  ),
+                  child: status == 'approved'
+                      ? Icon(LucideIcons.check, size: 15, color: color)
+                      : status == 'rejected'
+                      ? Icon(LucideIcons.x, size: 15, color: color)
+                      : Text(
+                          '$position',
+                          style: TextStyle(
+                            color: color.shade800,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: AppColors.border,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: status == 'pending'
+                    ? const Color(0xFFFFFBEE)
+                    : const Color(0xFFFAF7F9),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  color: status == 'pending'
+                      ? Colors.orange.withValues(alpha: .42)
+                      : AppColors.border,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${row['stage'] ?? '-'}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: .11),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: TextStyle(
+                            color: color.shade800,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Update $position of $total · ${row['followup_taken_by_name'] ?? request?['requested_by_name'] ?? '-'}${takenOn.isEmpty ? '' : ' · ${AppFormatters.dateTime(takenOn)}'}',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 10,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  Text(
+                    (row['description'] ?? '-').toString(),
+                    style: const TextStyle(height: 1.45),
+                  ),
+                  const SizedBox(height: 9),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: [
+                      _miniFact(
+                        LucideIcons.calendar_clock,
+                        next.isEmpty
+                            ? 'No next reminder'
+                            : 'Next ${AppFormatters.dateTime(next)}',
+                      ),
+                      _miniFact(
+                        imageUrl.isEmpty
+                            ? LucideIcons.image_off
+                            : LucideIcons.image,
+                        imageUrl.isEmpty ? 'No evidence' : 'Evidence attached',
+                      ),
+                      if (isOldestPending)
+                        _miniFact(LucideIcons.list_start, 'REVIEW FIRST'),
+                    ],
+                  ),
+                  if ((row['review_note'] ?? '').toString().isNotEmpty) ...[
+                    const SizedBox(height: 9),
+                    Text(
+                      'Admin: ${row['review_note']}',
+                      style: TextStyle(
+                        color: color.shade800,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  if (imageUrl.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        imageUrl,
+                        width: double.infinity,
+                        height: 120,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ],
+                  if (_canReview && status == 'pending' && request != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _review(request, 'reject'),
+                            icon: const Icon(LucideIcons.x, size: 17),
+                            label: const Text('Disapprove'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => _review(request, 'approve'),
+                            icon: const Icon(LucideIcons.check, size: 17),
+                            label: const Text('Approve +2'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniFact(IconData icon, String text) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: AppColors.border),
+    ),
+    child: Text.rich(
+      TextSpan(
+        children: [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Icon(icon, size: 12, color: AppColors.textSecondary),
+          ),
+          TextSpan(text: '  $text'),
+        ],
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700),
+    ),
+  );
 
   Widget _historyTable(List<dynamic> items) {
     return Card(
@@ -668,6 +1364,20 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
     onSelected: (_) => setState(() => _statusFilter = value),
   );
 
+  Widget _typeFilter(String value, String label) => ChoiceChip(
+    selected: _pendingTypeFilter == value,
+    label: Text(label),
+    avatar: Icon(
+      value == 'followups'
+          ? LucideIcons.git_branch
+          : value == 'other'
+          ? LucideIcons.inbox
+          : LucideIcons.layout_list,
+      size: 15,
+    ),
+    onSelected: (_) => setState(() => _pendingTypeFilter = value),
+  );
+
   Widget _followupContext(Map<String, dynamic> payload) {
     final previous = _map(payload['previous_followup']);
     final previousDescription = (previous['description'] ?? '').toString();
@@ -1019,7 +1729,9 @@ class _MasterRequestDialogState extends State<_MasterRequestDialog> {
 
   @override
   void dispose() {
-    for (final controller in _fields.values) controller.dispose();
+    for (final controller in _fields.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -1035,14 +1747,19 @@ class _MasterRequestDialogState extends State<_MasterRequestDialog> {
       } else {
         await widget.api.createKarigarApprovalRequest(payload);
       }
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
+      }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 

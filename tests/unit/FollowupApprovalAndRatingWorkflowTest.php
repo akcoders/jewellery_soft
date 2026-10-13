@@ -62,6 +62,20 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('Next follow-up', $appDesk);
     }
 
+    public function testMobileApprovalDeskGroupsFollowupsIntoOrderChains(): void
+    {
+        $approval = $this->source('Services/MobileApprovalService.php');
+        $appDesk = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_pwa/screens/mobile_approvals_screen.dart'
+        );
+        $this->assertStringContainsString("\$request['followup_chain']", $approval);
+        $this->assertStringContainsString("\$request['followup_pending_position']", $approval);
+        $this->assertStringContainsString("\$request['followup_is_oldest_pending']", $approval);
+        $this->assertStringContainsString('FOLLOW-UP APPROVAL CHAINS', $appDesk);
+        $this->assertStringContainsString('Review top to bottom to preserve the stage story.', $appDesk);
+        $this->assertStringContainsString('Approve +2', $appDesk);
+    }
+
     public function testApprovalDeskDefaultsToPendingAndKeepsReviewedRequestsInHistory(): void
     {
         $service = $this->source('Services/MobileApprovalService.php');

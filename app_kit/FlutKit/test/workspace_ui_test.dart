@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutkit/jewellery_pwa/screens/dashboard_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/inventory_tab.dart';
+import 'package:flutkit/jewellery_pwa/screens/mobile_approvals_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/performance_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/transactions_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
@@ -21,6 +22,7 @@ void main() {
         DashboardScreen(api: api),
         InventoryTab(api: api),
         PerformanceScreen(api: api),
+        MobileApprovalsScreen(api: api),
         TransactionsScreen(
           title: 'Diamond Purchases',
           loader: () async => _transactions,
@@ -198,6 +200,87 @@ class _WorkspaceApi extends MobileApiService {
         'score_delta': 2,
         'due_at': '2026-10-01 10:00:00',
         'status': 'completed_on_time',
+      },
+    ],
+  };
+
+  @override
+  Future<Map<String, dynamic>> fetchApprovalRequests() async => {
+    'can_review': true,
+    'items': [
+      {
+        'id': 101,
+        'request_type': 'followup',
+        'status': 'pending',
+        'requested_by_name': 'Production Coordinator',
+        'created_at': '2026-10-12 10:00:00',
+        'followup_order_id': 25,
+        'followup_order_no': 'ORD-2026-00025',
+        'followup_chain_count': 3,
+        'followup_chain_position': 2,
+        'followup_is_oldest_pending': true,
+        'payload': {
+          'order_id': 25,
+          'order_no': 'ORD-2026-00025',
+          'followup_id': 202,
+          'stage': 'In Production',
+          'description':
+              'Casting completed and the piece moved to detailed finishing.',
+          'next_followup_date': '2026-10-14 11:00:00',
+        },
+        'followup_chain': [
+          {
+            'id': 201,
+            'stage': 'Assigned',
+            'description': 'Design and material details shared with workshop.',
+            'followup_taken_by_name': 'Production Coordinator',
+            'followup_taken_on': '2026-10-10 09:00:00',
+            'next_followup_date': '2026-10-12 10:00:00',
+            'approval_status': 'approved',
+          },
+          {
+            'id': 202,
+            'stage': 'In Production',
+            'description':
+                'Casting completed and the piece moved to detailed finishing.',
+            'followup_taken_by_name': 'Production Coordinator',
+            'followup_taken_on': '2026-10-12 10:00:00',
+            'next_followup_date': '2026-10-14 11:00:00',
+            'approval_status': 'pending',
+          },
+          {
+            'id': 203,
+            'stage': 'QC',
+            'description':
+                'Finishing completed and the jewellery entered quality control.',
+            'followup_taken_by_name': 'Production Coordinator',
+            'followup_taken_on': '2026-10-14 09:30:00',
+            'next_followup_date': '2026-10-15 11:00:00',
+            'approval_status': 'pending',
+          },
+        ],
+      },
+      {
+        'id': 102,
+        'request_type': 'followup',
+        'status': 'pending',
+        'requested_by_name': 'Production Coordinator',
+        'created_at': '2026-10-14 09:30:00',
+        'followup_order_id': 25,
+        'followup_order_no': 'ORD-2026-00025',
+        'followup_chain_count': 3,
+        'followup_chain_position': 3,
+        'followup_is_oldest_pending': false,
+        'payload': {
+          'order_id': 25,
+          'order_no': 'ORD-2026-00025',
+          'followup_id': 203,
+          'stage': 'QC',
+          'description':
+              'Finishing completed and the jewellery entered quality control.',
+          'next_followup_date': '2026-10-15 11:00:00',
+        },
+        'followup_chain': [],
       },
     ],
   };
