@@ -68,8 +68,9 @@ class _InventoryTabState extends State<InventoryTab> {
       ]);
       if (!mounted ||
           requestId != _requestId ||
-          query != _searchCtrl.text.trim())
+          query != _searchCtrl.text.trim()) {
         return;
+      }
       setState(() {
         _summary = (results[0] as Map).cast<String, dynamic>();
         _diamonds = (results[1] as List?) ?? [];
@@ -79,8 +80,9 @@ class _InventoryTabState extends State<InventoryTab> {
     } catch (e) {
       if (!mounted ||
           requestId != _requestId ||
-          query != _searchCtrl.text.trim())
+          query != _searchCtrl.text.trim()) {
         return;
+      }
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted &&
@@ -281,16 +283,23 @@ class _InventoryTabState extends State<InventoryTab> {
     late final String subtitle;
     late final List<_Metric> metrics;
     if (_material == 0) {
+      final isBroken =
+          (row['diamond_type'] ?? '').toString().trim().toLowerCase() ==
+          'broken';
       final from = (row['chalni_from'] ?? '').toString().trim();
       final to = (row['chalni_to'] ?? '').toString().trim();
       final chalni = from.isEmpty && to.isEmpty
           ? 'Not specified'
           : '$from – $to';
-      title = '${row['diamond_type'] ?? '-'} · ${row['shape'] ?? '-'}';
-      subtitle =
-          '${row['color'] ?? '-'} · ${row['clarity'] ?? '-'} · Chalni $chalni';
+      title = isBroken
+          ? 'Broken Diamond'
+          : '${row['diamond_type'] ?? '-'} · ${row['shape'] ?? '-'}';
+      subtitle = isBroken
+          ? 'Weight-only inventory · PCS not required'
+          : '${row['color'] ?? '-'} · ${row['clarity'] ?? '-'} · Chalni $chalni';
       metrics = [
-        _Metric('Pieces', AppFormatters.quantity(row['pcs_balance'])),
+        if (!isBroken)
+          _Metric('Pieces', AppFormatters.quantity(row['pcs_balance'])),
         _Metric('Carats', '${AppFormatters.quantity(row['carat_balance'])} ct'),
         _Metric('Stock value', '₹ ${AppFormatters.amount(row['stock_value'])}'),
         _Metric(

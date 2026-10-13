@@ -82,6 +82,18 @@ class StockService
 
     public function brokenDiamondItemId(): int
     {
+        $existing = $this->db->table('items')
+            ->select('id')
+            ->where("LOWER(TRIM(diamond_type)) = 'broken'", null, false)
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getRowArray();
+        if ($existing) {
+            $itemId = (int) $existing['id'];
+            $this->ensureStockRow($itemId);
+            return $itemId;
+        }
+
         return $this->upsertItemFromSignature([
             'diamond_type' => 'Broken',
             'shape' => 'Mixed',

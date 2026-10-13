@@ -65,7 +65,7 @@ final class FollowerPrivacyAndMaintenanceTest extends CIUnitTestCase
             $this->assertStringContainsString('isAndroid && Date.now() < resumeAt', $index);
             $this->assertStringContainsString('2026-10-14T00:00:00+05:30', $index);
             $this->assertStringContainsString('Download Android APK', $index);
-            $this->assertStringContainsString('aabhushan-erp-1.0.7-build8.apk', $index);
+            $this->assertStringContainsString('aabhushan-erp-1.0.8-build9.apk', $index);
             $this->assertStringContainsString('if (!window.aabhushanAndroidPwaPaused)', $index);
             $this->assertStringContainsString('android-pwa-resumed', $index);
         }
@@ -88,9 +88,9 @@ final class FollowerPrivacyAndMaintenanceTest extends CIUnitTestCase
             ROOTPATH . 'app_kit/FlutKit/android/app/src/main/AndroidManifest.xml'
         );
 
-        $this->assertStringContainsString("androidVersion = '1.0.7'", $release);
-        $this->assertStringContainsString('androidVersionCode = 8', $release);
-        $this->assertStringContainsString('releases/download/android-v1.0.7-build8/', $release);
+        $this->assertStringContainsString("androidVersion = '1.0.8'", $release);
+        $this->assertStringContainsString('androidVersionCode = 9', $release);
+        $this->assertStringContainsString('releases/download/android-v1.0.8-build9/', $release);
         $this->assertStringContainsString("\$platform === 'android'", $endpoint);
         $this->assertStringContainsString("'version_code' => \$release->androidVersionCode", $endpoint);
         $this->assertStringContainsString('A new update is ready', $shell);

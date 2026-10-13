@@ -6,7 +6,8 @@ $ledgerCts = (float) ($stats['ledger_cts'] ?? 0);
 $tracedCts = (float) ($stats['traced_cts'] ?? 0);
 $untracedCts = (float) ($stats['untraced_cts'] ?? 0);
 $overTracedCts = (float) ($stats['over_traced_cts'] ?? 0);
-$coverage = $ledgerCts > 0 ? min(100, ($tracedCts / $ledgerCts) * 100) : ($tracedCts > 0 ? 100 : 0);
+$isBrokenProduct = strtolower(trim((string) ($product['diamond_type'] ?? ''))) === 'broken';
+$coverage = $isBrokenProduct ? 100 : ($ledgerCts > 0 ? min(100, ($tracedCts / $ledgerCts) * 100) : ($tracedCts > 0 ? 100 : 0));
 $defaultShapeId = 0;
 if (is_array($product ?? null)) {
     $itemShape = strtoupper(trim((string) ($product['shape'] ?? '')));
@@ -62,6 +63,8 @@ if ($defaultShapeId <= 0 && (($shapes ?? []) !== [])) {
 
     <?php if (! empty($migrationRequired)): ?>
         <div class="reconcile-alert danger"><i class="fe fe-alert-triangle"></i><div><strong>Database update required</strong><small>Run migration 2026-09-08-000087 before managing chalni stock.</small></div></div>
+    <?php elseif ($isBrokenProduct): ?>
+        <div class="reconcile-alert"><i class="fe fe-info"></i><div><strong>Permanent weight-only Broken Diamond inventory</strong><small>Broken return CTS is stored here directly. PCS, bag, shape and chalni classification are intentionally not required.</small></div></div>
     <?php elseif ($overTracedCts > .0005): ?>
         <div class="reconcile-alert danger"><i class="fe fe-alert-circle"></i><div><strong>Physical chalni count is <?= number_format($overTracedCts, 3) ?> cts above the product ledger.</strong><small>The source count is preserved, not silently overwritten. Reconcile it through a diamond stock adjustment after verification.</small></div></div>
     <?php elseif ($untracedCts > .0005): ?>
@@ -69,11 +72,19 @@ if ($defaultShapeId <= 0 && (($shapes ?? []) !== [])) {
     <?php endif; ?>
 
     <section class="metric-grid">
-        <article class="metric" style="--metric:#3157d5"><span class="metric-label">Product Ledger</span><strong class="metric-value"><?= number_format($ledgerCts, 3) ?> cts</strong><div class="metric-note"><?= number_format((float) ($stats['ledger_pcs'] ?? 0), 0) ?> pcs in inventory ledger</div></article>
-        <article class="metric" style="--metric:#6941c6"><span class="metric-label">Chalni Traced</span><strong class="metric-value"><?= number_format($tracedCts, 3) ?> cts</strong><div class="metric-note"><?= number_format((float) ($stats['traced_pcs'] ?? 0), 0) ?> pcs classified</div></article>
-        <article class="metric" style="--metric:#f79009"><span class="metric-label">Untraced</span><strong class="metric-value"><?= number_format($untracedCts, 3) ?> cts</strong><div class="metric-note"><?= $overTracedCts > .0005 ? 'Variance shown separately' : number_format(100 - $coverage, 1) . '% awaiting classification' ?></div></article>
-        <article class="metric" style="--metric:#079455"><span class="metric-label">Prepared Bags</span><strong class="metric-value"><?= number_format((float) ($stats['bagged_cts'] ?? 0), 3) ?> cts</strong><div class="metric-note"><?= number_format((float) ($stats['bagged_pcs'] ?? 0), 0) ?> pcs ready in bags</div></article>
-        <article class="metric" style="--metric:#be1622"><span class="metric-label"><?= $overTracedCts > .0005 ? 'Over-traced' : 'Categories' ?></span><strong class="metric-value"><?= $overTracedCts > .0005 ? number_format($overTracedCts, 3) . ' cts' : (int) ($stats['category_count'] ?? 0) ?></strong><div class="metric-note"><?= $overTracedCts > .0005 ? 'Needs physical reconciliation' : 'Active chalni stock buckets' ?></div></article>
+        <?php if ($isBrokenProduct): ?>
+            <article class="metric" style="--metric:#be1622"><span class="metric-label">Broken Inventory</span><strong class="metric-value"><?= number_format($ledgerCts, 3) ?> cts</strong><div class="metric-note">Total weight returned as broken</div></article>
+            <article class="metric" style="--metric:#6941c6"><span class="metric-label">PCS Tracking</span><strong class="metric-value">Not required</strong><div class="metric-note">Broken piece count can be unknown</div></article>
+            <article class="metric" style="--metric:#f79009"><span class="metric-label">Chalni Tracking</span><strong class="metric-value">Not required</strong><div class="metric-note">Stored as mixed broken weight</div></article>
+            <article class="metric" style="--metric:#3157d5"><span class="metric-label">Bag Eligible</span><strong class="metric-value">No</strong><div class="metric-note">Never offered in bag preparation</div></article>
+            <article class="metric" style="--metric:#079455"><span class="metric-label">Stock Source</span><strong class="metric-value">Returns</strong><div class="metric-note">Automatically updated from return CTS</div></article>
+        <?php else: ?>
+            <article class="metric" style="--metric:#3157d5"><span class="metric-label">Product Ledger</span><strong class="metric-value"><?= number_format($ledgerCts, 3) ?> cts</strong><div class="metric-note"><?= number_format((float) ($stats['ledger_pcs'] ?? 0), 0) ?> pcs in inventory ledger</div></article>
+            <article class="metric" style="--metric:#6941c6"><span class="metric-label">Chalni Traced</span><strong class="metric-value"><?= number_format($tracedCts, 3) ?> cts</strong><div class="metric-note"><?= number_format((float) ($stats['traced_pcs'] ?? 0), 0) ?> pcs classified</div></article>
+            <article class="metric" style="--metric:#f79009"><span class="metric-label">Untraced</span><strong class="metric-value"><?= number_format($untracedCts, 3) ?> cts</strong><div class="metric-note"><?= $overTracedCts > .0005 ? 'Variance shown separately' : number_format(100 - $coverage, 1) . '% awaiting classification' ?></div></article>
+            <article class="metric" style="--metric:#079455"><span class="metric-label">Prepared Bags</span><strong class="metric-value"><?= number_format((float) ($stats['bagged_cts'] ?? 0), 3) ?> cts</strong><div class="metric-note"><?= number_format((float) ($stats['bagged_pcs'] ?? 0), 0) ?> pcs ready in bags</div></article>
+            <article class="metric" style="--metric:#be1622"><span class="metric-label"><?= $overTracedCts > .0005 ? 'Over-traced' : 'Categories' ?></span><strong class="metric-value"><?= $overTracedCts > .0005 ? number_format($overTracedCts, 3) . ' cts' : (int) ($stats['category_count'] ?? 0) ?></strong><div class="metric-note"><?= $overTracedCts > .0005 ? 'Needs physical reconciliation' : 'Active chalni stock buckets' ?></div></article>
+        <?php endif; ?>
     </section>
 
     <section class="stock-workspace">
@@ -84,7 +95,7 @@ if ($defaultShapeId <= 0 && (($shapes ?? []) !== [])) {
             </div>
             <div class="d-flex align-items-center gap-3 flex-wrap">
                 <div class="coverage"><div class="coverage-track"><span style="width:<?= number_format($coverage, 2, '.', '') ?>%"></span></div><strong><?= number_format($coverage, 1) ?>% traced</strong></div>
-                <?php if (empty($migrationRequired) && ($product ?? null)): ?><button type="button" class="btn btn-primary" id="new-chalni" data-bs-toggle="modal" data-bs-target="#chalni-stock-modal"><i class="fe fe-plus"></i> Add Chalni Stock</button><?php endif; ?>
+                <?php if (empty($migrationRequired) && ($product ?? null) && ! $isBrokenProduct): ?><button type="button" class="btn btn-primary" id="new-chalni" data-bs-toggle="modal" data-bs-target="#chalni-stock-modal"><i class="fe fe-plus"></i> Add Chalni Stock</button><?php endif; ?>
             </div>
         </div>
         <div class="stock-table-wrap">
@@ -121,14 +132,14 @@ if ($defaultShapeId <= 0 && (($shapes ?? []) !== [])) {
             <table class="table table-hover stock-table datatable">
                 <thead><tr><th>Product</th><th class="text-end">Ledger CTS</th><th class="text-end">Traced CTS</th><th class="text-end">Untraced CTS</th><th class="text-end">Variance</th><th>Status</th></tr></thead>
                 <tbody><?php foreach (($products ?? []) as $item): ?>
-                    <?php $variance = (float) ($item['traced_cts'] ?? 0) - (float) ($item['carat_balance'] ?? 0); ?>
+                    <?php $isBrokenRow = strtolower(trim((string) ($item['diamond_type'] ?? ''))) === 'broken'; $variance = (float) ($item['traced_cts'] ?? 0) - (float) ($item['carat_balance'] ?? 0); ?>
                     <tr class="<?= (int) $selectedItemId === (int) $item['id'] ? 'table-active' : '' ?>">
                         <td><a href="<?= site_url('admin/diamond-inventory/stock?item_id=' . (int) $item['id']) ?>"><strong><?= esc((string) $item['product_label']) ?></strong></a></td>
                         <td class="text-end stock-number"><?= number_format((float) ($item['carat_balance'] ?? 0), 3) ?></td>
-                        <td class="text-end stock-number"><?= number_format((float) ($item['traced_cts'] ?? 0), 3) ?></td>
-                        <td class="text-end stock-number"><?= number_format((float) ($item['untraced_cts'] ?? 0), 3) ?></td>
-                        <td class="text-end stock-number <?= abs($variance) > .0005 ? 'text-danger' : 'text-success' ?>"><?= ($variance > 0 ? '+' : '') . number_format($variance, 3) ?></td>
-                        <td><span class="badge <?= abs($variance) <= .0005 ? 'bg-success' : ((float) ($item['traced_cts'] ?? 0) <= .0005 ? 'bg-secondary' : 'bg-warning text-dark') ?>"><?= abs($variance) <= .0005 ? 'Reconciled' : ((float) ($item['traced_cts'] ?? 0) <= .0005 ? 'Untraced' : 'Review') ?></span></td>
+                        <td class="text-end stock-number"><?= $isBrokenRow ? '—' : number_format((float) ($item['traced_cts'] ?? 0), 3) ?></td>
+                        <td class="text-end stock-number"><?= $isBrokenRow ? '—' : number_format((float) ($item['untraced_cts'] ?? 0), 3) ?></td>
+                        <td class="text-end stock-number <?= ! $isBrokenRow && abs($variance) > .0005 ? 'text-danger' : 'text-success' ?>"><?= $isBrokenRow ? '—' : (($variance > 0 ? '+' : '') . number_format($variance, 3)) ?></td>
+                        <td><?php if ($isBrokenRow): ?><span class="badge bg-info text-dark">Weight only</span><?php else: ?><span class="badge <?= abs($variance) <= .0005 ? 'bg-success' : ((float) ($item['traced_cts'] ?? 0) <= .0005 ? 'bg-secondary' : 'bg-warning text-dark') ?>"><?= abs($variance) <= .0005 ? 'Reconciled' : ((float) ($item['traced_cts'] ?? 0) <= .0005 ? 'Untraced' : 'Review') ?></span><?php endif; ?></td>
                     </tr>
                 <?php endforeach; ?></tbody>
             </table>
@@ -136,7 +147,7 @@ if ($defaultShapeId <= 0 && (($shapes ?? []) !== [])) {
     </section>
 </div>
 
-<?php if (empty($migrationRequired) && ($product ?? null)): ?>
+<?php if (empty($migrationRequired) && ($product ?? null) && ! $isBrokenProduct): ?>
 <div class="modal fade" id="chalni-stock-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
         <form method="post" action="<?= site_url('admin/diamond-inventory/stock/chalni') ?>" id="chalni-stock-form">

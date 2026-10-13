@@ -70,31 +70,52 @@ final class DiamondBagTraceabilityTest extends CIUnitTestCase
         $migration = (string) file_get_contents(
             APPPATH . 'Database/Migrations/2026-10-13-000106_AddBrokenDiamondReturnLines.php'
         );
+        $productMigration = (string) file_get_contents(
+            APPPATH . 'Database/Migrations/2026-10-13-000107_EnsureBrokenDiamondInventoryItem.php'
+        );
         $stock = (string) file_get_contents(APPPATH . 'Services/DiamondInventory/StockService.php');
+        $chalniStock = (string) file_get_contents(APPPATH . 'Services/DiamondChalniStockService.php');
         $trace = (string) file_get_contents(APPPATH . 'Services/DiamondBagTraceService.php');
         $bagService = (string) file_get_contents(APPPATH . 'Services/DiamondBagService.php');
         $adminReturn = (string) file_get_contents(APPPATH . 'Controllers/Admin/DiamondInventory/ReturnsController.php');
         $mobileReturn = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/TransactionsController.php');
         $adminForm = (string) file_get_contents(APPPATH . 'Views/admin/diamond_inventory/returns/form.php');
+        $adminStock = (string) file_get_contents(APPPATH . 'Controllers/Admin/DiamondInventory/StockController.php');
+        $mobileStock = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/InventoryController.php');
         $native = (string) file_get_contents(
             ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/transaction_create_screen.dart'
         );
         $pwa = (string) file_get_contents(
             ROOTPATH . 'app_kit/FlutKit/lib/jewellery_pwa/screens/transaction_create_screen.dart'
         );
+        $nativeInventory = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/inventory_tab.dart'
+        );
+        $pwaInventory = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_pwa/screens/inventory_tab.dart'
+        );
 
         $this->assertStringContainsString("'is_broken'", $migration);
+        $this->assertStringContainsString("'diamond_type' => 'Broken'", $productMigration);
+        $this->assertStringContainsString("->table('stock')->insert", $productMigration);
         $this->assertStringContainsString('brokenDiamondItemId', $stock);
+        $this->assertStringContainsString("LOWER(TRIM(diamond_type)) = 'broken'", $stock);
         $this->assertStringContainsString('including broken weight', $stock);
         $this->assertStringContainsString("->where('rd.component_type', 'diamond')", $stock);
         $this->assertStringContainsString('brokenReturnedByIssue', $trace);
         $this->assertStringContainsString('if ($availableCts <= self::EPSILON)', $trace);
         $this->assertStringContainsString("LOWER(TRIM(i.diamond_type)) <> 'broken'", $bagService);
+        $this->assertStringContainsString('Broken Diamond · Weight only', $chalniStock);
+        $this->assertStringContainsString('cannot be classified by PCS, shape or chalni', $chalniStock);
+        $this->assertStringContainsString('brokenDiamondItemId()', $adminStock);
+        $this->assertStringContainsString('brokenDiamondItemId()', $mobileStock);
         $this->assertStringContainsString("'is_broken' => 1", $adminReturn);
         $this->assertStringContainsString("'is_broken' => 1", $mobileReturn);
         $this->assertStringContainsString('name="broken_carat"', $adminForm);
         $this->assertStringContainsString("payload['broken_carat']", $native);
         $this->assertStringContainsString("payload['broken_carat']", $pwa);
+        $this->assertStringContainsString('Weight-only inventory | PCS not required', $nativeInventory);
+        $this->assertStringContainsString('Weight-only inventory · PCS not required', $pwaInventory);
     }
 
     public function testDiamondReturnDeleteIsRestrictedToDashboardAdministrators(): void

@@ -2,6 +2,8 @@
 
 namespace App\Controllers\Api\Mobile;
 
+use App\Services\DiamondInventory\StockService as DiamondStockService;
+
 class InventoryController extends MobileBaseController
 {
     public function __construct()
@@ -58,8 +60,10 @@ class InventoryController extends MobileBaseController
             return $authFail;
         }
 
+        $db = db_connect();
+        (new DiamondStockService($db))->brokenDiamondItemId();
         $search = trim((string) $this->request->getGet('q'));
-        $builder = db_connect()->table('stock s')
+        $builder = $db->table('stock s')
             ->select('i.id as item_id, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, s.pcs_balance, s.carat_balance, s.avg_cost_per_carat, s.stock_value, s.updated_at')
             ->join('items i', 'i.id = s.item_id', 'inner');
 

@@ -4,13 +4,16 @@ namespace App\Controllers\Admin\DiamondInventory;
 
 use App\Controllers\BaseController;
 use App\Services\DiamondChalniStockService;
+use App\Services\DiamondInventory\StockService as DiamondStockService;
 use Throwable;
 
 class StockController extends BaseController
 {
     public function index(): string
     {
-        $service = new DiamondChalniStockService(db_connect());
+        $db = db_connect();
+        (new DiamondStockService($db))->brokenDiamondItemId();
+        $service = new DiamondChalniStockService($db);
         $products = $service->products();
         $selectedItemId = (int) $this->request->getGet('item_id');
         if ($selectedItemId <= 0) {

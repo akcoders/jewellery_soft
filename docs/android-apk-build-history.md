@@ -25,6 +25,7 @@ published. Update it for every Android release.
 | 2026-10-13 | 1.0.5 | 6 | `android-v1.0.5-build6` | `9abeeae69488de92c27d3ca33948a8cd3abe5cf16e286683b31245b3a44d5dcd` | Required verified in-app updater, employee camera/gallery policy, and owner-supplied notification sound |
 | 2026-10-13 | 1.0.6 | 7 | `android-v1.0.6-build7` | `30746a5dac6deeac9c10a6e083bcc98c5022b49cd9531b91ac6bc7db2fdaab3f` | Ten per-user notification sounds with preview, persisted selection, and matching OneSignal/local-reminder channels |
 | 2026-10-13 | 1.0.7 | 8 | `android-v1.0.7-build8` | `1c1dc0eed80338188db56746dd06c3caeb3b71c9b7c14ced688d25fbd9b854df` | Weight-only broken-diamond returns, direct Broken inventory posting, and CTS-authoritative issue utilization |
+| 2026-10-13 | 1.0.8 | 9 | `android-v1.0.8-build9` | `753ddd526ca3e8276e81537714f96c057cf4d7b4f5722f4169f5e6694196bc1d` | Permanent Broken Diamond stock product with weight-only presentation in admin, PWA, and Android |
 
 ## Prerequisites
 

@@ -99,7 +99,10 @@ class _InventoryTabState extends State<InventoryTab>
                 stats: [
                   _SummaryStat('PCS', AppFormatters.quantity(d['total_pcs'])),
                   _SummaryStat('CTS', AppFormatters.quantity(d['total_carat'])),
-                  _SummaryStat('Value', 'Rs ${AppFormatters.amount(d['total_value'])}'),
+                  _SummaryStat(
+                    'Value',
+                    'Rs ${AppFormatters.amount(d['total_value'])}',
+                  ),
                 ],
                 color: AppColors.diamond,
               ),
@@ -109,9 +112,18 @@ class _InventoryTabState extends State<InventoryTab>
                 icon: Icons.workspace_premium_outlined,
                 title: 'Gold',
                 stats: [
-                  _SummaryStat('Weight', '${AppFormatters.quantity(g['total_weight_gm'])} gm'),
-                  _SummaryStat('Fine', '${AppFormatters.quantity(g['total_fine_gm'])} gm'),
-                  _SummaryStat('Value', 'Rs ${AppFormatters.amount(g['total_value'])}'),
+                  _SummaryStat(
+                    'Weight',
+                    '${AppFormatters.quantity(g['total_weight_gm'])} gm',
+                  ),
+                  _SummaryStat(
+                    'Fine',
+                    '${AppFormatters.quantity(g['total_fine_gm'])} gm',
+                  ),
+                  _SummaryStat(
+                    'Value',
+                    'Rs ${AppFormatters.amount(g['total_value'])}',
+                  ),
                 ],
                 color: AppColors.gold,
               ),
@@ -122,7 +134,10 @@ class _InventoryTabState extends State<InventoryTab>
                 title: 'Stone',
                 stats: [
                   _SummaryStat('Qty', AppFormatters.quantity(s['total_qty'])),
-                  _SummaryStat('Value', 'Rs ${AppFormatters.amount(s['total_value'])}'),
+                  _SummaryStat(
+                    'Value',
+                    'Rs ${AppFormatters.amount(s['total_value'])}',
+                  ),
                 ],
                 color: AppColors.stone,
               ),
@@ -141,8 +156,14 @@ class _InventoryTabState extends State<InventoryTab>
             controller: _tabController,
             isScrollable: false,
             indicatorSize: TabBarIndicatorSize.tab,
-            labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-            unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            labelStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
             labelPadding: EdgeInsets.zero,
             labelColor: Colors.white,
             unselectedLabelColor: AppColors.textSecondary,
@@ -167,11 +188,7 @@ class _InventoryTabState extends State<InventoryTab>
               ? AppErrorState(message: _error, onRetry: _loadAll)
               : TabBarView(
                   controller: _tabController,
-                  children: [
-                    _diamondList(),
-                    _goldList(),
-                    _stoneList(),
-                  ],
+                  children: [_diamondList(), _goldList(), _stoneList()],
                 ),
         ),
       ],
@@ -228,7 +245,9 @@ class _InventoryTabState extends State<InventoryTab>
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: stats.map((stat) => _statPill(stat.label, stat.value, color)).toList(),
+            children: stats
+                .map((stat) => _statPill(stat.label, stat.value, color))
+                .toList(),
           ),
         ],
       ),
@@ -283,18 +302,32 @@ class _InventoryTabState extends State<InventoryTab>
         itemCount: _diamonds.length,
         itemBuilder: (context, index) {
           final row = (_diamonds[index] as Map).cast<String, dynamic>();
+          final isBroken =
+              (row['diamond_type'] ?? '').toString().trim().toLowerCase() ==
+              'broken';
           final from = (row['chalni_from'] ?? '').toString().trim();
           final to = (row['chalni_to'] ?? '').toString().trim();
           final chalni = from.isEmpty && to.isEmpty ? 'NA' : '$from - $to';
           return _stockCard(
             accent: AppColors.diamond,
-            title: '${row['diamond_type'] ?? '-'} | ${row['shape'] ?? '-'}',
-            subtitle: 'Chalni $chalni | ${row['color'] ?? '-'} | ${row['clarity'] ?? '-'}',
+            title: isBroken
+                ? 'Broken Diamond'
+                : '${row['diamond_type'] ?? '-'} | ${row['shape'] ?? '-'}',
+            subtitle: isBroken
+                ? 'Weight-only inventory | PCS not required'
+                : 'Chalni $chalni | ${row['color'] ?? '-'} | ${row['clarity'] ?? '-'}',
             metrics: [
-              _Metric('PCS', AppFormatters.quantity(row['pcs_balance'])),
+              if (!isBroken)
+                _Metric('PCS', AppFormatters.quantity(row['pcs_balance'])),
               _Metric('CTS', AppFormatters.quantity(row['carat_balance'])),
-              _Metric('Value', 'Rs ${AppFormatters.amount(row['stock_value'])}'),
-              _Metric('Avg', 'Rs ${AppFormatters.amount(row['avg_cost_per_carat'])}'),
+              _Metric(
+                'Value',
+                'Rs ${AppFormatters.amount(row['stock_value'])}',
+              ),
+              _Metric(
+                'Avg',
+                'Rs ${AppFormatters.amount(row['avg_cost_per_carat'])}',
+              ),
             ],
           );
         },
@@ -318,13 +351,26 @@ class _InventoryTabState extends State<InventoryTab>
           final row = (_gold[index] as Map).cast<String, dynamic>();
           return _stockCard(
             accent: AppColors.gold,
-            title: '${row['purity_code'] ?? '-'} ${row['color_name'] ?? ''}'.trim(),
+            title: '${row['purity_code'] ?? '-'} ${row['color_name'] ?? ''}'
+                .trim(),
             subtitle: 'Form ${row['form_type'] ?? '-'}',
             metrics: [
-              _Metric('Weight', '${AppFormatters.quantity(row['weight_balance_gm'])} gm'),
-              _Metric('Fine', '${AppFormatters.quantity(row['fine_balance_gm'])} gm'),
-              _Metric('Value', 'Rs ${AppFormatters.amount(row['stock_value'])}'),
-              _Metric('Avg', 'Rs ${AppFormatters.amount(row['avg_cost_per_gm'])}/gm'),
+              _Metric(
+                'Weight',
+                '${AppFormatters.quantity(row['weight_balance_gm'])} gm',
+              ),
+              _Metric(
+                'Fine',
+                '${AppFormatters.quantity(row['fine_balance_gm'])} gm',
+              ),
+              _Metric(
+                'Value',
+                'Rs ${AppFormatters.amount(row['stock_value'])}',
+              ),
+              _Metric(
+                'Avg',
+                'Rs ${AppFormatters.amount(row['avg_cost_per_gm'])}/gm',
+              ),
             ],
           );
         },
@@ -352,9 +398,15 @@ class _InventoryTabState extends State<InventoryTab>
             subtitle: '${row['stone_type'] ?? '-'}',
             metrics: [
               _Metric('Qty', AppFormatters.quantity(row['qty_balance'])),
-              _Metric('Value', 'Rs ${AppFormatters.amount(row['stock_value'])}'),
+              _Metric(
+                'Value',
+                'Rs ${AppFormatters.amount(row['stock_value'])}',
+              ),
               _Metric('Avg', 'Rs ${AppFormatters.amount(row['avg_rate'])}'),
-              _Metric('Default', 'Rs ${AppFormatters.amount(row['default_rate'])}'),
+              _Metric(
+                'Default',
+                'Rs ${AppFormatters.amount(row['default_rate'])}',
+              ),
             ],
           );
         },
@@ -412,40 +464,40 @@ class _InventoryTabState extends State<InventoryTab>
             builder: (context, constraints) {
               final metricWidth = (constraints.maxWidth - 10) / 2;
               return Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: metrics.map((metric) {
-              return Container(
-                width: metricWidth,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      metric.label,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textSecondary,
-                      ),
+                spacing: 10,
+                runSpacing: 10,
+                children: metrics.map((metric) {
+                  return Container(
+                    width: metricWidth,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.border),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      metric.value,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: accent,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          metric.label,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          metric.value,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: accent,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            }).toList(),
+                  );
+                }).toList(),
               );
             },
           ),

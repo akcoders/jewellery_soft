@@ -152,8 +152,12 @@ class DiamondChalniStockService
         $cts = round((float) ($input['carat_balance'] ?? 0), 3);
         $notes = trim((string) ($input['notes'] ?? ''));
 
-        if (! $this->db->table('items')->where('id', $itemId)->countAllResults()) {
+        $item = $this->db->table('items')->select('id, diamond_type')->where('id', $itemId)->get()->getRowArray();
+        if (! $item) {
             throw new RuntimeException('Select a valid diamond product.');
+        }
+        if (strtolower(trim((string) ($item['diamond_type'] ?? ''))) === 'broken') {
+            throw new RuntimeException('Broken diamond is weight-only inventory and cannot be classified by PCS, shape or chalni.');
         }
         if (! $this->db->table('diamond_shape_masters')->where('id', $shapeId)->where('is_active', 1)->countAllResults()) {
             throw new RuntimeException('Select a valid diamond shape.');
@@ -732,6 +736,10 @@ class DiamondChalniStockService
     /** @param array<string,mixed> $row */
     private function productLabel(array $row): string
     {
+        if (strtolower(trim((string) ($row['diamond_type'] ?? ''))) === 'broken') {
+            return 'Broken Diamond · Weight only';
+        }
+
         $primary = trim((string) ($row['clarity'] ?? ''));
         if ($primary === '' || strtoupper($primary) === 'NA') {
             $primary = trim((string) ($row['diamond_type'] ?? 'Diamond'));
