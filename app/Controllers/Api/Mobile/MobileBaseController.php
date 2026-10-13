@@ -5,6 +5,7 @@ namespace App\Controllers\Api\Mobile;
 use App\Controllers\Api\ApiBaseController;
 use App\Models\AdminUserModel;
 use App\Models\MobileApiTokenModel;
+use App\Services\RbacService;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class MobileBaseController extends ApiBaseController
@@ -63,6 +64,14 @@ class MobileBaseController extends ApiBaseController
         }
 
         return trim((string) ($matches[1] ?? ''));
+    }
+
+    protected function canViewAllMobileData(): bool
+    {
+        return (new RbacService())->userCan(
+            (int) ($this->mobileAdmin['id'] ?? 0),
+            'orders.assign'
+        );
     }
 }
 

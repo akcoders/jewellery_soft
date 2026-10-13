@@ -25,6 +25,7 @@ use App\Models\StoneInventoryItemModel;
 use App\Models\StonePurchaseAttachmentModel;
 use App\Services\DiamondInventory\StockService as DiamondStockService;
 use App\Services\DiamondBagTraceService;
+use App\Services\DiamondBagService;
 use App\Services\DiamondChalniStockService;
 use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\StoneInventory\StockService as StoneStockService;
@@ -225,6 +226,79 @@ class TransactionsController extends MobileBaseController
 
     }
 
+    public function issueDiamondBag(int $bagId)
+    {
+        if ($authFail = $this->requireMobileAuth()) {
+            return $authFail;
+        }
+        try {
+            $context = (new DiamondBagService())->issuementContext($bagId);
+        } catch (Throwable $e) {
+            return $this->fail($e->getMessage(), 422);
+        }
+
+        $userId = (int) ($this->mobileAdmin['id'] ?? 0);
+        $bag = is_array($context['bag'] ?? null) ? $context['bag'] : [];
+        if (! $this->canViewAllMobileData()
+            && (int) ($bag['followup_assigned_to'] ?? 0) !== $userId
+            && (int) ($bag['order_created_by'] ?? 0) !== $userId) {
+            return $this->fail('You cannot issue a diamond bag for another user\'s order.', 403);
+        }
+
+        $payload = $this->payload();
+        $attachment = $this->saveBase64Attachment(
+            (string) ($payload['attachment_base64'] ?? ''),
+            FCPATH . 'uploads/issuements/diamond',
+            true,
+            'uploads/issuements/diamond'
+        );
+        if (! $attachment['ok']) {
+            return $this->fail((string) $attachment['message'], 422);
+        }
+
+        $issuePayload = [
+            'issue_date' => date('Y-m-d'),
+            'order_id' => (int) $context['order_id'],
+            'karigar_id' => (int) $context['karigar_id'],
+            'karigar_name' => (string) $context['karigar_name'],
+            'location_id' => (int) $context['location_id'],
+            'location_name' => (string) $context['location_name'],
+            'purpose' => 'Order diamond bag',
+            'notes' => trim((string) ($payload['notes'] ?? '')) ?: ('Complete bag ' . (string) ($bag['bag_no'] ?? '') . ' issued to order ' . (string) $context['order_no']),
+            'voucher_no' => '',
+            'work_request_id' => 0,
+            'gold_lines' => [],
+            'diamond_lines' => $this->approvalDisplayLines('diamond', (array) $context['diamond_lines']),
+            'stone_lines' => [],
+        ];
+        try {
+            $approvalService = new MobileApprovalService();
+            if (! (new MobileUserPolicyService())->requiresApproval($userId, 'issuement')) {
+                $created = $approvalService->createIssuementWithoutApproval(
+                    $issuePayload, $userId, $attachment['name'] ?? null, $attachment['path'] ?? null
+                );
+                return $this->ok(['issuement' => $created, 'approval_required' => false], 'Diamond bag issued.', 201);
+            }
+            $approval = $approvalService->submit(
+                'issuement',
+                $issuePayload,
+                $userId,
+                'Diamond bag ' . (string) ($bag['bag_no'] ?? ('#' . $bagId)) . ' to ' . (string) $context['karigar_name'],
+                $attachment['name'] ?? null,
+                $attachment['path'] ?? null,
+                'diamond_bags',
+                $bagId
+            );
+            return $this->ok([
+                'approval_request' => $approval,
+                'approval_required' => true,
+            ], 'Diamond bag issuement sent for admin approval.', 201);
+        } catch (Throwable $e) {
+            $this->removeRelativeFile((string) ($attachment['path'] ?? ''));
+            return $this->fail('Unable to issue diamond bag: ' . $e->getMessage(), 422);
+        }
+    }
+
     public function createDiamondReturn()
     {
         $authFail = $this->requireMobileAuth();
@@ -245,11 +319,11 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Issue reference is required.', 422);
         }
 
-        $issue = db_connect()->table('issue_headers')
+        $issueBuilder = db_connect()->table('issue_headers')
             ->select('id, karigar_id, issue_to')
-            ->where('id', $issueId)
-            ->get()
-            ->getRowArray();
+            ->where('id', $issueId);
+        if (! $this->canViewAllMobileData()) $issueBuilder->where('created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        $issue = $issueBuilder->get()->getRowArray();
         if (! $issue) {
             return $this->fail('Selected issue reference not found.', 422);
         }
@@ -339,13 +413,13 @@ class TransactionsController extends MobileBaseController
             return $authFail;
         }
 
-        $issue = db_connect()->table('issue_headers ih')
+        $builder = db_connect()->table('issue_headers ih')
             ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
-            ->where('ih.id', $id)
-            ->get()
-            ->getRowArray();
+            ->where('ih.id', $id);
+        if (! $this->canViewAllMobileData()) $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        $issue = $builder->get()->getRowArray();
         if (! $issue) {
             return $this->fail('Issue not found.', 404);
         }
@@ -428,13 +502,13 @@ class TransactionsController extends MobileBaseController
             return $authFail;
         }
 
-        $issue = db_connect()->table('issue_headers ih')
+        $builder = db_connect()->table('issue_headers ih')
             ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
-            ->where('ih.id', $id)
-            ->get()
-            ->getRowArray();
+            ->where('ih.id', $id);
+        if (! $this->canViewAllMobileData()) $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        $issue = $builder->get()->getRowArray();
         if (! $issue) {
             return $this->fail('Issue not found.', 404);
         }
@@ -690,11 +764,11 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Issue reference and location are required.', 422);
         }
 
-        $issue = db_connect()->table('gold_inventory_issue_headers')
+        $issueBuilder = db_connect()->table('gold_inventory_issue_headers')
             ->select('id, karigar_id, issue_to')
-            ->where('id', $issueId)
-            ->get()
-            ->getRowArray();
+            ->where('id', $issueId);
+        if (! $this->canViewAllMobileData()) $issueBuilder->where('created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        $issue = $issueBuilder->get()->getRowArray();
         if (! $issue) {
             return $this->fail('Selected issue reference not found.', 422);
         }
@@ -775,13 +849,13 @@ class TransactionsController extends MobileBaseController
             return $authFail;
         }
 
-        $issue = db_connect()->table('gold_inventory_issue_headers ih')
+        $builder = db_connect()->table('gold_inventory_issue_headers ih')
             ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
-            ->where('ih.id', $id)
-            ->get()
-            ->getRowArray();
+            ->where('ih.id', $id);
+        if (! $this->canViewAllMobileData()) $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        $issue = $builder->get()->getRowArray();
         if (! $issue) {
             return $this->fail('Issue not found.', 404);
         }
@@ -867,13 +941,13 @@ class TransactionsController extends MobileBaseController
             return $authFail;
         }
 
-        $issue = db_connect()->table('gold_inventory_issue_headers ih')
+        $builder = db_connect()->table('gold_inventory_issue_headers ih')
             ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
-            ->where('ih.id', $id)
-            ->get()
-            ->getRowArray();
+            ->where('ih.id', $id);
+        if (! $this->canViewAllMobileData()) $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        $issue = $builder->get()->getRowArray();
         if (! $issue) {
             return $this->fail('Issue not found.', 404);
         }
@@ -1105,11 +1179,11 @@ class TransactionsController extends MobileBaseController
             return $this->fail('Issue reference and location are required.', 422);
         }
 
-        $issue = db_connect()->table('stone_inventory_issue_headers')
+        $issueBuilder = db_connect()->table('stone_inventory_issue_headers')
             ->select('id, karigar_id, issue_to')
-            ->where('id', $issueId)
-            ->get()
-            ->getRowArray();
+            ->where('id', $issueId);
+        if (! $this->canViewAllMobileData()) $issueBuilder->where('created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        $issue = $issueBuilder->get()->getRowArray();
         if (! $issue) {
             return $this->fail('Selected issue reference not found.', 422);
         }
@@ -1189,13 +1263,13 @@ class TransactionsController extends MobileBaseController
             return $authFail;
         }
 
-        $issue = db_connect()->table('stone_inventory_issue_headers ih')
+        $builder = db_connect()->table('stone_inventory_issue_headers ih')
             ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
-            ->where('ih.id', $id)
-            ->get()
-            ->getRowArray();
+            ->where('ih.id', $id);
+        if (! $this->canViewAllMobileData()) $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        $issue = $builder->get()->getRowArray();
         if (! $issue) {
             return $this->fail('Issue not found.', 404);
         }
@@ -1278,13 +1352,13 @@ class TransactionsController extends MobileBaseController
             return $authFail;
         }
 
-        $issue = db_connect()->table('stone_inventory_issue_headers ih')
+        $builder = db_connect()->table('stone_inventory_issue_headers ih')
             ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
-            ->where('ih.id', $id)
-            ->get()
-            ->getRowArray();
+            ->where('ih.id', $id);
+        if (! $this->canViewAllMobileData()) $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        $issue = $builder->get()->getRowArray();
         if (! $issue) {
             return $this->fail('Issue not found.', 404);
         }
@@ -1438,11 +1512,13 @@ class TransactionsController extends MobileBaseController
         $headers = [];
         $lines = [];
         foreach ($definitions as $material => $tables) {
-            $header = $db->table($tables['headers'] . ' ih')
+            $builder = $db->table($tables['headers'] . ' ih')
                 ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name')
                 ->join('karigars k', 'k.id = ih.karigar_id', 'left')
                 ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
-                ->where('ih.voucher_no', $voucherNo)->orderBy('ih.id', 'DESC')->get()->getRowArray();
+                ->where('ih.voucher_no', $voucherNo);
+            if (! $this->canViewAllMobileData()) $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+            $header = $builder->orderBy('ih.id', 'DESC')->get()->getRowArray();
             if (! $header) {
                 continue;
             }

@@ -501,6 +501,18 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  Future<Map<String, dynamic>> issueDiamondBag(
+    int bagId, {
+    required String attachmentBase64,
+    String notes = '',
+  }) async {
+    final res = await _post(
+      '/api/mobile/diamond-bags/$bagId/issue',
+      body: {'attachment_base64': attachmentBase64, 'notes': notes},
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<Map<String, dynamic>> createDiamondReturn(
     Map<String, dynamic> payload,
   ) async {

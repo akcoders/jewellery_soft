@@ -132,9 +132,13 @@ class InventoryController extends MobileBaseController
             return $authFail;
         }
 
-        $rows = db_connect()->table('issue_headers ih')
+        $builder = db_connect()->table('issue_headers ih')
             ->select('ih.id, ih.voucher_no, ih.issue_date, ih.issue_to, ih.purpose, ih.notes, ih.created_at, ih.karigar_id, k.name as karigar_name')
-            ->join('karigars k', 'k.id = ih.karigar_id', 'left')
+            ->join('karigars k', 'k.id = ih.karigar_id', 'left');
+        if (! $this->canViewAllMobileData()) {
+            $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        }
+        $rows = $builder
             ->orderBy('ih.id', 'DESC')
             ->get(200)
             ->getResultArray();
@@ -195,9 +199,13 @@ class InventoryController extends MobileBaseController
             return $authFail;
         }
 
-        $rows = db_connect()->table('gold_inventory_issue_headers gih')
+        $builder = db_connect()->table('gold_inventory_issue_headers gih')
             ->select('gih.id, gih.voucher_no, gih.issue_date, gih.karigar_id, gih.issue_to, gih.purpose, gih.notes, gih.created_at, k.name as karigar_name')
-            ->join('karigars k', 'k.id = gih.karigar_id', 'left')
+            ->join('karigars k', 'k.id = gih.karigar_id', 'left');
+        if (! $this->canViewAllMobileData()) {
+            $builder->where('gih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        }
+        $rows = $builder
             ->orderBy('gih.id', 'DESC')
             ->get(200)
             ->getResultArray();
@@ -269,9 +277,13 @@ class InventoryController extends MobileBaseController
             return $authFail;
         }
 
-        $rows = db_connect()->table('stone_inventory_issue_headers sih')
+        $builder = db_connect()->table('stone_inventory_issue_headers sih')
             ->select('sih.id, sih.voucher_no, sih.issue_date, sih.karigar_id, sih.issue_to, sih.purpose, sih.notes, sih.created_at, k.name as karigar_name')
-            ->join('karigars k', 'k.id = sih.karigar_id', 'left')
+            ->join('karigars k', 'k.id = sih.karigar_id', 'left');
+        if (! $this->canViewAllMobileData()) {
+            $builder->where('sih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        }
+        $rows = $builder
             ->orderBy('sih.id', 'DESC')
             ->get(200)
             ->getResultArray();
@@ -341,11 +353,15 @@ class InventoryController extends MobileBaseController
         $grouped = [];
 
         foreach ($sources as $source) {
-            $rows = $db->table($source['table'] . ' ih')
+            $builder = $db->table($source['table'] . ' ih')
                 ->select('ih.id, ih.voucher_no, ih.issue_date, ih.issue_to, ih.purpose, ih.notes, ih.created_at, ih.karigar_id, k.name as karigar_name, iloc.name as warehouse_name, COUNT(il.id) as line_count, COALESCE(SUM(il.' . $source['qty'] . '),0) as total_qty, COALESCE(SUM(il.line_value),0) as total_value', false)
                 ->join($source['lines'] . ' il', 'il.issue_id = ih.id', 'left')
                 ->join('karigars k', 'k.id = ih.karigar_id', 'left')
-                ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
+                ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left');
+            if (! $this->canViewAllMobileData()) {
+                $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+            }
+            $rows = $builder
                 ->groupBy('ih.id')
                 ->orderBy('ih.id', 'DESC')
                 ->get(300)

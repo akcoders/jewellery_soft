@@ -9,6 +9,7 @@ use App\Models\InventoryLocationModel;
 use App\Services\AdminPostingService;
 use App\Services\DiamondBagService;
 use App\Services\DiamondChalniStockService;
+use App\Services\MobileApprovalService;
 use RuntimeException;
 use Throwable;
 
@@ -81,6 +82,7 @@ class DiamondBagController extends BaseController
                 'order_id' => $orderId,
                 'warehouse_id' => (int) $warehouse['warehouse_id'],
                 'bin_id' => (int) $warehouse['bin_id'],
+                'inventory_location_id' => $locationId,
                 'pcs_balance' => 0,
                 'cts_balance' => 0,
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
@@ -152,6 +154,7 @@ class DiamondBagController extends BaseController
                 'order_id' => $orderId,
                 'warehouse_id' => (int) $warehouse['warehouse_id'],
                 'bin_id' => (int) $warehouse['bin_id'],
+                'inventory_location_id' => $locationId,
                 'notes' => trim((string) $this->request->getPost('notes')) ?: null,
                 'audit_image_name' => $image['name'],
                 'audit_image_path' => $image['path'],
@@ -230,6 +233,58 @@ class DiamondBagController extends BaseController
         return view('admin/diamond_bags/show', $viewData);
     }
 
+    public function issue(int $id)
+    {
+        if (! $this->validate([
+            'issue_evidence' => 'uploaded[issue_evidence]|is_image[issue_evidence]|max_size[issue_evidence,4096]',
+            'notes' => 'permit_empty|max_length[500]',
+        ])) {
+            return redirect()->back()->with('error', $this->firstValidationError());
+        }
+        try {
+            $context = $this->diamondBagService->issuementContext($id);
+        } catch (Throwable $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        $file = $this->request->getFile('issue_evidence');
+        $directory = FCPATH . 'uploads/issuements/diamond';
+        if (! is_dir($directory) && ! mkdir($directory, 0775, true) && ! is_dir($directory)) {
+            return redirect()->back()->with('error', 'Could not create the issue evidence directory.');
+        }
+        $extension = strtolower((string) $file->getExtension());
+        $name = 'bag_issue_' . date('YmdHis') . '_' . bin2hex(random_bytes(5)) . '.' . $extension;
+        $file->move($directory, $name);
+        $relativePath = 'uploads/issuements/diamond/' . $name;
+        $bag = is_array($context['bag'] ?? null) ? $context['bag'] : [];
+        $payload = [
+            'issue_date' => date('Y-m-d'),
+            'order_id' => (int) $context['order_id'],
+            'karigar_id' => (int) $context['karigar_id'],
+            'location_id' => (int) $context['location_id'],
+            'purpose' => 'Order diamond bag',
+            'notes' => trim((string) $this->request->getPost('notes')) ?: ('Complete bag ' . (string) ($bag['bag_no'] ?? '') . ' issued to order ' . (string) $context['order_no']),
+            'voucher_no' => '',
+            'diamond_lines' => (array) $context['diamond_lines'],
+            'gold_lines' => [],
+            'stone_lines' => [],
+        ];
+        try {
+            (new MobileApprovalService())->createIssuementWithoutApproval(
+                $payload,
+                (int) session('admin_id'),
+                (string) $file->getClientName(),
+                $relativePath
+            );
+        } catch (Throwable $e) {
+            $absolute = FCPATH . $relativePath;
+            if (is_file($absolute)) @unlink($absolute);
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Diamond bag issued to the order karigar with image evidence.');
+    }
+
     /** @param array<string,mixed>|null $bag */
     private function formData(?array $bag): array
     {
@@ -260,7 +315,9 @@ class DiamondBagController extends BaseController
             'selectedOrderId' => $bag
                 ? (int) ($bag['order_id'] ?? 0)
                 : (int) ($this->request->getGet('order_id') ?? 0),
-            'selectedLocationId' => $bag ? $this->resolveLocationIdForBag((int) ($bag['warehouse_id'] ?? 0)) : null,
+            'selectedLocationId' => $bag
+                ? ((int) ($bag['inventory_location_id'] ?? 0) ?: $this->resolveLocationIdForBag((int) ($bag['warehouse_id'] ?? 0)))
+                : null,
         ];
     }
 

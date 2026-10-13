@@ -28,12 +28,21 @@ class DiamondBagsController extends MobileBaseController
             return $this->ok(['items' => []]);
         }
 
-        $items = $db->table('diamond_bags b')
-            ->select('b.*, dr.requirement_no, o.order_no, COUNT(DISTINCT bi.id) AS item_count, COUNT(DISTINCT il.allocation_order_id) AS order_count, COUNT(DISTINCT il.id) AS issue_line_count', false)
+        $builder = $db->table('diamond_bags b')
+            ->select('b.*, dr.requirement_no, o.order_no, o.created_by AS order_created_by, o.followup_assigned_to, COUNT(DISTINCT bi.id) AS item_count, COUNT(DISTINCT il.allocation_order_id) AS order_count, COUNT(DISTINCT il.id) AS issue_line_count', false)
             ->join('diamond_bag_items bi', 'bi.bag_id = b.id', 'left')
             ->join('issue_lines il', 'il.bag_id = b.id', 'left')
             ->join('diamond_requirements dr', 'dr.id = b.requirement_id', 'left')
-            ->join('orders o', 'o.id = b.order_id', 'left')
+            ->join('orders o', 'o.id = b.order_id', 'left');
+        $userId = (int) ($this->mobileAdmin['id'] ?? 0);
+        if (! $this->canViewAllMobileData()) {
+            $builder->groupStart()
+                ->where('o.followup_assigned_to', $userId)
+                ->orWhere('o.created_by', $userId)
+                ->orWhere('b.created_by', $userId)
+                ->groupEnd();
+        }
+        $items = $builder
             ->groupBy('b.id')
             ->orderBy('b.id', 'DESC')
             ->get()->getResultArray();
@@ -179,12 +188,21 @@ class DiamondBagsController extends MobileBaseController
         }
 
         $db = db_connect();
-        $bag = $db->table('diamond_bags b')
-            ->select('b.*, dr.requirement_no, dr.status AS requirement_status, o.order_no, creator.name AS prepared_by_name')
+        $builder = $db->table('diamond_bags b')
+            ->select('b.*, dr.requirement_no, dr.status AS requirement_status, o.order_no, o.created_by AS order_created_by, o.followup_assigned_to, creator.name AS prepared_by_name')
             ->join('diamond_requirements dr', 'dr.id = b.requirement_id', 'left')
             ->join('orders o', 'o.id = b.order_id', 'left')
             ->join('admin_users creator', 'creator.id = b.created_by', 'left')
-            ->where('b.id', $id)->get()->getRowArray();
+            ->where('b.id', $id);
+        $userId = (int) ($this->mobileAdmin['id'] ?? 0);
+        if (! $this->canViewAllMobileData()) {
+            $builder->groupStart()
+                ->where('o.followup_assigned_to', $userId)
+                ->orWhere('o.created_by', $userId)
+                ->orWhere('b.created_by', $userId)
+                ->groupEnd();
+        }
+        $bag = $builder->get()->getRowArray();
         if (! is_array($bag)) {
             return $this->fail('Diamond bag not found.', 404);
         }

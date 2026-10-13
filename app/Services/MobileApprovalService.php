@@ -350,6 +350,7 @@ class MobileApprovalService
             ->resolveForCreate((string) ($payload['voucher_no'] ?? ''));
         $common = [
             'voucher_no' => $voucherNo, 'issue_date' => $issueDate,
+            'order_id' => (int) ($payload['order_id'] ?? 0) ?: null,
             'karigar_id' => $karigarId, 'location_id' => $locationId,
             'issue_to' => (string) ($karigar['name'] ?? ''),
             'purpose' => (string) ($payload['purpose'] ?? ''),

@@ -117,12 +117,7 @@ class DiamondBagService
         ));
     }
 
-    /**
-     * Bags that have actually been issued against an order. A prepared but
-     * unissued bag is intentionally excluded from the order workspace.
-     *
-     * @return list<array<string,mixed>>
-     */
+    /** @return list<array<string,mixed>> */
     public function issuedForOrder(int $orderId): array
     {
         if ($orderId <= 0
@@ -133,9 +128,11 @@ class DiamondBagService
             return [];
         }
 
+        $hasLocation = $this->db->fieldExists('inventory_location_id', 'diamond_bags');
         $rows = $this->db->table('diamond_bags b')
             ->select(
                 'b.id, b.bag_no, b.prepared_date, b.order_id, b.pcs_balance, b.cts_balance, '
+                . ($hasLocation ? 'b.inventory_location_id, ' : 'NULL AS inventory_location_id, ')
                 . 'b.notes, b.audit_image_path, COUNT(DISTINCT il.id) AS issue_line_count, '
                 . 'COUNT(DISTINCT il.issue_id) AS voucher_count, '
                 . 'COALESCE(SUM(il.pcs),0) AS issued_pcs, COALESCE(SUM(il.carat),0) AS issued_cts, '
@@ -143,16 +140,47 @@ class DiamondBagService
                 . '(SELECT COUNT(*) FROM diamond_bag_items bi WHERE bi.bag_id = b.id) AS item_count',
                 false
             )
-            ->join('issue_lines il', 'il.bag_id = b.id', 'inner')
+            ->join('issue_lines il', 'il.bag_id = b.id', 'left')
             ->join('issue_headers ih', 'ih.id = il.issue_id', 'left')
-            ->where('il.allocation_order_id', $orderId)
+            ->groupStart()
+                ->where('b.order_id', $orderId)
+                ->orWhere('il.allocation_order_id', $orderId)
+            ->groupEnd()
             ->groupBy('b.id')
             ->orderBy('last_issued_on', 'DESC')
             ->orderBy('b.id', 'DESC')
             ->get()->getResultArray();
 
+        $pendingByBag = [];
+        if ($rows !== [] && $this->db->tableExists('mobile_approval_requests')) {
+            $bagIds = array_map(static fn(array $row): int => (int) $row['id'], $rows);
+            $pending = $this->db->table('mobile_approval_requests')
+                ->select('id, subject_id')
+                ->where('request_type', 'issuement')
+                ->where('subject_table', 'diamond_bags')
+                ->where('status', 'pending')
+                ->whereIn('subject_id', $bagIds)
+                ->get()->getResultArray();
+            foreach ($pending as $request) {
+                $pendingByBag[(int) $request['subject_id']] = (int) $request['id'];
+            }
+        }
+
+        $order = $this->db->table('orders')->select('assigned_karigar_id')->where('id', $orderId)->get()->getRowArray() ?? [];
+        $hasAssignedKarigar = (int) ($order['assigned_karigar_id'] ?? 0) > 0;
         foreach ($rows as &$row) {
-            $row['status'] = 'issued';
+            $issueCount = (int) ($row['issue_line_count'] ?? 0);
+            $pendingApprovalId = $pendingByBag[(int) $row['id']] ?? 0;
+            $row['status'] = $issueCount > 0 ? 'issued' : ($pendingApprovalId > 0 ? 'pending_issue_approval' : 'ready');
+            $row['can_issue'] = $issueCount === 0
+                && $pendingApprovalId === 0
+                && (float) ($row['cts_balance'] ?? 0) > .0005
+                && $hasAssignedKarigar
+                && (int) ($row['inventory_location_id'] ?? 0) > 0;
+            $row['issue_blocked_reason'] = $row['can_issue'] ? null
+                : (! $hasAssignedKarigar ? 'Assign a karigar before issuing.'
+                    : ((int) ($row['inventory_location_id'] ?? 0) <= 0 ? 'Save the bag inventory location before issuing.' : null));
+            $row['pending_approval_id'] = $pendingApprovalId ?: null;
             $row['audit_image_url'] = ! empty($row['audit_image_path'])
                 ? base_url(ltrim((string) $row['audit_image_path'], '/'))
                 : null;
@@ -161,6 +189,94 @@ class DiamondBagService
         unset($row);
 
         return $rows;
+    }
+
+    /** @return array<string,mixed> */
+    public function issuementContext(int $bagId): array
+    {
+        if ($bagId <= 0) {
+            throw new RuntimeException('Select a valid diamond bag.');
+        }
+        $hasLocation = $this->db->fieldExists('inventory_location_id', 'diamond_bags');
+        $bag = $this->db->table('diamond_bags b')
+            ->select(
+                'b.*, ' . ($hasLocation ? 'b.inventory_location_id, ' : 'NULL AS inventory_location_id, ')
+                . 'o.order_no, o.created_by AS order_created_by, o.followup_assigned_to, '
+                . 'o.assigned_karigar_id, k.name AS karigar_name',
+                false
+            )
+            ->join('orders o', 'o.id = b.order_id', 'left')
+            ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
+            ->where('b.id', $bagId)->get()->getRowArray();
+        if (! is_array($bag) || (int) ($bag['order_id'] ?? 0) <= 0) {
+            throw new RuntimeException('This diamond bag is not linked to an order.');
+        }
+        if ((int) ($bag['assigned_karigar_id'] ?? 0) <= 0) {
+            throw new RuntimeException('Assign a karigar to the order before issuing this bag.');
+        }
+        if ($this->db->table('issue_lines')->where('bag_id', $bagId)->countAllResults() > 0) {
+            throw new RuntimeException('This diamond bag has already been issued.');
+        }
+        if ($this->db->tableExists('mobile_approval_requests')
+            && $this->db->table('mobile_approval_requests')
+                ->where('request_type', 'issuement')
+                ->where('subject_table', 'diamond_bags')
+                ->where('subject_id', $bagId)
+                ->where('status', 'pending')->countAllResults() > 0) {
+            throw new RuntimeException('This diamond bag issuement is already pending approval.');
+        }
+
+        $locationId = (int) ($bag['inventory_location_id'] ?? 0);
+        if ($locationId <= 0 && (int) ($bag['warehouse_id'] ?? 0) > 0) {
+            $location = $this->db->table('warehouses w')
+                ->select('l.id')
+                ->join('inventory_locations l', 'LOWER(TRIM(l.name)) = LOWER(TRIM(w.name))', 'inner', false)
+                ->where('w.id', (int) $bag['warehouse_id'])
+                ->where('l.is_active', 1)->get()->getRowArray();
+            $locationId = (int) ($location['id'] ?? 0);
+        }
+        $location = $locationId > 0
+            ? $this->db->table('inventory_locations')->where('id', $locationId)->where('is_active', 1)->get()->getRowArray()
+            : null;
+        if (! is_array($location)) {
+            throw new RuntimeException('The bag inventory location is unavailable. Edit and save the bag location before issuing.');
+        }
+
+        $items = $this->db->table('diamond_bag_items')
+            ->where('bag_id', $bagId)
+            ->where('pcs_available >', 0)
+            ->where('weight_cts_available >', self::EPSILON)
+            ->orderBy('id', 'ASC')->get()->getResultArray();
+        if ($items === []) {
+            throw new RuntimeException('This diamond bag has no available diamonds to issue.');
+        }
+        $lines = [];
+        foreach ($items as $item) {
+            if ((int) ($item['inventory_item_id'] ?? 0) <= 0) {
+                throw new RuntimeException('A calibrated bag row is missing its inventory item.');
+            }
+            $lines[] = [
+                'item_id' => (int) $item['inventory_item_id'],
+                'bag_id' => $bagId,
+                'bag_item_id' => (int) $item['id'],
+                'allocation_order_id' => (int) $bag['order_id'],
+                'pcs' => (int) $item['pcs_available'],
+                'carat' => round((float) $item['weight_cts_available'], 3),
+                'rate_per_carat' => null,
+                'line_value' => null,
+            ];
+        }
+
+        return [
+            'bag' => $bag,
+            'order_id' => (int) $bag['order_id'],
+            'order_no' => (string) ($bag['order_no'] ?? ''),
+            'karigar_id' => (int) $bag['assigned_karigar_id'],
+            'karigar_name' => (string) ($bag['karigar_name'] ?? ''),
+            'location_id' => $locationId,
+            'location_name' => (string) ($location['name'] ?? ''),
+            'diamond_lines' => $lines,
+        ];
     }
 
     /**
@@ -250,6 +366,7 @@ class DiamondBagService
                 'requirement_id' => null,
                 'warehouse_id' => (int) $warehouse['warehouse_id'],
                 'bin_id' => (int) $warehouse['bin_id'],
+                'inventory_location_id' => $locationId,
                 'pcs_balance' => 0,
                 'cts_balance' => 0,
                 'notes' => trim($notes) ?: null,

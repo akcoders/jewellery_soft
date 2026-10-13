@@ -72,15 +72,43 @@ final class DiamondBagTraceabilityTest extends CIUnitTestCase
         $controller = (string) file_get_contents(APPPATH . 'Controllers/Admin/OrderController.php');
         $web = (string) file_get_contents(APPPATH . 'Views/admin/orders/show.php');
         $pwa = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/lib/jewellery_pwa/screens/order_detail_screen.dart');
+        $native = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/order_detail_screen.dart');
 
         $this->assertStringContainsString('function issuedForOrder', $service);
-        $this->assertStringContainsString("->where('il.allocation_order_id', \$orderId)", $service);
+        $this->assertStringContainsString("->orWhere('il.allocation_order_id', \$orderId)", $service);
         $this->assertStringContainsString("'diamond_bags' => \$this->diamondBagService->issuedForOrder(\$id)", $api);
         $this->assertStringContainsString("'diamondBags' => \$this->diamondBagService->issuedForOrder(\$id)", $controller);
-        $this->assertStringContainsString('Diamond Bags Issued to This Order', $web);
+        $this->assertStringContainsString('Diamond Bags for This Order', $web);
         $this->assertStringContainsString('orderDiamondBagModal', $web);
+        $this->assertStringContainsString('Issue with Image Evidence', $web);
         $this->assertStringContainsString("data['diamond_bags']", $pwa);
         $this->assertStringContainsString('DiamondBagDetailScreen', $pwa);
+        $this->assertStringContainsString("data['diamond_bags']", $native);
+        $this->assertStringContainsString('DiamondBagDetailScreen', $native);
+    }
+
+    public function testPreparedBagIssuementRequiresEvidenceAndMobileDataIsOwnerScoped(): void
+    {
+        $routes = (string) file_get_contents(APPPATH . 'Config/Routes.php');
+        $transactions = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/TransactionsController.php');
+        $bags = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/DiamondBagsController.php');
+        $inventory = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/InventoryController.php');
+        $lookups = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/LookupsController.php');
+        $service = (string) file_get_contents(APPPATH . 'Services/DiamondBagService.php');
+        $native = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/order_detail_screen.dart');
+        $pwa = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/lib/jewellery_pwa/screens/order_detail_screen.dart');
+
+        $this->assertStringContainsString("diamond-bags/(:num)/issue", $routes);
+        $this->assertStringContainsString('function issueDiamondBag', $transactions);
+        $this->assertStringContainsString("'attachment_base64'", $transactions);
+        $this->assertStringContainsString("'diamond_bags'", $transactions);
+        $this->assertStringContainsString('function issuementContext', $service);
+        $this->assertStringContainsString('pending_issue_approval', $service);
+        $this->assertStringContainsString('canViewAllMobileData', $bags);
+        $this->assertStringContainsString("->where('ih.created_by'", $inventory);
+        $this->assertStringContainsString("->where('ih.created_by'", $lookups);
+        $this->assertStringContainsString('Issue with Evidence', $native);
+        $this->assertStringContainsString('Issue with Evidence', $pwa);
     }
 
     public function testSuppliedRoundPrincessAndMarquiseSizesAreSeededWithDimensions(): void

@@ -212,6 +212,9 @@ class LookupsController extends MobileBaseController
             ->select('ih.id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->orderBy('ih.id', 'DESC');
+        if (! $this->canViewAllMobileData()) {
+            $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        }
 
         $rows = $builder->get()->getResultArray();
         return $this->ok($rows);
@@ -224,6 +227,11 @@ class LookupsController extends MobileBaseController
             return $authFail;
         }
 
+        if (! $this->canViewAllMobileData()
+            && db_connect()->table('issue_headers')->where('id', $issueId)
+                ->where('created_by', (int) ($this->mobileAdmin['id'] ?? 0))->countAllResults() === 0) {
+            return $this->fail('Issue reference not found.', 404);
+        }
         $rows = (new DiamondBagTraceService(db_connect()))->returnableIssueLines($issueId);
         foreach ($rows as &$row) {
             $row['id'] = (int) ($row['issue_line_id'] ?? 0);
@@ -245,6 +253,9 @@ class LookupsController extends MobileBaseController
             ->select('ih.id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->orderBy('ih.id', 'DESC');
+        if (! $this->canViewAllMobileData()) {
+            $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        }
 
         $rows = $builder->get()->getResultArray();
         return $this->ok($rows);
@@ -261,6 +272,9 @@ class LookupsController extends MobileBaseController
             ->select('ih.id, ih.issue_date, ih.voucher_no, ih.issue_to, ih.karigar_id, k.name as karigar_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->orderBy('ih.id', 'DESC');
+        if (! $this->canViewAllMobileData()) {
+            $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+        }
 
         $rows = $builder->get()->getResultArray();
         return $this->ok($rows);

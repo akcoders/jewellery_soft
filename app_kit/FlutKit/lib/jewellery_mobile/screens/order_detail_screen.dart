@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
@@ -7,7 +9,9 @@ import 'package:flutkit/jewellery_mobile/widgets/app_status_badge.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_followup_form_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/diamond_bags_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class OrderDetailScreen extends StatefulWidget {
@@ -33,6 +37,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   List<dynamic> _items = [];
   List<dynamic> _followups = [];
   List<dynamic> _workRequests = [];
+  List<dynamic> _diamondBags = [];
   List<dynamic> _karigars = [];
   List<dynamic> _assignmentCustomers = [];
   bool _canAssignKarigar = false;
@@ -84,6 +89,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _items = (data['items'] as List?) ?? <dynamic>[];
         _followups = (data['followups'] as List?) ?? <dynamic>[];
         _workRequests = requests;
+        _diamondBags = (data['diamond_bags'] as List?) ?? <dynamic>[];
         _karigars = (data['karigars'] as List?) ?? <dynamic>[];
         _assignmentCustomers =
             (data['assignment_customers'] as List?) ?? <dynamic>[];
@@ -961,6 +967,295 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     if (changed == true) await _load();
   }
 
+  Future<void> _openDiamondBag(int bagId) async {
+    if (bagId <= 0) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => DiamondBagDetailScreen(api: widget.api, bagId: bagId),
+      ),
+    );
+  }
+
+  Future<void> _issueDiamondBag(Map<String, dynamic> bag) async {
+    XFile? evidence;
+    var picking = false;
+    var saving = false;
+    var error = '';
+    final notes = TextEditingController();
+    final issued = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: Text('Issue ${bag['bag_no'] ?? 'diamond bag'}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'The complete available bag will be issued to the order’s assigned karigar.',
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                OutlinedButton.icon(
+                  onPressed: picking || saving
+                      ? null
+                      : () async {
+                          update(() => picking = true);
+                          final file = await ImagePicker().pickImage(
+                            source: ImageSource.camera,
+                            imageQuality: 85,
+                            maxWidth: 1800,
+                            requestFullMetadata: false,
+                          );
+                          if (dialogContext.mounted) {
+                            update(() {
+                              evidence = file ?? evidence;
+                              picking = false;
+                            });
+                          }
+                        },
+                  icon: picking
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_a_photo_outlined),
+                  label: Text(
+                    evidence == null
+                        ? 'Take Evidence Photo *'
+                        : 'Replace ${evidence!.name}',
+                  ),
+                ),
+                if (evidence != null)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Evidence attached and ready to upload.',
+                      style: TextStyle(
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: notes,
+                  maxLength: 500,
+                  maxLines: 3,
+                  enabled: !saving,
+                  decoration: const InputDecoration(
+                    labelText: 'Issue note (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                if (error.isNotEmpty)
+                  Text(error, style: const TextStyle(color: AppColors.danger)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: saving || evidence == null
+                  ? null
+                  : () async {
+                      update(() {
+                        saving = true;
+                        error = '';
+                      });
+                      try {
+                        final result = await widget.api.issueDiamondBag(
+                          _int(bag['id']),
+                          attachmentBase64: await _imageData(evidence!),
+                          notes: notes.text.trim(),
+                        );
+                        if (!dialogContext.mounted) return;
+                        Navigator.pop(dialogContext, true);
+                        if (mounted) {
+                          final approval = result['approval_required'] == true;
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                approval
+                                    ? 'Issuement sent for admin approval.'
+                                    : 'Diamond bag issued successfully.',
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (exception) {
+                        if (!dialogContext.mounted) return;
+                        update(() {
+                          saving = false;
+                          error = exception.toString().replaceFirst(
+                            'Exception: ',
+                            '',
+                          );
+                        });
+                      }
+                    },
+              icon: saving
+                  ? const SizedBox(
+                      width: 17,
+                      height: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.send_outlined, size: 18),
+              label: const Text('Create Issuement'),
+            ),
+          ],
+        ),
+      ),
+    );
+    notes.dispose();
+    if (issued == true) await _load();
+  }
+
+  Future<String> _imageData(XFile file) async {
+    final extension = file.name.split('.').last.toLowerCase();
+    final mime = switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+    return 'data:$mime;base64,${base64Encode(await file.readAsBytes())}';
+  }
+
+  Widget _issuedDiamondBagCard(Map<String, dynamic> bag) {
+    final bagId = _int(bag['id']);
+    final imageUrl = (bag['audit_image_url'] ?? '').toString();
+    final status = (bag['status'] ?? 'ready').toString();
+    final canIssue = bag['can_issue'] == true || bag['can_issue'] == 1;
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: bagId > 0 ? () => _openDiamondBag(bagId) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: AppColors.diamond.withValues(alpha: .14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: imageUrl.isEmpty
+                    ? const Icon(
+                        Icons.diamond_outlined,
+                        color: AppColors.brandRed,
+                      )
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const Icon(
+                          Icons.diamond_outlined,
+                          color: AppColors.brandRed,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            (bag['bag_no'] ?? 'Diamond bag').toString(),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right,
+                          size: 20,
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${AppFormatters.quantity(bag['issued_pcs'])} pcs · ${AppFormatters.quantity(bag['issued_cts'])} cts issued',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        AppStatusBadge(
+                          label: status == 'issued'
+                              ? 'ISSUED TO ORDER'
+                              : (status == 'pending_issue_approval'
+                                    ? 'ISSUE APPROVAL PENDING'
+                                    : 'READY TO ISSUE'),
+                          color: status == 'issued'
+                              ? AppColors.success
+                              : AppColors.warning,
+                        ),
+                        Text(
+                          '${_int(bag['item_count'])} calibrated row${_int(bag['item_count']) == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if ((bag['last_issued_on'] ?? '').toString().isNotEmpty)
+                          Text(
+                            'Issued ${AppFormatters.date(bag['last_issued_on'])}',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (canIssue) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      FilledButton.icon(
+                        onPressed: () => _issueDiamondBag(bag),
+                        icon: const Icon(Icons.send_outlined, size: 17),
+                        label: const Text('Issue with Evidence'),
+                      ),
+                    ] else if ((bag['issue_blocked_reason'] ?? '')
+                        .toString()
+                        .isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        bag['issue_blocked_reason'].toString(),
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String _dateValue(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
@@ -1246,7 +1541,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       );
                     }),
                   ],
-                  if (_diamondSupported) ...[
+                  if (_diamondSupported || _diamondBags.isNotEmpty) ...[
                     Row(
                       children: [
                         const Expanded(child: AppSectionTitle('Diamond Bag')),
@@ -1262,12 +1557,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    Text(
-                      _canCreateDiamondBag
-                          ? 'Create the size-wise bag directly for this Diamond / Jadau order.'
-                          : 'Use Diamond requirement under Request admin action to ask for bag preparation.',
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
+                    if (_diamondBags.isEmpty)
+                      Text(
+                        _canCreateDiamondBag
+                            ? 'No diamond bag has been issued to this order yet. You can prepare a size-wise bag now.'
+                            : 'No diamond bag has been issued to this order yet.',
+                        style: const TextStyle(color: AppColors.textSecondary),
+                      )
+                    else
+                      ..._diamondBags.whereType<Map>().map(
+                        (bag) =>
+                            _issuedDiamondBagCard(bag.cast<String, dynamic>()),
+                      ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
                   if (imageUrl.isNotEmpty) ...[
@@ -1596,5 +1897,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         ],
       ),
     );
+  }
+
+  int _int(dynamic value) {
+    return value is num ? value.toInt() : int.tryParse('$value') ?? 0;
   }
 }

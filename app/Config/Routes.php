@@ -213,6 +213,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->get('diamond-inventory/bags/create', 'Admin\DiamondBagController::create', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->post('diamond-inventory/bags', 'Admin\DiamondBagController::store', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->get('diamond-inventory/bags/(:num)', 'Admin\DiamondBagController::show/$1', ['filter' => 'permission:diamond.inventory.read']);
+    $routes->post('diamond-inventory/bags/(:num)/issue', 'Admin\DiamondBagController::issue/$1', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->get('diamond-inventory/bags/(:num)/edit', 'Admin\DiamondBagController::edit/$1', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->post('diamond-inventory/bags/(:num)/update', 'Admin\DiamondBagController::update/$1', ['filter' => 'permission:diamond.inventory.manage']);
     $routes->post('diamond-inventory/bags/(:num)/delete', 'Admin\DiamondBagController::delete/$1', ['filter' => 'permission:diamond.inventory.manage']);
@@ -483,6 +484,7 @@ $routes->group('api', static function ($routes): void {
         $routes->get('diamond-bags/create', 'Api\Mobile\DiamondBagsController::createForm');
         $routes->post('diamond-bags', 'Api\Mobile\DiamondBagsController::store');
         $routes->post('diamond-bags/sizes', 'Api\Mobile\DiamondBagsController::storeSize');
+        $routes->post('diamond-bags/(:num)/issue', 'Api\Mobile\TransactionsController::issueDiamondBag/$1');
         $routes->get('diamond-bags/(:num)', 'Api\Mobile\DiamondBagsController::show/$1');
         $routes->post('orders/(:num)/diamond-requirements', 'Api\Mobile\DiamondRequirementsController::raise/$1');
         $routes->post('diamond-requirements/(:num)/prepare', 'Api\Mobile\DiamondRequirementsController::prepare/$1');

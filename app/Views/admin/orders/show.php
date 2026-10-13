@@ -83,7 +83,10 @@
     .order-weight-card strong { color: #202939; font-size: 16px; }
     .order-component-badge { background: #f2f4f7; border: 1px solid #e4e7ec; border-radius: 999px; color: #344054; display: inline-flex; font-size: 9px; font-weight: 750; padding: 5px 8px; }
     .order-bag-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .order-bag-entry { background: linear-gradient(145deg, #fff, #fbf8ff); border: 1px solid #e8ddeb; border-radius: 14px; overflow: hidden; }
     .order-bag-card { align-items: center; background: linear-gradient(145deg, #fff, #fbf8ff); border: 1px solid #e8ddeb; border-radius: 14px; color: inherit; display: flex; gap: 12px; padding: 15px; text-align: left; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; width: 100%; }
+    .order-bag-entry .order-bag-card { border: 0; border-radius: 0; }
+    .order-bag-actions { border-top: 1px solid #eee3ea; padding: 10px 12px; }
     .order-bag-card:hover { border-color: #c8a4bd; box-shadow: 0 10px 26px rgba(64, 24, 53, .1); transform: translateY(-2px); }
     .order-bag-icon { align-items: center; background: #f8eecf; border-radius: 12px; color: #7b5a0d; display: flex; flex: 0 0 46px; height: 46px; justify-content: center; }
     .order-bag-copy { min-width: 0; }
@@ -295,18 +298,22 @@ $statusClass = match ($status) {
     </div>
 
     <div class="card order-section-card mb-4">
-        <div class="card-header"><h5 class="order-section-title"><i class="fe fe-package"></i>Diamond Bags Issued to This Order</h5><span class="order-section-count"><?= count($diamondBags) ?> bag<?= count($diamondBags) === 1 ? '' : 's' ?></span></div>
+        <div class="card-header"><h5 class="order-section-title"><i class="fe fe-package"></i>Diamond Bags for This Order</h5><span class="order-section-count"><?= count($diamondBags) ?> bag<?= count($diamondBags) === 1 ? '' : 's' ?></span></div>
         <div class="card-body">
             <?php if ($diamondBags === []): ?>
-                <div class="alert alert-light border text-muted mb-0">No prepared diamond bag has been issued against this order yet.</div>
+                <div class="alert alert-light border text-muted mb-0">No diamond bag has been prepared for this order yet.</div>
             <?php else: ?>
                 <div class="order-bag-grid">
                     <?php foreach ($diamondBags as $bag): ?>
-                        <button type="button" class="order-bag-card js-order-diamond-bag" data-bs-toggle="modal" data-bs-target="#orderDiamondBagModal" data-url="<?= esc(site_url('admin/diamond-inventory/bags/' . (int) $bag['id'] . '?modal=1'), 'attr') ?>" data-bag-no="<?= esc((string) ($bag['bag_no'] ?? 'Diamond Bag'), 'attr') ?>">
-                            <span class="order-bag-icon"><i class="fe fe-gem"></i></span>
-                            <span class="order-bag-copy"><strong><?= esc((string) ($bag['bag_no'] ?? 'Diamond Bag')) ?></strong><small><?= number_format((float) ($bag['issued_pcs'] ?? 0), 0) ?> PCS · <?= number_format((float) ($bag['issued_cts'] ?? 0), 3) ?> CTS issued</small><small><?= (int) ($bag['item_count'] ?? 0) ?> calibrated row<?= (int) ($bag['item_count'] ?? 0) === 1 ? '' : 's' ?> · <?= (int) ($bag['voucher_count'] ?? 0) ?> voucher<?= (int) ($bag['voucher_count'] ?? 0) === 1 ? '' : 's' ?></small></span>
-                            <i class="fe fe-chevron-right order-bag-open" aria-hidden="true"></i>
-                        </button>
+                        <?php $bagStatus = (string) ($bag['status'] ?? 'ready'); ?>
+                        <div class="order-bag-entry">
+                            <button type="button" class="order-bag-card js-order-diamond-bag" data-bs-toggle="modal" data-bs-target="#orderDiamondBagModal" data-url="<?= esc(site_url('admin/diamond-inventory/bags/' . (int) $bag['id'] . '?modal=1'), 'attr') ?>" data-bag-no="<?= esc((string) ($bag['bag_no'] ?? 'Diamond Bag'), 'attr') ?>">
+                                <span class="order-bag-icon"><i class="fe fe-gem"></i></span>
+                                <span class="order-bag-copy"><strong><?= esc((string) ($bag['bag_no'] ?? 'Diamond Bag')) ?></strong><small><?= $bagStatus === 'issued' ? number_format((float) ($bag['issued_pcs'] ?? 0), 0) . ' PCS · ' . number_format((float) ($bag['issued_cts'] ?? 0), 3) . ' CTS issued' : number_format((float) ($bag['pcs_balance'] ?? 0), 0) . ' PCS · ' . number_format((float) ($bag['cts_balance'] ?? 0), 3) . ' CTS ready' ?></small><small><?= (int) ($bag['item_count'] ?? 0) ?> calibrated row<?= (int) ($bag['item_count'] ?? 0) === 1 ? '' : 's' ?> · <?= esc(ucwords(str_replace('_', ' ', $bagStatus))) ?></small></span>
+                                <i class="fe fe-chevron-right order-bag-open" aria-hidden="true"></i>
+                            </button>
+                            <?php if (! empty($bag['can_issue']) && admin_can('diamond.inventory.manage')): ?><div class="order-bag-actions"><button type="button" class="btn btn-sm btn-primary w-100 js-issue-order-bag" data-bs-toggle="modal" data-bs-target="#orderDiamondBagIssueModal" data-action="<?= esc(site_url('admin/diamond-inventory/bags/' . (int) $bag['id'] . '/issue'), 'attr') ?>" data-bag-no="<?= esc((string) ($bag['bag_no'] ?? 'Diamond Bag'), 'attr') ?>"><i class="fe fe-send me-1"></i>Issue with Image Evidence</button></div><?php elseif (! empty($bag['issue_blocked_reason'])): ?><div class="order-bag-actions small text-muted"><?= esc((string) $bag['issue_blocked_reason']) ?></div><?php endif; ?>
+                        </div>
                     <?php endforeach; ?>
                 </div>
                 <div class="small text-muted mt-3"><i class="fe fe-info me-1"></i>Select a bag to inspect calibrated contents and its complete issue-to-studding trail.</div>
@@ -356,6 +363,17 @@ $statusClass = match ($status) {
             <div class="modal-body p-4" id="order-diamond-bag-content" aria-live="polite"></div>
             <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
         </div>
+    </div>
+</div>
+
+<div class="modal fade" id="orderDiamondBagIssueModal" tabindex="-1" aria-labelledby="orderDiamondBagIssueModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" id="orderDiamondBagIssueForm" method="post" enctype="multipart/form-data">
+            <?= csrf_field() ?>
+            <div class="modal-header"><div><small class="text-muted">COMPLETE BAG ISSUEMENT</small><h5 class="modal-title" id="orderDiamondBagIssueModalLabel">Issue Diamond Bag</h5></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body"><p class="text-muted">The complete available bag will be issued to this order’s assigned karigar.</p><label class="form-label">Image evidence <span class="text-danger">*</span></label><input class="form-control" type="file" name="issue_evidence" accept="image/jpeg,image/png,image/webp" capture="environment" required><div class="form-text mb-3">JPG, PNG or WebP, up to 4 MB.</div><label class="form-label">Issue note</label><textarea class="form-control" name="notes" rows="3" maxlength="500" placeholder="Optional handover note"></textarea></div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary"><i class="fe fe-send me-1"></i>Create Issuement</button></div>
+        </form>
     </div>
 </div>
 
@@ -597,6 +615,20 @@ $statusClass = match ($status) {
         request = null;
         content.replaceChildren();
     });
+})();
+</script>
+<script>
+(function () {
+    const modal = document.getElementById('orderDiamondBagIssueModal');
+    const form = document.getElementById('orderDiamondBagIssueForm');
+    const title = document.getElementById('orderDiamondBagIssueModalLabel');
+    if (!modal || !form) return;
+    modal.addEventListener('show.bs.modal', function (event) {
+        const trigger = event.relatedTarget;
+        form.action = trigger.dataset.action;
+        title.textContent = 'Issue ' + (trigger.dataset.bagNo || 'Diamond Bag');
+    });
+    modal.addEventListener('hidden.bs.modal', function () { form.reset(); });
 })();
 </script>
 <script>

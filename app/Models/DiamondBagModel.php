@@ -16,6 +16,7 @@ class DiamondBagModel extends Model
         'requirement_id',
         'warehouse_id',
         'bin_id',
+        'inventory_location_id',
         'shape',
         'chalni_size',
         'chalni_min',

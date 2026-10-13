@@ -264,6 +264,7 @@ class DiamondRequirementService
                 'requirement_id' => $requirementId,
                 'warehouse_id' => (int) $warehouse['warehouse_id'],
                 'bin_id' => (int) $warehouse['bin_id'],
+                'inventory_location_id' => $locationId,
                 'pcs_balance' => 0,
                 'cts_balance' => 0,
                 'notes' => trim($notes) ?: ('Prepared for ' . (string) ($requirement['requirement_no'] ?? ('requirement #' . $requirementId))),
