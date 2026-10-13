@@ -1,9 +1,17 @@
 # Mobile push notifications
 
-The Android app uses OneSignal because its Free plan supports unlimited mobile
-push sends. OneSignal is only the delivery provider; all scheduling and hourly
-repeat logic is handled by the application server so paid provider scheduling
-is not required.
+The Android app uses OneSignal for push delivery. OneSignal is only the delivery
+provider; scheduling, retry, and hourly repeat logic is handled by the
+application server so paid provider scheduling is not required.
+
+Real-time business events make a short immediate delivery attempt after their
+database record is committed. The immediate OneSignal client has a five-second
+total timeout and a two-second connection timeout. A failed attempt never rolls
+back the order, follow-up, approval, task, or inventory action: the notification
+remains persisted and the minute worker retries it. For a multi-recipient event,
+delivery continues immediately while OneSignal is healthy; after a provider
+failure the remaining recipients are persisted without further blocking calls.
+Future reminders remain queued until their scheduled time.
 
 ## One-time production setup
 
@@ -35,8 +43,8 @@ is not required.
 
 Run this cron from only one application node. The cron user must be allowed to
 write to `writable/` and `writable/logs/`. The command has its own non-blocking
-lock and heartbeat, sends due tasks/followups, retries temporary failures with
-backoff, and creates one delayed-followup notification per recipient per hour
+lock and heartbeat, sends due tasks/followups, retries failed immediate delivery
+with backoff, and creates one delayed-followup notification per recipient per hour
 from 11:00 through 20:00 Asia/Kolkata. The first delayed alert is in the next
 clock-hour slot after the due time, so it never duplicates the normal due alert.
 A newer followup or a terminal order status makes older reminders ineligible.

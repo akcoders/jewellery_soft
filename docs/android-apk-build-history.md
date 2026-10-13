@@ -120,18 +120,15 @@ installation or force itself to relaunch.
 
 ## Push delivery timing
 
-Application events are stored in `mobile_push_notifications`. Most follow-up
-and order event helpers deliberately set `defer_dispatch`, so the once-per-minute
-`mobile:run-notification-cycle` cron sends them on its next run. This creates a
-normal server-side delay of up to about one minute before OneSignal receives the
-message. A missing or unhealthy cron can delay it indefinitely. After OneSignal
-accepts the push, Android Doze mode, battery optimization, network state, a
-force-stopped app, or vendor firmware can add device-side delay.
+Application events are stored in `mobile_push_notifications`. Real-time events
+make a short immediate OneSignal attempt after the business record is committed.
+Failures remain persisted for the once-per-minute `mobile:run-notification-cycle`
+worker; future and hourly reminders also remain on that worker. After OneSignal
+accepts a push, Android Doze mode, battery optimization, network state, a
+force-stopped app, or vendor firmware can still add device-side delay.
 
-Changing from OneSignal to another provider does not remove the current cron
-delay. Firebase Cloud Messaging is the underlying Android transport and is free;
-using FCM directly removes the OneSignal layer but requires the application to
-manage tokens, refresh, targeting, retries, and delivery diagnostics. For this
-application, the first latency improvement should be immediate dispatch for
-new event notifications while retaining the cron for scheduled reminders and
-retries.
+Firebase Cloud Messaging is the underlying Android transport; using FCM directly
+would remove the OneSignal layer but would require the application to manage
+tokens, refresh, targeting, retries, and delivery diagnostics. The current
+hybrid path keeps OneSignal for immediate event delivery and keeps cron as the
+safety net for scheduled reminders and retries.

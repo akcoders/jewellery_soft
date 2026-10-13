@@ -367,7 +367,6 @@ class MobileNotificationEventService
             'dedupe_key' => 'diamond-bag-assigned:' . $requirementId . ':admin:' . $assignedTo,
             'title' => 'Diamond Bag Assigned',
             'message' => 'Prepare ' . (string) $row['requirement_no'] . ' for order ' . (string) $row['order_no'] . '.',
-            'defer_dispatch' => true,
             'payload' => [
                 'type' => 'diamond_bag_assignment',
                 'screen' => 'diamond_requirements',
@@ -410,7 +409,6 @@ class MobileNotificationEventService
                 'dedupe_key' => 'diamond-bag-ready:' . $requirementId . ':requester:' . $requester,
                 'title' => 'Diamond Bag Ready',
                 'message' => (string) ($row['bag_no'] ?: 'Bag') . ' is ready for order ' . (string) $row['order_no'] . '.',
-                'defer_dispatch' => true,
                 'payload' => [
                     'type' => 'diamond_bag_ready',
                     'screen' => 'diamond_requirements',
@@ -673,12 +671,12 @@ class MobileNotificationEventService
 
     private function queueForPermission(string $permission, array $notification): array
     {
-        $notification['defer_dispatch'] = true;
         $admins = $this->adminUserModel->where('is_active', 1)->orderBy('id', 'ASC')->findAll();
         $results = [];
         $queuedCount = 0;
         $failedCount = 0;
         $duplicateCount = 0;
+        $deferRemaining = false;
         $baseDedupeKey = trim((string) ($notification['dedupe_key'] ?? ''));
 
         foreach ($admins as $admin) {
@@ -688,11 +686,17 @@ class MobileNotificationEventService
             }
 
             $personalized = $notification;
+            if ($deferRemaining) {
+                $personalized['defer_dispatch'] = true;
+            }
             if ($baseDedupeKey !== '') {
                 $personalized['dedupe_key'] = $baseDedupeKey . ':admin:' . $adminId;
             }
 
             $result = $this->pushService->queueForAdminRow($admin, $personalized);
+            if ($result['stop_dispatch'] ?? false) {
+                $deferRemaining = true;
+            }
             $results[$adminId] = $result;
             if (($result['queued'] ?? false) && ($result['created'] ?? false)) {
                 $queuedCount++;
@@ -727,17 +731,23 @@ class MobileNotificationEventService
             ->whereIn('r.role_code', ['SUPER_ADMIN', 'ADMIN', 'OWNER'])
             ->groupBy('au.id')
             ->orderBy('au.id', 'ASC')->get()->getResultArray();
-        $notification['defer_dispatch'] = true;
         $baseDedupeKey = trim((string) ($notification['dedupe_key'] ?? ''));
         $results = [];
         $queuedCount = 0;
+        $deferRemaining = false;
         foreach ($rows as $admin) {
             $adminId = (int) ($admin['id'] ?? 0);
             $personalized = $notification;
+            if ($deferRemaining) {
+                $personalized['defer_dispatch'] = true;
+            }
             if ($baseDedupeKey !== '') {
                 $personalized['dedupe_key'] = $baseDedupeKey . ':admin:' . $adminId;
             }
             $result = $this->pushService->queueForAdminRow($admin, $personalized);
+            if ($result['stop_dispatch'] ?? false) {
+                $deferRemaining = true;
+            }
             $results[$adminId] = $result;
             if (($result['queued'] ?? false) && ($result['created'] ?? false)) {
                 $queuedCount++;
@@ -756,7 +766,6 @@ class MobileNotificationEventService
         if ($followerId <= 0) {
             return $this->emptySummary('Order follower is not assigned.');
         }
-        $notification['defer_dispatch'] = true;
         $baseDedupeKey = trim((string) ($notification['dedupe_key'] ?? ''));
         if ($baseDedupeKey !== '') {
             $notification['dedupe_key'] = $baseDedupeKey . ':admin:' . $followerId;
@@ -776,10 +785,10 @@ class MobileNotificationEventService
 
     private function queueForActiveUsers(array $notification): array
     {
-        $notification['defer_dispatch'] = true;
         $admins = $this->adminUserModel->where('is_active', 1)->orderBy('id', 'ASC')->findAll();
         $results = [];
         $queuedCount = 0;
+        $deferRemaining = false;
         $baseDedupeKey = trim((string) ($notification['dedupe_key'] ?? ''));
         foreach ($admins as $admin) {
             $adminId = (int) ($admin['id'] ?? 0);
@@ -787,10 +796,16 @@ class MobileNotificationEventService
                 continue;
             }
             $personalized = $notification;
+            if ($deferRemaining) {
+                $personalized['defer_dispatch'] = true;
+            }
             if ($baseDedupeKey !== '') {
                 $personalized['dedupe_key'] = $baseDedupeKey . ':admin:' . $adminId;
             }
             $result = $this->pushService->queueForAdminRow($admin, $personalized);
+            if ($result['stop_dispatch'] ?? false) {
+                $deferRemaining = true;
+            }
             $results[$adminId] = $result;
             if (($result['queued'] ?? false) && ($result['created'] ?? false)) {
                 $queuedCount++;

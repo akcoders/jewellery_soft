@@ -56,6 +56,21 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringNotContainsString("'collapse_id' =>", $service);
     }
 
+    public function testRealtimeEventsAttemptImmediateDeliveryWithSafeCronFallback(): void
+    {
+        $service = (string) file_get_contents(APPPATH . 'Services/MobilePushService.php');
+        $events = (string) file_get_contents(APPPATH . 'Services/MobileNotificationEventService.php');
+
+        $this->assertStringContainsString('dispatch($insertId, true)', $service);
+        $this->assertStringContainsString("'timeout' => 5", $service);
+        $this->assertStringContainsString("'connect_timeout' => 2", $service);
+        $this->assertStringContainsString('$immediate ? 1 : null', $service);
+        $this->assertStringContainsString('$deferDispatch || $this->isFuture($scheduledAt)', $service);
+        $this->assertStringNotContainsString("\$notification['defer_dispatch'] = true;", $events);
+        $this->assertStringContainsString('if ($deferRemaining)', $events);
+        $this->assertStringContainsString("\$personalized['defer_dispatch'] = true;", $events);
+    }
+
     public function testBundledNotificationSoundHasRecordedOwnerSuppliedProvenance(): void
     {
         $sound = ROOTPATH . 'app_kit/FlutKit/android/app/src/main/res/raw/aabhushan_alert.mp3';

@@ -22,6 +22,7 @@ class MobilePushService
     private AdminUserModel $adminUserModel;
     private MobileTaskModel $taskModel;
     private CURLRequest $http;
+    private CURLRequest $immediateHttp;
 
     public function __construct()
     {
@@ -29,9 +30,16 @@ class MobilePushService
         $this->notificationModel = new MobilePushNotificationModel();
         $this->adminUserModel = new AdminUserModel();
         $this->taskModel = new MobileTaskModel();
-        $this->http = service('curlrequest', [
+        $this->http = single_service('curlrequest', [
             'baseURI' => 'https://api.onesignal.com',
             'timeout' => 20,
+            'connect_timeout' => 5,
+            'http_errors' => false,
+        ]);
+        $this->immediateHttp = single_service('curlrequest', [
+            'baseURI' => 'https://api.onesignal.com',
+            'timeout' => 5,
+            'connect_timeout' => 2,
             'http_errors' => false,
         ]);
     }
@@ -135,10 +143,12 @@ class MobilePushService
             ];
         }
 
-        return ['created' => true] + $this->dispatch($insertId);
+        // Real-time events make one short best-effort attempt now. Any failure
+        // remains persisted and is retried by the minute worker.
+        return ['created' => true] + $this->dispatch($insertId, true);
     }
 
-    public function dispatch(int $notificationId): array
+    public function dispatch(int $notificationId, bool $immediate = false): array
     {
         $row = $this->notificationModel->find($notificationId);
         if (! is_array($row)) {
@@ -240,7 +250,8 @@ class MobilePushService
         }
 
         try {
-            $response = $this->http->post('/notifications?c=push', [
+            $client = $immediate ? $this->immediateHttp : $this->http;
+            $response = $client->post('/notifications?c=push', [
                 'headers' => [
                     'Authorization' => 'Key ' . trim((string) $config['onesignal_rest_api_key']),
                     'Accept' => 'application/json',
@@ -287,7 +298,12 @@ class MobilePushService
             }
 
             $retryMinutes = $statusCode === 429 ? $this->retryMinutes($response->getHeaderLine('Retry-After')) : null;
-            $this->recordFailure($row, $errorMessage, $body !== '' ? $body : null, $retryMinutes);
+            $this->recordFailure(
+                $row,
+                $errorMessage,
+                $body !== '' ? $body : null,
+                $retryMinutes ?? ($immediate ? 1 : null)
+            );
 
             return [
                 'queued' => false,
@@ -297,7 +313,7 @@ class MobilePushService
                 'message' => $errorMessage,
             ];
         } catch (Throwable $e) {
-            $this->recordFailure($row, $e->getMessage());
+            $this->recordFailure($row, $e->getMessage(), null, $immediate ? 1 : null);
 
             return [
                 'queued' => false,
