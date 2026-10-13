@@ -21,6 +21,7 @@ use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\IssuementVoucherNumberService;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\MobileNotificationEventService;
+use App\Services\PdfService;
 use App\Services\StoneInventory\StockService as StoneStockService;
 use Throwable;
 
@@ -227,12 +228,12 @@ class IssuementController extends BaseController
         return $this->show((string) $this->request->getGet('voucher_no'));
     }
 
-    public function voucher(string $voucherNoParam): string
+    public function voucher(string $voucherNoParam)
     {
         $voucherNo = trim(urldecode($voucherNoParam));
         $bundle = $this->loadIssueBundle($voucherNo);
 
-        return view('admin/vouchers/issuement_combined', [
+        $pdf = (new PdfService())->render('admin/vouchers/issuement_combined', [
             'title' => 'Issuement Voucher',
             'company' => $this->companySetting(),
             'voucherNo' => $bundle['voucherNo'],
@@ -243,10 +244,16 @@ class IssuementController extends BaseController
             'diamondLines' => $bundle['diamondLines'],
             'stoneLines' => $bundle['stoneLines'],
             'totalValue' => $bundle['totalValue'],
+            'pdfMode' => true,
         ]);
+        $safeVoucher = preg_replace('/[^A-Za-z0-9_-]+/', '_', $voucherNo) ?: 'issuement';
+
+        return $this->response->setContentType('application/pdf')
+            ->setHeader('Content-Disposition', 'inline; filename="issuement_' . $safeVoucher . '.pdf"')
+            ->setBody($pdf);
     }
 
-    public function voucherQuery(): string
+    public function voucherQuery()
     {
         return $this->voucher((string) $this->request->getGet('voucher_no'));
     }
@@ -548,17 +555,17 @@ class IssuementController extends BaseController
             $stoneTotalValue += (float) ($line['line_value'] ?? 0);
         }
 
-        $materialCount = 0;
-        if ($goldLines !== []) {
-            $materialCount++;
+        $materialTypes = [];
+        if ($goldHeader) {
+            $materialTypes[] = 'Gold';
         }
-        if ($diamondLines !== []) {
-            $materialCount++;
+        if ($diamondHeader) {
+            $materialTypes[] = 'Diamond';
         }
-        if ($stoneLines !== []) {
-            $materialCount++;
+        if ($stoneHeader) {
+            $materialTypes[] = 'Stone';
         }
-        $materialType = $materialCount > 1 ? 'Mixed' : ($goldLines !== [] ? 'Gold' : ($diamondLines !== [] ? 'Diamond' : 'Stone'));
+        $materialType = implode(' + ', $materialTypes);
 
         return [
             'voucherNo' => $voucherNo,

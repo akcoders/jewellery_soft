@@ -61,6 +61,23 @@ final class MobileOrderPurchaseIssuementParityTest extends CIUnitTestCase
         $this->assertStringNotContainsString("_drawerItem(\n                        'stone_issues'", $shell);
     }
 
+    public function testWebAndMobileIssuementVouchersSharePdfRendererAndFitAllColumns(): void
+    {
+        $admin = $this->source('Controllers/Admin/IssuementController.php');
+        $mobile = $this->source('Controllers/Api/Mobile/TransactionsController.php');
+        $template = $this->source('Views/admin/vouchers/issuement_combined.php');
+
+        $this->assertStringContainsString("render('admin/vouchers/issuement_combined'", $admin);
+        $this->assertStringContainsString("render('admin/vouchers/issuement_combined'", $mobile);
+        $this->assertStringContainsString("\$materialType = implode(' + ', \$materialTypes)", $admin);
+        $this->assertStringContainsString("(\$issue['issue_to'] ?? '')", $mobile);
+        $this->assertStringContainsString("setContentType('application/pdf')", $admin);
+        $this->assertStringContainsString('table-layout: fixed;', $template);
+        $this->assertStringContainsString('<colgroup>', $template);
+        $this->assertStringContainsString('width:13%;', $template);
+        $this->assertStringContainsString('overflow-wrap: break-word;', $template);
+    }
+
     public function testMobilePurchaseFormMatchesMaterialSpecificWebFields(): void
     {
         $controller = $this->source('Controllers/Api/Mobile/TransactionsController.php');

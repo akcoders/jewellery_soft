@@ -1599,7 +1599,8 @@ class TransactionsController extends MobileBaseController
         $pdf = (new PdfService())->render('admin/vouchers/issuement_combined', [
             'title' => 'Issuement Voucher', 'voucherNo' => $voucherNo, 'issue' => $issue,
             'materialType' => implode(' + ', array_map('ucfirst', array_keys($headers))),
-            'supplierName' => (string) (($issue['karigar_name'] ?? '') ?: ($issue['issue_to'] ?? '')),
+            'supplierName' => trim((string) ($issue['issue_to'] ?? ''))
+                ?: (trim((string) ($issue['karigar_name'] ?? '')) ?: '-'),
             'goldLines' => $materialLines['gold'] ?? [], 'diamondLines' => $materialLines['diamond'] ?? [],
             'stoneLines' => $materialLines['stone'] ?? [], 'totalValue' => $totalValue,
             'company' => $this->companySetting(), 'pdfMode' => true,

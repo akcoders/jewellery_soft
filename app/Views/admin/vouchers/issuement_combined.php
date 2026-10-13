@@ -98,12 +98,15 @@
         .grid {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
         .grid th,
         .grid td {
             border: 1px solid #000;
             padding: 4px 5px;
             vertical-align: top;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
         .grid th {
             font-size: 11px;
@@ -288,15 +291,24 @@ $blankRows = $minRows > count($rows) ? $minRows - count($rows) : 0;
     <div class="section">
         <div class="line-head">Description of Goods</div>
         <table class="grid">
+            <colgroup>
+                <col style="width:5%;">
+                <col style="width:23%;">
+                <col style="width:23%;">
+                <col style="width:10%;">
+                <col style="width:13%;">
+                <col style="width:13%;">
+                <col style="width:13%;">
+            </colgroup>
             <thead>
                 <tr>
-                    <th style="width:40px;">#</th>
+                    <th>#</th>
                     <th>Description</th>
-                    <th style="width:140px;">Grade / Purity</th>
-                    <th style="width:90px;" class="text-right">PCS</th>
-                    <th style="width:110px;" class="text-right">Weight</th>
-                    <th style="width:110px;" class="text-right">Rate</th>
-                    <th style="width:120px;" class="text-right">Value</th>
+                    <th>Grade / Purity</th>
+                    <th class="text-right">PCS</th>
+                    <th class="text-right">Weight</th>
+                    <th class="text-right">Rate</th>
+                    <th class="text-right">Value</th>
                 </tr>
             </thead>
             <tbody>
