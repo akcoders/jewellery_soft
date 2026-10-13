@@ -2,13 +2,13 @@
 
 ## Notification sound
 
-- Bundled file: `android/app/src/main/res/raw/aabhushan_alert.wav`
-- Source asset: `confirmation_002.ogg` from Kenney Interface Sounds
-- Source: https://kenney.nl/assets/interface-sounds
-- License: Creative Commons CC0 1.0 Universal (public domain dedication)
-- License: https://creativecommons.org/publicdomain/zero/1.0/
-- Conversion: 44.1 kHz, 16-bit, mono PCM WAV using Apple `afconvert`
-- SHA-256: `c1c7b1578d5ee2318975ba4e9529b7d496a599e11578a46ff9410fe2129054af`
+- Bundled file: `android/app/src/main/res/raw/aabhushan_alert.mp3`
+- Supplied asset: `yoursperfectguy-funny-minion-message-notification-sound-effect-sfx-334708.mp3`
+- Provenance: supplied by the application owner for use in the Aabhushan Android app
+- Format: MPEG Layer III, 22.05 kHz, mono, 160 kbps
+- Duration: 1.72 seconds
+- SHA-256: `d7a35c3e65cb091021690d92d7ae027dacd2220af0af273d4c3b3cf137d1770b`
 
-Kenney does not require attribution for this CC0 asset. The information above
-is retained to document provenance and make future replacement auditable.
+The application owner is responsible for confirming the redistribution rights
+for supplied media. The information above is retained to make replacements
+auditable.

@@ -44,6 +44,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _diamondSupported = false;
   bool _canCreateDiamondBag = false;
   bool _canTakeOrderFollowup = false;
+  bool _followupGalleryEnabled = false;
   bool _canChangeFollower = false;
   List<dynamic> _staffFollowers = [];
   List<String> _allowedStages = const [];
@@ -103,6 +104,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             data['can_create_diamond_bag'] == 1;
         _canTakeOrderFollowup =
             data['can_add_followup'] == true || data['can_add_followup'] == 1;
+        _followupGalleryEnabled =
+            data['followup_gallery_enabled'] == true ||
+            data['followup_gallery_enabled'] == 1;
         _canChangeFollower =
             data['can_change_follower'] == true ||
             data['can_change_follower'] == 1;
@@ -131,6 +135,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           api: widget.api,
           orderId: widget.orderId,
           stages: _allowedStages,
+          allowGallery: _followupGalleryEnabled,
         ),
       ),
     );

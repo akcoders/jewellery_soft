@@ -217,7 +217,7 @@ class MobilePushService
             'contents' => ['en' => (string) ($row['message'] ?? '')],
             'data' => $notificationData,
             'small_icon' => 'ic_stat_onesignal_default',
-            'existing_android_channel_id' => 'aabhushan_alerts_v2',
+            'existing_android_channel_id' => 'aabhushan_alerts_v3',
             'android_sound' => 'aabhushan_alert',
             'android_group' => $displayKey,
             'web_push_topic' => $displayKey,

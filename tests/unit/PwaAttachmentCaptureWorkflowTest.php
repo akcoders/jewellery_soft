@@ -21,7 +21,6 @@ final class PwaAttachmentCaptureWorkflowTest extends CIUnitTestCase
     {
         foreach ([
             'task_scheduler_screen.dart',
-            'order_followup_form_screen.dart',
             'diamond_requirements_screen.dart',
             'transaction_create_screen.dart',
             'issuement_create_screen.dart',
@@ -39,6 +38,18 @@ final class PwaAttachmentCaptureWorkflowTest extends CIUnitTestCase
                 $file . ' must not offer gallery upload'
             );
         }
+    }
+
+    public function testNativeFollowupPickerObeysEmployeeGalleryControl(): void
+    {
+        $detail = $this->screen('order_detail_screen.dart');
+        $form = $this->screen('order_followup_form_screen.dart');
+
+        $this->assertStringContainsString("data['followup_gallery_enabled']", $detail);
+        $this->assertStringContainsString('allowGallery: _followupGalleryEnabled', $detail);
+        $this->assertStringContainsString('allowGallery: widget.allowGallery', $form);
+        $this->assertStringContainsString('imageSource: _pickedSource.name', $form);
+        $this->assertStringContainsString('Camera-only evidence is enabled for your account.', $form);
     }
 
     private function screen(string $file): string

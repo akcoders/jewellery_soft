@@ -38,6 +38,6 @@ class AabhushanApplication : Application() {
     }
 
     companion object {
-        const val NOTIFICATION_CHANNEL_ID = "aabhushan_alerts_v2"
+        const val NOTIFICATION_CHANNEL_ID = "aabhushan_alerts_v3"
     }
 }

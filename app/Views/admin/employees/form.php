@@ -136,7 +136,7 @@
 
         <div class="col-xl-4">
             <div class="card mb-3">
-                <div class="card-header"><h5 class="card-title mb-0">PWA Workflow Controls</h5></div>
+                <div class="card-header"><h5 class="card-title mb-0">Mobile App Workflow Controls</h5></div>
                 <div class="card-body">
                     <p class="small text-muted">Applied to the linked login. Approval is required by default; follow-up photos use camera only by default.</p>
                     <?php foreach ([

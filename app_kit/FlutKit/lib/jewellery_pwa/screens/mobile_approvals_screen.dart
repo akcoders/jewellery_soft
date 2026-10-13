@@ -1605,7 +1605,7 @@ class _ApprovalStaffSettingsScreenState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Employee PWA Controls')),
+    appBar: AppBar(title: const Text('Employee Mobile Controls')),
     body: _loading
         ? const FullScreenLoader(message: 'Loading employee controls...')
         : _error.isNotEmpty

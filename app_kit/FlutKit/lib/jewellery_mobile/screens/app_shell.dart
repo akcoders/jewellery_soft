@@ -159,130 +159,210 @@ class _AppShellState extends State<AppShell> {
     final version = (update['version'] ?? '').toString().trim();
     final buildNumber = _asInt(update['version_code']);
     final downloadUrl = (update['download_url'] ?? '').toString().trim();
+    final expectedSha256 = (update['sha256'] ?? '').toString().trim();
     final message = (update['message'] ?? '').toString().trim();
     final sizeLabel = (update['size_label'] ?? '').toString().trim();
     final isRequired = update['required'] == true || update['required'] == 1;
     if (downloadUrl.isEmpty) return;
+    var downloading = false;
+    var progress = 0.0;
+    var installMessage = '';
 
     await showDialog<void>(
       context: context,
       barrierDismissible: !isRequired,
       builder: (dialogContext) {
         final colors = Theme.of(dialogContext).colorScheme;
-        return PopScope<void>(
-          canPop: !isRequired,
-          child: AlertDialog(
-            icon: Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: colors.primaryContainer,
-                borderRadius: BorderRadius.circular(20),
+        return StatefulBuilder(
+          builder: (context, setDialogState) => PopScope<void>(
+            canPop: !isRequired && !downloading,
+            child: AlertDialog(
+              icon: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.system_update_alt_rounded,
+                  color: colors.onPrimaryContainer,
+                  size: 34,
+                ),
               ),
-              child: Icon(
-                Icons.system_update_alt_rounded,
-                color: colors.onPrimaryContainer,
-                size: 34,
-              ),
-            ),
-            title: const Text('A new update is ready'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _UpdateVersion(
-                            label: 'Installed',
-                            value:
-                                '${current.version} (${current.buildNumber})',
+              title: const Text('A new update is ready'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _UpdateVersion(
+                              label: 'Installed',
+                              value:
+                                  '${current.version} (${current.buildNumber})',
+                            ),
                           ),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: colors.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _UpdateVersion(
+                              label: 'Available',
+                              value: '$version ($buildNumber)',
+                              highlighted: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      message.isEmpty
+                          ? 'Update now for the latest fixes and improvements.'
+                          : message,
+                    ),
+                    if (isRequired) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
                         ),
+                        decoration: BoxDecoration(
+                          color: colors.errorContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              size: 18,
+                              color: colors.onErrorContainer,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'This update is required before you can continue using the app.',
+                                style: TextStyle(
+                                  color: colors.onErrorContainer,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
                         Icon(
-                          Icons.arrow_forward_rounded,
+                          Icons.verified_user_outlined,
+                          size: 18,
                           color: colors.primary,
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: _UpdateVersion(
-                            label: 'Available',
-                            value: '$version ($buildNumber)',
-                            highlighted: true,
+                          child: Text(
+                            [
+                              if (sizeLabel.isNotEmpty) sizeLabel,
+                              'Verified Aabhushan download',
+                            ].join(' • '),
+                            style: Theme.of(dialogContext).textTheme.bodySmall,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    message.isEmpty
-                        ? 'Update now for the latest fixes and improvements.'
-                        : message,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.verified_user_outlined,
-                        size: 18,
-                        color: colors.primary,
+                    const SizedBox(height: 8),
+                    Text(
+                      'The app will securely download and verify the APK. Android will then ask you to confirm installation. Your login and app data stay unchanged.',
+                      style: Theme.of(dialogContext).textTheme.bodySmall
+                          ?.copyWith(color: colors.onSurfaceVariant),
+                    ),
+                    if (downloading || installMessage.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      LinearProgressIndicator(
+                        value: downloading && progress > 0 ? progress : null,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          [
-                            if (sizeLabel.isNotEmpty) sizeLabel,
-                            'Verified Aabhushan download',
-                          ].join(' • '),
-                          style: Theme.of(dialogContext).textTheme.bodySmall,
-                        ),
+                      const SizedBox(height: 8),
+                      Text(
+                        downloading
+                            ? progress > 0
+                                  ? 'Downloading update… ${(progress * 100).round()}%'
+                                  : 'Starting secure download…'
+                            : installMessage,
+                        style: Theme.of(dialogContext).textTheme.bodySmall
+                            ?.copyWith(
+                              color: installMessage.isNotEmpty
+                                  ? colors.primary
+                                  : colors.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Android will download the APK and ask you to confirm installation. Your login and app data stay unchanged.',
-                    style: Theme.of(dialogContext).textTheme.bodySmall
-                        ?.copyWith(color: colors.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              if (!isRequired)
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Later'),
+                  ],
                 ),
-              FilledButton.icon(
-                onPressed: () async {
-                  Navigator.of(dialogContext).pop();
-                  final opened = await AndroidUpdateService.openDownload(
-                    downloadUrl,
-                  );
-                  if (!opened && mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Could not open the update download link.',
-                        ),
-                      ),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.download_rounded),
-                label: const Text('Download update'),
               ),
-            ],
+              actions: [
+                if (!isRequired)
+                  TextButton(
+                    onPressed: downloading
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Later'),
+                  ),
+                FilledButton.icon(
+                  onPressed: downloading
+                      ? null
+                      : () async {
+                          setDialogState(() {
+                            downloading = true;
+                            progress = 0;
+                            installMessage = '';
+                          });
+                          final result =
+                              await AndroidUpdateService.downloadAndInstall(
+                                url: downloadUrl,
+                                version: '$version-$buildNumber',
+                                expectedSha256: expectedSha256,
+                                onProgress: (value) {
+                                  if (!dialogContext.mounted) return;
+                                  setDialogState(
+                                    () => progress = value
+                                        .clamp(0.0, 1.0)
+                                        .toDouble(),
+                                  );
+                                },
+                              );
+                          if (!dialogContext.mounted) return;
+                          setDialogState(() {
+                            downloading = false;
+                            installMessage = result.message;
+                          });
+                        },
+                  icon: downloading
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.system_update_alt_rounded),
+                  label: Text(downloading ? 'Downloading…' : 'Install update'),
+                ),
+              ],
+            ),
           ),
         );
       },

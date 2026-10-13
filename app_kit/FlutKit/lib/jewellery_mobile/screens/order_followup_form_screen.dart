@@ -8,6 +8,7 @@ import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_section_title.dart';
+import 'package:flutkit/jewellery_pwa/services/app_image_picker.dart';
 
 class OrderFollowupFormScreen extends StatefulWidget {
   const OrderFollowupFormScreen({
@@ -15,11 +16,13 @@ class OrderFollowupFormScreen extends StatefulWidget {
     required this.api,
     required this.orderId,
     required this.stages,
+    this.allowGallery = false,
   });
 
   final MobileApiService api;
   final int orderId;
   final List<String> stages;
+  final bool allowGallery;
 
   @override
   State<OrderFollowupFormScreen> createState() =>
@@ -33,6 +36,7 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
   DateTime? _nextDate;
   TimeOfDay? _nextTime;
   XFile? _picked;
+  ImageSource _pickedSource = ImageSource.camera;
   bool _saving = false;
 
   @override
@@ -48,15 +52,16 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: ImageSource.camera,
+    final file = await AppImagePicker().pickImage(
+      context,
+      title: 'Add follow-up evidence',
       imageQuality: 85,
       maxWidth: 1800,
-      requestFullMetadata: false,
+      allowGallery: widget.allowGallery,
+      onSourceSelected: (source) => _pickedSource = source,
     );
     if (!mounted) return;
-    setState(() => _picked = file);
+    if (file != null) setState(() => _picked = file);
   }
 
   Future<void> _submit() async {
@@ -87,6 +92,7 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
         description: _descCtrl.text.trim(),
         nextFollowupDate: nextFollowupDateTime,
         imageBase64: base64Image,
+        imageSource: _pickedSource.name,
       );
       final notification =
           (response['notification'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -202,10 +208,29 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
               const SizedBox(height: AppSpacing.md),
               OutlinedButton.icon(
                 onPressed: _pickImage,
-                icon: const Icon(Icons.camera_alt_outlined),
-                label: Text(
-                  _picked == null ? 'Take photo (optional)' : 'Photo captured',
+                icon: Icon(
+                  widget.allowGallery
+                      ? Icons.add_photo_alternate_outlined
+                      : Icons.camera_alt_outlined,
                 ),
+                label: Text(
+                  _picked == null
+                      ? (widget.allowGallery
+                            ? 'Add evidence photo'
+                            : 'Take evidence photo')
+                      : (_pickedSource == ImageSource.gallery
+                            ? 'Gallery photo selected'
+                            : 'Camera photo captured'),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                widget.allowGallery
+                    ? 'Your employee settings allow camera or gallery evidence.'
+                    : 'Camera-only evidence is enabled for your account.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
               ),
               const Spacer(),
               SafeArea(

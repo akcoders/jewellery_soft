@@ -68,16 +68,25 @@ final class FollowerPrivacyAndMaintenanceTest extends CIUnitTestCase
         $activity = (string) file_get_contents(
             ROOTPATH . 'app_kit/FlutKit/android/app/src/main/kotlin/com/aabhushan/erp/MainActivity.kt'
         );
+        $manifest = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/android/app/src/main/AndroidManifest.xml'
+        );
 
-        $this->assertStringContainsString("androidVersion = '1.0.4'", $release);
-        $this->assertStringContainsString('androidVersionCode = 5', $release);
-        $this->assertStringContainsString('releases/download/android-v1.0.4-build5/', $release);
+        $this->assertStringContainsString("androidVersion = '1.0.5'", $release);
+        $this->assertStringContainsString('androidVersionCode = 6', $release);
+        $this->assertStringContainsString('releases/download/android-v1.0.5-build6/', $release);
         $this->assertStringContainsString("\$platform === 'android'", $endpoint);
         $this->assertStringContainsString("'version_code' => \$release->androidVersionCode", $endpoint);
         $this->assertStringContainsString('A new update is ready', $shell);
-        $this->assertStringContainsString('Download update', $shell);
         $this->assertStringContainsString('LaunchMode.externalApplication', $native);
         $this->assertStringContainsString('com.aabhushan.erp/app_info', $activity);
+        $this->assertStringContainsString('androidRequired = true', $release);
+        $this->assertStringContainsString('downloadAndInstall', $native);
+        $this->assertStringContainsString('sha256.bind(file.openRead())', $native);
+        $this->assertStringContainsString('OpenFilex.open', $native);
+        $this->assertStringContainsString('Install update', $shell);
+        $this->assertStringContainsString('required before you can continue', $shell);
+        $this->assertStringContainsString('android.permission.REQUEST_INSTALL_PACKAGES', $manifest);
     }
 
     public function testMonthlyCleanupIsPreviewedAuditedConfirmedAndTransactional(): void

@@ -10,7 +10,7 @@ class LocalNotificationService {
 
   // Android permanently retains a channel's original sound settings. Increment
   // this ID whenever the bundled sound changes so upgrades receive the new sound.
-  static const String channelId = 'aabhushan_alerts_v2';
+  static const String channelId = 'aabhushan_alerts_v3';
   static const String channelName = 'Aabhushan Alerts';
   static const String customSoundName = 'aabhushan_alert';
 

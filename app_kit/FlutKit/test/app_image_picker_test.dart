@@ -55,6 +55,7 @@ Future<void> _openPicker(
   WidgetTester tester,
   _FakeImagePicker picker, {
   bool multiple = false,
+  bool allowGallery = true,
   required ValueChanged<List<XFile>> onResult,
 }) async {
   await tester.pumpWidget(
@@ -65,12 +66,16 @@ Future<void> _openPicker(
             onPressed: () async {
               if (multiple) {
                 onResult(
-                  await AppImagePicker(picker: picker).pickImages(context),
+                  await AppImagePicker(
+                    picker: picker,
+                  ).pickImages(context, allowGallery: allowGallery),
                 );
               } else {
-                final image = await AppImagePicker(
-                  picker: picker,
-                ).pickImage(context, imageQuality: 82);
+                final image = await AppImagePicker(picker: picker).pickImage(
+                  context,
+                  imageQuality: 82,
+                  allowGallery: allowGallery,
+                );
                 onResult(image == null ? [] : [image]);
               }
             },
@@ -85,6 +90,25 @@ Future<void> _openPicker(
 }
 
 void main() {
+  testWidgets('camera-only employee control bypasses the gallery chooser', (
+    tester,
+  ) async {
+    final picker = _FakeImagePicker();
+    List<XFile>? result;
+    await _openPicker(
+      tester,
+      picker,
+      allowGallery: false,
+      onResult: (value) => result = value,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose from gallery'), findsNothing);
+    expect(picker.source, ImageSource.camera);
+    expect(picker.calls, 1);
+    expect(result!.single.name, 'proof.jpg');
+  });
+
   testWidgets('camera selection keeps proof image settings', (tester) async {
     final picker = _FakeImagePicker();
     List<XFile>? result;
