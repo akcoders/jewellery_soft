@@ -84,18 +84,18 @@ final class FollowupQualityServiceTest extends CIUnitTestCase
         $row = $db->table('order_followups')->where('id', 1)->get()->getRowArray();
         $this->assertSame(0, (int) $row['duplicate_override']);
         $this->assertSame(1, $db->table('followup_duplicate_override_audits')->countAllResults());
-        $this->assertSame([2.0, -0.5], array_column($service->scoreEvents($row), 'score_delta'));
+        $this->assertSame([2.0, -0.5], array_column($service->scoreEvents($row + ['approval_status' => 'approved']), 'score_delta'));
     }
 
     public function testScoringContainsAllRequiredCombinationsAndDynamicImageCheck(): void
     {
         $service = new FollowupQualityService($this->database());
-        $missing = $service->scoreEvents(['image_path' => null]);
+        $missing = $service->scoreEvents(['approval_status' => 'approved', 'image_path' => null]);
         $this->assertSame([2.0, -0.5], array_column($missing, 'score_delta'));
         $this->assertNotContains('Meaningful update', array_column($missing, 'type'));
 
         $duplicateMissing = $service->scoreEvents([
-            'image_path' => null, 'duplicate_followup_id' => 12,
+            'approval_status' => 'approved', 'image_path' => null, 'duplicate_followup_id' => 12,
             'duplicate_reason' => 'Normalized text matches an earlier follow-up.', 'duplicate_override' => null,
         ]);
         $this->assertSame(-1.5, array_sum(array_column($duplicateMissing, 'score_delta')));
@@ -108,7 +108,7 @@ final class FollowupQualityServiceTest extends CIUnitTestCase
         $name = 'quality-test-' . bin2hex(random_bytes(4)) . '.png';
         file_put_contents($directory . '/' . $name, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='));
         try {
-            $withImage = $service->scoreEvents(['image_path' => 'uploads/orders/followups/' . $name]);
+            $withImage = $service->scoreEvents(['approval_status' => 'approved', 'image_path' => 'uploads/orders/followups/' . $name]);
             $this->assertSame([2.0, 0.25], array_column($withImage, 'score_delta'));
             $this->assertNotContains('Image evidence missing', array_column($withImage, 'type'));
         } finally {
@@ -116,7 +116,7 @@ final class FollowupQualityServiceTest extends CIUnitTestCase
         }
     }
 
-    public function testPendingScoresZeroAndDisapprovedScoresOnlyMinusTwo(): void
+    public function testPendingAndDisapprovedFollowupsDoNotAffectScore(): void
     {
         $service = new FollowupQualityService($this->database());
 
@@ -133,7 +133,28 @@ final class FollowupQualityServiceTest extends CIUnitTestCase
             'duplicate_followup_id' => 12,
         ]);
         $this->assertSame(['Disapproved follow-up'], array_column($disapproved, 'type'));
-        $this->assertSame([-2.0], array_column($disapproved, 'score_delta'));
+        $this->assertSame([0.0], array_column($disapproved, 'score_delta'));
         $this->assertStringContainsString('Update did not match', $disapproved[0]['reason']);
+    }
+
+    public function testFollowupWithoutApprovedStatusDoesNotProduceScoreEvents(): void
+    {
+        $service = new FollowupQualityService($this->database());
+
+        $this->assertSame([], $service->scoreEvents(['approval_status' => null, 'image_path' => null]));
+        $this->assertSame([], $service->scoreEvents(['approval_status' => 'reviewing', 'image_path' => null]));
+    }
+
+    public function testApprovedFollowupWithPointsDisabledRemainsVisibleButEarnsAndLosesNoPoints(): void
+    {
+        $service = new FollowupQualityService($this->database());
+        $events = $service->scoreEvents([
+            'approval_status' => 'approved',
+            'points_enabled' => 0,
+            'image_path' => null,
+        ]);
+
+        $this->assertSame(['Approved follow-up', 'Image evidence missing'], array_column($events, 'type'));
+        $this->assertSame([0.0, 0.0], array_column($events, 'score_delta'));
     }
 }

@@ -38,8 +38,8 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('completeOrderFollowup(', $followups);
         $this->assertStringContainsString("'approval_status'", $migration);
         $this->assertStringContainsString('Pending approval', $orderView);
-        $this->assertStringContainsString("'Disapproved follow-up', 'score_delta' => -2.0", $quality);
-        $this->assertStringContainsString("'Approved follow-up', 'score_delta' => 2.0", $quality);
+        $this->assertStringContainsString("'Disapproved follow-up', 'score_delta' => 0.0", $quality);
+        $this->assertStringContainsString("'Approved follow-up', 'score_delta' => \$pointsEnabled ? 2.0 : 0.0", $quality);
         $this->assertStringContainsString("'pending_followup_approval'", $orders);
         $this->assertStringContainsString("'Followup disapproved'", $events);
     }

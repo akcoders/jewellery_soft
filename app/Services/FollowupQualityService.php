@@ -92,7 +92,7 @@ class FollowupQualityService
     /** @return list<array{type:string,score_delta:float,reason:string}> */
     public function scoreEvents(array $followup): array
     {
-        $approvalStatus = strtolower(trim((string) ($followup['approval_status'] ?? 'approved')));
+        $approvalStatus = strtolower(trim((string) ($followup['approval_status'] ?? '')));
         if ($approvalStatus === 'pending') {
             return [];
         }
@@ -101,24 +101,25 @@ class FollowupQualityService
             if (trim((string) ($followup['review_note'] ?? '')) !== '') {
                 $reason .= ' ' . trim((string) $followup['review_note']);
             }
-            return [['type' => 'Disapproved follow-up', 'score_delta' => -2.0, 'reason' => $reason]];
+            return [['type' => 'Disapproved follow-up', 'score_delta' => 0.0, 'reason' => $reason]];
         }
-        if ((int) ($followup['points_enabled'] ?? 1) === 0) {
+        if ($approvalStatus !== 'approved') {
             return [];
         }
+        $pointsEnabled = (int) ($followup['points_enabled'] ?? 1) !== 0;
 
         $events = [];
         if ($this->isDuplicate($followup)) {
             $matchedId = (int) ($followup['duplicate_followup_id'] ?? 0);
             $reason = (string) (($followup['duplicate_reason'] ?? '') ?: 'Duplicate confirmed by administrator.');
             if ($matchedId > 0) $reason .= ' Matched follow-up #' . $matchedId . '.';
-            $events[] = ['type' => 'Duplicate follow-up', 'score_delta' => -1.0, 'reason' => $reason];
+            $events[] = ['type' => 'Duplicate follow-up', 'score_delta' => $pointsEnabled ? -1.0 : 0.0, 'reason' => $reason];
         } else {
-            $events[] = ['type' => 'Approved follow-up', 'score_delta' => 2.0, 'reason' => 'Follow-up approved by administrator.'];
-            if ($this->hasValidImage($followup)) $events[] = ['type' => 'Meaningful update', 'score_delta' => 0.25, 'reason' => 'Valid unique update with image evidence.'];
+            $events[] = ['type' => 'Approved follow-up', 'score_delta' => $pointsEnabled ? 2.0 : 0.0, 'reason' => 'Follow-up approved by administrator.'];
+            if ($this->hasValidImage($followup)) $events[] = ['type' => 'Meaningful update', 'score_delta' => $pointsEnabled ? 0.25 : 0.0, 'reason' => 'Valid unique update with image evidence.'];
         }
         if (! $this->hasValidImage($followup)) {
-            $events[] = ['type' => 'Image evidence missing', 'score_delta' => -0.5, 'reason' => 'Image evidence missing'];
+            $events[] = ['type' => 'Image evidence missing', 'score_delta' => $pointsEnabled ? -0.5 : 0.0, 'reason' => 'Image evidence missing'];
         }
         return $events;
     }

@@ -22,11 +22,13 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
     {
         $service = $this->source('Services/StaffPerformanceService.php');
 
+        $this->assertStringContainsString('f.points_enabled', $service);
         $this->assertStringContainsString('public const BASE_SCORE = 100.0', $service);
         $this->assertStringContainsString('public const TASK_ON_TIME_POINTS = 2.0', $service);
         $this->assertStringContainsString('public const TASK_LATE_POINTS = -2.0', $service);
         $this->assertStringContainsString('public const FOLLOWUP_ON_TIME_POINTS = 1.0', $service);
         $this->assertStringContainsString('public const FOLLOWUP_LATE_POINTS = -2.0', $service);
+        $this->assertStringContainsString('public const DISAPPROVED_FOLLOWUP_POINTS = 0.0', $service);
         $this->assertStringContainsString("\$request['status'] === 'approved'", $service);
         $this->assertStringContainsString("'followup_approval_credit_per_day' => abs(self::FOLLOWUP_LATE_POINTS)", $service);
         $this->assertStringContainsString("private const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OWNER']", $service);
@@ -135,6 +137,53 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertSame(6.0, $summary['followup_approval_credit_points']);
     }
 
+    public function testPendingOrRejectedFollowupDoesNotEarnApprovalDelayCredit(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+
+        foreach (['pending', 'rejected'] as $approvalStatus) {
+            $summary = $metrics->invoke($service, [], [[
+                'status' => 'completed_on_time',
+                'completed_followup_approval_status' => $approvalStatus,
+                'completed_followup_points_enabled' => 1,
+                'due_at' => '2026-10-01 10:00:00',
+                'created_at' => '2026-09-30 10:00:00',
+                'completed_at' => '2026-10-01 09:00:00',
+                'approval_credit_intervals' => [[
+                    'start_at' => '2026-10-01 09:00:00',
+                    'end_at' => '2026-10-04 09:00:00',
+                ]],
+            ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+            $this->assertSame(0.0, $summary['points_earned']);
+            $this->assertSame(0, $summary['followup_approval_credit_days']);
+            $this->assertSame(0.0, $summary['followup_approval_credit_points']);
+        }
+    }
+
+    public function testNoPointApprovalDoesNotEarnApprovalDelayCredit(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [], [[
+            'status' => 'completed_on_time',
+            'completed_followup_approval_status' => 'approved',
+            'completed_followup_points_enabled' => 0,
+            'due_at' => '2026-10-01 10:00:00',
+            'created_at' => '2026-09-30 10:00:00',
+            'completed_at' => '2026-10-01 09:00:00',
+            'approval_credit_intervals' => [[
+                'start_at' => '2026-10-01 09:00:00',
+                'end_at' => '2026-10-04 09:00:00',
+            ]],
+        ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(0.0, $summary['points_earned']);
+        $this->assertSame(0, $summary['followup_approval_credit_days']);
+        $this->assertSame(0.0, $summary['followup_approval_credit_points']);
+    }
+
     public function testPerformanceAnalysisIncludesFollowupQualityAndScheduleDiscipline(): void
     {
         $service = new \App\Services\StaffPerformanceService();
@@ -169,7 +218,7 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertSame(.5, $summary['point_loss_breakdown']['Image evidence missing']);
     }
 
-    public function testPendingFollowupHasNoScoreAndDisapprovedFollowupLosesTwoPoints(): void
+    public function testPendingAndDisapprovedFollowupsDoNotChangeScore(): void
     {
         $service = new \App\Services\StaffPerformanceService();
         $metrics = new \ReflectionMethod($service, 'metrics');
@@ -179,11 +228,11 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
             'due_at' => '2026-10-10 10:00:00',
             'completed_at' => '2026-10-10 09:00:00',
         ]], [], [[
-            'type' => 'Disapproved follow-up', 'score_delta' => -2,
+            'type' => 'Disapproved follow-up', 'score_delta' => 0,
         ]], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
 
-        $this->assertSame(2.0, $summary['points_lost']);
-        $this->assertSame(98.0, $summary['score']);
+        $this->assertSame(0.0, $summary['points_lost']);
+        $this->assertSame(100.0, $summary['score']);
         $this->assertSame(1, $summary['disapproved_followups']);
         $this->assertSame(0, $summary['followup_on_time']);
         $this->assertSame('Approval rejected', $summary['performance_band']);

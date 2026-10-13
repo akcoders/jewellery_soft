@@ -17,7 +17,7 @@ class StaffPerformanceService
     public const RATING_POINT_STEP = 5.0;
     public const ORDER_ENTRY_POINTS = 0.5;
     public const PROPER_FOLLOWUP_POINTS = 2.0;
-    public const DISAPPROVED_FOLLOWUP_POINTS = -2.0;
+    public const DISAPPROVED_FOLLOWUP_POINTS = 0.0;
     public const ISSUEMENT_POINTS = 0.5;
     public const PURCHASE_POINTS = 0.5;
 
@@ -483,7 +483,7 @@ class StaffPerformanceService
         }
 
         $builder = $db->table('order_followup_schedules s')
-            ->select('s.*, o.order_no, au.name as completed_by_name, completed_followup.approval_status as completed_followup_approval_status')
+            ->select('s.*, o.order_no, au.name as completed_by_name, completed_followup.approval_status as completed_followup_approval_status, completed_followup.points_enabled as completed_followup_points_enabled')
             ->join('orders o', 'o.id = s.order_id', 'left')
             ->join('admin_users au', 'au.id = s.completed_by', 'left')
             ->join('order_followups completed_followup', 'completed_followup.id = s.completed_followup_id', 'left')
@@ -584,7 +584,7 @@ class StaffPerformanceService
         }
         if ($db->tableExists('order_followups')) {
             $quality = new FollowupQualityService($db);
-            foreach ($db->table('order_followups f')->select('f.id, f.order_id, f.stage, f.description, f.followup_taken_by, f.followup_taken_on, f.image_path, f.approval_status, f.review_note, f.reviewed_at, f.duplicate_followup_id, f.duplicate_reason, f.duplicate_override, o.order_no')
+            foreach ($db->table('order_followups f')->select('f.id, f.order_id, f.stage, f.description, f.followup_taken_by, f.followup_taken_on, f.image_path, f.approval_status, f.points_enabled, f.review_note, f.reviewed_at, f.duplicate_followup_id, f.duplicate_reason, f.duplicate_override, o.order_no')
                 ->join('orders o', 'o.id = f.order_id', 'left')->whereIn('f.followup_taken_by', $staffIds)
                 ->groupStart()
                     ->groupStart()->where('f.reviewed_at >=', $start)->where('f.reviewed_at <', $end)->groupEnd()
@@ -679,6 +679,7 @@ class StaffPerformanceService
         foreach ($followups as $followup) {
             $status = strtolower((string) ($followup['status'] ?? 'pending'));
             $completedApprovalStatus = strtolower((string) ($followup['completed_followup_approval_status'] ?? 'approved'));
+            $completedFollowupPointsEnabled = (int) ($followup['completed_followup_points_enabled'] ?? 1) !== 0;
             $effectiveAt = (string) (($followup['performance_until_at'] ?? '') ?: $now);
             $delay = $this->followupDelayBreakdown($followup, $periodStart, $periodEnd, $now);
             if (str_starts_with($status, 'completed') && in_array($completedApprovalStatus, ['pending', 'rejected'], true)) {
@@ -697,9 +698,13 @@ class StaffPerformanceService
             } else {
                 $delta = 0.0;
             }
-            $approvalCredit = $delay['approval_credit_days'] * abs(self::FOLLOWUP_LATE_POINTS);
+            $approvalCreditDays = str_starts_with($status, 'completed')
+                && ($completedApprovalStatus !== 'approved' || ! $completedFollowupPointsEnabled)
+                ? 0
+                : $delay['approval_credit_days'];
+            $approvalCredit = $approvalCreditDays * abs(self::FOLLOWUP_LATE_POINTS);
             $followupDelayDays += $delay['penalty_days'];
-            $followupApprovalCreditDays += $delay['approval_credit_days'];
+            $followupApprovalCreditDays += $approvalCreditDays;
             $earned += $approvalCredit;
             if ($approvalCredit > 0) $earnedBreakdown['Approval delay credit'] = ($earnedBreakdown['Approval delay credit'] ?? 0) + $approvalCredit;
             $delta >= 0 ? $earned += $delta : $lost += abs($delta);
@@ -850,6 +855,11 @@ class StaffPerformanceService
             $awaitingOrRejected = str_starts_with($status, 'completed')
                 && in_array($completedApprovalStatus, ['pending', 'rejected'], true);
             $delta = $awaitingOrRejected ? 0.0 : $delay['penalty_days'] * self::FOLLOWUP_LATE_POINTS;
+            $completedFollowupPointsEnabled = (int) ($followup['completed_followup_points_enabled'] ?? 1) !== 0;
+            $approvalCreditDays = str_starts_with($status, 'completed')
+                && ($completedApprovalStatus !== 'approved' || ! $completedFollowupPointsEnabled)
+                ? 0
+                : $delay['approval_credit_days'];
             $events[] = [
                 'type' => 'Follow-up',
                 'title' => 'Order ' . (string) (($followup['order_no'] ?? '') ?: ('#' . ($followup['order_id'] ?? ''))),
@@ -861,15 +871,15 @@ class StaffPerformanceService
                 'order_id' => (int) ($followup['order_id'] ?? 0),
                 'proof_url' => null,
             ];
-            if ($delay['approval_credit_days'] > 0) {
+            if ($approvalCreditDays > 0) {
                 $events[] = [
                     'type' => 'Approval delay credit',
                     'title' => 'Order ' . (string) (($followup['order_no'] ?? '') ?: ('#' . ($followup['order_id'] ?? ''))),
-                    'reference' => $delay['approval_credit_days'] . ' approval-delayed day(s)',
+                    'reference' => $approvalCreditDays . ' approval-delayed day(s)',
                     'due_at' => (string) ($followup['completed_at'] ?? $followup['due_at'] ?? ''),
                     'completed_at' => (string) ($followup['completed_at'] ?? ''),
                     'status' => 'credited',
-                    'score_delta' => $delay['approval_credit_days'] * abs(self::FOLLOWUP_LATE_POINTS),
+                    'score_delta' => $approvalCreditDays * abs(self::FOLLOWUP_LATE_POINTS),
                     'order_id' => (int) ($followup['order_id'] ?? 0),
                     'proof_url' => null,
                 ];
