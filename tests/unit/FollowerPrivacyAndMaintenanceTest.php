@@ -55,6 +55,22 @@ final class FollowerPrivacyAndMaintenanceTest extends CIUnitTestCase
         $this->assertStringContainsString('aabhushan_pwa_applied_update', $index);
     }
 
+    public function testAndroidPwaIsTemporarilyPausedWhileIosAndDesktopContinue(): void
+    {
+        $source = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/web/index.html');
+        $deployed = (string) file_get_contents(ROOTPATH . 'public/pwa/index.html');
+
+        foreach ([$source, $deployed] as $index) {
+            $this->assertStringContainsString('/Android/i.test', $index);
+            $this->assertStringContainsString('isAndroid && Date.now() < resumeAt', $index);
+            $this->assertStringContainsString('2026-10-14T00:00:00+05:30', $index);
+            $this->assertStringContainsString('Download Android APK', $index);
+            $this->assertStringContainsString('aabhushan-erp-1.0.7-build8.apk', $index);
+            $this->assertStringContainsString('if (!window.aabhushanAndroidPwaPaused)', $index);
+            $this->assertStringContainsString('android-pwa-resumed', $index);
+        }
+    }
+
     public function testAndroidUpdateReleaseIsVersionedDownloadableAndPromptedInApp(): void
     {
         $release = (string) file_get_contents(APPPATH . 'Config/MobileAppRelease.php');

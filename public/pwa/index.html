@@ -61,6 +61,32 @@
     .pwa-splash-caption { margin-top: 8px; color: #c69a42; font: 600 10px Arial, sans-serif; letter-spacing: 3px; animation: pwa-reveal .8s .42s both; }
     .pwa-splash-rule { width: 84px; height: 2px; margin-top: 38px; background: rgba(198,154,66,.25); overflow: hidden; }
     .pwa-splash-rule::after { content: ""; display: block; width: 40%; height: 100%; background: #c69a42; animation: pwa-progress 1.4s ease-in-out infinite alternate; }
+    #android-pwa-pause {
+      position: fixed; inset: 0; z-index: 20000; display: flex; align-items: center;
+      justify-content: center; box-sizing: border-box; padding: 24px; overflow: auto;
+      color: #fffaf0; font-family: Arial, sans-serif;
+      background: radial-gradient(circle at top right, #7a3244 0, #421d32 42%, #24101b 100%);
+    }
+    #android-pwa-pause[hidden] { display: none; }
+    .android-pause-card {
+      width: min(100%, 430px); padding: 30px 24px; box-sizing: border-box; text-align: center;
+      border: 1px solid rgba(198,154,66,.38); border-radius: 28px;
+      background: rgba(45,18,31,.88); box-shadow: 0 24px 70px rgba(0,0,0,.36);
+      backdrop-filter: blur(16px);
+    }
+    .android-pause-mark { width: 90px; height: 90px; border-radius: 50%; box-shadow: 0 0 48px rgba(198,154,66,.25); }
+    .android-pause-kicker { margin-top: 20px; color: #d7b66d; font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+    .android-pause-card h1 { margin: 10px 0 12px; font: 600 30px/1.12 "Aabhushan Serif", Georgia, serif; }
+    .android-pause-copy { margin: 0 auto; max-width: 340px; color: #eadde5; font-size: 14px; line-height: 1.6; }
+    .android-pause-countdown { margin: 22px 0 7px; color: #fff; font-size: 25px; font-weight: 800; letter-spacing: 1px; }
+    .android-pause-until { color: #cdbac5; font-size: 12px; }
+    .android-pause-download {
+      display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 24px;
+      min-height: 52px; border-radius: 15px; color: #2e1823; font-size: 15px;
+      font-weight: 800; text-decoration: none; background: linear-gradient(135deg, #f4d98b, #c69a42);
+      box-shadow: 0 10px 28px rgba(198,154,66,.2);
+    }
+    .android-pause-note { margin-top: 15px; color: #bdaab5; font-size: 11px; line-height: 1.5; }
     @keyframes pwa-mark-enter { from { opacity: 0; transform: translateY(15px) scale(.83); } to { opacity: 1; transform: translateY(0) scale(1); } }
     @keyframes pwa-mark-breathe { 50% { box-shadow: 0 0 95px rgba(198,154,66,.38); transform: scale(1.035); } }
     @keyframes pwa-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -70,6 +96,18 @@
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
 <body>
+  <section id="android-pwa-pause" hidden aria-labelledby="android-pause-title">
+    <div class="android-pause-card">
+      <img class="android-pause-mark" src="icons/Icon-192.png" alt="Aabhushan">
+      <div class="android-pause-kicker">Android PWA temporarily paused</div>
+      <h1 id="android-pause-title">Continue in the Android app</h1>
+      <p class="android-pause-copy">For a smoother and more reliable experience, please use the latest Aabhushan Android app while the Android PWA is temporarily unavailable.</p>
+      <div id="android-pause-countdown" class="android-pause-countdown" aria-live="polite">Loading…</div>
+      <div class="android-pause-until">PWA resumes automatically at 12:00 AM IST</div>
+      <a class="android-pause-download" href="https://github.com/akcoders/jewellery_soft/releases/download/android-v1.0.7-build8/aabhushan-erp-1.0.7-build8.apk">Download Android APK</a>
+      <div class="android-pause-note">iPhone, iPad and desktop PWA access remains available. This screen will reopen the PWA automatically at midnight.</div>
+    </div>
+  </section>
   <div id="pwa-splash" aria-label="Loading Aabhushan ERP">
     <img class="pwa-splash-mark" src="icons/Icon-192.png" alt="Aabhushan">
     <div class="pwa-splash-name">AABHUSHAN</div>
@@ -78,6 +116,40 @@
   </div>
   <noscript><style>#pwa-splash { display: none; }</style>Aabhushan ERP requires JavaScript to run.</noscript>
   <script>
+    (function () {
+      var resumeAt = Date.parse("2026-10-14T00:00:00+05:30");
+      var isAndroid = /Android/i.test(navigator.userAgent || "");
+      window.aabhushanAndroidPwaPaused = isAndroid && Date.now() < resumeAt;
+      if (!window.aabhushanAndroidPwaPaused) return;
+
+      var pause = document.getElementById("android-pwa-pause");
+      var splash = document.getElementById("pwa-splash");
+      var countdown = document.getElementById("android-pause-countdown");
+      if (pause) pause.hidden = false;
+      if (splash) splash.style.display = "none";
+
+      function updateCountdown() {
+        var remaining = resumeAt - Date.now();
+        if (remaining <= 0) {
+          var resumeUrl = new URL(window.location.href);
+          resumeUrl.searchParams.set("android-pwa-resumed", Date.now().toString());
+          window.location.replace(resumeUrl.toString());
+          return;
+        }
+        var totalSeconds = Math.ceil(remaining / 1000);
+        var hours = Math.floor(totalSeconds / 3600);
+        var minutes = Math.floor((totalSeconds % 3600) / 60);
+        var seconds = totalSeconds % 60;
+        if (countdown) {
+          countdown.textContent = [hours, minutes, seconds]
+            .map(function (value) { return String(value).padStart(2, "0"); })
+            .join(" : ");
+        }
+      }
+      updateCountdown();
+      window.setInterval(updateCountdown, 1000);
+    })();
+
     window.addEventListener("flutter-first-frame", function () {
       var splash = document.getElementById("pwa-splash");
       if (!splash) return;
@@ -137,7 +209,18 @@
       });
     }
   </script>
-  <script src="aabhushan_pwa_bridge.js"></script>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    if (!window.aabhushanAndroidPwaPaused) {
+      var bridgeScript = document.createElement("script");
+      bridgeScript.src = "aabhushan_pwa_bridge.js";
+      bridgeScript.onload = bridgeScript.onerror = function () {
+        var flutterScript = document.createElement("script");
+        flutterScript.src = "flutter_bootstrap.js";
+        flutterScript.async = true;
+        document.body.appendChild(flutterScript);
+      };
+      document.body.appendChild(bridgeScript);
+    }
+  </script>
 </body>
 </html>
