@@ -108,16 +108,16 @@
         <th colspan="5">STUDDED DIA.,CS.,EXTRA DETAILS</th>
         <th rowspan="2">NET WT.</th>
         <th rowspan="2">PURE WT.</th>
-        <th rowspan="2">GOLD<br>AMM</th>
-        <th rowspan="2">LABOUR<br>CHGS.</th>
-        <th rowspan="2">TOTAL<br>VALUE</th>
+        <th rowspan="2">GOLD AMM<br>(INR)</th>
+        <th rowspan="2">LABOUR CHGS.<br>(INR)</th>
+        <th rowspan="2">TOTAL VALUE<br>(INR)</th>
     </tr>
     <tr>
         <th>STUDDED</th>
         <th>PCS</th>
         <th>WT.</th>
-        <th>RATE</th>
-        <th>AMT.</th>
+        <th>RATE<br>(INR)</th>
+        <th>AMT.<br>(INR)</th>
     </tr>
 
     <?php for ($i = 0; $i < $lineCount; $i++): ?>

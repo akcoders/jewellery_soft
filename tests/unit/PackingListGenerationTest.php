@@ -42,6 +42,7 @@ final class PackingListGenerationTest extends CIUnitTestCase
     {
         $service = (string) file_get_contents(APPPATH . 'Services/BatchPackingListService.php');
         $view = (string) file_get_contents(APPPATH . 'Views/pdf/batch_packing_list.php');
+        $singleView = (string) file_get_contents(APPPATH . 'Views/pdf/packing_list.php');
 
         $this->assertStringContainsString("->whereIn('o.status', ['Completed', 'Complete'])", $service);
         $this->assertStringContainsString("->join('order_receive_summaries rs'", $service);
@@ -52,6 +53,10 @@ final class PackingListGenerationTest extends CIUnitTestCase
         $this->assertStringContainsString('Stone Details', $view);
         $this->assertStringContainsString('ITEM TOTAL', $view);
         $this->assertStringContainsString('COMBINED TOTAL', $view);
+        $this->assertStringContainsString("'INR ' . number_format", $view);
+        $this->assertStringNotContainsString('₹', $view);
+        $this->assertStringContainsString('TOTAL VALUE<br>(INR)', $singleView);
+        $this->assertStringNotContainsString('₹', $singleView);
         foreach (['Vendor', 'Batch<br>No.', 'Customer<br>/ Party', 'Sales M.', 'Order Date', 'Due Date', 'Receiving<br>Date', 'Reference'] as $removedHeading) {
             $this->assertStringNotContainsString($removedHeading, $view);
         }

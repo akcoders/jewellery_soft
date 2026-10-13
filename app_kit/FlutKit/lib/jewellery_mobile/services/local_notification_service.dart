@@ -52,6 +52,7 @@ class LocalNotificationService {
           description: 'Task and followup reminders',
           importance: Importance.high,
           playSound: true,
+          showBadge: true,
           sound: RawResourceAndroidNotificationSound(customSoundName),
         ),
       );

@@ -34,7 +34,9 @@
     $totals = (array) ($report['totals'] ?? []);
     $fmtWeight = static fn(mixed $value): string => number_format((float) $value, 3, '.', '');
     $fmtPcs = static fn(mixed $value): string => rtrim(rtrim(number_format((float) $value, 3, '.', ''), '0'), '.');
-    $fmtMoney = static fn(mixed $value): string => '₹' . number_format((float) $value, 2);
+    // Use text instead of the Unicode rupee glyph: older PDF renderers/fonts
+    // otherwise replace it with a question mark on some devices.
+    $fmtMoney = static fn(mixed $value): string => 'INR ' . number_format((float) $value, 2);
     $details = static fn(array $lines): string => $lines === [] ? '-' : implode('<br>', array_map('esc', $lines));
 ?>
 <table class="document-head">

@@ -48,6 +48,10 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString('claimForDispatch', $service);
         $this->assertStringContainsString('isStillRelevant', $service);
         $this->assertStringContainsString('next_attempt_at', $service);
+        $this->assertStringContainsString("'existing_android_channel_id' => 'aabhushan_alerts'", $service);
+        $this->assertStringContainsString("'android_group' => \$displayKey", $service);
+        $this->assertStringContainsString("'web_push_topic' => \$displayKey", $service);
+        $this->assertStringNotContainsString("'collapse_id' =>", $service);
     }
 
     public function testDelayedFollowupsAreLatestOnlyTerminalSafeAndHourlyDeduplicated(): void

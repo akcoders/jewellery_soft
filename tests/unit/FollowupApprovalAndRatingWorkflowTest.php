@@ -123,7 +123,8 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('completion_rating', $orders);
         $this->assertStringContainsString('RATING_POINT_STEP', $performance);
         $this->assertStringContainsString('rating_average', $performance);
-        $this->assertStringContainsString('Value (Rs.)', $pdf);
+        $this->assertStringContainsString('Value (INR)', $pdf);
+        $this->assertStringContainsString('INR <?= number_format($total,2) ?>', $pdf);
         $this->assertStringNotContainsString("Receiver's Signature", $pdf);
         $this->assertStringNotContainsString('₹', $pdf);
     }
