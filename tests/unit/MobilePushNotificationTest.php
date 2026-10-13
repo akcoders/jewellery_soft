@@ -48,7 +48,7 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString('claimForDispatch', $service);
         $this->assertStringContainsString('isStillRelevant', $service);
         $this->assertStringContainsString('next_attempt_at', $service);
-        $this->assertStringContainsString("'existing_android_channel_id' => 'aabhushan_alerts'", $service);
+        $this->assertStringContainsString("'existing_android_channel_id' => 'aabhushan_alerts_v2'", $service);
         $this->assertStringContainsString("'android_group' => \$displayKey", $service);
         $this->assertStringContainsString("'web_push_topic' => \$displayKey", $service);
         $this->assertStringNotContainsString("'collapse_id' =>", $service);
@@ -58,6 +58,15 @@ final class MobilePushNotificationTest extends CIUnitTestCase
     {
         $sound = ROOTPATH . 'app_kit/FlutKit/android/app/src/main/res/raw/aabhushan_alert.wav';
         $notices = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/THIRD_PARTY_NOTICES.md');
+        $application = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/android/app/src/main/kotlin/com/aabhushan/erp/AabhushanApplication.kt'
+        );
+        $manifest = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/android/app/src/main/AndroidManifest.xml'
+        );
+        $localNotifications = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/services/local_notification_service.dart'
+        );
 
         $this->assertFileExists($sound);
         $this->assertSame(
@@ -67,6 +76,10 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString('Kenney Interface Sounds', $notices);
         $this->assertStringContainsString('Creative Commons CC0', $notices);
         $this->assertStringContainsString('confirmation_002.ogg', $notices);
+        $this->assertStringContainsString('android:name=".AabhushanApplication"', $manifest);
+        $this->assertStringContainsString('NOTIFICATION_CHANNEL_ID = "aabhushan_alerts_v2"', $application);
+        $this->assertStringContainsString('R.raw.aabhushan_alert', $application);
+        $this->assertStringContainsString("channelId = 'aabhushan_alerts_v2'", $localNotifications);
     }
 
     public function testDelayedFollowupsAreLatestOnlyTerminalSafeAndHourlyDeduplicated(): void
