@@ -97,6 +97,27 @@ final class DiamondBagTraceabilityTest extends CIUnitTestCase
         $this->assertStringContainsString("payload['broken_carat']", $pwa);
     }
 
+    public function testDiamondReturnDeleteIsRestrictedToDashboardAdministrators(): void
+    {
+        $controller = (string) file_get_contents(
+            APPPATH . 'Controllers/Admin/DiamondInventory/ReturnsController.php'
+        );
+        $index = (string) file_get_contents(
+            APPPATH . 'Views/admin/diamond_inventory/returns/index.php'
+        );
+        $detail = (string) file_get_contents(
+            APPPATH . 'Views/admin/diamond_inventory/returns/view.php'
+        );
+        $mobile = (string) file_get_contents(APPPATH . 'Config/Routes.php');
+
+        $this->assertStringContainsString('isDashboardAdmin()', $controller);
+        $this->assertStringContainsString("['SUPER_ADMIN', 'ADMIN', 'OWNER']", $controller);
+        $this->assertStringContainsString('Only an administrator can delete a diamond return', $controller);
+        $this->assertStringContainsString('! empty($canDelete)', $index);
+        $this->assertStringContainsString('! empty($canDelete)', $detail);
+        $this->assertStringNotContainsString('api/mobile/diamond-inventory/returns/(:num)/delete', $mobile);
+    }
+
     public function testIssuedBagsAppearInOrderWorkspacesAndOpenFullDetails(): void
     {
         $service = (string) file_get_contents(APPPATH . 'Services/DiamondBagService.php');

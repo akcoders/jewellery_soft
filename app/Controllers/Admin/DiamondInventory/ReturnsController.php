@@ -54,6 +54,7 @@ class ReturnsController extends BaseController
             'returns' => $builder->get()->getResultArray(),
             'from' => $from,
             'to' => $to,
+            'canDelete' => $this->isDashboardAdmin(),
         ]);
     }
 
@@ -178,6 +179,7 @@ class ReturnsController extends BaseController
             'return' => $return,
             'lines' => $this->lineRows($id),
             'totals' => $this->lineTotals('return_lines', 'return_id', $id),
+            'canDelete' => $this->isDashboardAdmin(),
         ]);
     }
 
@@ -317,6 +319,11 @@ class ReturnsController extends BaseController
 
     public function delete(int $id)
     {
+        if (! $this->isDashboardAdmin()) {
+            return redirect()->to(site_url('admin/diamond-inventory/returns'))
+                ->with('error', 'Only an administrator can delete a diamond return from the dashboard.');
+        }
+
         $return = $this->headerModel->find($id);
         if (! $return) {
             return redirect()->to(site_url('admin/diamond-inventory/returns'))->with('error', 'Return not found.');
@@ -341,6 +348,25 @@ class ReturnsController extends BaseController
 
         return redirect()->to(site_url('admin/diamond-inventory/returns'))
             ->with('success', 'Return deleted and stock reversed.');
+    }
+
+    private function isDashboardAdmin(): bool
+    {
+        $userId = (int) session('admin_id');
+        if ($userId <= 0) {
+            return false;
+        }
+
+        $db = db_connect();
+        if (! $db->tableExists('user_roles') || ! $db->tableExists('roles')) {
+            return true;
+        }
+
+        return $db->table('user_roles ur')
+            ->join('roles r', 'r.id = ur.role_id', 'inner')
+            ->where('ur.user_id', $userId)
+            ->whereIn('r.role_code', ['SUPER_ADMIN', 'ADMIN', 'OWNER'])
+            ->countAllResults() > 0;
     }
 
     /**

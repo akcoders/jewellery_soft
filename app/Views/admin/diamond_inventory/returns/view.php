@@ -10,6 +10,12 @@
         <a href="<?= site_url('admin/diamond-inventory/returns/' . $return['id'] . '/edit') ?>" class="btn btn-outline-info">
             <i class="fe fe-edit"></i> Edit
         </a>
+        <?php if (! empty($canDelete)): ?>
+            <form method="post" action="<?= site_url('admin/diamond-inventory/returns/' . $return['id'] . '/delete') ?>" class="d-inline" onsubmit="return confirm('Delete this return and reverse its inventory?');">
+                <?= csrf_field() ?>
+                <button type="submit" class="btn btn-outline-danger"><i class="fe fe-trash-2"></i> Delete</button>
+            </form>
+        <?php endif; ?>
         <a href="<?= site_url('admin/diamond-inventory/returns') ?>" class="btn btn-outline-primary">Back</a>
     </div>
 </div>
