@@ -55,6 +55,31 @@ final class FollowerPrivacyAndMaintenanceTest extends CIUnitTestCase
         $this->assertStringContainsString('aabhushan_pwa_applied_update', $index);
     }
 
+    public function testAndroidUpdateReleaseIsVersionedDownloadableAndPromptedInApp(): void
+    {
+        $release = (string) file_get_contents(APPPATH . 'Config/MobileAppRelease.php');
+        $endpoint = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/AppUpdateController.php');
+        $shell = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/app_shell.dart'
+        );
+        $native = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/services/android_update_service_native.dart'
+        );
+        $activity = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/android/app/src/main/kotlin/com/aabhushan/erp/MainActivity.kt'
+        );
+
+        $this->assertStringContainsString("androidVersion = '1.0.4'", $release);
+        $this->assertStringContainsString('androidVersionCode = 5', $release);
+        $this->assertStringContainsString('releases/download/android-v1.0.4-build5/', $release);
+        $this->assertStringContainsString("\$platform === 'android'", $endpoint);
+        $this->assertStringContainsString("'version_code' => \$release->androidVersionCode", $endpoint);
+        $this->assertStringContainsString('A new update is ready', $shell);
+        $this->assertStringContainsString('Download update', $shell);
+        $this->assertStringContainsString('LaunchMode.externalApplication', $native);
+        $this->assertStringContainsString('com.aabhushan.erp/app_info', $activity);
+    }
+
     public function testMonthlyCleanupIsPreviewedAuditedConfirmedAndTransactional(): void
     {
         $controller = (string) file_get_contents(APPPATH . 'Controllers/Admin/SystemMaintenanceController.php');

@@ -5,6 +5,7 @@
 $preview = is_array($preview ?? null) ? $preview : null;
 $categories = is_array($preview['categories'] ?? null) ? $preview['categories'] : [];
 $latestRelease = is_array($latestRelease ?? null) ? $latestRelease : null;
+$androidRelease = $androidRelease ?? null;
 $cleanupAudits = is_array($cleanupAudits ?? null) ? $cleanupAudits : [];
 $labels = [
     'orders' => 'Orders',
@@ -23,7 +24,7 @@ $labels = [
     <div>
         <span class="erp-eyebrow">Admin controls</span>
         <h4 class="mb-1">System Maintenance</h4>
-        <p class="mb-0">Publish PWA updates and safely remove a complete month of test transactions.</p>
+        <p class="mb-0">Publish app updates and safely remove a complete month of test transactions.</p>
     </div>
 </div>
 
@@ -37,9 +38,18 @@ $labels = [
 <div class="row g-3 mb-4">
     <div class="col-xl-5">
         <div class="card h-100">
-            <div class="card-header"><h5 class="card-title mb-0"><i class="fe fe-refresh-cw me-2"></i>PWA App Update</h5></div>
+            <div class="card-header"><h5 class="card-title mb-0"><i class="fe fe-refresh-cw me-2"></i>Android & PWA App Update</h5></div>
             <div class="card-body">
-                <p class="text-muted">Send every active app user a push notification and activate the in-app “App updated — please relaunch” prompt. The device clears its PWA cache when the user relaunches.</p>
+                <p class="text-muted">Send every active user an update notification. Android users can download the latest APK; PWA users receive the cache-clear and relaunch prompt.</p>
+                <?php if ($androidRelease): ?>
+                    <div class="border rounded p-3 mb-3 bg-light">
+                        <div class="small text-muted">Latest Android release</div>
+                        <div class="fw-semibold">Version <?= esc((string) $androidRelease->androidVersion) ?> (build <?= (int) $androidRelease->androidVersionCode ?>)</div>
+                        <a class="btn btn-outline-primary btn-sm mt-2" href="<?= esc((string) $androidRelease->androidDownloadUrl) ?>" target="_blank" rel="noopener">
+                            <i class="fe fe-download me-1"></i> Download Android APK
+                        </a>
+                    </div>
+                <?php endif; ?>
                 <?php if ($latestRelease): ?>
                     <div class="border rounded p-3 mb-3 bg-light">
                         <div class="small text-muted">Latest published version</div>
@@ -55,9 +65,9 @@ $labels = [
                 <form action="<?= site_url('admin/system/maintenance/pwa-update') ?>" method="post">
                     <?= csrf_field() ?>
                     <label class="form-label" for="pwa-message">Device message</label>
-                    <textarea class="form-control mb-3" id="pwa-message" name="message" maxlength="255" rows="3">A new Aabhushan ERP version is available. Clear the old cache and relaunch now.</textarea>
-                    <button class="btn btn-primary" type="submit" <?= ($maintenanceReady ?? false) ? '' : 'disabled' ?> onclick="return confirm('Publish the PWA update prompt to all active users?');">
-                        <i class="fe fe-send me-1"></i> Send Cache Clear & Relaunch
+                    <textarea class="form-control mb-3" id="pwa-message" name="message" maxlength="255" rows="3">A new Aabhushan ERP version is available. Android users can download the APK; web users can relaunch to refresh.</textarea>
+                    <button class="btn btn-primary" type="submit" <?= ($maintenanceReady ?? false) ? '' : 'disabled' ?> onclick="return confirm('Send the app update notification to all active users?');">
+                        <i class="fe fe-send me-1"></i> Notify All App Users
                     </button>
                 </form>
             </div>

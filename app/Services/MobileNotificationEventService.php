@@ -631,17 +631,22 @@ class MobileNotificationEventService
 
     public function notifyPwaUpdateReleased(int $releaseId, string $version): array
     {
+        /** @var \Config\MobileAppRelease $androidRelease */
+        $androidRelease = config(\Config\MobileAppRelease::class);
         return $this->queueForActiveUsers([
             'type' => 'app_update',
             'reference_table' => 'pwa_update_releases',
             'reference_id' => $releaseId,
             'dedupe_key' => 'app-update:' . $releaseId,
-            'title' => 'Aabhushan App Updated',
-            'message' => 'App updated. Please relaunch to clear the old cache.',
+            'title' => 'Aabhushan App Update Available',
+            'message' => 'Android users: tap to download the update. Web users: relaunch to refresh the app.',
             'payload' => [
                 'type' => 'app_update',
                 'screen' => 'dashboard',
                 'app_version' => $version,
+                'android_version' => $androidRelease->androidVersion,
+                'android_version_code' => $androidRelease->androidVersionCode,
+                'app_download_url' => $androidRelease->androidDownloadUrl,
             ],
         ]);
     }

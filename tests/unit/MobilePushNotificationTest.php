@@ -51,6 +51,8 @@ final class MobilePushNotificationTest extends CIUnitTestCase
         $this->assertStringContainsString("'existing_android_channel_id' => 'aabhushan_alerts_v2'", $service);
         $this->assertStringContainsString("'android_group' => \$displayKey", $service);
         $this->assertStringContainsString("'web_push_topic' => \$displayKey", $service);
+        $this->assertStringContainsString("\$payload['app_url'] = \$appUrl", $service);
+        $this->assertStringContainsString('appLaunchUrl', $service);
         $this->assertStringNotContainsString("'collapse_id' =>", $service);
     }
 

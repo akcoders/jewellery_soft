@@ -56,8 +56,19 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
-  Future<Map<String, dynamic>> fetchAppUpdateStatus() async {
-    final res = await _get('/api/mobile/app-update');
+  Future<Map<String, dynamic>> fetchAppUpdateStatus({
+    String platform = '',
+    int? versionCode,
+  }) async {
+    final query = <String, String>{};
+    if (platform.trim().isNotEmpty) query['platform'] = platform.trim();
+    if (versionCode != null && versionCode >= 0) {
+      query['version_code'] = '$versionCode';
+    }
+    final res = await _get(
+      '/api/mobile/app-update',
+      query: query.isEmpty ? null : query,
+    );
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 

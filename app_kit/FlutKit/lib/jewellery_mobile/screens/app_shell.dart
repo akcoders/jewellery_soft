@@ -18,6 +18,7 @@ import 'package:flutkit/jewellery_mobile/screens/purchase_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/task_scheduler_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transactions_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transaction_create_screen.dart';
+import 'package:flutkit/jewellery_mobile/services/android_update_service.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/services/onesignal_service.dart';
 import 'package:flutkit/jewellery_mobile/services/pwa_install_service.dart';
@@ -83,49 +84,209 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _checkAppUpdate() async {
-    if (!PwaUpdateService.supported || _checkingAppUpdate || !mounted) return;
+    if ((!PwaUpdateService.supported && !AndroidUpdateService.supported) ||
+        _checkingAppUpdate ||
+        !mounted) {
+      return;
+    }
     _checkingAppUpdate = true;
     try {
-      final data = await _api.fetchAppUpdateStatus();
+      final AndroidAppInfo? appInfo = AndroidUpdateService.supported
+          ? await AndroidUpdateService.appInfo()
+          : null;
+      final data = await _api.fetchAppUpdateStatus(
+        platform: appInfo == null ? 'pwa' : 'android',
+        versionCode: appInfo?.buildNumber,
+      );
       final update = (data['update'] as Map?)?.cast<String, dynamic>();
       final version = (update?['version'] ?? '').toString().trim();
+      final releaseKey = appInfo == null
+          ? version
+          : '${version}_${update?['version_code'] ?? ''}';
       if (!mounted ||
           version.isEmpty ||
-          version == PwaUpdateService.appliedVersion ||
-          version == _shownAppUpdateVersion) {
+          (appInfo == null && version == PwaUpdateService.appliedVersion) ||
+          releaseKey == _shownAppUpdateVersion) {
         return;
       }
-      _shownAppUpdateVersion = version;
-      final message = (update?['message'] ?? '').toString().trim();
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => PopScope<void>(
-          canPop: false,
-          child: AlertDialog(
-            icon: const Icon(Icons.system_update_alt, size: 42),
-            title: const Text('App updated — please relaunch'),
-            content: Text(
-              message.isEmpty
-                  ? 'A new Aabhushan ERP version is available. Relaunch now to clear the old PWA cache and load the update.'
-                  : message,
-            ),
-            actions: [
-              FilledButton.icon(
-                onPressed: () =>
-                    PwaUpdateService.clearCacheAndRelaunch(version),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Clear Cache & Relaunch'),
-              ),
-            ],
-          ),
-        ),
-      );
+      _shownAppUpdateVersion = releaseKey;
+      if (appInfo != null) {
+        await _showAndroidUpdate(update!, appInfo);
+      } else {
+        await _showPwaUpdate(update!, version);
+      }
     } catch (_) {
       // The app remains usable while offline; the next timer cycle retries.
     } finally {
       _checkingAppUpdate = false;
     }
+  }
+
+  Future<void> _showPwaUpdate(
+    Map<String, dynamic> update,
+    String version,
+  ) async {
+    final message = (update['message'] ?? '').toString().trim();
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope<void>(
+        canPop: false,
+        child: AlertDialog(
+          icon: const Icon(Icons.system_update_alt, size: 42),
+          title: const Text('App updated — please relaunch'),
+          content: Text(
+            message.isEmpty
+                ? 'A new Aabhushan ERP version is available. Relaunch now to clear the old PWA cache and load the update.'
+                : message,
+          ),
+          actions: [
+            FilledButton.icon(
+              onPressed: () => PwaUpdateService.clearCacheAndRelaunch(version),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Clear Cache & Relaunch'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAndroidUpdate(
+    Map<String, dynamic> update,
+    AndroidAppInfo current,
+  ) async {
+    final version = (update['version'] ?? '').toString().trim();
+    final buildNumber = _asInt(update['version_code']);
+    final downloadUrl = (update['download_url'] ?? '').toString().trim();
+    final message = (update['message'] ?? '').toString().trim();
+    final sizeLabel = (update['size_label'] ?? '').toString().trim();
+    final isRequired = update['required'] == true || update['required'] == 1;
+    if (downloadUrl.isEmpty) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !isRequired,
+      builder: (dialogContext) {
+        final colors = Theme.of(dialogContext).colorScheme;
+        return PopScope<void>(
+          canPop: !isRequired,
+          child: AlertDialog(
+            icon: Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: colors.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                Icons.system_update_alt_rounded,
+                color: colors.onPrimaryContainer,
+                size: 34,
+              ),
+            ),
+            title: const Text('A new update is ready'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _UpdateVersion(
+                            label: 'Installed',
+                            value:
+                                '${current.version} (${current.buildNumber})',
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          color: colors.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _UpdateVersion(
+                            label: 'Available',
+                            value: '$version ($buildNumber)',
+                            highlighted: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    message.isEmpty
+                        ? 'Update now for the latest fixes and improvements.'
+                        : message,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.verified_user_outlined,
+                        size: 18,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          [
+                            if (sizeLabel.isNotEmpty) sizeLabel,
+                            'Verified Aabhushan download',
+                          ].join(' • '),
+                          style: Theme.of(dialogContext).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Android will download the APK and ask you to confirm installation. Your login and app data stay unchanged.',
+                    style: Theme.of(dialogContext).textTheme.bodySmall
+                        ?.copyWith(color: colors.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              if (!isRequired)
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Later'),
+                ),
+              FilledButton.icon(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  final opened = await AndroidUpdateService.openDownload(
+                    downloadUrl,
+                  );
+                  if (!opened && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Could not open the update download link.',
+                        ),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.download_rounded),
+                label: const Text('Download update'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _select(String key) {
@@ -715,6 +876,44 @@ class _AppShellState extends State<AppShell> {
           letterSpacing: 1.3,
         ),
       ),
+    );
+  }
+}
+
+class _UpdateVersion extends StatelessWidget {
+  const _UpdateVersion({
+    required this.label,
+    required this.value,
+    this.highlighted = false,
+  });
+
+  final String label;
+  final String value;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: highlighted ? colors.primary : colors.onSurface,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }

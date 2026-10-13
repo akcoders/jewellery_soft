@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\AdminUserModel;
 use App\Services\MobileNotificationEventService;
 use App\Services\MonthlyTestDataCleanupService;
+use Config\MobileAppRelease;
 use RuntimeException;
 use Throwable;
 
@@ -50,6 +51,7 @@ class SystemMaintenanceController extends BaseController
             'preview' => $preview,
             'previewError' => $previewError,
             'latestRelease' => $latestRelease,
+            'androidRelease' => config(MobileAppRelease::class),
             'cleanupAudits' => $audits,
             'maintenanceReady' => $db->tableExists('pwa_update_releases')
                 && $db->tableExists('monthly_data_cleanup_audits'),
@@ -67,7 +69,7 @@ class SystemMaintenanceController extends BaseController
         $version = date('YmdHis') . '-' . bin2hex(random_bytes(3));
         $message = trim((string) $this->request->getPost('message'));
         if ($message === '') {
-            $message = 'A new Aabhushan ERP version is available. Clear the old cache and relaunch now.';
+            $message = 'A new Aabhushan ERP version is available. Android users can download the APK; web users can relaunch to refresh.';
         }
         if (mb_strlen($message) > 255) {
             return redirect()->back()->withInput()->with('error', 'Update message cannot exceed 255 characters.');
@@ -97,7 +99,7 @@ class SystemMaintenanceController extends BaseController
         }
 
         return redirect()->to(site_url('admin/system/maintenance'))
-            ->with('success', 'PWA update published. Relaunch prompt is active; push queued for '
+            ->with('success', 'App update published. Android download and PWA relaunch prompts are active; push queued for '
                 . $recipients . ' user(s).' . $pushMessage);
     }
 

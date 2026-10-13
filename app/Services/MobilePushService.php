@@ -228,6 +228,10 @@ class MobilePushService
         if ($webUrl !== null) {
             $payload['web_url'] = $webUrl;
         }
+        $appUrl = $this->appLaunchUrl($notificationData);
+        if ($appUrl !== null) {
+            $payload['app_url'] = $appUrl;
+        }
         $imageUrl = $this->notificationImageUrl($notificationData);
         if ($imageUrl !== null) {
             $payload['big_picture'] = $imageUrl;
@@ -875,6 +879,20 @@ class MobilePushService
         }
 
         return rtrim($baseUrl, '/') . '/?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+    }
+
+    private function appLaunchUrl(array $data): ?string
+    {
+        if (strtolower(trim((string) ($data['type'] ?? ''))) !== 'app_update') {
+            return null;
+        }
+
+        $url = trim((string) ($data['app_download_url'] ?? ''));
+        if ($url === '' || filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return null;
+        }
+
+        return str_starts_with(strtolower($url), 'https://') ? $url : null;
     }
 
     private function notificationImageUrl(array $data): ?string
