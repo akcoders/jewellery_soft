@@ -26,6 +26,7 @@ published. Update it for every Android release.
 | 2026-10-13 | 1.0.6 | 7 | `android-v1.0.6-build7` | `30746a5dac6deeac9c10a6e083bcc98c5022b49cd9531b91ac6bc7db2fdaab3f` | Ten per-user notification sounds with preview, persisted selection, and matching OneSignal/local-reminder channels |
 | 2026-10-13 | 1.0.7 | 8 | `android-v1.0.7-build8` | `1c1dc0eed80338188db56746dd06c3caeb3b71c9b7c14ced688d25fbd9b854df` | Weight-only broken-diamond returns, direct Broken inventory posting, and CTS-authoritative issue utilization |
 | 2026-10-13 | 1.0.8 | 9 | `android-v1.0.8-build9` | `753ddd526ca3e8276e81537714f96c057cf4d7b4f5722f4169f5e6694196bc1d` | Permanent Broken Diamond stock product with weight-only presentation in admin, PWA, and Android |
+| 2026-10-13 | 1.0.9 | 10 | `android-v1.0.9-build10` | `60fdf57727d2cf45402de163907ef847d61ee6a6057250f83bcf4cc4a86cab9c` | Order-family follow-up ownership, follow-up approval quality controls, and detailed transaction views |
 
 ## Prerequisites
 

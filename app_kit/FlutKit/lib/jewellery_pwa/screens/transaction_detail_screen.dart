@@ -157,6 +157,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             children: [
               _buildHeaderCard(header),
               const SizedBox(height: AppSpacing.lg),
+              if (widget.transactionKey.endsWith('_purchase')) ...[
+                _buildPurchaseTaxCard(header),
+                const SizedBox(height: AppSpacing.lg),
+              ],
               if (totals.isNotEmpty) ...[
                 _buildTotalsCard(totals),
                 const SizedBox(height: AppSpacing.lg),
@@ -350,6 +354,49 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       ),
     );
   }
+
+  Widget _buildPurchaseTaxCard(Map<String, dynamic> header) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'GST & Invoice Total',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+          const Divider(),
+          _metaRow(
+            'Taxable',
+            '₹${AppFormatters.amount(header['taxable_amount'])}',
+          ),
+          if ((double.tryParse('${header['cgst_amount'] ?? 0}') ?? 0) > 0)
+            _metaRow(
+              'CGST (${header['cgst_rate'] ?? 0}%)',
+              '₹${AppFormatters.amount(header['cgst_amount'])}',
+            ),
+          if ((double.tryParse('${header['sgst_amount'] ?? 0}') ?? 0) > 0)
+            _metaRow(
+              'SGST (${header['sgst_rate'] ?? 0}%)',
+              '₹${AppFormatters.amount(header['sgst_amount'])}',
+            ),
+          if ((double.tryParse('${header['igst_amount'] ?? 0}') ?? 0) > 0)
+            _metaRow(
+              'IGST (${header['igst_rate'] ?? 0}%)',
+              '₹${AppFormatters.amount(header['igst_amount'])}',
+            ),
+          _metaRow(
+            'GST Total',
+            '₹${AppFormatters.amount(header['gst_amount'])}',
+          ),
+          _metaRow(
+            'Invoice Total',
+            '₹${AppFormatters.amount(header['invoice_total'])}',
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _statTile(String label, String value) {
     return Container(

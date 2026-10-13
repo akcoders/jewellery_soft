@@ -12,6 +12,7 @@ class OrderFollowupModel extends Model
 
     protected $allowedFields = [
         'order_id',
+        'followup_scope',
         'stage',
         'description',
         'next_followup_date',
@@ -20,6 +21,7 @@ class OrderFollowupModel extends Model
         'image_name',
         'image_path',
         'approval_status',
+        'points_enabled',
         'approval_request_id',
         'reviewed_by',
         'reviewed_at',

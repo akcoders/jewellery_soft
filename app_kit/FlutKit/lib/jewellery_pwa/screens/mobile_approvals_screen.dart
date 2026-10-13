@@ -68,6 +68,8 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
 
   Future<void> _review(Map<String, dynamic> item, String decision) async {
     final note = TextEditingController();
+    final isNoPoint = decision == 'approve_no_point';
+    final isApproval = decision == 'approve' || isNoPoint;
     final isReapproval = decision == 'approve' && item['can_reapprove'] == true;
     final isFollowup = item['request_type'] == 'followup';
     final payload = _map(item['payload']);
@@ -77,18 +79,18 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         icon: Icon(
-          decision == 'approve'
-              ? LucideIcons.badge_check
-              : LucideIcons.circle_x,
-          color: decision == 'approve' ? Colors.green : Colors.red,
+          isApproval ? LucideIcons.badge_check : LucideIcons.circle_x,
+          color: isNoPoint
+              ? Colors.orange
+              : (isApproval ? Colors.green : Colors.red),
           size: 36,
         ),
         title: Text(
           isReapproval
               ? 'Re-approve issuement?'
               : isFollowup
-              ? '${decision == 'approve' ? 'Approve' : 'Disapprove'} follow-up${chainPosition > 0 ? ' #$chainPosition' : ''}?'
-              : decision == 'approve'
+              ? '${isNoPoint ? 'Approve with no point' : (isApproval ? 'Approve' : 'Disapprove')} follow-up${chainPosition > 0 ? ' #$chainPosition' : ''}?'
+              : isApproval
               ? 'Approve request?'
               : 'Reject request?',
         ),
@@ -147,16 +149,23 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: (decision == 'approve' ? Colors.green : Colors.red)
-                          .withValues(alpha: .08),
+                      color:
+                          (isNoPoint
+                                  ? Colors.orange
+                                  : (isApproval ? Colors.green : Colors.red))
+                              .withValues(alpha: .08),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      decision == 'approve'
+                      isNoPoint
+                          ? 'Score impact: 0. Follow-up will be approved without any performance point or penalty.'
+                          : isApproval
                           ? 'Score impact: +2 for approval. Evidence and duplicate rules are calculated separately.'
                           : 'Score impact: −2 only. The update remains visible in the order chain.',
                       style: TextStyle(
-                        color: decision == 'approve'
+                        color: isNoPoint
+                            ? Colors.orange.shade900
+                            : isApproval
                             ? Colors.green.shade800
                             : Colors.red.shade800,
                         fontWeight: FontWeight.w700,
@@ -171,10 +180,10 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                   maxLength: 500,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    labelText: decision == 'approve'
+                    labelText: isApproval
                         ? 'Approval note (optional)'
                         : 'Reason for disapproval',
-                    hintText: decision == 'approve'
+                    hintText: isApproval
                         ? 'Add any instruction for the follower'
                         : 'Explain what must be corrected',
                     border: const OutlineInputBorder(),
@@ -191,7 +200,9 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: decision == 'approve'
+              backgroundColor: isNoPoint
+                  ? Colors.orange.shade800
+                  : isApproval
                   ? Colors.green.shade700
                   : Colors.red.shade700,
             ),
@@ -199,7 +210,9 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
             child: Text(
               isReapproval
                   ? 'Re-approve & Process'
-                  : decision == 'approve'
+                  : isNoPoint
+                  ? 'Approve · 0'
+                  : isApproval
                   ? (isFollowup ? 'Approve · +2' : 'Approve & Process')
                   : (isFollowup ? 'Disapprove · −2' : 'Reject'),
             ),
@@ -222,7 +235,9 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
           content: Text(
             isReapproval
                 ? 'Issuement re-approved and processed.'
-                : decision == 'approve'
+                : isNoPoint
+                ? 'Follow-up approved with no performance points.'
+                : isApproval
                 ? 'Request approved.'
                 : item['request_type'] == 'followup'
                 ? 'Followup disapproved.'
@@ -950,22 +965,24 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                   ],
                   if (_canReview && status == 'pending' && request != null) ...[
                     const SizedBox(height: 12),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _review(request, 'reject'),
-                            icon: const Icon(LucideIcons.x, size: 17),
-                            label: const Text('Disapprove'),
-                          ),
+                        OutlinedButton.icon(
+                          onPressed: () => _review(request, 'reject'),
+                          icon: const Icon(LucideIcons.x, size: 17),
+                          label: const Text('Disapprove'),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: () => _review(request, 'approve'),
-                            icon: const Icon(LucideIcons.check, size: 17),
-                            label: const Text('Approve +2'),
-                          ),
+                        OutlinedButton.icon(
+                          onPressed: () => _review(request, 'approve_no_point'),
+                          icon: const Icon(LucideIcons.circle_minus, size: 17),
+                          label: const Text('No point'),
+                        ),
+                        FilledButton.icon(
+                          onPressed: () => _review(request, 'approve'),
+                          icon: const Icon(LucideIcons.check, size: 17),
+                          label: const Text('Approve +2'),
                         ),
                       ],
                     ),

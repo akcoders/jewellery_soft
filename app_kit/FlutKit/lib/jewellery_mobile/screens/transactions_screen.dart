@@ -6,6 +6,7 @@ import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutkit/jewellery_mobile/screens/transaction_detail_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({
@@ -214,6 +215,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         if (widget.transactionKey == 'diamond_purchase')
                           Text(
                             'Terms: ${row['payment_terms_days'] ?? '-'}${row['payment_terms_days'] == null ? '' : ' days'} · Due: ${row['due_date'] ?? '-'}',
+                          ),
+                        if (widget.transactionKey.endsWith('_purchase'))
+                          Text(
+                            'GST: ₹${AppFormatters.amount(row['gst_amount'])} · Invoice: ₹${AppFormatters.amount(row['invoice_total'])}',
                           ),
                       ],
                     ),

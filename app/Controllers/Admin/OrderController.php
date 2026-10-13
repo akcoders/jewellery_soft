@@ -39,6 +39,7 @@ use App\Services\OrderWhatsAppService;
 use App\Services\OrderCategoryService;
 use App\Services\OrderDeletionService;
 use App\Services\OrderFollowupService;
+use App\Services\OrderFamilyService;
 use App\Services\OrderNumberService;
 use App\Services\OrderReceiveReversalService;
 use App\Services\OrderThumbnailService;
@@ -244,6 +245,7 @@ class OrderController extends BaseController
 
         foreach ($orders as &$order) {
             $orderId = (int) ($order['id'] ?? 0);
+            $order['family_orders'] = (new OrderFamilyService())->orders($orderId);
             $status = trim((string) ($order['status'] ?? '')) ?: 'Unknown';
             if (! array_key_exists($status, $statusCounts)) {
                 $statusCounts[$status] = 0;
@@ -609,6 +611,7 @@ class OrderController extends BaseController
             'goldPurities'=> $this->goldPurityModel->where('is_active', 1)->orderBy('purity_percent', 'DESC')->findAll(),
             'salesPeople' => (new CustomerUserModel())->select('id, customer_id, name, mobile')->where('role', 'sales_person')->where('is_active', 1)->orderBy('name', 'ASC')->findAll(),
             'orderCategories' => $this->orderCategoryService->options(),
+            'parentOrders' => (new OrderFamilyService())->options(),
             'priorities'  => $this->jewelleryConfig->orderPriorities,
             'statuses'    => $this->jewelleryConfig->orderStatuses,
             'repairMode'  => $repairMode,
@@ -622,6 +625,7 @@ class OrderController extends BaseController
 
         $rules = [
             'order_name' => 'required|max_length[180]',
+            'parent_order_id' => 'permit_empty|integer',
             'order_category_id' => 'required|integer',
             'new_order_category' => 'permit_empty|max_length[100]',
             'order_type'  => 'required|max_length[30]',
@@ -726,6 +730,11 @@ class OrderController extends BaseController
         }
 
         $db = \Config\Database::connect();
+        $parentId = $this->nullableInt($this->request->getPost('parent_order_id'));
+        $parentOrder = $parentId !== null ? (new OrderFamilyService($db))->selectableParent($parentId) : null;
+        if ($parentId !== null && ! is_array($parentOrder)) {
+            return redirect()->back()->withInput()->with('error', 'Selected parent order is not available.');
+        }
         $db->transException(true)->transStart();
         $orderId = 0;
 
@@ -742,6 +751,7 @@ class OrderController extends BaseController
             );
             $orderId = (int) $this->orderModel->insert([
                 'order_no'    => $orderNo,
+                'parent_order_id' => $parentOrder['id'] ?? null,
                 'order_name' => trim((string) $this->request->getPost('order_name')),
                 'order_category_id' => (int) $category['id'],
                 'order_type'  => $isRepairOrder ? 'Repair' : $orderType,
@@ -761,8 +771,8 @@ class OrderController extends BaseController
                 'lead_id'     => null,
                 'assigned_karigar_id' => null,
                 'assigned_at' => null,
-                'followup_assigned_to' => null,
-                'followup_due_at' => null,
+                'followup_assigned_to' => $parentOrder['followup_assigned_to'] ?? null,
+                'followup_due_at' => $parentOrder['followup_due_at'] ?? null,
                 'status'      => $status,
                 'priority'    => $priority,
                 'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
@@ -878,15 +888,9 @@ class OrderController extends BaseController
         $canViewFollowups = $canChangeFollower
             || (int) ($order['followup_assigned_to'] ?? 0) === $currentAdminId
             || (int) ($order['created_by'] ?? 0) === $currentAdminId;
-        $followups = [];
-        if ($canViewFollowups) {
-            $followups = $this->followupModel
-                ->select('order_followups.*, admin_users.name as followup_taken_by_name')
-                ->join('admin_users', 'admin_users.id = order_followups.followup_taken_by', 'left')
-                ->where('order_followups.order_id', $id)
-                ->orderBy('order_followups.id', 'DESC')
-                ->findAll();
-        }
+        $familyService = new OrderFamilyService();
+        $familyOrders = $familyService->orders($id);
+        $followups = $canViewFollowups ? $familyService->history($id) : [];
 
 
         $receiveSummary = $this->receiveSummaryModel
@@ -922,6 +926,7 @@ class OrderController extends BaseController
             'stoneInventoryItems' => $this->stoneInventoryOptions(),
             'karigarDiamondOptions' => $this->karigarDiamondOptions((int) ($order['assigned_karigar_id'] ?? 0), $id),
             'followups' => $followups,
+            'familyOrders' => $familyOrders,
             'readyImages' => $this->productionReadyImages($id),
             'receiveSummary' => is_array($receiveSummary) ? $receiveSummary : [],
             'studdedDetails' => $studdedDetails,
@@ -1134,7 +1139,7 @@ class OrderController extends BaseController
             'repair_issue_weight_gm' => $isRepairOrder ? $repairIssueWeightGm : null,
         ]);
 
-        $this->staffPerformanceService->syncOrderAssignment($id, $followerId, $followupDueAt, (int) session('admin_id'));
+        (new OrderFamilyService())->syncFollower($id, $followerId, $followupDueAt, (int) session('admin_id'));
 
         try {
             $this->mobileNotificationEvents->notifyFollowerAssigned($id);
@@ -1179,7 +1184,7 @@ class OrderController extends BaseController
                 'followup_assigned_to' => $followerId,
                 'followup_due_at' => $followupDueAt,
             ]);
-            $this->staffPerformanceService->syncOrderAssignment(
+            (new OrderFamilyService())->syncFollower(
                 $id,
                 $followerId,
                 $followupDueAt,
@@ -1624,27 +1629,44 @@ class OrderController extends BaseController
         $returnTo = trim((string) $this->request->getPost('return_to'));
 
         try {
-            if ((new MobileUserPolicyService())->requiresApproval($currentAdminId, 'followup')) {
-                (new OrderFollowupService())->createPendingApproval(
-                    $id,
-                    $followupPayload,
-                    $currentAdminId,
-                    'Order ' . (string) ($order['order_no'] ?? ('#' . $id)) . ' follow-up: ' . $stage,
-                    $imageName,
-                    $imagePath
-                );
-                $redirect = $this->isSafeAdminReturnUrl($returnTo)
-                    ? redirect()->to($returnTo)
-                    : redirect()->back();
-                return $redirect->with('success', 'Follow-up added to the order and sent for admin approval. The next follow-up is active.');
+            $familyService = new OrderFamilyService();
+            $familyOrders = $familyService->orders($id);
+            $sameForSubOrders = count($familyOrders) > 1 && $this->request->getPost('same_for_sub_orders') === '1';
+            $followupPayload['followup_scope'] = $sameForSubOrders ? 'family' : 'order';
+            $submissions = [['order' => $order, 'payload' => $followupPayload]];
+            if (! $sameForSubOrders && count($familyOrders) > 1) {
+                $childIds = array_map('intval', (array) $this->request->getPost('child_order_id'));
+                $childDescriptions = (array) $this->request->getPost('child_description');
+                $childDates = (array) $this->request->getPost('child_next_followup_date');
+                $allowedIds = array_fill_keys($familyService->ids($id), true);
+                foreach ($childIds as $childId) {
+                    if ($childId <= 0 || $childId === $id || ! isset($allowedIds[$childId])) continue;
+                    $childOrder = $this->orderModel->find($childId);
+                    $childDescription = trim((string) ($childDescriptions[$childId] ?? ''));
+                    $childDate = trim((string) ($childDates[$childId] ?? ''));
+                    if (! is_array($childOrder) || $childDescription === '' || strtotime($childDate) === false || strtotime($childDate) <= time()) {
+                        throw new \RuntimeException('Enter a follow-up and future next date for every related order.');
+                    }
+                    $submissions[] = ['order' => $childOrder, 'payload' => [
+                        'order_id' => $childId, 'order_no' => (string) $childOrder['order_no'], 'stage' => $stage,
+                        'description' => $childDescription, 'next_followup_date' => $this->nullableDateTime($childDate),
+                        'followup_taken_on' => date('Y-m-d H:i:s'), 'followup_scope' => 'order',
+                    ]];
+                }
+                if (count($submissions) !== count($familyOrders)) throw new \RuntimeException('Separate mode requires details for every parent/sub order.');
             }
-            (new OrderFollowupService())->create(
-                $id,
-                $followupPayload,
-                $currentAdminId,
-                $imageName,
-                $imagePath
-            );
+            $requiresApproval = (new MobileUserPolicyService())->requiresApproval($currentAdminId, 'followup');
+            foreach ($submissions as $submission) {
+                $target = $submission['order'];
+                $data = $submission['payload'];
+                $service = new OrderFollowupService();
+                if ($requiresApproval) {
+                    $service->createPendingApproval((int) $target['id'], $data, $currentAdminId,
+                        'Order ' . (string) $target['order_no'] . ' follow-up: ' . (string) $data['stage'], $imageName, $imagePath);
+                } else {
+                    $service->create((int) $target['id'], $data, $currentAdminId, $imageName, $imagePath);
+                }
+            }
         } catch (Throwable $e) {
             if ($imagePath !== null) {
                 $absolutePath = FCPATH . ltrim($imagePath, '/');
@@ -1656,10 +1678,10 @@ class OrderController extends BaseController
         }
 
         if ($this->isSafeAdminReturnUrl($returnTo)) {
-            return redirect()->to($returnTo)->with('success', 'Followup saved and order status synced.');
+            return redirect()->to($returnTo)->with('success', $requiresApproval ? 'Follow-up(s) sent for admin approval.' : 'Followup saved and order status synced.');
         }
 
-        return redirect()->back()->with('success', 'Followup saved and order status synced.');
+        return redirect()->back()->with('success', $requiresApproval ? 'Follow-up(s) sent for admin approval.' : 'Followup saved and order status synced.');
     }
 
     public function generatePackingList(int $id)

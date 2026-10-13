@@ -1562,6 +1562,53 @@ class TransactionsController extends MobileBaseController
         ]);
     }
 
+    public function combinedIssuementPdf()
+    {
+        if ($authFail = $this->requireMobileAuth()) return $authFail;
+        $voucherNo = trim((string) $this->request->getGet('voucher_no'));
+        if ($voucherNo === '') return $this->fail('Voucher number is required.', 422);
+
+        $db = db_connect();
+        $definitions = [
+            'gold' => ['gold_inventory_issue_headers', 'gold_inventory_issue_lines'],
+            'diamond' => ['issue_headers', 'issue_lines'],
+            'stone' => ['stone_inventory_issue_headers', 'stone_inventory_issue_lines'],
+        ];
+        $headers = $materialLines = [];
+        foreach ($definitions as $material => [$headerTable, $lineTable]) {
+            $builder = $db->table($headerTable . ' ih')
+                ->select('ih.*, k.name karigar_name, k.name labour_name, k.phone labour_phone, k.email labour_email, k.address labour_address, k.city labour_city, k.state labour_state, k.pincode labour_pincode, iloc.name warehouse_name')
+                ->join('karigars k', 'k.id = ih.karigar_id', 'left')
+                ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
+                ->where('ih.voucher_no', $voucherNo);
+            if (! $this->canViewAllMobileData()) $builder->where('ih.created_by', (int) ($this->mobileAdmin['id'] ?? 0));
+            $header = $builder->orderBy('ih.id', 'DESC')->get()->getRowArray();
+            if (! is_array($header)) continue;
+            $headers[$material] = $header;
+            $headerId = (int) $header['id'];
+            $materialLines[$material] = match ($material) {
+                'gold' => $this->goldLineRows($lineTable, 'issue_id', $headerId),
+                'diamond' => $this->diamondLineRows($lineTable, 'issue_id', $headerId),
+                default => $this->stoneLineRows($lineTable, 'issue_id', $headerId),
+            };
+        }
+        if ($headers === []) return $this->fail('Issuement not found.', 404);
+        $issue = reset($headers);
+        $totalValue = 0.0;
+        foreach ($materialLines as $rows) foreach ($rows as $row) $totalValue += (float) ($row['line_value'] ?? 0);
+        $pdf = (new PdfService())->render('admin/vouchers/issuement_combined', [
+            'title' => 'Issuement Voucher', 'voucherNo' => $voucherNo, 'issue' => $issue,
+            'materialType' => implode(' + ', array_map('ucfirst', array_keys($headers))),
+            'supplierName' => (string) (($issue['karigar_name'] ?? '') ?: ($issue['issue_to'] ?? '')),
+            'goldLines' => $materialLines['gold'] ?? [], 'diamondLines' => $materialLines['diamond'] ?? [],
+            'stoneLines' => $materialLines['stone'] ?? [], 'totalValue' => $totalValue,
+            'company' => $this->companySetting(), 'pdfMode' => true,
+        ]);
+        $safeVoucher = preg_replace('/[^A-Za-z0-9_-]+/', '_', $voucherNo) ?: 'issuement';
+        return $this->response->setContentType('application/pdf')
+            ->setHeader('Content-Disposition', 'attachment; filename="issuement_' . $safeVoucher . '.pdf"')->setBody($pdf);
+    }
+
     private function parseDiamondLines($linesPayload, bool $bagWiseIssue = false, bool $masterBasedPurchase = false): array
     {
         $lines = [];

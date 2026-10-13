@@ -68,7 +68,7 @@ class OrderFollowupService
     }
 
     /** @return array<string,mixed> */
-    public function reviewPending(int $followupId, bool $approved, int $reviewerId, string $note = ''): array
+    public function reviewPending(int $followupId, bool $approved, int $reviewerId, string $note = '', bool $awardPoints = true): array
     {
         $followup = $this->db->table('order_followups')->where('id', $followupId)->get()->getRowArray();
         if (! is_array($followup)) {
@@ -103,6 +103,7 @@ class OrderFollowupService
         $status = $approved ? 'approved' : 'rejected';
         $this->db->table('order_followups')->where('id', $followupId)->update([
             'approval_status' => $status,
+            'points_enabled' => $approved && ! $awardPoints ? 0 : 1,
             'reviewed_by' => $reviewerId,
             'reviewed_at' => date('Y-m-d H:i:s'),
             'review_note' => trim($note) ?: null,
@@ -121,6 +122,13 @@ class OrderFollowupService
     /** @param array<string,mixed> $payload @return array<string,mixed> */
     private function save(int $orderId, array $payload, int $submittedBy, ?string $imageName, ?string $imagePath, string $approvalStatus): array
     {
+        $scope = strtolower(trim((string) ($payload['followup_scope'] ?? 'order'))) === 'family' ? 'family' : 'order';
+        if ($scope === 'family') {
+            $root = (new OrderFamilyService($this->db))->root($orderId);
+            if (! is_array($root)) throw new RuntimeException('Order not found.');
+            $orderId = (int) $root['id'];
+            $payload['order_id'] = $orderId;
+        }
         $stage = trim((string) ($payload['stage'] ?? ''));
         $description = trim((string) ($payload['description'] ?? ''));
         $nextFollowup = trim((string) ($payload['next_followup_date'] ?? ''));
@@ -159,6 +167,7 @@ class OrderFollowupService
 
         $this->db->table('order_followups')->insert([
                 'order_id' => $orderId,
+                'followup_scope' => $scope,
                 'stage' => $stage,
                 'description' => $description,
                 'next_followup_date' => $nextAt,
@@ -167,6 +176,7 @@ class OrderFollowupService
                 'image_name' => $imageName,
                 'image_path' => $imagePath,
                 'approval_status' => $approvalStatus,
+                'points_enabled' => 1,
                 'normalized_text' => $quality['normalized'],
                 'normalized_fingerprint' => $quality['fingerprint'],
                 'duplicate_followup_id' => $quality['matched_followup_id'],
@@ -181,17 +191,30 @@ class OrderFollowupService
         if ($approvalStatus === 'approved') {
             $this->applyApprovedStage($order, [
                 'order_id' => $orderId,
+                'followup_scope' => $scope,
                 'stage' => $stage,
                 'description' => $description,
             ], $submittedBy);
         }
+        $taskOrderId = $scope === 'family'
+            ? (int) (((new OrderFamilyService($this->db))->root($orderId)['id'] ?? $orderId))
+            : $orderId;
         (new StaffPerformanceService())->completeOrderFollowup(
-            $orderId,
+            $taskOrderId,
             $followupId,
             $submittedBy,
             $nextAt,
             $takenOn
         );
+        if ($scope === 'family') {
+            $familyIds = (new OrderFamilyService($this->db))->ids($taskOrderId);
+            $childIds = array_values(array_filter($familyIds, static fn(int $id): bool => $id !== $taskOrderId));
+            if ($childIds !== []) {
+                $this->db->table('orders')->whereIn('id', $childIds)->update([
+                    'followup_due_at' => $nextAt, 'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        }
 
         return [
             'table' => 'order_followups',
@@ -207,22 +230,29 @@ class OrderFollowupService
     {
         $stage = (string) ($followup['stage'] ?? '');
         $oldStatus = (string) ($order['status'] ?? '');
-        if ($stage === '' || $oldStatus === $stage) {
+        if ($stage === '') {
             return;
         }
         $now = date('Y-m-d H:i:s');
         $orderId = (int) ($order['id'] ?? $followup['order_id'] ?? 0);
-        $this->db->table('orders')->where('id', $orderId)->update(['status' => $stage, 'updated_at' => $now]);
-        $this->db->table('order_items')->where('order_id', $orderId)->update(['item_status' => $stage, 'updated_at' => $now]);
-        $this->db->table('order_status_history')->insert([
-            'order_id' => $orderId,
-            'from_status' => $oldStatus !== '' ? $oldStatus : null,
-            'to_status' => $stage,
-            'remarks' => 'Updated from approved follow-up: ' . (string) ($followup['description'] ?? ''),
-            'changed_by' => $changedBy,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        $ids = (string) ($followup['followup_scope'] ?? 'order') === 'family'
+            ? (new OrderFamilyService($this->db))->ids($orderId)
+            : [$orderId];
+        foreach ($ids as $targetId) {
+            $target = $targetId === $orderId ? $order : $this->db->table('orders')->where('id', $targetId)->get()->getRowArray();
+            if (! is_array($target) || (string) ($target['status'] ?? '') === $stage) continue;
+            $this->db->table('orders')->where('id', $targetId)->update(['status' => $stage, 'updated_at' => $now]);
+            $this->db->table('order_items')->where('order_id', $targetId)->update(['item_status' => $stage, 'updated_at' => $now]);
+            $this->db->table('order_status_history')->insert([
+                'order_id' => $targetId,
+                'from_status' => (string) ($target['status'] ?? '') ?: null,
+                'to_status' => $stage,
+                'remarks' => 'Updated from approved family follow-up: ' . (string) ($followup['description'] ?? ''),
+                'changed_by' => $changedBy,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
     }
 
     private function notifyCreated(int $orderId, int $followupId): void

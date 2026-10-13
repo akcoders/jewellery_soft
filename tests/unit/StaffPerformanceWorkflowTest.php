@@ -249,7 +249,8 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
 
         $this->assertStringContainsString("getPost('followup_assigned_to')", $controller);
         $this->assertStringContainsString("getPost('followup_due_at')", $controller);
-        $this->assertStringContainsString('syncOrderAssignment(', $controller);
+        $this->assertStringContainsString('OrderFamilyService', $controller);
+        $this->assertStringContainsString('syncFollower(', $controller);
         $this->assertStringContainsString('OrderFollowupService', $controller);
         $this->assertStringContainsString('completeOrderFollowup(', $followupService);
         $this->assertStringContainsString('Only the assigned order follower can submit this follow-up.', $mobileController);

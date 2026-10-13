@@ -103,6 +103,9 @@ class FollowupQualityService
             }
             return [['type' => 'Disapproved follow-up', 'score_delta' => -2.0, 'reason' => $reason]];
         }
+        if ((int) ($followup['points_enabled'] ?? 1) === 0) {
+            return [];
+        }
 
         $events = [];
         if ($this->isDuplicate($followup)) {

@@ -67,21 +67,21 @@ class MobileApprovalController extends BaseController
             return redirect()->to(site_url('admin/dashboard'))->with('error', 'Admin approval access is required.');
         }
         $decision = strtolower(trim((string) $this->request->getPost('decision')));
-        if (! in_array($decision, ['approve', 'reject'], true)) {
+        if (! in_array($decision, ['approve', 'approve_no_point', 'reject'], true)) {
             return redirect()->back()->with('error', 'Select a valid approval decision.');
         }
         try {
             $service = new MobileApprovalService();
-            if ($decision === 'approve') {
-                $request = $service->approve($id, (int) session('admin_id'), (string) $this->request->getPost('note'));
+            if ($decision !== 'reject') {
+                $request = $service->approve($id, (int) session('admin_id'), (string) $this->request->getPost('note'), $decision !== 'approve_no_point');
             } else {
                 $request = $service->reject($id, (int) session('admin_id'), (string) $this->request->getPost('note'));
             }
             $message = ! empty($request['was_reapproved'])
                 ? 'Issuement re-approved and processed successfully.'
-                : ($decision === 'approve'
+                : ($decision === 'approve_no_point' ? 'Follow-up approved with no performance points.' : ($decision === 'approve'
                 ? 'Request approved successfully.'
-                : (($request['request_type'] ?? '') === 'followup' ? 'Followup disapproved.' : 'Request disapproved successfully.'));
+                : (($request['request_type'] ?? '') === 'followup' ? 'Followup disapproved.' : 'Request disapproved successfully.')));
             return redirect()->back()->with('success', $message);
         } catch (Throwable $e) {
             return redirect()->back()->with('error', $e->getMessage());

@@ -61,6 +61,16 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     <input type="text" name="order_name" class="form-control" maxlength="180" value="<?= esc((string) old('order_name')) ?>" placeholder="Example: Bridal Jhumki Set" required>
                 </div>
                 <div class="col-md-4 mb-3">
+                    <label class="form-label">Parent Order <span class="text-muted">(Optional)</span></label>
+                    <select name="parent_order_id" class="form-control js-searchable-select" data-placeholder="Standalone order / select parent">
+                        <option value="">Standalone order</option>
+                        <?php foreach (($parentOrders ?? []) as $parent): ?>
+                            <option value="<?= (int) $parent['id'] ?>" <?= (string) old('parent_order_id') === (string) $parent['id'] ? 'selected' : '' ?>><?= esc((string) $parent['order_no']) ?> — <?= esc((string) $parent['order_name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text">Child order parent ki follow-up chain aur assigned follower inherit karega.</div>
+                </div>
+                <div class="col-md-4 mb-3">
                     <label class="form-label">Order Received Date <span class="text-danger">*</span></label>
                     <input type="date" name="order_received_date" class="form-control" value="<?= esc((string) old('order_received_date', date('Y-m-d'))) ?>" required>
                 </div>

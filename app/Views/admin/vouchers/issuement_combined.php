@@ -19,6 +19,7 @@
         .no-print {
             margin-bottom: 10px;
             text-align: right;
+            <?= ! empty($pdfMode) ? 'display: none;' : '' ?>
         }
         .voucher {
             max-width: 980px;

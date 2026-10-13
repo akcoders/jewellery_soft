@@ -249,6 +249,7 @@ class _IssuementDetailScreenState extends State<IssuementDetailScreen> {
   bool _loading = true;
   String _error = '';
   Map<String, dynamic> _data = {};
+  bool _downloading = false;
 
   @override
   void initState() {
@@ -273,12 +274,51 @@ class _IssuementDetailScreenState extends State<IssuementDetailScreen> {
     }
   }
 
+  Future<void> _downloadPdf() async {
+    if (_downloading) return;
+    setState(() => _downloading = true);
+    try {
+      final safe = widget.voucherNo.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+      final path = await widget.api.downloadPdf(
+        path:
+            '/api/mobile/issuements/pdf?voucher_no=${Uri.encodeQueryComponent(widget.voucherNo)}',
+        fileName: 'issuement_$safe.pdf',
+      );
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('PDF saved: $path')));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final header = (_data['header'] as Map?) ?? {};
     final lines = (_data['lines'] as Map?) ?? {};
     return Scaffold(
-      appBar: AppBar(title: Text(widget.voucherNo)),
+      appBar: AppBar(
+        title: Text(widget.voucherNo),
+        actions: [
+          IconButton(
+            onPressed: _downloading ? null : _downloadPdf,
+            tooltip: 'Download issuement PDF',
+            icon: _downloading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.picture_as_pdf_outlined),
+          ),
+        ],
+      ),
       body: _loading
           ? const FullScreenLoader()
           : _error.isNotEmpty

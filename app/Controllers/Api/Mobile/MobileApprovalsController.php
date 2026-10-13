@@ -87,19 +87,22 @@ class MobileApprovalsController extends MobileBaseController
         }
         $payload = $this->payload();
         $decision = strtolower(trim((string) ($payload['decision'] ?? '')));
-        if (! in_array($decision, ['approve', 'reject'], true)) {
-            return $this->fail('Decision must be approve or reject.', 422);
+        if (! in_array($decision, ['approve', 'approve_no_point', 'reject'], true)) {
+            return $this->fail('Decision must be approve, approve_no_point or reject.', 422);
         }
         try {
             $service = new MobileApprovalService();
-            $request = $decision === 'approve'
-                ? $service->approve($id, $userId, (string) ($payload['note'] ?? ''))
+            $request = $decision !== 'reject'
+                ? $service->approve($id, $userId, (string) ($payload['note'] ?? ''), $decision !== 'approve_no_point')
                 : $service->reject($id, $userId, (string) ($payload['note'] ?? ''));
+            if ($decision === 'approve_no_point' && ($request['request_type'] ?? '') !== 'followup') {
+                return $this->fail('No point approval is available only for follow-ups.', 422);
+            }
             $message = ! empty($request['was_reapproved'])
                 ? 'Issuement re-approved and processed.'
-                : ($decision === 'approve'
+                : ($decision === 'approve_no_point' ? 'Follow-up approved with no performance points.' : ($decision === 'approve'
                 ? 'Request approved.'
-                : (($request['request_type'] ?? '') === 'followup' ? 'Followup disapproved.' : 'Request disapproved.'));
+                : (($request['request_type'] ?? '') === 'followup' ? 'Followup disapproved.' : 'Request disapproved.')));
             return $this->ok(['request' => $request], $message);
         } catch (Throwable $e) {
             return $this->fail($e->getMessage(), 422);

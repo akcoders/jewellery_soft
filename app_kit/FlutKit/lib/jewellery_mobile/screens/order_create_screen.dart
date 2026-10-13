@@ -55,12 +55,14 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
   int? _categoryId;
   int? _customerId;
   int? _salesPersonId;
+  int? _parentOrderId;
 
   List<dynamic> _customers = [];
   List<dynamic> _salesPeople = [];
   List<dynamic> _designs = [];
   List<dynamic> _purities = [];
   List<dynamic> _categories = [];
+  List<dynamic> _parentOrders = [];
   List<String> _priorities = [];
   List<String> _statuses = [];
   List<String> _materials = const ['Gold', 'Diamond', 'Jadau', 'Silver'];
@@ -126,6 +128,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
         _designs = (data['designs'] as List?) ?? [];
         _purities = (data['gold_purities'] as List?) ?? [];
         _categories = (data['order_categories'] as List?) ?? [];
+        _parentOrders = (data['parent_orders'] as List?) ?? [];
         _priorities = _strings(data['priorities']);
         _statuses = _strings(data['statuses']);
         _materials = _strings(data['material_categories']).isEmpty
@@ -254,6 +257,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
       }
       final payload = <String, dynamic>{
         'order_name': _orderName.text.trim(),
+        'parent_order_id': _parentOrderId ?? 0,
         'order_received_date': _date(_receivedDate),
         'order_category_id': _categoryId,
         'new_order_category': _categoryId == 0 ? _newCategory.text.trim() : '',
@@ -322,6 +326,26 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
                 children: [
                   _section('Order & Customer Details', [
                     _requiredText(_orderName, 'Order Name'),
+                    _dropdown<int>(
+                      'Parent Order (Optional)',
+                      _parentOrderId,
+                      [
+                        const DropdownMenuItem<int>(
+                          value: 0,
+                          child: Text('Standalone order'),
+                        ),
+                        ..._parentOrders.map(
+                          (row) => DropdownMenuItem<int>(
+                            value: _id(row),
+                            child: Text(
+                              '${row['order_no']} — ${row['order_name']}',
+                            ),
+                          ),
+                        ),
+                      ],
+                      (value) => setState(() => _parentOrderId = value),
+                      required: false,
+                    ),
                     _dateField(
                       'Order Received Date',
                       _receivedDate,

@@ -29,6 +29,7 @@ import 'package:flutkit/jewellery_mobile/session/mobile_session_store.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/pwa_install_prompt.dart';
 import 'package:flutkit/jewellery_pwa/screens/mobile_approvals_screen.dart';
+import 'package:flutkit/jewellery_pwa/screens/delivery_challans_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 
@@ -524,6 +525,11 @@ class _AppShellState extends State<AppShell> {
           key: ValueKey('issuements_$_refreshTick'),
           api: _api,
         );
+      case 'delivery_challans':
+        return DeliveryChallansScreen(
+          key: ValueKey('delivery_challans_$_refreshTick'),
+          api: _api,
+        );
       case 'diamond_returns':
         return TransactionsScreen(
           key: ValueKey('diamond_returns_$_refreshTick'),
@@ -735,6 +741,11 @@ class _AppShellState extends State<AppShell> {
                         Icons.outbox_outlined,
                         leading: const _IssuementMenuIcon(),
                       ),
+                      _drawerItem(
+                        'delivery_challans',
+                        'Delivery Challans',
+                        LucideIcons.truck,
+                      ),
                       _drawerSection('Diamond'),
                       _drawerItem(
                         'diamond_requirements',
@@ -828,6 +839,20 @@ class _AppShellState extends State<AppShell> {
         label: const Text('Create'),
       );
     }
+    if (_section == 'delivery_challans') {
+      return FloatingActionButton.extended(
+        onPressed: () async {
+          final created = await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => DeliveryChallanCreateScreen(api: _api),
+            ),
+          );
+          if (created == true && mounted) setState(() => _refreshTick++);
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Create'),
+      );
+    }
     final config = _transactionConfig();
     if (config == null) return null;
     return FloatingActionButton.extended(
@@ -904,6 +929,8 @@ class _AppShellState extends State<AppShell> {
         return 'Staff Tasks';
       case 'issuements':
         return 'Issuements';
+      case 'delivery_challans':
+        return 'Delivery Challans';
       case 'diamond_requirements':
         return 'Diamond Bags';
       case 'diamond_returns':

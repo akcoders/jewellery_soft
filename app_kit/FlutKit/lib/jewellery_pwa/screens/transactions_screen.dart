@@ -331,6 +331,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       '  /  Due ${AppFormatters.date(row['due_date'])}',
                 ),
               ],
+              if (widget.transactionKey.endsWith('_purchase')) ...[
+                const SizedBox(height: 8),
+                WorkspaceMetadata(
+                  icon: LucideIcons.receipt,
+                  text:
+                      'GST ₹${AppFormatters.amount(row['gst_amount'])}  /  Invoice ₹${AppFormatters.amount(row['invoice_total'])}',
+                ),
+              ],
               const SizedBox(height: 16),
               const Divider(height: 1),
               const SizedBox(height: 12),

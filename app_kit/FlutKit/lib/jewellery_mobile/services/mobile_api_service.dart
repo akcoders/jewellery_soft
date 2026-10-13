@@ -149,10 +149,14 @@ class MobileApiService {
     String nextFollowupDate = '',
     String imageBase64 = '',
     String imageSource = 'camera',
+    bool sameForSubOrders = true,
+    List<Map<String, dynamic>> childFollowups = const [],
   }) async {
     final payload = <String, dynamic>{
       'stage': stage,
       'description': description,
+      'same_for_sub_orders': sameForSubOrders,
+      'child_followups': childFollowups,
     };
     if (nextFollowupDate.trim().isNotEmpty) {
       payload['next_followup_date'] = nextFollowupDate.trim();

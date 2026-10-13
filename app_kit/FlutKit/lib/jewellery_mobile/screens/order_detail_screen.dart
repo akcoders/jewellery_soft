@@ -36,6 +36,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Map<String, dynamic> _order = {};
   List<dynamic> _items = [];
   List<dynamic> _followups = [];
+  List<dynamic> _familyOrders = [];
   List<dynamic> _workRequests = [];
   List<dynamic> _diamondBags = [];
   List<dynamic> _karigars = [];
@@ -89,6 +90,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _order = orderMap ?? data.cast<String, dynamic>();
         _items = (data['items'] as List?) ?? <dynamic>[];
         _followups = (data['followups'] as List?) ?? <dynamic>[];
+        _familyOrders = (data['family_orders'] as List?) ?? <dynamic>[];
         _workRequests = requests;
         _diamondBags = (data['diamond_bags'] as List?) ?? <dynamic>[];
         _karigars = (data['karigars'] as List?) ?? <dynamic>[];
@@ -135,6 +137,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           api: widget.api,
           orderId: widget.orderId,
           stages: _allowedStages,
+          familyOrders: _familyOrders,
           allowGallery: _followupGalleryEnabled,
         ),
       ),
@@ -1738,6 +1741,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Text(
+                              '${row['source_order_no'] ?? ''}${row['followup_scope'] == 'family' ? ' · Same for family' : ''}',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
                             Row(
                               children: [
                                 const Icon(
@@ -1757,7 +1768,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             Text((row['description'] ?? '').toString()),
                             const SizedBox(height: AppSpacing.sm),
                             AppStatusBadge(
-                              label: _approvalLabel(approvalStatus),
+                              label:
+                                  approvalStatus == 'approved' &&
+                                      '${row['points_enabled']}' == '0'
+                                  ? 'Approved · No point'
+                                  : _approvalLabel(approvalStatus),
                               color: _approvalColor(approvalStatus),
                             ),
                             if ((row['review_note'] ?? '')

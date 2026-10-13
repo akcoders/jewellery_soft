@@ -510,6 +510,7 @@ $routes->group('api', static function ($routes): void {
 
         $routes->get('issuements', 'Api\Mobile\InventoryController::issuements');
         $routes->get('issuements/detail', 'Api\Mobile\TransactionsController::combinedIssuementDetail');
+        $routes->get('issuements/pdf', 'Api\Mobile\TransactionsController::combinedIssuementPdf');
         $routes->post('issuements', 'Api\Mobile\TransactionsController::createCombinedIssuement');
         $routes->get('approval-requests', 'Api\Mobile\MobileApprovalsController::index');
         $routes->post('approval-requests/customers', 'Api\Mobile\MobileApprovalsController::createCustomer');

@@ -89,6 +89,7 @@
                                         data-order-id="<?= esc((string) $order['id']) ?>"
                                         data-order-no="<?= esc((string) $order['order_no']) ?>"
                                         data-order-status="<?= esc((string) $order['status']) ?>"
+                                        data-family-orders="<?= esc(json_encode($order['family_orders'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'attr') ?>"
                                         data-bs-toggle="modal"
                                         data-bs-target="#takeFollowupModal"
                                         title="<?= esc($takeFollowupTitle, 'attr') ?>"
@@ -201,6 +202,14 @@
                             <input type="text" class="form-control" value="<?= esc(date('Y-m-d H:i:s')) ?>" readonly>
                         </div>
                     </div>
+                    <div id="family-followup-options" class="mt-3 d-none">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="same_for_sub_orders" value="1" id="same-for-sub-orders" checked>
+                            <label class="form-check-label fw-semibold" for="same-for-sub-orders">Same for sub order</label>
+                        </div>
+                        <div class="form-text">Checked hone par poori order family ke liye ek follow-up aur ek approval banega.</div>
+                        <div id="separate-child-followups" class="mt-3 d-none"></div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
@@ -224,6 +233,27 @@
         const followerDueAt = document.getElementById('change-follower-due-at');
         const base = '<?= site_url('admin/orders') ?>';
         const defaultDueAt = '<?= date('Y-m-d\\T11:00', strtotime('+1 day')) ?>';
+        const familyOptions = document.getElementById('family-followup-options');
+        const sameForSubOrders = document.getElementById('same-for-sub-orders');
+        const childFollowups = document.getElementById('separate-child-followups');
+        let activeOrderId = '';
+
+        function renderChildFollowups(family) {
+            if (!childFollowups) return;
+            childFollowups.innerHTML = '';
+            family.filter(row => String(row.id) !== String(activeOrderId)).forEach(row => {
+                const wrap = document.createElement('div');
+                wrap.className = 'border rounded p-3 mb-2';
+                wrap.innerHTML = '<strong></strong><input type="hidden" name="child_order_id[]"><div class="row g-2 mt-1"><div class="col-md-6"><input class="form-control" name="child_description[' + row.id + ']" placeholder="Sub order follow-up"></div><div class="col-md-6"><input type="datetime-local" class="form-control" name="child_next_followup_date[' + row.id + ']" value="' + defaultDueAt + '"></div></div>';
+                wrap.querySelector('strong').textContent = (row.order_no || '') + ' — ' + (row.order_name || '');
+                wrap.querySelector('input[type=hidden]').value = row.id;
+                childFollowups.appendChild(wrap);
+            });
+        }
+        if (sameForSubOrders) sameForSubOrders.addEventListener('change', function () {
+            if (childFollowups) childFollowups.classList.toggle('d-none', this.checked);
+            childFollowups?.querySelectorAll('input:not([type=hidden])').forEach(input => input.required = !this.checked);
+        });
 
         document.addEventListener('click', function (event) {
             const target = event.target;
@@ -233,6 +263,13 @@
                 const orderId = btn.getAttribute('data-order-id');
                 const orderNo = btn.getAttribute('data-order-no') || '';
                 const orderStatus = btn.getAttribute('data-order-status') || '';
+                activeOrderId = orderId || '';
+                let family = [];
+                try { family = JSON.parse(btn.getAttribute('data-family-orders') || '[]'); } catch (_) {}
+                if (familyOptions) familyOptions.classList.toggle('d-none', family.length < 2);
+                if (sameForSubOrders) sameForSubOrders.checked = true;
+                if (childFollowups) childFollowups.classList.add('d-none');
+                renderChildFollowups(family);
 
                 if (form && orderId) form.setAttribute('action', base + '/' + orderId + '/followups');
                 if (orderLabel) orderLabel.textContent = orderNo;

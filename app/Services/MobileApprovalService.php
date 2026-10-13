@@ -152,7 +152,7 @@ class MobileApprovalService
         return $request;
     }
 
-    public function approve(int $id, int $reviewerId, string $note = ''): array
+    public function approve(int $id, int $reviewerId, string $note = '', bool $awardFollowupPoints = true): array
     {
         $this->db->transException(true)->transStart();
         try {
@@ -166,6 +166,9 @@ class MobileApprovalService
             if (! is_array($request) || ($status !== 'pending' && ! $isReapprovable)) {
                 throw new RuntimeException('Request is no longer pending.');
             }
+            if (! $awardFollowupPoints && (string) ($request['request_type'] ?? '') !== 'followup') {
+                throw new RuntimeException('No point approval is available only for follow-ups.');
+            }
             $payload = json_decode((string) ($request['payload_json'] ?? '{}'), true, 512, JSON_THROW_ON_ERROR);
             if (! is_array($payload)) {
                 throw new RuntimeException('Request data is invalid.');
@@ -174,7 +177,7 @@ class MobileApprovalService
                 'customer_create' => $this->approveCustomer($payload),
                 'karigar_create' => $this->approveKarigar($payload),
                 'issuement' => $this->approveIssuement($payload, $request),
-                'followup' => $this->approveFollowup($payload, $request, $reviewerId, $note),
+                'followup' => $this->approveFollowup($payload, $request, $reviewerId, $note, $awardFollowupPoints),
                 'delivery_challan' => $this->approveDeliveryChallan($payload, $request),
                 default => throw new RuntimeException('Unsupported request type.'),
             };
@@ -444,11 +447,11 @@ class MobileApprovalService
     }
 
     /** @param array<string,mixed> $payload @param array<string,mixed> $request */
-    private function approveFollowup(array $payload, array $request, int $reviewerId, string $note): array
+    private function approveFollowup(array $payload, array $request, int $reviewerId, string $note, bool $awardPoints): array
     {
         $followupId = $this->followupIdFromRequest($request, $payload);
         if ($followupId > 0) {
-            return (new OrderFollowupService($this->db))->reviewPending($followupId, true, $reviewerId, $note);
+            return (new OrderFollowupService($this->db))->reviewPending($followupId, true, $reviewerId, $note, $awardPoints);
         }
         $orderId = (int) ($payload['order_id'] ?? $request['subject_id'] ?? 0);
         return (new OrderFollowupService($this->db))->create(
@@ -514,7 +517,7 @@ class MobileApprovalService
         }
 
         $followups = $this->db->table('order_followups ofu')
-            ->select('ofu.id, ofu.order_id, ofu.stage, ofu.description, ofu.next_followup_date, ofu.followup_taken_on, ofu.created_at, ofu.image_path, ofu.approval_status, ofu.approval_request_id, ofu.reviewed_at, ofu.review_note, au.name AS followup_taken_by_name, reviewer.name AS reviewed_by_name, o.order_no')
+            ->select('ofu.id, ofu.order_id, ofu.followup_scope, ofu.points_enabled, ofu.stage, ofu.description, ofu.next_followup_date, ofu.followup_taken_on, ofu.created_at, ofu.image_path, ofu.approval_status, ofu.approval_request_id, ofu.reviewed_at, ofu.review_note, au.name AS followup_taken_by_name, reviewer.name AS reviewed_by_name, o.order_no')
             ->join('admin_users au', 'au.id = ofu.followup_taken_by', 'left')
             ->join('admin_users reviewer', 'reviewer.id = ofu.reviewed_by', 'left')
             ->join('orders o', 'o.id = ofu.order_id', 'left')

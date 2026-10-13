@@ -16,12 +16,14 @@ class OrderFollowupFormScreen extends StatefulWidget {
     required this.api,
     required this.orderId,
     required this.stages,
+    this.familyOrders = const [],
     this.allowGallery = false,
   });
 
   final MobileApiService api;
   final int orderId;
   final List<String> stages;
+  final List<dynamic> familyOrders;
   final bool allowGallery;
 
   @override
@@ -38,16 +40,32 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
   XFile? _picked;
   ImageSource _pickedSource = ImageSource.camera;
   bool _saving = false;
+  bool _sameForSubOrders = true;
+  final Map<int, TextEditingController> _childDescriptions = {};
+  final Map<int, TextEditingController> _childNextDates = {};
 
   @override
   void initState() {
     super.initState();
     _stage = widget.stages.isNotEmpty ? widget.stages.first : null;
+    for (final raw in widget.familyOrders.whereType<Map>()) {
+      final id = int.tryParse('${raw['id']}') ?? 0;
+      if (id > 0 && id != widget.orderId) {
+        _childDescriptions[id] = TextEditingController();
+        _childNextDates[id] = TextEditingController();
+      }
+    }
   }
 
   @override
   void dispose() {
     _descCtrl.dispose();
+    for (final controller in [
+      ..._childDescriptions.values,
+      ..._childNextDates.values,
+    ]) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -93,6 +111,18 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
         nextFollowupDate: nextFollowupDateTime,
         imageBase64: base64Image,
         imageSource: _pickedSource.name,
+        sameForSubOrders: _sameForSubOrders,
+        childFollowups: _childDescriptions.entries
+            .map(
+              (entry) => {
+                'order_id': entry.key,
+                'stage': _stage,
+                'description': entry.value.text.trim(),
+                'next_followup_date':
+                    _childNextDates[entry.key]?.text.trim() ?? '',
+              },
+            )
+            .toList(),
       );
       final notification =
           (response['notification'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -131,8 +161,7 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Form(
           key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ListView(
             children: [
               const AppSectionTitle('Followup Details'),
               const SizedBox(height: AppSpacing.md),
@@ -162,6 +191,66 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
                     ? 'Description is required'
                     : null,
               ),
+              if (_childDescriptions.isNotEmpty) ...[
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Same for sub order'),
+                  subtitle: const Text(
+                    'One follow-up and one approval for the complete order family.',
+                  ),
+                  value: _sameForSubOrders,
+                  onChanged: (value) =>
+                      setState(() => _sameForSubOrders = value),
+                ),
+                if (!_sameForSubOrders)
+                  ...widget.familyOrders
+                      .whereType<Map>()
+                      .where((row) => '${row['id']}' != '${widget.orderId}')
+                      .map((row) {
+                        final id = int.tryParse('${row['id']}') ?? 0;
+                        return Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              children: [
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    '${row['order_no']} — ${row['order_name']}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                TextFormField(
+                                  controller: _childDescriptions[id],
+                                  decoration: const InputDecoration(
+                                    labelText: 'Sub order follow-up',
+                                  ),
+                                  validator: (v) =>
+                                      !_sameForSubOrders &&
+                                          (v ?? '').trim().isEmpty
+                                      ? 'Follow-up is required'
+                                      : null,
+                                ),
+                                TextFormField(
+                                  controller: _childNextDates[id],
+                                  decoration: const InputDecoration(
+                                    labelText:
+                                        'Next follow-up (YYYY-MM-DD HH:MM)',
+                                  ),
+                                  validator: (v) =>
+                                      !_sameForSubOrders &&
+                                          (v ?? '').trim().isEmpty
+                                      ? 'Next date is required'
+                                      : null,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+              ],
               const SizedBox(height: AppSpacing.lg),
               const AppSectionTitle('Next Followup'),
               const SizedBox(height: AppSpacing.md),
@@ -232,7 +321,7 @@ class _OrderFollowupFormScreenState extends State<OrderFollowupFormScreen> {
                   context,
                 ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
               ),
-              const Spacer(),
+              const SizedBox(height: AppSpacing.xl),
               SafeArea(
                 top: false,
                 child: SizedBox(
