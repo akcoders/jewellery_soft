@@ -76,6 +76,17 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('Approve +2', $appDesk);
     }
 
+    public function testNativeAndroidShellExposesApprovalDeskAndNotificationRoute(): void
+    {
+        $nativeShell = (string) file_get_contents(
+            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/app_shell.dart'
+        );
+
+        $this->assertStringContainsString("case 'mobile_approvals':", $nativeShell);
+        $this->assertStringContainsString("screen == 'approvals'", $nativeShell);
+        $this->assertStringContainsString("'Approval Desk'", $nativeShell);
+    }
+
     public function testApprovalDeskDefaultsToPendingAndKeepsReviewedRequestsInHistory(): void
     {
         $service = $this->source('Services/MobileApprovalService.php');

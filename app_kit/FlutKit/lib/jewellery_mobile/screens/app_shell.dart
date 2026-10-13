@@ -26,6 +26,7 @@ import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
 import 'package:flutkit/jewellery_mobile/session/mobile_session_store.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/pwa_install_prompt.dart';
+import 'package:flutkit/jewellery_pwa/screens/mobile_approvals_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 
@@ -169,6 +170,10 @@ class _AppShellState extends State<AppShell> {
     if (!mounted || payload == null) return;
 
     final screen = (payload['screen'] ?? '').toString().toLowerCase();
+    if (screen == 'approvals' && widget.session.isAdmin) {
+      _switchSection('mobile_approvals');
+      return;
+    }
     if (screen == 'diamond_requirements') {
       _switchSection('diamond_requirements');
       final requirementId = _asInt(payload['requirement_id']);
@@ -262,6 +267,11 @@ class _AppShellState extends State<AppShell> {
         return FollowupsScreen(api: _api);
       case 'order_requests':
         return OrderWorkRequestsScreen(api: _api);
+      case 'mobile_approvals':
+        return MobileApprovalsScreen(
+          key: ValueKey('mobile_approvals_$_refreshTick'),
+          api: _api,
+        );
       case 'diamond_requirements':
         return DiamondBagsScreen(
           key: ValueKey('diamond_requirements_$_refreshTick'),
@@ -451,6 +461,12 @@ class _AppShellState extends State<AppShell> {
                         ),
                       if (widget.session.isAdmin)
                         _drawerItem(
+                          'mobile_approvals',
+                          'Approval Desk',
+                          LucideIcons.shield_check,
+                        ),
+                      if (widget.session.isAdmin)
+                        _drawerItem(
                           'admin_tasks',
                           'Staff Tasks',
                           LucideIcons.list_todo,
@@ -624,6 +640,8 @@ class _AppShellState extends State<AppShell> {
         return 'Order Followups';
       case 'order_requests':
         return 'Order Requests';
+      case 'mobile_approvals':
+        return 'Approval Desk';
       case 'admin_tasks':
         return 'Staff Tasks';
       case 'issuements':
