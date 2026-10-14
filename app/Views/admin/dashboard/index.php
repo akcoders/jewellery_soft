@@ -15,7 +15,11 @@ $orderSource = static function (array $row): string {
     return trim((string) (($row['customer_name'] ?? '') ?: ($row['order_from'] ?? '') ?: '-'));
 };
 
-$dashboardRow = static function (array $row) use ($orderSource): array {
+$canReceiveOrders = (bool) ($canReceiveOrders ?? false);
+$dashboardRow = static function (array $row) use ($orderSource, $canReceiveOrders): array {
+    $status = (string) ($row['status'] ?? '');
+    $isReceived = (bool) ($row['is_received'] ?? false);
+
     return [
         'id'           => (int) ($row['id'] ?? 0),
         'orderNo'      => (string) ($row['order_no'] ?? ''),
@@ -23,12 +27,28 @@ $dashboardRow = static function (array $row) use ($orderSource): array {
         'orderType'    => (string) ($row['order_type'] ?? ''),
         'priority'     => (string) ($row['priority'] ?? ''),
         'status'       => (string) ($row['status'] ?? ''),
+        'nextStatus'   => match ($status) {
+            'Confirmed' => 'In Production',
+            'In Production' => 'QC',
+            'QC' => 'Ready',
+            'Ready' => $isReceived ? 'Packed' : '',
+            'Packed' => 'Dispatched',
+            'Dispatched' => 'Completed',
+            'Completed' => $isReceived ? 'Dispatched' : '',
+            default => '',
+        },
+        'canReceive'   => $canReceiveOrders
+            && $status === 'Ready'
+            && (int) ($row['assigned_karigar_id'] ?? 0) > 0
+            && ! $isReceived,
         'source'       => $orderSource($row),
         'dueDate'      => ! empty($row['due_date']) ? date('d M Y', strtotime((string) $row['due_date'])) : '',
         'dueRaw'       => ! empty($row['due_date']) ? date('Y-m-d', strtotime((string) $row['due_date'])) : '',
         'createdAt'    => ! empty($row['created_at']) ? date('d M, h:i A', strtotime((string) $row['created_at'])) : '',
         'thumbnailUrl' => (string) ($row['thumbnail_url'] ?? ''),
         'url'          => site_url('admin/orders/' . (int) ($row['id'] ?? 0)),
+        'receiveUrl'   => site_url('admin/orders/' . (int) ($row['id'] ?? 0) . '/receive'),
+        'statusUrl'    => site_url('admin/orders/' . (int) ($row['id'] ?? 0) . '/status'),
     ];
 };
 $dashboardPayload = [
@@ -39,7 +59,11 @@ $dashboardPayload = [
     'can'       => [
         'createOrder'    => admin_can('orders.create'),
         'createCustomer' => admin_can('customers.create'),
+        'changeOrderStatus' => (bool) ($canChangeOrderStatus ?? false),
+        'receiveOrders' => $canReceiveOrders,
     ],
+    'orderStatuses' => $orderStatuses ?? [],
+    'csrf' => $csrf ?? [],
     'urls'      => [
         'newOrder'      => site_url('admin/orders/create'),
         'newCustomer'   => site_url('admin/customers/create'),

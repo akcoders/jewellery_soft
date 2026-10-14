@@ -17,6 +17,7 @@ class OrderReceivingService
     public function formData(int $orderId): array
     {
         $order = $this->order($orderId);
+        $this->assertReadyForReceiving($order);
         $summary = $this->receiptSummary($orderId);
         $diamondBagLines = (new DiamondBagTraceService($this->db))->receiptOptions(
             (int) ($order['assigned_karigar_id'] ?? 0),
@@ -24,7 +25,7 @@ class OrderReceivingService
         );
         return [
             'order' => $order,
-            'already_received' => $summary !== [],
+            'already_received' => $this->hasRecordedReceipt($orderId),
             'receipt' => $summary,
             'diamond_bag_lines' => $diamondBagLines,
             'locations' => $this->db->table('inventory_locations')
@@ -42,13 +43,14 @@ class OrderReceivingService
             throw new RuntimeException('A logged-in user is required for receiving.');
         }
         $order = $this->order($orderId);
+        $this->assertReadyForReceiving($order);
         if ((string) ($order['status'] ?? '') === 'Cancelled') {
             throw new RuntimeException('Cancelled orders cannot be received.');
         }
         if ((int) ($order['assigned_karigar_id'] ?? 0) <= 0) {
             throw new RuntimeException('Assign a karigar before receiving finished jewellery.');
         }
-        if ($this->receiptSummary($orderId) !== []) {
+        if ($this->hasRecordedReceipt($orderId)) {
             throw new RuntimeException('This order has already been received.');
         }
 
@@ -269,6 +271,29 @@ class OrderReceivingService
             ->where('rs.order_id', $orderId)->orderBy('rs.id', 'DESC')->get()->getRowArray() ?? [];
     }
 
+    public function hasRecordedReceipt(int $orderId): bool
+    {
+        if ($this->receiptSummary($orderId) !== []) {
+            return true;
+        }
+        if (! $this->db->tableExists('order_material_movements')) {
+            return false;
+        }
+
+        return $this->db->table('order_material_movements')
+            ->where('order_id', $orderId)
+            ->where('movement_type', 'receive')
+            ->countAllResults() > 0;
+    }
+
+    /** @param array<string,mixed> $order */
+    private function assertReadyForReceiving(array $order): void
+    {
+        if ((string) ($order['status'] ?? '') !== 'Ready') {
+            throw new RuntimeException('Finished jewellery can be received only when the order is Ready.');
+        }
+    }
+
     /** @return array<string,mixed> */
     private function order(int $orderId): array
     {
@@ -280,6 +305,7 @@ class OrderReceivingService
         if (! $order) {
             throw new RuntimeException('Order not found.');
         }
+
         return $order;
     }
 

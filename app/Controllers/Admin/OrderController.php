@@ -911,10 +911,7 @@ class OrderController extends BaseController
                 ->orderBy('id', 'ASC')
                 ->findAll();
         }
-        $hasActiveReceiveMovement = db_connect()->table('order_material_movements')
-            ->where('order_id', $id)
-            ->where('movement_type', 'receive')
-            ->countAllResults() > 0;
+        $hasActiveReceiveMovement = (new OrderReceivingService())->hasRecordedReceipt($id);
 
         return view('admin/orders/show', [
             'title'      => 'Order Details',
@@ -929,6 +926,7 @@ class OrderController extends BaseController
             'familyOrders' => $familyOrders,
             'readyImages' => $this->productionReadyImages($id),
             'receiveSummary' => is_array($receiveSummary) ? $receiveSummary : [],
+            'isReceived' => $hasActiveReceiveMovement,
             'studdedDetails' => $studdedDetails,
             'diamondBags' => $this->diamondBagService->issuedForOrder($id),
             'stoneIssues' => (new \App\Services\StoneInventory\StoneIssueOrderService())->issuesForOrder($id),
@@ -1358,9 +1356,12 @@ class OrderController extends BaseController
         if (! is_array($order)) {
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound('Order not found.');
         }
-        $alreadyReceived = $this->receiveSummaryModel->where('order_id', $id)->countAllResults() > 0;
+        $alreadyReceived = (new OrderReceivingService())->hasRecordedReceipt($id);
         if ((string) ($order['status'] ?? '') === 'Cancelled' || $alreadyReceived) {
             return redirect()->to(site_url('admin/orders/' . $id))->with('error', 'Cancelled or already received order cannot be received again.');
+        }
+        if ((string) ($order['status'] ?? '') !== 'Ready') {
+            return redirect()->to(site_url('admin/orders/' . $id))->with('error', 'Finished jewellery can be received only when the order is Ready.');
         }
         if ((int) ($order['assigned_karigar_id'] ?? 0) <= 0) {
             return redirect()->to(site_url('admin/orders/' . $id))->with('error', 'Assign a karigar before receiving finished jewellery.');
@@ -1398,14 +1399,15 @@ class OrderController extends BaseController
             return redirect()->back()->with('error', 'Audit user is required. Please login again.');
         }
 
+        $newStatus = (string) $this->request->getPost('status');
         if ((string) $order['status'] === 'Cancelled') {
             return redirect()->back()->with('error', 'Cancelled order status cannot be changed.');
         }
-        if ((string) $order['status'] === 'Completed') {
+        if ((string) $order['status'] === 'Completed'
+            && ! ($newStatus === 'Dispatched' && (new OrderReceivingService())->hasRecordedReceipt($id))) {
             return redirect()->back()->with('error', 'Completed order status cannot be changed.');
         }
 
-        $newStatus = (string) $this->request->getPost('status');
         $remarks   = trim((string) $this->request->getPost('remarks'));
 
         if (! in_array($newStatus, $this->jewelleryConfig->orderStatuses, true)) {
@@ -1414,6 +1416,11 @@ class OrderController extends BaseController
 
         if (! $this->isValidStatusTransition((string) $order['status'], $newStatus)) {
             return redirect()->back()->with('error', 'Invalid status transition.');
+        }
+
+        if (in_array($newStatus, ['Packed', 'Dispatched', 'Completed'], true)
+            && ! (new OrderReceivingService())->hasRecordedReceipt($id)) {
+            return redirect()->back()->with('error', 'Receive finished jewellery before changing the order to Packed, Dispatched, or Completed.');
         }
 
         $imageRules = [
@@ -2006,9 +2013,12 @@ class OrderController extends BaseController
         if (! $order) {
             return $this->finishedReceiptFailure('Order not found.', 404);
         }
-        $alreadyReceived = $this->receiveSummaryModel->where('order_id', $orderId)->countAllResults() > 0;
+        $alreadyReceived = (new OrderReceivingService())->hasRecordedReceipt($orderId);
         if ((string) ($order['status'] ?? '') === 'Cancelled' || $alreadyReceived) {
             return $this->finishedReceiptFailure('Cancelled or already received order cannot be received again.');
+        }
+        if ((string) ($order['status'] ?? '') !== 'Ready') {
+            return $this->finishedReceiptFailure('Finished jewellery can be received only when the order is Ready.');
         }
 
         $karigarId = (int) ($order['assigned_karigar_id'] ?? 0);
@@ -3591,7 +3601,7 @@ class OrderController extends BaseController
             'Ready'         => 'Packed',
             'Packed'        => 'Dispatched',
             'Dispatched'    => 'Completed',
-            'Completed'     => null,
+            'Completed'     => 'Dispatched',
             'Cancelled'     => null,
         ];
 

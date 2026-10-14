@@ -80,6 +80,57 @@ final class OrderPresentationWorkflowTest extends CIUnitTestCase
         }
     }
 
+    public function testDashboardOrderStatusChangeUsesProtectedWorkflowEndpointAndEvidence(): void
+    {
+        $dashboard = $this->source('Views/admin/dashboard/index.php');
+        $controller = $this->source('Controllers/Admin/DashboardController.php');
+        $react = (string) file_get_contents(ROOTPATH . 'frontend/src/Dashboard.jsx');
+        $routes = $this->source('Config/Routes.php');
+
+        $this->assertStringContainsString("admin_can('orders.status')", $controller);
+        $this->assertStringContainsString("'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]", $controller);
+        $this->assertStringContainsString("'Dispatched' => 'Completed'", $dashboard);
+        $this->assertStringContainsString("site_url('admin/orders/' . (int) (\$row['id'] ?? 0) . '/status')", $dashboard);
+        $this->assertStringContainsString('name="audit_image" accept="image/*" required', $react);
+        $this->assertStringContainsString('name="remarks"', $react);
+        $this->assertStringContainsString("Admin\\OrderController::updateStatus/\$1", $routes);
+        $this->assertStringContainsString("'Completed'     => 'Dispatched'", $this->source('Controllers/Admin/OrderController.php'));
+        $this->assertStringContainsString("'Completed' => \$isReceived ? 'Dispatched' : ''", $dashboard);
+    }
+
+    public function testReceivingIsReadyOnlyAndBlocksDownstreamStatusesUntilReceived(): void
+    {
+        $controller = $this->source('Controllers/Admin/OrderController.php');
+        $receivingService = $this->source('Services/OrderReceivingService.php');
+        $mobileController = $this->source('Controllers/Api/Mobile/OrdersController.php');
+        $orderDetail = $this->source('Views/admin/orders/show.php');
+        $dashboard = $this->source('Views/admin/dashboard/index.php');
+
+        $this->assertStringContainsString("!== 'Ready'", $controller);
+        $this->assertStringContainsString("['Packed', 'Dispatched', 'Completed']", $controller);
+        $this->assertStringContainsString('assertReadyForReceiving($order)', $receivingService);
+        $this->assertStringContainsString("=== 'Ready'", $mobileController);
+        $this->assertStringContainsString("\$status === 'Ready'", $orderDetail);
+        $this->assertStringContainsString("'Ready' => \$isReceived ? 'Packed' : ''", $dashboard);
+        $this->assertStringContainsString("'receiveUrl'", $dashboard);
+    }
+
+    public function testMigrationReopensUnreceivedCompletedPackedAndDispatchedOrders(): void
+    {
+        $migration = (string) file_get_contents(
+            ROOTPATH . 'app/Database/Migrations/2026-10-14-000111_ReopenUnreceivedOrders.php'
+        );
+
+        $this->assertStringContainsString("->whereIn('o.status', ['Completed', 'Packed', 'Dispatched'])", $migration);
+        $this->assertStringContainsString("->where('rs.id', null)", $migration);
+        $this->assertStringContainsString("->where('rm.id', null)", $migration);
+        $this->assertStringContainsString("'status' => 'Ready'", $migration);
+        $this->assertStringContainsString("\$updates['receiving_status'] = 'pending'", $migration);
+        $this->assertStringContainsString("->whereIn('item_status', ['Completed', 'Packed', 'Dispatched'])", $migration);
+        $this->assertStringContainsString("'to_status' => 'Ready'", $migration);
+        $this->assertStringContainsString("->where('movement_type', 'receive')", $this->source('Services/OrderReceivingService.php'));
+    }
+
     private function source(string $relativePath): string
     {
         return (string) file_get_contents(APPPATH . $relativePath);

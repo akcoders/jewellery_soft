@@ -178,14 +178,44 @@ class DashboardController extends BaseController
             ->findAll(8);
 
         $recentOrders = $orderModel
-            ->select('orders.id, orders.order_no, orders.order_name, orders.order_from, orders.status, orders.created_at, customers.name as customer_name')
+            ->select('orders.id, orders.order_no, orders.order_name, orders.order_from, orders.status, orders.assigned_karigar_id, orders.created_at, customers.name as customer_name')
             ->join('customers', 'customers.id = orders.customer_id', 'left')
             ->orderBy('orders.id', 'DESC')
             ->findAll(8);
 
+        $recentOrderIds = array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $recentOrders);
+        $receivedOrderIds = [];
+        if ($recentOrderIds !== [] && $db->tableExists('order_receive_summaries')) {
+            $receivedOrderIds = array_map(
+                static fn(array $row): int => (int) ($row['order_id'] ?? 0),
+                $db->table('order_receive_summaries')
+                    ->select('order_id')
+                    ->whereIn('order_id', $recentOrderIds)
+                    ->groupBy('order_id')
+                    ->get()
+                    ->getResultArray()
+            );
+        }
+        if ($recentOrderIds !== [] && $db->tableExists('order_material_movements')) {
+            $receivedOrderIds = array_merge(
+                $receivedOrderIds,
+                array_map(
+                    static fn(array $row): int => (int) ($row['order_id'] ?? 0),
+                    $db->table('order_material_movements')
+                        ->select('order_id')
+                        ->where('movement_type', 'receive')
+                        ->whereIn('order_id', $recentOrderIds)
+                        ->groupBy('order_id')
+                        ->get()
+                        ->getResultArray()
+                )
+            );
+        }
+        $receivedOrderIds = array_values(array_unique($receivedOrderIds));
+
         $dashboardOrderIds = array_merge(
             array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $ordersNeedingAssignment),
-            array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $recentOrders)
+            $recentOrderIds
         );
         $thumbnailMap = (new OrderThumbnailService($db))->map($dashboardOrderIds);
         foreach ($ordersNeedingAssignment as &$row) {
@@ -194,6 +224,7 @@ class DashboardController extends BaseController
         unset($row);
         foreach ($recentOrders as &$row) {
             $row['thumbnail_url'] = (string) ($thumbnailMap[(int) ($row['id'] ?? 0)] ?? '');
+            $row['is_received'] = in_array((int) ($row['id'] ?? 0), $receivedOrderIds, true);
         }
         unset($row);
 
@@ -246,6 +277,9 @@ class DashboardController extends BaseController
             ],
             'ordersNeedingAssignment' => $ordersNeedingAssignment,
             'recentOrders'   => $recentOrders,
+            'canChangeOrderStatus' => admin_can('orders.status'),
+            'canReceiveOrders' => admin_can('orders.receive'),
+            'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()],
         ]);
     }
 }

@@ -459,7 +459,7 @@ class OrdersController extends MobileBaseController
         $media = $this->orderMedia($id);
         $receivingService = new OrderReceivingService($db);
         $receipt = $receivingService->receiptSummary($id);
-        $isReceived = $receipt !== [];
+        $isReceived = $receivingService->hasRecordedReceipt($id);
         $followupClosed = in_array(
             (string) ($order['status'] ?? ''),
             ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'],
@@ -481,7 +481,7 @@ class OrdersController extends MobileBaseController
             'receipt' => $receipt,
             'is_received' => $isReceived,
             'can_receive_order' => ! $isReceived
-                && (string) ($order['status'] ?? '') !== 'Cancelled'
+                && (string) ($order['status'] ?? '') === 'Ready'
                 && (int) ($order['assigned_karigar_id'] ?? 0) > 0,
             'can_rate_order' => $isReceived
                 && in_array((string) ($order['status'] ?? ''), ['Completed', 'Complete', 'Delivered'], true)

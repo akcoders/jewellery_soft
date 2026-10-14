@@ -164,7 +164,7 @@
                                                     </button>
                                                 <?php endif; ?>
                                             <?php endif; ?>
-                                            <?php if (admin_can('orders.receive') && ! empty($order['assigned_karigar_id'])): ?>
+                                            <?php if (admin_can('orders.receive') && ($order['status'] ?? '') === 'Ready' && ! empty($order['assigned_karigar_id'])): ?>
                                                 <a href="<?= site_url('admin/orders/' . $order['id'] . '/receive') ?>"
                                                     class="btn btn-sm btn-outline-success"
                                                     title="Receive">

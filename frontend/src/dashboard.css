@@ -554,7 +554,7 @@
 
 /* ---------- Activity feed ---------- */
 .au-dash .au-feed { border-top: 1px solid var(--d-border); list-style: none; margin: 0; padding: 6px 10px 10px; }
-.au-dash .au-feed li { position: relative; }
+.au-dash .au-feed li { align-items: center; display: flex; gap: 8px; position: relative; }
 .au-dash .au-feed a {
   align-items: center;
   border-radius: 12px;
@@ -565,7 +565,9 @@
   text-decoration: none;
   transition: background 0.14s ease;
 }
+.au-dash .au-feed a { flex: 1; min-width: 0; }
 .au-dash .au-feed a:hover { background: var(--d-surface-2); color: var(--d-text); }
+.au-dash .au-feed__status { flex: 0 0 auto; }
 .au-dash .au-feed__body { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .au-dash .au-feed__body strong { color: var(--d-text); font-size: 13.5px; font-weight: 650; }
 .au-dash .au-feed__body span { color: var(--d-text-2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -586,6 +588,48 @@
   white-space: nowrap;
 }
 .au-dash .au-pill i { background: var(--pill); border-radius: 50%; height: 6px; width: 6px; }
+
+.au-status-dialog {
+  background: var(--d-surface, #17191f);
+  border: 1px solid var(--d-border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 18px;
+  color: var(--d-text, #f5f2ea);
+  max-height: min(90vh, 720px);
+  max-width: min(520px, calc(100vw - 28px));
+  padding: 0;
+  width: 100%;
+}
+.au-status-dialog::backdrop { background: rgba(5, 7, 10, 0.72); backdrop-filter: blur(3px); }
+.au-status-dialog form { padding: 22px; }
+.au-status-dialog__head { align-items: flex-start; display: flex; justify-content: space-between; margin-bottom: 20px; }
+.au-status-dialog__head h2 { color: var(--d-text, #f5f2ea); font-size: 19px; margin: 5px 0 0; }
+.au-status-dialog__close {
+  background: transparent;
+  border: 1px solid var(--d-border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 9px;
+  color: var(--d-text, #f5f2ea);
+  font-size: 22px;
+  height: 34px;
+  line-height: 1;
+  width: 34px;
+}
+.au-status-dialog__field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
+.au-status-dialog__field > span { color: var(--d-text, #f5f2ea); font-size: 12.5px; font-weight: 700; }
+.au-status-dialog__field b { color: var(--au-ruby, #ef5d6a); font-size: 11px; margin-left: 4px; }
+.au-status-dialog__field input,
+.au-status-dialog__field select,
+.au-status-dialog__field textarea {
+  background: var(--d-surface-2, #22252d);
+  border: 1px solid var(--d-border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 9px;
+  color: var(--d-text, #f5f2ea);
+  font: inherit;
+  min-height: 40px;
+  padding: 9px 11px;
+  width: 100%;
+}
+.au-status-dialog__field small { color: var(--d-muted, #aaa6a0); font-size: 11px; }
+.au-status-dialog__actions { display: flex; gap: 9px; justify-content: flex-end; margin-top: 22px; }
 
 /* ---------- Empty states ---------- */
 .au-dash .au-empty {

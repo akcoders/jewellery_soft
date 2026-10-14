@@ -134,6 +134,7 @@ $followups = is_array($followups ?? null) ? $followups : [];
 $studdedDetails = is_array($studdedDetails ?? null) ? $studdedDetails : [];
 $diamondBags = is_array($diamondBags ?? null) ? $diamondBags : [];
 $receiveSummary = is_array($receiveSummary ?? null) ? $receiveSummary : [];
+$isReceived = (bool) ($isReceived ?? ($receiveSummary !== []));
 $items = is_array($items ?? null) ? $items : [];
 $canCreateDiamondBag = (bool) ($canCreateDiamondBag ?? false);
 $canDeleteOrder = (bool) ($canDeleteOrder ?? false);
@@ -171,7 +172,7 @@ foreach ($readyImages as $readyImage) {
 $photoGallery = array_values($photoGallery);
 $primaryPhoto = $photoGallery[0] ?? null;
 $status = (string) ($order['status'] ?? '');
-$canReceive = $receiveSummary === [] && $status !== 'Cancelled' && (int) ($order['assigned_karigar_id'] ?? 0) > 0;
+$canReceive = ! $isReceived && $status === 'Ready' && (int) ($order['assigned_karigar_id'] ?? 0) > 0;
 $followupClosed = in_array($status, ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'], true);
 $formatDate = static function (?string $value): string {
     $timestamp = strtotime(trim((string) $value));

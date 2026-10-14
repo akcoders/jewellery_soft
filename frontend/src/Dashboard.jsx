@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import Icon from './icons.jsx';
 import { useCountUp } from './hooks.js';
 import { StatusDonut, TrendChart, statusColor } from './charts.jsx';
@@ -314,7 +314,15 @@ function AssignmentQueue({ rows, todayIso, href }) {
   );
 }
 
-function RecentOrders({ rows, href }) {
+function RecentOrders({ rows, href, canChangeStatus, csrf }) {
+  const statusDialog = useRef(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+
+  const openStatusDialog = (row) => {
+    setSelectedOrder(row);
+    statusDialog.current?.showModal();
+  };
+
   return (
     <Panel
       eyebrow="Live activity"
@@ -349,10 +357,83 @@ function RecentOrders({ rows, href }) {
                 </div>
                 <StatusPill status={row.status} />
               </a>
+              {canChangeStatus && row.nextStatus && (
+                <button
+                  className="au-btn au-btn--outline au-btn--sm au-feed__status"
+                  type="button"
+                  onClick={() => openStatusDialog(row)}
+                  aria-label={`Change status for ${row.orderNo}`}
+                  title="Change order status"
+                >
+                  Change status
+                </button>
+              )}
+              {row.canReceive && (
+                <a className="au-btn au-btn--outline au-btn--sm au-feed__status" href={row.receiveUrl}>
+                  Receive
+                </a>
+              )}
             </li>
           ))}
         </ol>
       )}
+      <dialog
+        className="au-status-dialog"
+        ref={statusDialog}
+        onClose={() => setSelectedOrder(null)}
+        aria-labelledby="au-status-dialog-title"
+      >
+        {selectedOrder && (
+          <form
+            method="post"
+            action={selectedOrder.statusUrl}
+            encType="multipart/form-data"
+          >
+            <input type="hidden" name={csrf.name} value={csrf.hash} />
+            <header className="au-status-dialog__head">
+              <div>
+                <span className="au-eyebrow">Order workflow</span>
+                <h2 id="au-status-dialog-title">Change {selectedOrder.orderNo} status</h2>
+              </div>
+              <button
+                className="au-status-dialog__close"
+                type="button"
+                onClick={() => statusDialog.current?.close()}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </header>
+            <label className="au-status-dialog__field">
+              <span>New status</span>
+              <select name="status" defaultValue={selectedOrder.nextStatus} required>
+                <option value={selectedOrder.nextStatus}>{selectedOrder.nextStatus}</option>
+              </select>
+              <small>Order statuses must follow the production workflow.</small>
+            </label>
+            <label className="au-status-dialog__field">
+              <span>Status evidence photo <b>Required</b></span>
+              <input type="file" name="audit_image" accept="image/*" required />
+            </label>
+            <label className="au-status-dialog__field">
+              <span>Remarks</span>
+              <textarea name="remarks" rows="3" maxLength="500" placeholder="Optional status update notes" />
+            </label>
+            <footer className="au-status-dialog__actions">
+              <button
+                className="au-btn au-btn--outline"
+                type="button"
+                onClick={() => statusDialog.current?.close()}
+              >
+                Cancel
+              </button>
+              <button className="au-btn au-btn--gold" type="submit">
+                Save status
+              </button>
+            </footer>
+          </form>
+        )}
+      </dialog>
     </Panel>
   );
 }
@@ -412,7 +493,12 @@ export default function Dashboard({ data }) {
 
       <div className="au-grid au-grid--activity" data-app-tour="dashboard-activity">
         <AssignmentQueue rows={data.ordersNeedingAssignment || []} todayIso={data.todayIso} href={urls.freshOrders} />
-        <RecentOrders rows={data.recentOrders || []} href={urls.orders} />
+        <RecentOrders
+          rows={data.recentOrders || []}
+          href={urls.orders}
+          canChangeStatus={Boolean(data.can?.changeOrderStatus)}
+          csrf={data.csrf || { name: '', hash: '' }}
+        />
       </div>
     </div>
   );
