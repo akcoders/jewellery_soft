@@ -163,3 +163,10 @@ docs/aabhushan-user-guide/Aabhushan-User-Guide.md
 
 # React admin frontend (built output is committed under public/template/assets/react)
 /frontend/node_modules/
+
+# Never commit signing or device keys
+/Archive.zip
+adbkey
+adbkey.pub
+*.keystore
+*.jks

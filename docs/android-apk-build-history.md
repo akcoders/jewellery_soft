@@ -29,6 +29,7 @@ published. Update it for every Android release.
 | 2026-10-13 | 1.0.9 | 10 | `android-v1.0.9-build10` | `60fdf57727d2cf45402de163907ef847d61ee6a6057250f83bcf4cc4a86cab9c` | Order-family follow-up ownership, follow-up approval quality controls, and detailed transaction views |
 | 2026-10-13 | 1.0.10 | 11 | `android-v1.0.10-build11` | `26c42a7b0aa409dbedc6daae3fbd5d3e96ccff3321756a0967d044480a9b84b2` | Fractional performance points, organized Android PDF folders, parent order mapping, and unified child follow-up approvals |
 | 2026-10-14 | 1.0.11 | 12 | `android-v1.0.11-build12` | `c3c99e6b53d88c8d085c029502838d803a4159e3c7804268e27fbc3bf7c1023a` | Order-wise stone issuement (gold stays free-flow), complete order details in collapsible sections, stone issued per order. Signed with this workstation's `~/.android/debug.keystore` (certificate SHA-256 `ac5fcc988a3297f42d74e50a9b1a4cd36d323a9acaa58fcaff2cd104de4a5004`), which differs from the `key.md` identity. **Withdrawn 2026-10-14:** cannot update 1.0.9/1.0.10 installs (signer mismatch); the update feed was rolled back to 1.0.10 build 11. Rebuild with the original `04524F…` keystore before the next release |
+| 2026-10-14 | 1.0.12 | 13 | `android-v1.0.12-build13` | `9ae9f2427d72ef3a18fce82263cafd9df2fd11da0ab90a071ae2424410db09b7` | Team performance for admins, 200-point monthly target and reward points, small-phone layout fixes. Signed with the new active identity `AC5FCC…` (see `key.md`); 1.0.9/1.0.10 installs must uninstall once, 1.0.11 updates normally |
 
 ## Prerequisites
 

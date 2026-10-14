@@ -7,9 +7,9 @@ in this file.
 ## Active signing identity
 
 - App ID: `com.aabhushan.erp`
-- Used by: Android 1.0.9, build 10, and subsequent compatible updates
+- Used by: Android 1.0.11, build 12, and every later release
 - Signing certificate SHA-256:
-  `04524F5032317D5CC42EC2E032EED012C8525EA5A51D59BB5E6A2F7E1EEC4061`
+  `AC5FCC988A3297F42D74E50A9B1A4CD36D323A9ACAA58FCAFF2CD104DE4A5004`
 - Keystore on the current release workstation: `~/.android/debug.keystore`
 - Gradle alias: `AndroidDebugKey` (the Android Gradle debug signing config)
 
@@ -40,7 +40,16 @@ Keystore files and Android signing properties are excluded by the repository's
 `.gitignore`. Never commit or share the keystore, passwords, or private key
 material.
 
-## Legacy signer note
+## Legacy signer notes
+
+Android 1.0.9 (build 10) and 1.0.10 (build 11) were signed with an earlier
+certificate, SHA-256
+`04524F5032317D5CC42EC2E032EED012C8525EA5A51D59BB5E6A2F7E1EEC4061`, whose
+keystore stayed on another workstation. From 1.0.11 (build 12) the active
+identity above is used; phones on 1.0.9/1.0.10 must uninstall the old app
+once and install the current APK. Copy the active `~/.android/debug.keystore`
+to every release workstation so all builds share this certificate.
+
 
 Builds 1.0.6 through 1.0.8 used a different signing certificate. The original
 private key for that certificate was not found. Users moving from those builds
