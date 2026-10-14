@@ -1,7 +1,7 @@
 -- Read-only all-time employee point report.
 -- Requires MySQL 8.0+ and the application's latest migrations.
--- Rates follow the requested rules; this intentionally excludes rating,
--- image-quality, and duplicate-follow-up modifiers.
+-- Rates follow the requested rules; rating and duplicate-follow-up modifiers
+-- are excluded. Missing image_path is scored as missing image evidence.
 WITH
 params AS (
     SELECT UTC_TIMESTAMP() + INTERVAL 330 MINUTE AS as_of
@@ -142,7 +142,7 @@ followup_schedule_points AS (
             WHEN sb.status LIKE 'completed%'
                  AND sb.approval_status IN ('pending', 'rejected')
                 THEN 0
-            ELSE FLOOR(
+            ELSE CEILING(
                 GREATEST(
                     0,
                     TIMESTAMPDIFF(SECOND, sb.effective_due_at, sb.performance_end_at)
@@ -224,6 +224,15 @@ event_points AS (
 
     UNION ALL
 
+    SELECT f.followup_taken_by, 'missing_followup_images', -0.50, 1
+    FROM order_followups f
+    WHERE f.followup_taken_by IS NOT NULL
+      AND COALESCE(f.approval_status, 'approved') = 'approved'
+      AND COALESCE(f.points_enabled, 1) <> 0
+      AND NULLIF(TRIM(f.image_path), '') IS NULL
+
+    UNION ALL
+
     SELECT di.user_id, 'issuements', 0.50, 1
     FROM deduplicated_issues di
 
@@ -289,6 +298,8 @@ totals AS (
         SUM(CASE WHEN category = 'orders' THEN points ELSE 0 END) AS order_points,
         SUM(CASE WHEN category = 'approved_followups' THEN event_count ELSE 0 END) AS approved_followup_count,
         SUM(CASE WHEN category = 'approved_followups' THEN points ELSE 0 END) AS approved_followup_points,
+        SUM(CASE WHEN category = 'missing_followup_images' THEN event_count ELSE 0 END) AS missing_followup_image_count,
+        SUM(CASE WHEN category = 'missing_followup_images' THEN points ELSE 0 END) AS missing_followup_image_points,
         SUM(CASE WHEN category = 'followup_delay' THEN event_count ELSE 0 END) AS followup_late_days,
         SUM(CASE WHEN category = 'followup_delay' THEN points ELSE 0 END) AS followup_delay_points,
         SUM(CASE WHEN category = 'approval_delay_credit' THEN event_count ELSE 0 END) AS approval_credit_days,
@@ -310,6 +321,8 @@ SELECT
     COALESCE(t.order_points, 0.00) AS order_points,
     COALESCE(t.approved_followup_count, 0) AS approved_followup_count,
     COALESCE(t.approved_followup_points, 0.00) AS approved_followup_points,
+    COALESCE(t.missing_followup_image_count, 0) AS missing_followup_image_count,
+    COALESCE(t.missing_followup_image_points, 0.00) AS missing_followup_image_points,
     COALESCE(t.followup_late_days, 0) AS followup_late_days,
     COALESCE(t.followup_delay_points, 0.00) AS followup_delay_points,
     COALESCE(t.approval_credit_days, 0) AS approval_credit_days,
@@ -324,6 +337,7 @@ SELECT
     ROUND(
         COALESCE(t.order_points, 0)
         + COALESCE(t.approved_followup_points, 0)
+        + COALESCE(t.missing_followup_image_points, 0)
         + COALESCE(t.followup_delay_points, 0)
         + COALESCE(t.approval_credit_points, 0)
         + COALESCE(t.issuement_points, 0)
@@ -337,6 +351,7 @@ SELECT
             100
             + COALESCE(t.order_points, 0)
             + COALESCE(t.approved_followup_points, 0)
+            + COALESCE(t.missing_followup_image_points, 0)
             + COALESCE(t.followup_delay_points, 0)
             + COALESCE(t.approval_credit_points, 0)
             + COALESCE(t.issuement_points, 0)
