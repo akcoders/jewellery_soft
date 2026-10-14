@@ -422,3 +422,147 @@ SELECT
 FROM staff s
 LEFT JOIN totals t ON t.user_id = s.id
 ORDER BY net_points DESC, s.name ASC;
+
+-- Per-follow-up detail: this is a second result set with one row per schedule.
+-- delay_days counts complete 24-hour units; a late follow-up under 24 hours
+-- still receives one -2 penalty, as requested.
+WITH
+detail_params AS (
+    SELECT UTC_TIMESTAMP() + INTERVAL 330 MINUTE AS as_of
+),
+detail_approval_requests AS (
+    SELECT
+        mar.requested_by,
+        mar.status,
+        mar.result_id,
+        CAST(
+            COALESCE(
+                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(mar.payload_json, '$.order_id')), ''),
+                CAST(mar.subject_id AS CHAR)
+            ) AS UNSIGNED
+        ) AS order_id,
+        COALESCE(
+            CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(mar.payload_json, '$.followup_taken_on')), '') AS DATETIME),
+            mar.created_at
+        ) AS submitted_at,
+        mar.reviewed_at
+    FROM mobile_approval_requests mar
+    WHERE mar.request_type = 'followup'
+      AND mar.status IN ('pending', 'approved', 'rejected')
+),
+detail_pending_approvals AS (
+    SELECT s.id AS schedule_id, MAX(ar.submitted_at) AS submitted_at
+    FROM order_followup_schedules s
+    INNER JOIN detail_approval_requests ar
+        ON ar.order_id = s.order_id
+       AND ar.requested_by = s.assigned_to
+       AND ar.status = 'pending'
+       AND ar.submitted_at >= COALESCE(s.created_at, s.due_at)
+    GROUP BY s.id
+),
+detail_schedule_base AS (
+    SELECT
+        s.id AS schedule_id,
+        s.completed_followup_id AS submitted_followup_id,
+        s.order_id,
+        s.assigned_to AS user_id,
+        au.name AS follower,
+        s.due_at,
+        GREATEST(s.due_at, COALESCE(s.created_at, s.due_at)) AS effective_due_at,
+        COALESCE(s.created_at, s.due_at) AS cycle_start_at,
+        s.status AS schedule_status,
+        COALESCE(cf.approval_status, 'approved') AS approval_status,
+        COALESCE(cf.points_enabled, 1) AS points_enabled,
+        cf.image_path,
+        CASE
+            WHEN s.status = 'pending'
+                THEN LEAST(dp.as_of, COALESCE(dpa.submitted_at, dp.as_of))
+            WHEN s.status LIKE 'completed%'
+                 AND COALESCE(cf.approval_status, 'approved') NOT IN ('pending', 'rejected')
+                THEN COALESCE(s.completed_at, s.updated_at)
+            ELSE NULL
+        END AS performance_end_at
+    FROM order_followup_schedules s
+    CROSS JOIN detail_params dp
+    LEFT JOIN admin_users au ON au.id = s.assigned_to
+    LEFT JOIN order_followups cf ON cf.id = s.completed_followup_id
+    LEFT JOIN detail_pending_approvals dpa ON dpa.schedule_id = s.id
+    WHERE s.status = 'pending'
+       OR s.status LIKE 'completed%'
+),
+detail_pause_seconds AS (
+    SELECT
+        sb.schedule_id,
+        SUM(
+            GREATEST(
+                0,
+                TIMESTAMPDIFF(
+                    SECOND,
+                    GREATEST(sb.effective_due_at, ar.submitted_at),
+                    LEAST(sb.performance_end_at, ar.reviewed_at)
+                )
+            )
+        ) AS paused_seconds
+    FROM detail_schedule_base sb
+    INNER JOIN detail_approval_requests ar
+        ON ar.order_id = sb.order_id
+       AND ar.requested_by = sb.user_id
+       AND ar.status = 'rejected'
+       AND ar.reviewed_at IS NOT NULL
+       AND ar.submitted_at >= sb.cycle_start_at
+    WHERE sb.performance_end_at IS NOT NULL
+    GROUP BY sb.schedule_id
+),
+detail_delay AS (
+    SELECT
+        sb.*,
+        CASE
+            WHEN sb.performance_end_at IS NULL
+                 OR sb.performance_end_at <= sb.effective_due_at
+                 OR (
+                     sb.schedule_status LIKE 'completed%'
+                     AND sb.approval_status IN ('pending', 'rejected')
+                 )
+                THEN 0
+            ELSE GREATEST(
+                0,
+                TIMESTAMPDIFF(SECOND, sb.effective_due_at, sb.performance_end_at)
+                - COALESCE(dps.paused_seconds, 0)
+            )
+        END AS active_late_seconds
+    FROM detail_schedule_base sb
+    LEFT JOIN detail_pause_seconds dps ON dps.schedule_id = sb.schedule_id
+)
+SELECT
+    dd.schedule_id AS followup_id,
+    dd.submitted_followup_id,
+    dd.follower,
+    FLOOR(dd.active_late_seconds / 86400) AS delay_days,
+    ROUND(
+        CASE
+            WHEN dd.active_late_seconds > 0 THEN
+                -2 * GREATEST(1, FLOOR(dd.active_late_seconds / 86400))
+            WHEN dd.schedule_status LIKE 'completed%'
+             AND dd.approval_status = 'approved'
+             AND dd.points_enabled <> 0
+                THEN 2
+            ELSE 0
+        END
+        + CASE
+            WHEN dd.schedule_status LIKE 'completed%'
+             AND dd.approval_status = 'approved'
+             AND dd.points_enabled <> 0
+             AND NULLIF(TRIM(dd.image_path), '') IS NULL
+                THEN -0.5
+            ELSE 0
+        END,
+        2
+    ) AS points,
+    CASE
+        WHEN dd.schedule_status = 'pending' THEN 'pending'
+        WHEN dd.approval_status = 'pending' THEN 'approval pending'
+        WHEN dd.approval_status = 'rejected' THEN 'disapproved'
+        ELSE 'done'
+    END AS followup_taken
+FROM detail_delay dd
+ORDER BY dd.due_at DESC, dd.schedule_id DESC;
