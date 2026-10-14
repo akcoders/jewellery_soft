@@ -3,6 +3,7 @@ import 'package:flutkit/jewellery_pwa/screens/dashboard_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/inventory_tab.dart';
 import 'package:flutkit/jewellery_pwa/screens/mobile_approvals_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/performance_screen.dart';
+import 'package:flutkit/jewellery_pwa/screens/team_performance_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/transactions_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,7 @@ void main() {
         DashboardScreen(api: api),
         InventoryTab(api: api),
         PerformanceScreen(api: api),
+        TeamPerformanceScreen(api: api),
         MobileApprovalsScreen(api: api),
         TransactionsScreen(
           title: 'Diamond Purchases',
@@ -171,6 +173,54 @@ class _WorkspaceApi extends MobileApiService {
   Future<List<dynamic>> fetchGoldStock({String query = ''}) async => [];
   @override
   Future<List<dynamic>> fetchStoneStock({String query = ''}) async => [];
+  @override
+  Future<Map<String, dynamic>> fetchTeamPerformance({
+    int? year,
+    int? month,
+  }) async => {
+    'score_rules': {'base_score': 100, 'monthly_target': 200},
+    'totals': {
+      'monthly_target': 200,
+      'total_staff_count': 2,
+      'staff_count': 2,
+      'target_achievers': 1,
+      'reward_points_total': 1234.5,
+      'average_target_progress': 92,
+      'average_score': 212.4,
+      'on_time_rate': 88,
+      'overdue_actions': 3,
+      'approved_followups': 120,
+      'action_required_count': 1,
+      'point_earned_breakdown': {'Approved follow-up with a long reason': 240},
+      'point_loss_breakdown': {'Follow-up delay': 12},
+    },
+    'rows': [
+      {
+        'id': 1,
+        'name': 'A team member with a very long display name indeed',
+        'role_label': 'Senior Sales Executive, Store Manager',
+        'score': 1434.5,
+        'reward_points': 1234.5,
+        'on_time_rate': 100,
+        'approved_followups': 110,
+        'overdue_actions': 3,
+        'disapproved_followups': 2,
+        'needs_attention': true,
+        'analysis_summary':
+            'A long explanation of why this member needs attention.',
+        'has_scored_activity': true,
+        'performance_band': 'Excellent',
+      },
+      {
+        'id': 2,
+        'name': 'Short',
+        'score': 90,
+        'points_to_target': 110,
+        'has_scored_activity': false,
+      },
+    ],
+  };
+
   @override
   Future<Map<String, dynamic>> fetchPerformance({
     int? year,

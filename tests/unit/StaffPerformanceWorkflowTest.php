@@ -29,7 +29,9 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('public const FOLLOWUP_ON_TIME_POINTS = 1.0', $service);
         $this->assertStringContainsString('public const FOLLOWUP_LATE_POINTS = -2.0', $service);
         $this->assertStringContainsString('public const DISAPPROVED_FOLLOWUP_POINTS = 0.0', $service);
-        $this->assertStringContainsString("orNotLike('t.reference_type', 'inventory_%')", $service);
+        $this->assertStringContainsString("->notLike('t.reference_type', 'inventory_%')", $service);
+        // Follow-up schedules are scored once; their mirror workflow task must not add points again.
+        $this->assertStringContainsString("->where('t.reference_type !=', 'order_followup')", $service);
         $this->assertStringContainsString("->where('status', 'rejected')", $service);
         $this->assertStringContainsString("\$request['status'] === 'approved'", $service);
         $this->assertStringContainsString("'followup_approval_credit_per_day' => abs(self::FOLLOWUP_LATE_POINTS)", $service);

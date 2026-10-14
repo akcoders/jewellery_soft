@@ -17,6 +17,7 @@ import 'package:flutkit/jewellery_pwa/screens/order_work_requests_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/orders_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/packing_lists_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/performance_screen.dart';
+import 'package:flutkit/jewellery_pwa/screens/team_performance_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/purchase_create_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/task_scheduler_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/transactions_screen.dart';
@@ -355,6 +356,8 @@ class _AppShellState extends State<AppShell> {
         return AdminTasksScreen(api: _api);
       case 'performance':
         return PerformanceScreen(api: _api);
+      case 'team_performance':
+        return TeamPerformanceScreen(api: _api);
       default:
         return DashboardScreen(
           api: _api,
@@ -606,6 +609,11 @@ class _AppShellState extends State<AppShell> {
                     'Staff Tasks',
                     LucideIcons.list_todo,
                   ),
+                  _drawerItem(
+                    'team_performance',
+                    'Team Performance',
+                    LucideIcons.chart_no_axes_combined,
+                  ),
                 ],
                 _drawerItem(
                   'issuements',
@@ -829,6 +837,8 @@ class _AppShellState extends State<AppShell> {
         return 'My Tasks';
       case 'performance':
         return 'My Performance';
+      case 'team_performance':
+        return 'Team Performance';
       default:
         return 'Dashboard';
     }

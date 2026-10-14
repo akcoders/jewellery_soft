@@ -453,6 +453,8 @@ $routes->group('api', static function ($routes): void {
         $routes->post('admin-tasks', 'Api\Mobile\AdminTasksController::create');
         $routes->post('admin-tasks/(:num)/cancel', 'Api\Mobile\AdminTasksController::cancel/$1');
         $routes->get('performance', 'Api\Mobile\PerformanceController::index');
+        $routes->get('performance/team', 'Api\Mobile\PerformanceController::team');
+        $routes->get('performance/team/(:num)', 'Api\Mobile\PerformanceController::member/$1');
         $routes->get('analytics', 'Api\Mobile\AnalyticsController::index');
         $routes->get('notifications', 'Api\Mobile\NotificationsController::index');
         $routes->get('notifications/status', 'Api\Mobile\NotificationsController::status');

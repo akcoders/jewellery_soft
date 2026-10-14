@@ -285,6 +285,34 @@ class MobileApiService {
     return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
   }
 
+  /// Administrators only: every staff member's score, target and rewards.
+  Future<Map<String, dynamic>> fetchTeamPerformance({
+    int? year,
+    int? month,
+  }) async {
+    final query = <String, String>{};
+    if (year != null) query['year'] = '$year';
+    if (month != null) query['month'] = '$month';
+    final res = await _get('/api/mobile/performance/team', query: query);
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
+  /// Administrators only: one staff member's full point history.
+  Future<Map<String, dynamic>> fetchTeamMemberPerformance(
+    int userId, {
+    int? year,
+    int? month,
+  }) async {
+    final query = <String, String>{};
+    if (year != null) query['year'] = '$year';
+    if (month != null) query['month'] = '$month';
+    final res = await _get(
+      '/api/mobile/performance/team/$userId',
+      query: query,
+    );
+    return (res['data'] as Map?)?.cast<String, dynamic>() ?? {};
+  }
+
   Future<List<dynamic>> fetchPackingListOrders() async {
     final res = await _get('/api/mobile/packing-lists');
     return (res['data'] as List?) ?? <dynamic>[];

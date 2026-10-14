@@ -20,6 +20,10 @@ class StaffPerformanceService
     public const DISAPPROVED_FOLLOWUP_POINTS = 0.0;
     public const ISSUEMENT_POINTS = 0.5;
     public const PURCHASE_POINTS = 0.5;
+    /** Monthly score every staff member should reach. */
+    public const MONTHLY_TARGET_POINTS = 200.0;
+    /** Reward points earned for every score point above the monthly target. */
+    public const REWARD_POINTS_PER_EXTRA_POINT = 1.0;
 
     private const TIMEZONE = 'Asia/Kolkata';
     private const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OWNER'];
@@ -66,6 +70,23 @@ class StaffPerformanceService
         }
 
         return $staff;
+    }
+
+    /** Owners and administrators (not scored themselves) who may review the team. */
+    public function isAdminUser(int $userId): bool
+    {
+        $db = db_connect();
+        if ($userId <= 0 || ! $db->tableExists('user_roles') || ! $db->tableExists('roles')) {
+            return false;
+        }
+
+        return $db->table('user_roles ur')
+            ->join('roles r', 'r.id = ur.role_id', 'inner')
+            ->join('admin_users au', 'au.id = ur.user_id', 'inner')
+            ->where('ur.user_id', $userId)
+            ->where('au.is_active', 1)
+            ->whereIn('r.role_code', self::ADMIN_ROLES)
+            ->countAllResults() > 0;
     }
 
     public function isStaffUser(int $userId): bool
@@ -330,6 +351,10 @@ class StaffPerformanceService
                 'top_performer_score' => is_array($topPerformer) ? (float) ($topPerformer['score'] ?? 0) : 0,
                 'point_earned_breakdown' => $earnedBreakdown,
                 'point_loss_breakdown' => $lostBreakdown,
+                'monthly_target' => self::MONTHLY_TARGET_POINTS,
+                'target_achievers' => count(array_filter($rows, static fn(array $row): bool => (bool) ($row['target_achieved'] ?? false))),
+                'reward_points_total' => round(array_sum(array_column($rows, 'reward_points')), 1),
+                'average_target_progress' => count($activeRows) > 0 ? round(array_sum(array_column($activeRows, 'target_progress')) / count($activeRows), 1) : 0,
             ],
         ];
     }
@@ -379,7 +404,7 @@ class StaffPerformanceService
             'has_scored_activity' => false,
             'point_earned_breakdown' => [],
             'point_loss_breakdown' => [],
-        ];
+        ] + $this->targetProgress(self::BASE_SCORE);
         return [
             'year' => $year,
             'month' => $month,
@@ -409,6 +434,8 @@ class StaffPerformanceService
             'missing_followup_image' => -0.5,
             'issuement' => self::ISSUEMENT_POINTS,
             'purchase' => self::PURCHASE_POINTS,
+            'monthly_target' => self::MONTHLY_TARGET_POINTS,
+            'reward_per_extra_point' => self::REWARD_POINTS_PER_EXTRA_POINT,
         ];
     }
 
@@ -429,9 +456,14 @@ class StaffPerformanceService
                 ->orGroupStart()->where('t.is_done', 0)->where('t.scheduled_at >=', $start)->where('t.scheduled_at <', $end)->groupEnd()
             ->groupEnd()
             ->where('t.status !=', 'cancelled')
+            // Order follow-up schedules create a mirror task; the schedule itself is
+            // scored in followupRows(), so counting the task too would double the points.
             ->groupStart()
                 ->where('t.reference_type', null)
-                ->orNotLike('t.reference_type', 'inventory_%')
+                ->orGroupStart()
+                    ->notLike('t.reference_type', 'inventory_%')
+                    ->where('t.reference_type !=', 'order_followup')
+                ->groupEnd()
             ->groupEnd()
             ->orderBy('t.scheduled_at', 'DESC')
             ->get()->getResultArray();
@@ -662,8 +694,13 @@ class StaffPerformanceService
             if (! $db->tableExists($table) || ! $db->fieldExists('created_by', $table)) {
                 continue;
             }
-            foreach ($db->table($table)->select('id, voucher_no, issue_date, created_by, created_at')->whereIn('created_by', $staffIds)
-                ->where('issue_date >=', substr($start, 0, 10))->where('issue_date <', substr($end, 0, 10))->get()->getResultArray() as $row) {
+            $issueBuilder = $db->table($table)->select('id, voucher_no, issue_date, created_by, created_at')->whereIn('created_by', $staffIds)
+                ->where('issue_date >=', substr($start, 0, 10))->where('issue_date <', substr($end, 0, 10));
+            if ($db->fieldExists('receive_movement_id', $table)) {
+                // Stone auto-issued while receiving an order is system generated, not issuement work.
+                $issueBuilder->where('receive_movement_id', null);
+            }
+            foreach ($issueBuilder->get()->getResultArray() as $row) {
                 $voucher = trim((string) ($row['voucher_no'] ?? ''));
                 $key = (int) $row['created_by'] . '|' . ($voucher !== '' ? $voucher : ($table . ':' . $row['id']));
                 $issuements[$key] = $this->activity((int) $row['created_by'], 'Issuement', $voucher !== '' ? $voucher : ('Issue #' . $row['id']), 'Material issued', (string) (($row['created_at'] ?? '') ?: $row['issue_date']), self::ISSUEMENT_POINTS);
@@ -796,6 +833,7 @@ class StaffPerformanceService
         $overdue = $taskOverdue + $followupOverdue;
         $dueActions = $taskOnTime + $taskLate + $taskOverdue + $followupOnTime + $followupLate + $followupOverdue;
         $score = max(0, round(self::BASE_SCORE + $earned - $lost, 1));
+        $target = $this->targetProgress($score);
         $hasActivity = $dueActions > 0 || count($activities) > 0 || count($ratings) > 0;
         $needsAttention = $disapprovedFollowups > 0 || $duplicateFollowups > 0 || $missingImageFollowups > 0 || $overdue > 0 || $score < 90 || (count($ratings) > 0 && $ratingTotal / count($ratings) < 3);
         [$performanceBand, $analysisSummary] = $this->performanceAssessment(
@@ -843,9 +881,33 @@ class StaffPerformanceService
             'performance_band' => $performanceBand,
             'analysis_summary' => $analysisSummary,
             'needs_attention' => $needsAttention,
+            'monthly_target' => $target['monthly_target'],
+            'target_progress' => $target['target_progress'],
+            'points_to_target' => $target['points_to_target'],
+            'target_achieved' => $target['target_achieved'],
+            'reward_points' => $target['reward_points'],
             'has_scored_activity' => $hasActivity,
             'point_earned_breakdown' => array_map(static fn(float $points): float => round($points, 2), $earnedBreakdown),
             'point_loss_breakdown' => array_map(static fn(float $points): float => round($points, 2), $lostBreakdown),
+        ];
+    }
+
+    /**
+     * Monthly target of MONTHLY_TARGET_POINTS; every point above it earns
+     * REWARD_POINTS_PER_EXTRA_POINT reward points.
+     *
+     * @return array{monthly_target:float,target_progress:float,points_to_target:float,target_achieved:bool,reward_points:float}
+     */
+    public function targetProgress(float $score): array
+    {
+        $target = self::MONTHLY_TARGET_POINTS;
+
+        return [
+            'monthly_target' => $target,
+            'target_progress' => $target > 0 ? round(min(100, max(0, $score / $target * 100)), 1) : 0.0,
+            'points_to_target' => round(max(0, $target - $score), 1),
+            'target_achieved' => $score >= $target,
+            'reward_points' => round(max(0, $score - $target) * self::REWARD_POINTS_PER_EXTRA_POINT, 1),
         ];
     }
 

@@ -7,18 +7,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:flutkit/jewellery_pwa/widgets/app_section_title.dart';
 import 'package:flutkit/jewellery_pwa/widgets/workspace_components.dart';
+import 'package:flutkit/jewellery_pwa/widgets/performance_target_card.dart';
 
 class PerformanceScreen extends StatefulWidget {
-  const PerformanceScreen({super.key, required this.api});
+  const PerformanceScreen({
+    super.key,
+    required this.api,
+    this.memberId,
+    this.memberName,
+    this.initialPeriod,
+  });
 
   final MobileApiService api;
+
+  /// When set, an administrator is viewing this staff member's performance.
+  final int? memberId;
+  final String? memberName;
+  final DateTime? initialPeriod;
+
+  bool get isTeamView => memberId != null;
 
   @override
   State<PerformanceScreen> createState() => _PerformanceScreenState();
 }
 
 class _PerformanceScreenState extends State<PerformanceScreen> {
-  DateTime _period = DateTime(DateTime.now().year, DateTime.now().month);
+  late DateTime _period =
+      widget.initialPeriod ??
+      DateTime(DateTime.now().year, DateTime.now().month);
   Map<String, dynamic> _summary = {};
   Map<String, dynamic> _rules = {};
   List<Map<String, dynamic>> _events = [];
@@ -37,10 +53,16 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
       _error = '';
     });
     try {
-      final data = await widget.api.fetchPerformance(
-        year: _period.year,
-        month: _period.month,
-      );
+      final data = widget.isTeamView
+          ? await widget.api.fetchTeamMemberPerformance(
+              widget.memberId!,
+              year: _period.year,
+              month: _period.month,
+            )
+          : await widget.api.fetchPerformance(
+              year: _period.year,
+              month: _period.month,
+            );
       if (!mounted) return;
       setState(() {
         _summary = (data['summary'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -79,15 +101,28 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          const WorkspacePageHeading(
-            title: 'Your performance',
-            description: 'A clear record of your work and the points it earns.',
+          WorkspacePageHeading(
+            title: widget.isTeamView
+                ? '${widget.memberName ?? 'Staff'} performance'
+                : 'Your performance',
+            description: widget.isTeamView
+                ? 'Every point this team member earned or lost this month.'
+                : 'A clear record of your work and the points it earns.',
             icon: LucideIcons.chart_no_axes_combined,
           ),
           const SizedBox(height: 24),
           _monthSelector(),
           const SizedBox(height: 16),
           _scoreCard(score),
+          const SizedBox(height: 16),
+          PerformanceTargetCard(
+            score: score,
+            target: _number(
+              _summary['monthly_target'] ?? _rules['monthly_target'] ?? 200,
+            ),
+            rewardPoints: _number(_summary['reward_points']),
+            rewardPerPoint: _number(_rules['reward_per_extra_point'] ?? 1),
+          ),
           const SizedBox(height: 16),
           WorkspaceCardLayout(
             minimumWidth: 132,
@@ -261,11 +296,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    score >= 100
-                        ? 'Strong performance'
-                        : score >= 90
-                        ? 'Attention needed'
-                        : 'Improvement required',
+                    _scoreHeadline(score),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 17,
@@ -535,6 +566,15 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         ],
       ),
     );
+  }
+
+  String _scoreHeadline(double score) {
+    final target = _number(_rules['monthly_target'] ?? 200);
+    if (score >= target) return 'Target reached';
+    if (score >= target * 0.75) return 'On track for target';
+    if (score >= 100) return 'Building towards target';
+    if (score >= 90) return 'Attention needed';
+    return 'Improvement required';
   }
 
   double _number(dynamic value) =>
