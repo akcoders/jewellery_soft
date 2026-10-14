@@ -1632,6 +1632,18 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
             document.body.setAttribute('data-bs-theme', theme);
         })();
     </script>
+    <script>
+        // CSRF tokens regenerate after every verified POST. Background (AJAX)
+        // saves call this so every form on the page gets the fresh token,
+        // not just the form that was submitted.
+        window.erpSyncCsrf = function (name, hash) {
+            if (!name || !hash) return;
+            document.querySelectorAll('input[type="hidden"]').forEach(function (input) {
+                if (input.name === name) input.value = hash;
+            });
+            if (window.AabhushanTourConfig) window.AabhushanTourConfig.csrfHash = hash;
+        };
+    </script>
     <div id="globalLoaderOverlay" class="global-loader-overlay active" aria-hidden="false">
         <div class="global-loader-card">
             <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>

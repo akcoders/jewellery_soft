@@ -848,6 +848,7 @@ $statusClass = match ($status) {
                 if (result.csrf && result.csrf.name && result.csrf.hash) {
                     const csrfInput = Array.from(receiveForm.elements).find(field => field.name === result.csrf.name);
                     if (csrfInput) csrfInput.value = result.csrf.hash;
+                    if (window.erpSyncCsrf) window.erpSyncCsrf(result.csrf.name, result.csrf.hash);
                 }
                 if (!response.ok || result.status !== 'ok') {
                     throw new Error(result.message || 'Unable to save the finished jewellery receipt.');

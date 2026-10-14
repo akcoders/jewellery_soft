@@ -348,6 +348,7 @@ $suggestedPurityId = (int) ($items[0]['gold_purity_id'] ?? 0);
             if (result.csrf && result.csrf.name && result.csrf.hash) {
                 const token = form.querySelector('[name="' + CSS.escape(result.csrf.name) + '"]');
                 if (token) token.value = result.csrf.hash;
+                if (window.erpSyncCsrf) window.erpSyncCsrf(result.csrf.name, result.csrf.hash);
             }
             if (!response.ok || result.status !== 'ok') throw new Error(result.message || 'Unable to save the receipt.');
             if (window.Swal) await window.Swal.fire({ icon: 'success', title: 'Completed', text: result.message || 'Finished jewellery received.' });
