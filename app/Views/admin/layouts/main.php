@@ -1626,8 +1626,8 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
 <body class="<?= $isOrders ? 'module-orders' : '' ?>">
     <script>
         (function () {
-            var theme = 'dark';
-            try { theme = localStorage.getItem('erp-theme') === 'light' ? 'light' : 'dark'; } catch (e) {}
+            var theme = 'light';
+            try { theme = localStorage.getItem('erp-theme') === 'dark' ? 'dark' : 'light'; } catch (e) {}
             document.body.setAttribute('data-erp-theme', theme);
             document.body.setAttribute('data-bs-theme', theme);
         })();
@@ -1683,7 +1683,7 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
             </a>
 
             <ul class="nav nav-tabs user-menu" data-app-tour="profile">
-                <li class="nav-item d-flex align-items-center">
+                <li class="nav-item d-none d-sm-flex align-items-center">
                     <button type="button" class="erp-theme-toggle" data-erp-theme-toggle aria-label="Switch colour theme" title="Switch light / dark theme">
                         <svg class="erp-theme-toggle__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
                         <svg class="erp-theme-toggle__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -1714,6 +1714,7 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
                                 <ul>
                                     <li><a class="dropdown-item" href="<?= site_url('admin/dashboard') ?>">Dashboard</a></li>
                                     <li><a class="dropdown-item" href="#" data-app-tour-replay><i class="fe fe-compass me-2"></i>Application Tour</a></li>
+                                    <li class="d-sm-none"><a class="dropdown-item" href="#" data-erp-theme-toggle><i class="fe fe-sun me-2"></i>Switch light / dark</a></li>
                                 </ul>
                             </div>
                             <div class="subscription-logout">
@@ -2419,6 +2420,7 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
         document.addEventListener('click', function (event) {
             var toggle = event.target.closest('[data-erp-theme-toggle]');
             if (!toggle) return;
+            event.preventDefault();
             var next = document.body.getAttribute('data-erp-theme') === 'light' ? 'dark' : 'light';
             document.body.setAttribute('data-erp-theme', next);
             document.body.setAttribute('data-bs-theme', next);

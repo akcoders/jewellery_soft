@@ -1,5 +1,5 @@
 /*
- * Aurum theme — dark-first luxury skin for the Aabhushan admin.
+ * Aurum theme — luxury skin for the Aabhushan admin (light by default, dark on toggle).
  * Loaded after the layout's own styles; it only restyles, never changes behaviour.
  * Theme is chosen on <body data-erp-theme="dark|light"> (not <html>, because
  * template layout.js reloads the page whenever <html> attributes change).
@@ -125,16 +125,11 @@ body[data-erp-theme] {
 html:has(body[data-erp-theme="dark"]) { background: #0a0c11; }
 html:has(body[data-erp-theme="light"]) { background: #f5f3ee; }
 
-body[data-erp-theme] h1, body[data-erp-theme] h2, body[data-erp-theme] h3,
-body[data-erp-theme] h4, body[data-erp-theme] h5, body[data-erp-theme] h6,
-body[data-erp-theme] .h1, body[data-erp-theme] .h2, body[data-erp-theme] .h3,
-body[data-erp-theme] .h4, body[data-erp-theme] .h5, body[data-erp-theme] .h6 {
-    color: var(--au-text);
-    letter-spacing: -0.01em;
-}
+/* Low specificity so page heroes that set their own heading colour still win. */
+:where(body[data-erp-theme]) :where(h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6) { letter-spacing: -0.01em; }
 /* Layout forces `a { color: var(--erp-red) !important }`; links read gold in this theme. */
-body[data-erp-theme] a:not(.btn):not(.dropdown-item):not(.page-link):not(.nav-link) { color: var(--au-gold) !important; }
-body[data-erp-theme] a:not(.btn):not(.dropdown-item):not(.page-link):not(.nav-link):hover { color: var(--au-gold-hi) !important; }
+body[data-erp-theme] a:where(:not(.btn, .dropdown-item, .page-link, .nav-link, .au-btn)) { color: var(--au-gold) !important; }
+body[data-erp-theme] a:where(:not(.btn, .dropdown-item, .page-link, .nav-link, .au-btn)):hover { color: var(--au-gold-hi) !important; }
 body[data-erp-theme] ::selection { background: var(--au-gold-line); color: var(--au-text); }
 body[data-erp-theme] hr { border-color: var(--au-border-strong); opacity: 1; }
 
@@ -305,6 +300,11 @@ body[data-erp-theme] .sidebar .sidebar-menu ul li.active > a .menu-arrow { color
 body[data-erp-theme] .sidebar .sidebar-menu ul li.submenu ul { background: transparent !important; }
 body[data-erp-theme] .sidebar .sidebar-menu ul li.submenu ul li a { font-size: 13px; }
 body[data-erp-theme] .sidebar .sidebar-menu .badge { box-shadow: none; }
+/* Badges are spans inside menu links; keep them readable over the link colour rules. */
+body[data-erp-theme] .sidebar .sidebar-menu ul li a span.badge,
+body[data-erp-theme] .sidebar .sidebar-menu ul li.active > a span.badge,
+body[data-erp-theme] .sidebar .sidebar-menu ul li a:hover span.badge { color: #fff !important; font-size: 10.5px; min-width: 20px; padding: .3em .55em !important; }
+body[data-erp-theme] .sidebar .sidebar-menu ul li a span.badge.bg-warning { color: #1b1203 !important; }
 body[data-erp-theme] .sidebar-overlay { background: rgba(0, 0, 0, .55) !important; backdrop-filter: blur(2px); }
 
 /* ---------- Page chrome ---------- */
@@ -323,22 +323,20 @@ body[data-erp-theme] .erp-auto-toolbar h4,
 body[data-erp-theme] .erp-page-toolbar h4 { color: var(--au-text) !important; font-weight: 700; letter-spacing: -0.015em; }
 
 /* ---------- Cards ---------- */
-body[data-erp-theme] .card {
-    background: var(--au-surface) !important;
-    border: 1px solid var(--au-border) !important;
-    border-radius: 16px !important;
-    box-shadow: var(--au-shadow) !important;
-    color: var(--au-text);
+/* Cards get their surface from --erp-surface in the layout; custom hero cards keep their own backgrounds. */
+:where(body[data-erp-theme]) .card {
+    border: 1px solid var(--au-border);
+    border-radius: 16px;
+    box-shadow: var(--au-shadow);
 }
-body[data-erp-theme] .card-header,
+:where(body[data-erp-theme]) .card-header { border-bottom-color: var(--au-border); }
 body[data-erp-theme] .erp-data-card > .card-header,
 body[data-erp-theme] .erp-form-shell .card-header {
     background: transparent !important;
     border-bottom: 1px solid var(--au-border) !important;
-    color: var(--au-text);
 }
 body[data-erp-theme] .card-footer { background: var(--au-surface-2) !important; border-top: 1px solid var(--au-border) !important; }
-body[data-erp-theme] .card-title { color: var(--au-text) !important; font-weight: 650; }
+:where(body[data-erp-theme]) .card-title { font-weight: 650; }
 body[data-erp-theme] .erp-form-card,
 body[data-erp-theme] .erp-form-shell { border-top: 1px solid var(--au-border) !important; position: relative; }
 body[data-erp-theme] .erp-form-card::before,
@@ -433,15 +431,20 @@ body[data-erp-theme] .btn-secondary:hover,
 body[data-erp-theme] .btn-light:hover,
 body[data-erp-theme] .btn-white:hover { background: var(--au-surface-3) !important; }
 body[data-erp-theme] .btn-outline-secondary,
-body[data-erp-theme] .btn-outline-dark,
-body[data-erp-theme] .btn-outline-light {
+body[data-erp-theme] .btn-outline-dark {
     background: transparent !important;
     border: 1px solid var(--au-border-strong) !important;
     color: var(--au-text-2) !important;
 }
 body[data-erp-theme] .btn-outline-secondary:hover,
-body[data-erp-theme] .btn-outline-dark:hover,
-body[data-erp-theme] .btn-outline-light:hover { background: var(--au-surface-2) !important; color: var(--au-text) !important; }
+body[data-erp-theme] .btn-outline-dark:hover { background: var(--au-surface-2) !important; color: var(--au-text) !important; }
+/* outline-light is only used on dark hero banners: keep it light. */
+body[data-erp-theme] .btn-outline-light { background: transparent !important; border: 1px solid rgba(255, 255, 255, .45) !important; color: #fff !important; }
+body[data-erp-theme] .btn-outline-light:hover { background: rgba(255, 255, 255, .12) !important; color: #fff !important; }
+/* Hero CTA buttons: the layout forces links to --erp-red; restore the hero's dark ink on gold. */
+body[data-erp-theme] .dc-hero a.btn:not([class*="btn-outline"]) { color: #351528 !important; }
+/* Template .card-body grey ink is unreadable on the dark gradient hero cards. */
+body[data-erp-theme] :is(.dc-hero, .pl-hero) > .card-body { color: #fff; }
 body[data-erp-theme] .btn-success { background: var(--au-emerald) !important; border-color: var(--au-emerald) !important; color: #06150f !important; }
 body[data-erp-theme] .btn-danger { background: var(--au-ruby) !important; border-color: var(--au-ruby) !important; color: #fff !important; }
 body[data-erp-theme] .btn-warning { background: var(--au-amber) !important; border-color: var(--au-amber) !important; color: #1b1203 !important; }
@@ -769,10 +772,7 @@ body[data-erp-theme] .app-tour-counter { color: var(--au-text-2) !important; }
 }
 
 @media (max-width: 575.98px) {
-    .erp-theme-toggle { margin-right: 4px; }
-    body[data-erp-theme] .admin-alert-trigger,
-    body[data-erp-theme] .erp-theme-toggle { height: 34px; width: 34px; }
-    body[data-erp-theme] .header .device-logo img { max-width: 112px; }
+    body[data-erp-theme] .admin-alert-trigger { height: 34px; width: 34px; }
 }
 
 @media (max-width: 767.98px) {
