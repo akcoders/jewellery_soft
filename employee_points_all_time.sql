@@ -135,25 +135,47 @@ followup_approval_credit AS (
 ),
 followup_schedule_points AS (
     SELECT
-        sb.user_id,
+        delay.user_id,
+        delay.effective_due_at,
+        delay.performance_end_at,
+        delay.late_days,
         CASE
-            WHEN sb.performance_end_at IS NULL OR sb.performance_end_at <= sb.effective_due_at
-                THEN 0
-            WHEN sb.status LIKE 'completed%'
-                 AND sb.approval_status IN ('pending', 'rejected')
-                THEN 0
-            ELSE CEILING(
-                GREATEST(
-                    0,
-                    TIMESTAMPDIFF(SECOND, sb.effective_due_at, sb.performance_end_at)
-                    - COALESCE(fps.paused_seconds, 0)
-                ) / 86400
-            )
-        END AS late_days,
-        COALESCE(fac.credited_days, 0) AS approval_credit_days
-    FROM followup_schedule_base sb
-    LEFT JOIN followup_pause_seconds fps ON fps.schedule_id = sb.id
-    LEFT JOIN followup_approval_credit fac ON fac.schedule_id = sb.id
+            WHEN delay.late_days > 0
+             AND DATE(delay.performance_end_at) = DATE(delay.effective_due_at)
+                THEN 1
+            ELSE 0
+        END AS same_day_late_count,
+        CASE
+            WHEN delay.late_days > 0
+             AND DATE(delay.performance_end_at) <> DATE(delay.effective_due_at)
+                THEN delay.late_days
+            ELSE 0
+        END AS days_late_count,
+        delay.approval_credit_days
+    FROM (
+        SELECT
+            sb.user_id,
+            sb.effective_due_at,
+            sb.performance_end_at,
+            CASE
+                WHEN sb.performance_end_at IS NULL OR sb.performance_end_at <= sb.effective_due_at
+                    THEN 0
+                WHEN sb.status LIKE 'completed%'
+                     AND sb.approval_status IN ('pending', 'rejected')
+                    THEN 0
+                ELSE CEILING(
+                    GREATEST(
+                        0,
+                        TIMESTAMPDIFF(SECOND, sb.effective_due_at, sb.performance_end_at)
+                        - COALESCE(fps.paused_seconds, 0)
+                    ) / 86400
+                )
+            END AS late_days,
+            COALESCE(fac.credited_days, 0) AS approval_credit_days
+        FROM followup_schedule_base sb
+        LEFT JOIN followup_pause_seconds fps ON fps.schedule_id = sb.id
+        LEFT JOIN followup_approval_credit fac ON fac.schedule_id = sb.id
+    ) delay
 ),
 issue_rows AS (
     SELECT
@@ -287,6 +309,18 @@ event_points AS (
 
     UNION ALL
 
+    SELECT fsp.user_id, 'followup_same_day_late', 0.00, fsp.same_day_late_count
+    FROM followup_schedule_points fsp
+    WHERE fsp.same_day_late_count > 0
+
+    UNION ALL
+
+    SELECT fsp.user_id, 'followup_days_late', 0.00, fsp.days_late_count
+    FROM followup_schedule_points fsp
+    WHERE fsp.days_late_count > 0
+
+    UNION ALL
+
     SELECT fsp.user_id, 'approval_delay_credit', 2.00 * fsp.approval_credit_days, fsp.approval_credit_days
     FROM followup_schedule_points fsp
     WHERE fsp.approval_credit_days > 0
@@ -302,6 +336,8 @@ totals AS (
         SUM(CASE WHEN category = 'missing_followup_images' THEN points ELSE 0 END) AS missing_followup_image_points,
         SUM(CASE WHEN category = 'followup_delay' THEN event_count ELSE 0 END) AS followup_late_days,
         SUM(CASE WHEN category = 'followup_delay' THEN points ELSE 0 END) AS followup_delay_points,
+        SUM(CASE WHEN category = 'followup_same_day_late' THEN event_count ELSE 0 END) AS followup_same_day_late_count,
+        SUM(CASE WHEN category = 'followup_days_late' THEN event_count ELSE 0 END) AS followup_days_late_count,
         SUM(CASE WHEN category = 'approval_delay_credit' THEN event_count ELSE 0 END) AS approval_credit_days,
         SUM(CASE WHEN category = 'approval_delay_credit' THEN points ELSE 0 END) AS approval_credit_points,
         SUM(CASE WHEN category = 'issuements' THEN event_count ELSE 0 END) AS issuement_count,
@@ -325,6 +361,8 @@ SELECT
     COALESCE(t.missing_followup_image_points, 0.00) AS missing_followup_image_points,
     COALESCE(t.followup_late_days, 0) AS followup_late_days,
     COALESCE(t.followup_delay_points, 0.00) AS followup_delay_points,
+    COALESCE(t.followup_same_day_late_count, 0) AS followup_same_day_late_count,
+    COALESCE(t.followup_days_late_count, 0) AS followup_days_late_count,
     COALESCE(t.approval_credit_days, 0) AS approval_credit_days,
     COALESCE(t.approval_credit_points, 0.00) AS approval_credit_points,
     COALESCE(t.issuement_count, 0) AS issuement_count,
