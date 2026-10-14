@@ -129,6 +129,7 @@ final class OrderPresentationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("->whereIn('item_status', ['Completed', 'Packed', 'Dispatched'])", $migration);
         $this->assertStringContainsString("'to_status' => 'Ready'", $migration);
         $this->assertStringContainsString("->where('movement_type', 'receive')", $this->source('Services/OrderReceivingService.php'));
+        $this->assertStringContainsString('use App\\Services\\OrderReceivingService;', $this->source('Controllers/Admin/OrderController.php'));
     }
 
     private function source(string $relativePath): string
