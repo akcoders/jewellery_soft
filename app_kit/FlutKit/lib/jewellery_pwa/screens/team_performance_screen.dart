@@ -12,9 +12,17 @@ import 'package:flutter_lucide/flutter_lucide.dart';
 /// Administrator view of the whole team: who is on track for the monthly
 /// target, who earned reward points, and where points are won or lost.
 class TeamPerformanceScreen extends StatefulWidget {
-  const TeamPerformanceScreen({super.key, required this.api});
+  const TeamPerformanceScreen({
+    super.key,
+    required this.api,
+    this.memberBuilder,
+  });
 
   final MobileApiService api;
+
+  /// Lets the Android app open its own performance screen for a member.
+  final Widget Function(int memberId, String memberName, DateTime period)?
+  memberBuilder;
 
   @override
   State<TeamPerformanceScreen> createState() => _TeamPerformanceScreenState();
@@ -106,12 +114,18 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
       MaterialPageRoute(
         builder: (_) => Scaffold(
           appBar: AppBar(title: Text('${row['name'] ?? 'Staff'}')),
-          body: PerformanceScreen(
-            api: widget.api,
-            memberId: id,
-            memberName: '${row['name'] ?? 'Staff'}',
-            initialPeriod: _period,
-          ),
+          body:
+              widget.memberBuilder?.call(
+                id,
+                '${row['name'] ?? 'Staff'}',
+                _period,
+              ) ??
+              PerformanceScreen(
+                api: widget.api,
+                memberId: id,
+                memberName: '${row['name'] ?? 'Staff'}',
+                initialPeriod: _period,
+              ),
         ),
       ),
     );

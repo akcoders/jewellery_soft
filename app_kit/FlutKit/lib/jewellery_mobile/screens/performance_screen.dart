@@ -3,19 +3,35 @@ import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
+import 'package:flutkit/jewellery_pwa/widgets/performance_target_card.dart';
 import 'package:flutter/material.dart';
 
 class PerformanceScreen extends StatefulWidget {
-  const PerformanceScreen({super.key, required this.api});
+  const PerformanceScreen({
+    super.key,
+    required this.api,
+    this.memberId,
+    this.memberName,
+    this.initialPeriod,
+  });
 
   final MobileApiService api;
+
+  /// When set, an administrator is viewing this staff member's performance.
+  final int? memberId;
+  final String? memberName;
+  final DateTime? initialPeriod;
+
+  bool get isTeamView => memberId != null;
 
   @override
   State<PerformanceScreen> createState() => _PerformanceScreenState();
 }
 
 class _PerformanceScreenState extends State<PerformanceScreen> {
-  DateTime _period = DateTime(DateTime.now().year, DateTime.now().month);
+  late DateTime _period =
+      widget.initialPeriod ??
+      DateTime(DateTime.now().year, DateTime.now().month);
   Map<String, dynamic> _summary = {};
   Map<String, dynamic> _rules = {};
   List<Map<String, dynamic>> _events = [];
@@ -34,10 +50,16 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
       _error = '';
     });
     try {
-      final data = await widget.api.fetchPerformance(
-        year: _period.year,
-        month: _period.month,
-      );
+      final data = widget.isTeamView
+          ? await widget.api.fetchTeamMemberPerformance(
+              widget.memberId!,
+              year: _period.year,
+              month: _period.month,
+            )
+          : await widget.api.fetchPerformance(
+              year: _period.year,
+              month: _period.month,
+            );
       if (!mounted) return;
       setState(() {
         _summary = (data['summary'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -99,11 +121,16 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                       onPressed: () => _changeMonth(-1),
                       icon: const Icon(Icons.chevron_left, color: Colors.white),
                     ),
-                    Text(
-                      '${_monthName(_period.month)} ${_period.year}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Text(
+                        '${_monthName(_period.month)} ${_period.year}',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     IconButton(
@@ -127,35 +154,37 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                       width: 4,
                     ),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        score.toStringAsFixed(1),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 31,
-                          fontWeight: FontWeight.w900,
-                        ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            score.toStringAsFixed(1),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 31,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const Text(
+                            'SCORE',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                              letterSpacing: 1.4,
+                            ),
+                          ),
+                        ],
                       ),
-                      const Text(
-                        'SCORE',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                          letterSpacing: 1.4,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  score >= 100
-                      ? 'Strong performance'
-                      : (score >= 90
-                            ? 'Attention needed'
-                            : 'Improvement required'),
+                  _scoreHeadline(score),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -170,40 +199,41 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: AppSpacing.md,
-            mainAxisSpacing: AppSpacing.md,
-            childAspectRatio: 1.55,
-            children: [
-              _metric(
-                'Points earned',
-                '+${AppFormatters.points(_summary['points_earned'])}',
-                AppColors.success,
-                Icons.trending_up,
-              ),
-              _metric(
-                'Points lost',
-                '-${AppFormatters.points(_summary['points_lost'])}',
-                AppColors.danger,
-                Icons.trending_down,
-              ),
-              _metric(
-                'On-time rate',
-                '${_number(_summary['on_time_rate']).toStringAsFixed(0)}%',
-                AppColors.diamond,
-                Icons.timer_outlined,
-              ),
-              _metric(
-                'Pending overdue',
-                '${_integer(_summary['overdue_actions'])}',
-                AppColors.warning,
-                Icons.warning_amber_rounded,
-              ),
-            ],
+          PerformanceTargetCard(
+            score: score,
+            target: _number(
+              _summary['monthly_target'] ?? _rules['monthly_target'] ?? 200,
+            ),
+            rewardPoints: _number(_summary['reward_points']),
+            rewardPerPoint: _number(_rules['reward_per_extra_point'] ?? 1),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          _metricGrid([
+            _metric(
+              'Points earned',
+              '+${AppFormatters.points(_summary['points_earned'])}',
+              AppColors.success,
+              Icons.trending_up,
+            ),
+            _metric(
+              'Points lost',
+              '-${AppFormatters.points(_summary['points_lost'])}',
+              AppColors.danger,
+              Icons.trending_down,
+            ),
+            _metric(
+              'On-time rate',
+              '${_number(_summary['on_time_rate']).toStringAsFixed(0)}%',
+              AppColors.diamond,
+              Icons.timer_outlined,
+            ),
+            _metric(
+              'Pending overdue',
+              '${_integer(_summary['overdue_actions'])}',
+              AppColors.warning,
+              Icons.warning_amber_rounded,
+            ),
+          ]),
           const SizedBox(height: AppSpacing.xl),
           const Text(
             'Performance Breakdown',
@@ -233,6 +263,21 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
       ),
     );
   }
+
+  /// Two tiles per row that grow with their content (large system text
+  /// would overflow a fixed-ratio grid).
+  Widget _metricGrid(List<Widget> tiles) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = (constraints.maxWidth - AppSpacing.md) / 2;
+      return Wrap(
+        spacing: AppSpacing.md,
+        runSpacing: AppSpacing.md,
+        children: [
+          for (final tile in tiles) SizedBox(width: width, child: tile),
+        ],
+      );
+    },
+  );
 
   Widget _metric(String label, String value, Color color, IconData icon) =>
       Container(
@@ -412,6 +457,15 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         ],
       ),
     );
+  }
+
+  String _scoreHeadline(double score) {
+    final target = _number(_rules['monthly_target'] ?? 200);
+    if (score >= target) return 'Target reached';
+    if (score >= target * 0.75) return 'On track for target';
+    if (score >= 100) return 'Building towards target';
+    if (score >= 90) return 'Attention needed';
+    return 'Improvement required';
   }
 
   double _number(dynamic value) =>

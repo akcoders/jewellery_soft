@@ -48,27 +48,33 @@ class PerformanceTargetCard extends StatelessWidget {
               ),
             ),
           ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${(progress * 100).round()}%',
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.plum,
-                  letterSpacing: -0.5,
-                ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${(progress * 100).round()}%',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.plum,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  Text(
+                    'of ${safeTarget.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                'of ${safeTarget.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
