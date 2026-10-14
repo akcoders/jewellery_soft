@@ -455,11 +455,11 @@ class OrdersController extends MobileBaseController
             static fn(array $row): bool => strtolower((string) ($row['approval_status'] ?? 'approved')) === 'pending'
         ));
         $pendingFollowupApproval = $pendingFollowups[0] ?? (new MobileApprovalService())->pendingForSubject('followup', 'orders', $id);
-        $documents = $this->documentLinks($order);
-        $media = $this->orderMedia($id);
         $receivingService = new OrderReceivingService($db);
         $receipt = $receivingService->receiptSummary($id);
         $isReceived = $receivingService->hasRecordedReceipt($id);
+        $documents = $this->documentLinks($order, $isReceived);
+        $media = $this->orderMedia($id);
         $followupClosed = in_array(
             (string) ($order['status'] ?? ''),
             ['Ready', 'Packed', 'Dispatched', 'Delivered', 'Completed', 'Complete', 'Cancelled'],
@@ -1028,10 +1028,10 @@ class OrdersController extends MobileBaseController
         return $orders;
     }
 
-    private function documentLinks(array $order): array
+    private function documentLinks(array $order, bool $isReceived): array
     {
         $status = (string) ($order['status'] ?? '');
-        $eligible = in_array($status, ['Ready', 'Packed', 'Dispatched', 'Completed'], true);
+        $eligible = $isReceived && in_array($status, ['Ready', 'Packed', 'Dispatched', 'Completed'], true);
         $orderId = (int) ($order['id'] ?? 0);
         $hasDeliveryChallanTable = db_connect()->tableExists('delivery_challans');
 

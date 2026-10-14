@@ -386,6 +386,21 @@ class MobileApprovalService
         }
         $diamond = is_array($payload['diamond_lines'] ?? null) ? $payload['diamond_lines'] : [];
         if ($diamond !== []) {
+            $diamondOrderIds = array_values(array_unique(array_filter(array_map(
+                static fn(array $line): int => (int) ($line['allocation_order_id'] ?? 0),
+                $diamond
+            ), static fn(int $id): bool => $id > 0)));
+            $linkedOrderId = (int) ($payload['order_id'] ?? 0);
+            if ($linkedOrderId > 0) {
+                $diamondOrderIds[] = $linkedOrderId;
+            }
+            $diamondOrderValidator = new DiamondIssueOrderService($this->db);
+            foreach (array_unique($diamondOrderIds) as $orderId) {
+                $orderError = $diamondOrderValidator->validate($orderId);
+                if ($orderError !== null) {
+                    throw new RuntimeException($orderError);
+                }
+            }
             $issueId = (int) (new IssueHeaderModel())->insert($common, true);
             $lineModel = new IssueLineModel();
             foreach ($diamond as $line) {

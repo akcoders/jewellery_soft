@@ -26,6 +26,7 @@ use App\Models\StoneInventoryItemModel;
 use App\Models\StonePurchaseAttachmentModel;
 use App\Services\DiamondInventory\StockService as DiamondStockService;
 use App\Services\DiamondBagTraceService;
+use App\Services\DiamondIssueOrderService;
 use App\Services\DiamondBagService;
 use App\Services\DiamondChalniStockService;
 use App\Services\GoldInventory\StockService as GoldStockService;
@@ -244,6 +245,11 @@ class TransactionsController extends MobileBaseController
             && (int) ($bag['followup_assigned_to'] ?? 0) !== $userId
             && (int) ($bag['order_created_by'] ?? 0) !== $userId) {
             return $this->fail('You cannot issue a diamond bag for another user\'s order.', 403);
+        }
+
+        $orderError = (new DiamondIssueOrderService())->validate((int) ($context['order_id'] ?? 0));
+        if ($orderError !== null) {
+            return $this->fail($orderError, 422);
         }
 
         $payload = $this->payload();
@@ -1659,6 +1665,10 @@ class TransactionsController extends MobileBaseController
                 if ($allocationOrderId > 0
                     && db_connect()->table('orders')->where('id', $allocationOrderId)->countAllResults() === 0) {
                     return ['lines' => [], 'error' => 'Selected diamond order allocation does not exist.'];
+                }
+                $orderError = (new DiamondIssueOrderService())->validate($allocationOrderId);
+                if ($orderError !== null) {
+                    return ['lines' => [], 'error' => $orderError];
                 }
             }
             $pcs = (float) ($line['pcs'] ?? 0);

@@ -17,6 +17,7 @@ use App\Models\StoneInventoryIssueLineModel;
 use App\Models\StoneInventoryItemModel;
 use App\Services\DiamondInventory\StockService as DiamondStockService;
 use App\Services\DiamondBagTraceService;
+use App\Services\DiamondIssueOrderService;
 use App\Services\GoldInventory\StockService as GoldStockService;
 use App\Services\IssuementVoucherNumberService;
 use App\Services\KarigarMaterialAccountingService;
@@ -200,7 +201,7 @@ class IssuementController extends BaseController
             'goldItems' => $this->goldItemOptions(),
             'diamondItems' => $this->diamondItemOptions(),
             'diamondBagItems' => (new DiamondBagTraceService())->availableBagItems(),
-            'diamondOrders' => db_connect()->table('orders')->select('id, order_no, order_name')->whereNotIn('status', ['Cancelled', 'Completed'])->orderBy('id', 'DESC')->limit(1000)->get()->getResultArray(),
+            'diamondOrders' => (new DiamondIssueOrderService())->orderOptions(),
             'stoneItems' => $this->stoneItemOptions(),
             'stoneOrders' => (new StoneIssueOrderService())->orderOptions(),
             'suggestedVoucherNo' => $suggestedVoucherNo,
@@ -284,6 +285,12 @@ class IssuementController extends BaseController
         $diamondLines = $this->collectDiamondLines();
         if ($diamondLines['error'] !== null) {
             return redirect()->back()->withInput()->with('error', $diamondLines['error']);
+        }
+        foreach ($diamondLines['lines'] as $line) {
+            $orderError = (new DiamondIssueOrderService())->validate((int) ($line['allocation_order_id'] ?? 0));
+            if ($orderError !== null) {
+                return redirect()->back()->withInput()->with('error', $orderError);
+            }
         }
         $stoneLines = $this->collectStoneLines();
         if ($stoneLines['error'] !== null) {

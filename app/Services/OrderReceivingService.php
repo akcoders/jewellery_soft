@@ -273,17 +273,49 @@ class OrderReceivingService
 
     public function hasRecordedReceipt(int $orderId): bool
     {
-        if ($this->receiptSummary($orderId) !== []) {
-            return true;
-        }
-        if (! $this->db->tableExists('order_material_movements')) {
-            return false;
+        return in_array($orderId, $this->recordedReceiptOrderIds([$orderId]), true);
+    }
+
+    /** @param list<int> $orderIds @return list<int> */
+    public function recordedReceiptOrderIds(array $orderIds): array
+    {
+        $orderIds = array_values(array_unique(array_filter(
+            array_map('intval', $orderIds),
+            static fn(int $id): bool => $id > 0
+        )));
+        if ($orderIds === []) {
+            return [];
         }
 
-        return $this->db->table('order_material_movements')
-            ->where('order_id', $orderId)
-            ->where('movement_type', 'receive')
-            ->countAllResults() > 0;
+        $receivedIds = [];
+        if ($this->db->tableExists('order_receive_summaries')) {
+            $receivedIds = array_map(
+                static fn(array $row): int => (int) ($row['order_id'] ?? 0),
+                $this->db->table('order_receive_summaries')
+                    ->select('order_id')
+                    ->whereIn('order_id', $orderIds)
+                    ->groupBy('order_id')
+                    ->get()
+                    ->getResultArray()
+            );
+        }
+        if ($this->db->tableExists('order_material_movements')) {
+            $receivedIds = array_merge(
+                $receivedIds,
+                array_map(
+                    static fn(array $row): int => (int) ($row['order_id'] ?? 0),
+                    $this->db->table('order_material_movements')
+                        ->select('order_id')
+                        ->where('movement_type', 'receive')
+                        ->whereIn('order_id', $orderIds)
+                        ->groupBy('order_id')
+                        ->get()
+                        ->getResultArray()
+                )
+            );
+        }
+
+        return array_values(array_unique(array_filter($receivedIds, static fn(int $id): bool => $id > 0)));
     }
 
     /** @param array<string,mixed> $order */

@@ -11,6 +11,7 @@ use App\Models\ItemModel;
 use App\Models\KarigarModel;
 use App\Services\DiamondInventory\StockService;
 use App\Services\DiamondBagTraceService;
+use App\Services\DiamondIssueOrderService;
 use App\Services\KarigarMaterialAccountingService;
 use App\Services\IssuementVoucherNumberService;
 use App\Services\MobileNotificationEventService;
@@ -413,6 +414,10 @@ class IssuesController extends BaseController
             if ($orderId > 0 && db_connect()->table('orders')->where('id', $orderId)->countAllResults() === 0) {
                 return ['lines' => [], 'error' => 'Selected order allocation does not exist.'];
             }
+            $orderError = (new DiamondIssueOrderService())->validate($orderId);
+            if ($orderError !== null) {
+                return ['lines' => [], 'error' => $orderError];
+            }
 
             $lineValue = $rateValue === null ? null : round($caratValue * $rateValue, 2);
             $lines[] = [
@@ -518,8 +523,7 @@ class IssuesController extends BaseController
     /** @return list<array<string,mixed>> */
     private function orderOptions(): array
     {
-        return db_connect()->table('orders')->select('id, order_no, order_name')
-            ->whereNotIn('status', ['Cancelled', 'Completed'])->orderBy('id', 'DESC')->limit(1000)->get()->getResultArray();
+        return (new DiamondIssueOrderService())->orderOptions();
     }
 
     /** @return list<array<string,mixed>> */

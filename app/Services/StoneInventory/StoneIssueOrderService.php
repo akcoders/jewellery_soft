@@ -3,6 +3,7 @@
 namespace App\Services\StoneInventory;
 
 use CodeIgniter\Database\BaseConnection;
+use App\Services\OrderReceivingService;
 
 /**
  * Stone issues are order-wise: every stone issue header carries the order it
@@ -47,13 +48,25 @@ class StoneIssueOrderService
         }
         $builder->groupEnd();
 
-        return array_map(static fn(array $row): array => [
+        $orders = array_map(static fn(array $row): array => [
             'id' => (int) $row['id'],
             'order_no' => (string) ($row['order_no'] ?? ''),
             'order_name' => (string) ($row['order_name'] ?? ''),
             'customer_name' => (string) ($row['customer_name'] ?? ''),
             'status' => (string) ($row['status'] ?? ''),
         ], $builder->get()->getResultArray());
+        $receivedIds = array_fill_keys(
+            (new OrderReceivingService($this->db))->recordedReceiptOrderIds(
+                array_map(static fn(array $order): int => (int) $order['id'], $orders)
+            ),
+            true
+        );
+
+        return array_values(array_filter(
+            $orders,
+            static fn(array $order): bool => $order['id'] === $includeOrderId
+                || ! isset($receivedIds[$order['id']])
+        ));
     }
 
     /**
@@ -120,6 +133,9 @@ class StoneIssueOrderService
         $order = $builder->get()->getRowArray();
         if (! $order) {
             return 'Selected order for the stone issue was not found.';
+        }
+        if ($orderId !== $currentOrderId && (new OrderReceivingService($this->db))->hasRecordedReceipt($orderId)) {
+            return 'Ornament already received; diamond or stone issuance for this order is not possible.';
         }
         if ($orderId !== $currentOrderId && in_array((string) ($order['status'] ?? ''), self::CLOSED_STATUSES, true)) {
             return 'Stone cannot be issued against a ' . strtolower((string) $order['status']) . ' order.';

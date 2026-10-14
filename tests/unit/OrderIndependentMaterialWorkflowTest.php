@@ -53,6 +53,33 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringNotContainsString('order_id', $goldForm);
     }
 
+    public function testReceivedOrdersBlockDiamondAndStoneIssuementButNotGold(): void
+    {
+        $diamondGuard = (string) file_get_contents(APPPATH . 'Services/DiamondIssueOrderService.php');
+        $stoneGuard = (string) file_get_contents(APPPATH . 'Services/StoneInventory/StoneIssueOrderService.php');
+        $diamondAdmin = (string) file_get_contents(APPPATH . 'Controllers/Admin/DiamondInventory/IssuesController.php');
+        $combinedAdmin = (string) file_get_contents(APPPATH . 'Controllers/Admin/IssuementController.php');
+        $mobile = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/TransactionsController.php');
+        $approval = (string) file_get_contents(APPPATH . 'Services/MobileApprovalService.php');
+
+        $this->assertStringContainsString('hasRecordedReceipt($orderId)', $diamondGuard);
+        $this->assertStringContainsString('Ornament already received; diamond or stone issuance for this order is not possible.', $diamondGuard);
+        $this->assertStringContainsString('hasRecordedReceipt($orderId)', $stoneGuard);
+        $this->assertStringContainsString('DiamondIssueOrderService', $diamondAdmin);
+        $this->assertStringContainsString('DiamondIssueOrderService', $combinedAdmin);
+        $this->assertStringContainsString('DiamondIssueOrderService', $mobile);
+        $this->assertStringContainsString('DiamondIssueOrderService', $approval);
+        $this->assertStringContainsString("array_merge(\$common, ['order_id' => null])", $approval);
+    }
+
+    public function testMobileReadyDocumentsRequireRecordedReceiving(): void
+    {
+        $controller = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/OrdersController.php');
+
+        $this->assertStringContainsString('$documents = $this->documentLinks($order, $isReceived)', $controller);
+        $this->assertStringContainsString('$eligible = $isReceived && in_array($status', $controller);
+    }
+
     public function testOrderDetailIsFocusedAndReceivingIsManual(): void
     {
         $view = (string) file_get_contents(APPPATH . 'Views/admin/orders/show.php');
@@ -148,7 +175,7 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('js-stone-inventory-select', $orderDetail);
         $this->assertStringContainsString('js-diamond-balance-select', $orderList);
         $this->assertStringContainsString('js-diamond-balance-select', $orderDetail);
-        $this->assertStringContainsString("admin_can('orders.receive') && ! empty(\$order['assigned_karigar_id'])", $orderList);
+        $this->assertStringContainsString("admin_can('orders.receive') && (\$order['status'] ?? '') === 'Ready'", $orderList);
 
         $this->assertStringContainsString('backflushReceivedStone(', $controller);
         $this->assertStringContainsString('validateReceivedDiamondSelection(', $controller);
