@@ -321,6 +321,36 @@ $statusClass = match ($status) {
         </div>
     </div>
 
+    <?php $stoneIssues = $stoneIssues ?? []; ?>
+    <div class="card order-section-card mb-4">
+        <div class="card-header"><h5 class="order-section-title"><i class="fe fe-disc"></i>Stone Issued for This Order</h5><span class="order-section-count"><?= count($stoneIssues) ?> issue<?= count($stoneIssues) === 1 ? '' : 's' ?></span></div>
+        <div class="card-body<?= $stoneIssues === [] ? '' : ' p-0' ?>">
+            <?php if ($stoneIssues === []): ?>
+                <div class="alert alert-light border text-muted mb-0">No stone has been issued against this order yet.</div>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" data-dt-skip="1">
+                        <thead><tr><th>Voucher</th><th>Date</th><th>Karigar</th><th>Purpose</th><th class="text-end">PCS</th><th class="text-end">Qty</th><th class="text-end">Value</th><th></th></tr></thead>
+                        <tbody>
+                            <?php foreach ($stoneIssues as $stoneIssue): ?>
+                                <tr>
+                                    <td><strong><?= esc($stoneIssue['voucher_no'] ?: ('#' . $stoneIssue['id'])) ?></strong></td>
+                                    <td><?= ! empty($stoneIssue['issue_date']) ? esc(date('d M Y', strtotime($stoneIssue['issue_date']))) : '-' ?></td>
+                                    <td><?= esc($stoneIssue['karigar_name'] ?: '-') ?></td>
+                                    <td><?= esc($stoneIssue['purpose'] ?: '-') ?></td>
+                                    <td class="text-end"><?= number_format((float) $stoneIssue['total_pcs'], 3) ?></td>
+                                    <td class="text-end"><?= number_format((float) $stoneIssue['total_qty'], 3) ?></td>
+                                    <td class="text-end">₹<?= number_format((float) $stoneIssue['total_value'], 2) ?></td>
+                                    <td class="text-end"><?php if (admin_can('stone.inventory.read')): ?><a class="btn btn-sm btn-outline-primary" href="<?= site_url('admin/stone-inventory/issues/view/' . (int) $stoneIssue['id']) ?>"><i class="fe fe-eye"></i></a><?php endif; ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
     <div class="card order-section-card mb-4">
         <div class="card-header"><h5 class="order-section-title"><i class="fe fe-message-circle"></i>Follow-up History</h5><span class="order-section-count"><?= count($followups) ?> update<?= count($followups) === 1 ? '' : 's' ?></span></div>
         <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover order-followups-table mb-0" data-dt-skip="true"><thead><tr><th>Order</th><th>Stage</th><th>Description</th><th>Approval</th><th>Next Follow-up</th><th>Taken By</th><th>Taken On</th><th>Image</th></tr></thead><tbody>

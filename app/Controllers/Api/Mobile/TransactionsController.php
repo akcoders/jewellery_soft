@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Api\Mobile;
 
+use App\Services\StoneInventory\StoneIssueOrderService;
 use App\Models\CompanySettingModel;
 use App\Models\DiamondPurchaseAttachmentModel;
 use App\Models\InventoryLocationModel;
@@ -1159,6 +1160,10 @@ class TransactionsController extends MobileBaseController
         if ($parsed['lines'] === []) {
             return $this->fail('At least one issue line is required.', 422);
         }
+        $stoneOrderError = $this->resolveStoneOrder($payload, true);
+        if ($stoneOrderError !== null) {
+            return $this->fail($stoneOrderError, 422);
+        }
 
         $attachment = $this->saveBase64Attachment(
             (string) ($payload['attachment_base64'] ?? ''),
@@ -1476,6 +1481,10 @@ class TransactionsController extends MobileBaseController
         }
         if ($gold['lines'] === [] && $diamond['lines'] === [] && $stone['lines'] === []) {
             return $this->fail('Add at least one Gold, Diamond, or Stone line.', 422);
+        }
+        $stoneOrderError = $this->resolveStoneOrder($payload, $stone['lines'] !== []);
+        if ($stoneOrderError !== null) {
+            return $this->fail($stoneOrderError, 422);
         }
 
         $workRequestId = (int) ($payload['work_request_id'] ?? 0);
@@ -2187,6 +2196,27 @@ class TransactionsController extends MobileBaseController
      * @param list<array<string,mixed>> $stoneLines
      * @param array<string,mixed> $attachment
      */
+    /**
+     * Stone is issued order-wise: one order covers every stone line. Validates
+     * $payload['stone_order_id'] and stores the order number for the approval desk.
+     */
+    private function resolveStoneOrder(array &$payload, bool $hasStoneLines): ?string
+    {
+        $stoneOrderId = $hasStoneLines ? (int) ($payload['stone_order_id'] ?? 0) : 0;
+        $payload['stone_order_id'] = $stoneOrderId;
+        $payload['stone_order_no'] = '';
+        if (! $hasStoneLines) {
+            return null;
+        }
+        $error = (new StoneIssueOrderService())->validate($stoneOrderId);
+        if ($error !== null) {
+            return $error;
+        }
+        $payload['stone_order_no'] = (string) (db_connect()->table('orders')->select('order_no')->where('id', $stoneOrderId)->get()->getRow('order_no') ?? '');
+
+        return null;
+    }
+
     private function submitIssuementApproval(
         array $payload,
         string $issueDate,
@@ -2215,6 +2245,8 @@ class TransactionsController extends MobileBaseController
             'notes' => trim((string) ($payload['notes'] ?? '')),
             'voucher_no' => trim((string) ($payload['voucher_no'] ?? '')),
             'work_request_id' => $workRequestId,
+            'stone_order_id' => (int) ($payload['stone_order_id'] ?? 0),
+            'stone_order_no' => (string) ($payload['stone_order_no'] ?? ''),
             'gold_lines' => $this->approvalDisplayLines('gold', $goldLines),
             'diamond_lines' => $this->approvalDisplayLines('diamond', $diamondLines),
             'stone_lines' => $this->approvalDisplayLines('stone', $stoneLines),

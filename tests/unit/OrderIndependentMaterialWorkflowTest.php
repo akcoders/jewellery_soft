@@ -30,6 +30,29 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("orders/(:num)/receive'", $routes);
     }
 
+    public function testStoneIssuesAreOrderWiseWhileGoldStaysFreeFlow(): void
+    {
+        $service = (string) file_get_contents(APPPATH . 'Services/StoneInventory/StoneIssueOrderService.php');
+        $stoneForm = (string) file_get_contents(APPPATH . 'Views/admin/stone_inventory/issues/form.php');
+        $stoneController = (string) file_get_contents(APPPATH . 'Controllers/Admin/StoneInventory/IssuesController.php');
+        $combinedForm = (string) file_get_contents(APPPATH . 'Views/admin/issuements/create.php');
+        $combinedController = (string) file_get_contents(APPPATH . 'Controllers/Admin/IssuementController.php');
+        $mobile = (string) file_get_contents(APPPATH . 'Controllers/Api/Mobile/TransactionsController.php');
+        $approval = (string) file_get_contents(APPPATH . 'Services/MobileApprovalService.php');
+        $goldForm = (string) file_get_contents(APPPATH . 'Views/admin/gold_inventory/issues/form.php');
+
+        $this->assertStringContainsString('Select the order this stone is issued for.', $service);
+        $this->assertStringContainsString('name="stone_order_id" id="stone_order_id" class="form-select js-select2" required', $stoneForm);
+        $this->assertStringContainsString("'order_id' => (int) \$this->request->getPost('stone_order_id')", $stoneController);
+        $this->assertStringContainsString('name="stone_order_id"', $combinedForm);
+        $this->assertStringContainsString("'order_id' => \$stoneOrderId", $combinedController);
+        $this->assertStringContainsString('resolveStoneOrder($payload, true)', $mobile);
+        $this->assertStringContainsString("array_merge(\$common, ['order_id' => \$stoneOrderId])", $approval);
+        // Gold is free-flow stock and is never tied to an order.
+        $this->assertStringContainsString("array_merge(\$common, ['order_id' => null])", $approval);
+        $this->assertStringNotContainsString('order_id', $goldForm);
+    }
+
     public function testOrderDetailIsFocusedAndReceivingIsManual(): void
     {
         $view = (string) file_get_contents(APPPATH . 'Views/admin/orders/show.php');
@@ -133,7 +156,7 @@ final class OrderIndependentMaterialWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('stoneReceiptShortfall(', $controller);
         $this->assertStringContainsString('applyReceiptBackflushIssue($issueId)', $controller);
         $this->assertStringContainsString("postInventoryHeader('stone', 'issue', \$issueId)", $controller);
-        $this->assertStringContainsString("'order_id' => null", $controller);
+        $this->assertStringContainsString("'order_id' => \$orderId > 0 ? \$orderId : null", $controller);
         $this->assertStringContainsString("'item_type' => 'STONE'", $accounting);
         $this->assertStringContainsString("'item_key' => 'STONE-POOL'", $accounting);
 

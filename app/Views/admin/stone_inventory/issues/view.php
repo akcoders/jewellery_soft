@@ -19,6 +19,7 @@
         <div class="row erp-record-grid">
             <div class="col-md-3"><strong>Voucher:</strong> <?= esc((string) ($issue['voucher_no'] ?? '-')) ?></div>
             <div class="col-md-3"><strong>Date:</strong> <?= esc((string) $issue['issue_date']) ?></div>
+            <div class="col-md-3"><strong>Order:</strong> <?php if ((int) ($issue['order_id'] ?? 0) > 0): ?><a href="<?= site_url('admin/orders/' . (int) $issue['order_id']) ?>"><?= esc((string) (($issue['order_no'] ?? '') ?: ('#' . (int) $issue['order_id']))) ?></a><?= ! empty($issue['order_customer_name']) ? ' · ' . esc((string) $issue['order_customer_name']) : '' ?><?php else: ?>-<?php endif; ?></div>
             <div class="col-md-3"><strong>Karigar:</strong> <?= esc((string) ($issue['karigar_name'] ?: $issue['issue_to'] ?: '-')) ?></div>
             <div class="col-md-3"><strong>Warehouse:</strong> <?= esc((string) ($issue['warehouse_name'] ?? '-')) ?></div>
             <div class="col-md-3"><strong>Purpose:</strong> <?= esc((string) ($issue['purpose'] ?: '-')) ?></div>

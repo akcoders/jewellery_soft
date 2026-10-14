@@ -365,6 +365,12 @@ $blankRows = $minRows > count($rows) ? $minRows - count($rows) : 0;
                     <td><strong>Issue To</strong></td>
                     <td><?= esc($supplierName) ?></td>
                 </tr>
+                <?php if (trim((string) ($issue['order_no'] ?? '')) !== ''): ?>
+                <tr>
+                    <td><strong>Order</strong></td>
+                    <td colspan="3"><?= esc((string) $issue['order_no']) ?></td>
+                </tr>
+                <?php endif; ?>
                 <tr>
                     <td><strong>Notes</strong></td>
                     <td colspan="3"><?= esc($notes) ?></td>

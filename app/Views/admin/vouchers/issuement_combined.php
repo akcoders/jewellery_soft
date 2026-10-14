@@ -216,7 +216,7 @@ foreach (($diamondLines ?? []) as $line) {
 foreach (($stoneLines ?? []) as $line) {
     $rows[] = [
         'description' => trim((string) (($line['product_name'] ?? '-') . ' ' . ($line['stone_type'] ?? ''))),
-        'grade' => '-',
+        'grade' => trim((string) ($stoneOrderNo ?? '')) !== '' ? ('Order ' . $stoneOrderNo) : '-',
         'pcs' => number_format((float) ($line['pcs'] ?? 0), 3),
         'weight' => number_format((float) ($line['qty'] ?? 0), 3),
         'rate' => ($line['rate'] ?? null) === null ? '-' : number_format((float) $line['rate'], 2),

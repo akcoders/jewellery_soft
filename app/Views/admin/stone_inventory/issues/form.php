@@ -51,11 +51,24 @@ $selectedLocationId = old('location_id', (string) ($issue['location_id'] ?? ''))
 $purpose = old('purpose', (string) ($issue['purpose'] ?? ''));
 $notes = old('notes', (string) ($issue['notes'] ?? ''));
 $existingAttachment = (string) ($issue['attachment_path'] ?? '');
+$selectedOrderId = old('stone_order_id', (string) ($issue['order_id'] ?? ''));
 ?>
 
 <div class="card mb-3">
     <div class="card-body">
         <div class="row g-3">
+            <div class="col-12">
+                <label class="form-label">Order <span class="text-danger">*</span></label>
+                <select name="stone_order_id" id="stone_order_id" class="form-select js-select2" required>
+                    <option value="">Select the order this stone is issued for</option>
+                    <?php foreach (($orders ?? []) as $order): ?>
+                        <option value="<?= (int) $order['id'] ?>" <?= (string) $selectedOrderId === (string) $order['id'] ? 'selected' : '' ?>>
+                            <?= esc(\App\Services\StoneInventory\StoneIssueOrderService::label($order)) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="text-muted">Stone issues are recorded order-wise; all lines below are issued for this order.</small>
+            </div>
             <div class="col-md-3">
                 <label class="form-label">Voucher Number <span class="text-danger">*</span></label>
                 <input type="text" name="voucher_no" class="form-control text-uppercase" maxlength="80" required value="<?= esc((string) $voucherNo) ?>">

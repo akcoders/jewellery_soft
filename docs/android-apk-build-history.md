@@ -28,6 +28,7 @@ published. Update it for every Android release.
 | 2026-10-13 | 1.0.8 | 9 | `android-v1.0.8-build9` | `753ddd526ca3e8276e81537714f96c057cf4d7b4f5722f4169f5e6694196bc1d` | Permanent Broken Diamond stock product with weight-only presentation in admin, PWA, and Android |
 | 2026-10-13 | 1.0.9 | 10 | `android-v1.0.9-build10` | `60fdf57727d2cf45402de163907ef847d61ee6a6057250f83bcf4cc4a86cab9c` | Order-family follow-up ownership, follow-up approval quality controls, and detailed transaction views |
 | 2026-10-13 | 1.0.10 | 11 | `android-v1.0.10-build11` | `26c42a7b0aa409dbedc6daae3fbd5d3e96ccff3321756a0967d044480a9b84b2` | Fractional performance points, organized Android PDF folders, parent order mapping, and unified child follow-up approvals |
+| 2026-10-14 | 1.0.11 | 12 | `android-v1.0.11-build12` | `c3c99e6b53d88c8d085c029502838d803a4159e3c7804268e27fbc3bf7c1023a` | Order-wise stone issuement (gold stays free-flow), complete order details in collapsible sections, stone issued per order. Signed with this workstation's `~/.android/debug.keystore` (certificate SHA-256 `ac5fcc988a3297f42d74e50a9b1a4cd36d323a9acaa58fcaff2cd104de4a5004`), which differs from the `key.md` identity |
 
 ## Prerequisites
 

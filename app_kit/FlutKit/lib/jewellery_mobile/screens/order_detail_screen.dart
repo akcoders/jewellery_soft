@@ -10,6 +10,7 @@ import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_followup_form_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_bags_screen.dart';
+import 'package:flutkit/jewellery_mobile/widgets/order_full_details.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -39,6 +40,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   List<dynamic> _familyOrders = [];
   List<dynamic> _workRequests = [];
   List<dynamic> _diamondBags = [];
+  List<dynamic> _stoneIssues = [];
+  bool _isReceived = false;
   List<dynamic> _karigars = [];
   List<dynamic> _assignmentCustomers = [];
   bool _canAssignKarigar = false;
@@ -93,6 +96,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _familyOrders = (data['family_orders'] as List?) ?? <dynamic>[];
         _workRequests = requests;
         _diamondBags = (data['diamond_bags'] as List?) ?? <dynamic>[];
+        _stoneIssues = (data['stone_issues'] as List?) ?? <dynamic>[];
+        _isReceived = data['is_received'] == true;
         _karigars = (data['karigars'] as List?) ?? <dynamic>[];
         _assignmentCustomers =
             (data['assignment_customers'] as List?) ?? <dynamic>[];
@@ -1622,6 +1627,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
+                  const AppSectionTitle('Complete order details'),
+                  const SizedBox(height: AppSpacing.md),
+                  OrderFullDetails(
+                    order: _order,
+                    stoneIssues: _stoneIssues,
+                    isReceived: _isReceived,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
                   if ((_order['order_notes'] ?? '').toString().isNotEmpty) ...[
                     const AppSectionTitle('Notes'),
                     const SizedBox(height: AppSpacing.md),

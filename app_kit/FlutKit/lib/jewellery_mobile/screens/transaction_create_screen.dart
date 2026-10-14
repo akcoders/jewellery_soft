@@ -58,6 +58,8 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   List<dynamic> _items = [];
   List<dynamic> _issueRefs = [];
   List<dynamic> _diamondOrderAllocations = [];
+  // Stone issues are order-wise; gold stays free-flow.
+  int? _stoneOrderId;
 
   XFile? _attachment;
 
@@ -105,6 +107,10 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         _items = await widget.api.fetchGoldItems();
       } else {
         _items = await widget.api.fetchStoneItems();
+        if (widget.action == 'issue') {
+          _diamondOrderAllocations = await widget.api
+              .fetchDiamondOrderAllocations();
+        }
       }
 
       if (widget.action == 'purchase') {
@@ -171,6 +177,12 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         _showError('Issue reference is required for return.');
         return;
       }
+      if (widget.material == 'stone' &&
+          widget.action == 'issue' &&
+          (_stoneOrderId ?? 0) <= 0) {
+        _showError('Select the order this stone is issued for.');
+        return;
+      }
     }
 
     if (_lines.isEmpty) {
@@ -206,6 +218,9 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         payload['purpose'] = _purpose.trim();
         payload['notes'] = _notes.trim();
         payload['attachment_base64'] = base64Attachment;
+        if (widget.material == 'stone') {
+          payload['stone_order_id'] = _stoneOrderId;
+        }
       } else {
         payload['return_date'] = _formatDate(_txnDate);
         payload['issue_id'] = _issueId;
@@ -555,6 +570,33 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                 validator: (v) => v == null ? 'Karigar is required' : null,
               ),
               const SizedBox(height: AppSpacing.md),
+              if (widget.material == 'stone') ...[
+                DropdownButtonFormField<int>(
+                  initialValue: _stoneOrderId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Stone issued for order',
+                    helperText: 'Stone is issued order-wise.',
+                  ),
+                  items: _diamondOrderAllocations
+                      .map(
+                        (row) => DropdownMenuItem<int>(
+                          value: _asInt(row['id']),
+                          child: Text(
+                            [
+                              '${row['order_no'] ?? ''}',
+                              '${row['order_name'] ?? ''}'.trim(),
+                            ].where((part) => part.isNotEmpty).join(' · '),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _stoneOrderId = value),
+                  validator: (v) => v == null ? 'Order is required' : null,
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
             ],
             DropdownButtonFormField<int>(
               initialValue: _locationId,

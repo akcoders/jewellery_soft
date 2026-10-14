@@ -14,6 +14,7 @@ use App\Services\IssuementVoucherNumberService;
 use App\Services\MobileNotificationEventService;
 use App\Services\StoneInventory\StockService;
 use CodeIgniter\HTTP\Files\UploadedFile;
+use App\Services\StoneInventory\StoneIssueOrderService;
 use Throwable;
 
 class IssuesController extends BaseController
@@ -42,8 +43,9 @@ class IssuesController extends BaseController
         $to = trim((string) $this->request->getGet('to'));
 
         $builder = db_connect()->table('stone_inventory_issue_headers ih')
-            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, COUNT(il.id) as line_count, COALESCE(SUM(il.pcs), 0) as total_pcs, COALESCE(SUM(il.qty), 0) as total_qty, COALESCE(SUM(il.line_value), 0) as total_value', false)
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, o.order_no, COUNT(il.id) as line_count, COALESCE(SUM(il.pcs), 0) as total_pcs, COALESCE(SUM(il.qty), 0) as total_qty, COALESCE(SUM(il.line_value), 0) as total_value', false)
             ->join('stone_inventory_issue_lines il', 'il.issue_id = ih.id', 'left')
+            ->join('orders o', 'o.id = ih.order_id', 'left')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->groupBy('ih.id')
@@ -73,6 +75,7 @@ class IssuesController extends BaseController
             'items' => $this->itemOptions(),
             'locations' => $this->locationOptions(),
             'karigars' => $this->karigarOptions(),
+            'orders' => (new StoneIssueOrderService())->orderOptions(),
             'issue' => null,
             'lines' => [],
             'action' => site_url('admin/stone-inventory/issues'),
@@ -117,6 +120,7 @@ class IssuesController extends BaseController
             $issueId = (int) $this->headerModel->insert([
                 'voucher_no' => $voucherNo,
                 'issue_date' => (string) $this->request->getPost('issue_date'),
+                'order_id' => (int) $this->request->getPost('stone_order_id'),
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
                 'issue_to' => (string) ($karigar['name'] ?? ''),
@@ -161,8 +165,10 @@ class IssuesController extends BaseController
     public function view(int $id)
     {
         $issue = db_connect()->table('stone_inventory_issue_headers ih')
-            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name')
+            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, o.order_no, c.name as order_customer_name')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
+            ->join('orders o', 'o.id = ih.order_id', 'left')
+            ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
             ->get()
@@ -183,8 +189,9 @@ class IssuesController extends BaseController
     public function voucher(int $id): string
     {
         $issue = db_connect()->table('stone_inventory_issue_headers ih')
-            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
+            ->select('ih.*, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
+            ->join('orders o', 'o.id = ih.order_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.id', $id)
             ->get()
@@ -215,6 +222,7 @@ class IssuesController extends BaseController
             'items' => $this->itemOptions(),
             'locations' => $this->locationOptions(),
             'karigars' => $this->karigarOptions(),
+            'orders' => (new StoneIssueOrderService())->orderOptions((int) ($issue['order_id'] ?? 0)),
             'issue' => $issue,
             'lines' => $this->lineRows($id),
             'action' => site_url('admin/stone-inventory/issues/' . $id . '/update'),
@@ -228,7 +236,7 @@ class IssuesController extends BaseController
             return redirect()->to(site_url('admin/stone-inventory/issues'))->with('error', 'Issue not found.');
         }
 
-        $validationError = $this->validateHeader();
+        $validationError = $this->validateHeader((int) ($issue['order_id'] ?? 0));
         if ($validationError !== null) {
             return redirect()->back()->withInput()->with('error', $validationError);
         }
@@ -267,6 +275,7 @@ class IssuesController extends BaseController
             $this->headerModel->update($id, [
                 'voucher_no' => $voucherNo,
                 'issue_date' => (string) $this->request->getPost('issue_date'),
+                'order_id' => (int) $this->request->getPost('stone_order_id'),
                 'karigar_id' => $karigarId,
                 'location_id' => $locationId,
                 'issue_to' => (string) ($karigar['name'] ?? ''),
@@ -401,7 +410,7 @@ class IssuesController extends BaseController
         return ['lines' => $lines, 'error' => null];
     }
 
-    private function validateHeader(): ?string
+    private function validateHeader(int $currentOrderId = 0): ?string
     {
         if (! $this->validate([
             'issue_date' => 'required|valid_date',
@@ -423,7 +432,7 @@ class IssuesController extends BaseController
         if ($this->locationModel->where('id', $locationId)->where('is_active', 1)->countAllResults() === 0) {
             return 'Selected warehouse was not found.';
         }
-        return null;
+        return (new StoneIssueOrderService())->validate((int) $this->request->getPost('stone_order_id'), $currentOrderId);
     }
 
     /**

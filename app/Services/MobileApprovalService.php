@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\StoneInventory\StoneIssueOrderService;
 use App\Models\CustomerAddressModel;
 use App\Models\CustomerModel;
 use App\Models\GoldInventoryIssueHeaderModel;
@@ -365,7 +366,8 @@ class MobileApprovalService
         $created = [];
         $gold = is_array($payload['gold_lines'] ?? null) ? $payload['gold_lines'] : [];
         if ($gold !== []) {
-            $issueId = (int) (new GoldInventoryIssueHeaderModel())->insert($common, true);
+            // Gold is free-flow stock: never tied to an order.
+            $issueId = (int) (new GoldInventoryIssueHeaderModel())->insert(array_merge($common, ['order_id' => null]), true);
             $lineModel = new GoldInventoryIssueLineModel();
             foreach ($gold as $line) {
                 $lineModel->insert([
@@ -402,7 +404,13 @@ class MobileApprovalService
         }
         $stone = is_array($payload['stone_lines'] ?? null) ? $payload['stone_lines'] : [];
         if ($stone !== []) {
-            $issueId = (int) (new StoneInventoryIssueHeaderModel())->insert($common, true);
+            // Stone is order-wise; re-check the order at approval time.
+            $stoneOrderId = (int) ($payload['stone_order_id'] ?? 0);
+            $stoneOrderError = (new StoneIssueOrderService($this->db))->validate($stoneOrderId);
+            if ($stoneOrderError !== null) {
+                throw new RuntimeException($stoneOrderError);
+            }
+            $issueId = (int) (new StoneInventoryIssueHeaderModel())->insert(array_merge($common, ['order_id' => $stoneOrderId]), true);
             $lineModel = new StoneInventoryIssueLineModel();
             foreach ($stone as $line) {
                 $lineModel->insert([

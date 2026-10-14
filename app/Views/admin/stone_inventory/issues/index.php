@@ -36,6 +36,7 @@
                         <th>ID</th>
                         <th>Voucher</th>
                         <th>Date</th>
+                        <th>Order</th>
                         <th>Karigar</th>
                         <th>Warehouse</th>
                         <th>Purpose</th>
@@ -48,13 +49,14 @@
                 </thead>
                 <tbody>
                     <?php if (($issues ?? []) === []): ?>
-                        <tr><td colspan="11" class="text-center text-muted">No issue records found.</td></tr>
+                        <tr><td colspan="12" class="text-center text-muted">No issue records found.</td></tr>
                     <?php endif; ?>
                     <?php foreach (($issues ?? []) as $issue): ?>
                         <tr>
                             <td><?= (int) $issue['id'] ?></td>
                             <td><?= esc((string) ($issue['voucher_no'] ?? '-')) ?></td>
                             <td><?= esc((string) $issue['issue_date']) ?></td>
+                            <td><?php if ((int) ($issue['order_id'] ?? 0) > 0): ?><a href="<?= site_url('admin/orders/' . (int) $issue['order_id']) ?>"><?= esc((string) (($issue['order_no'] ?? '') ?: ('#' . (int) $issue['order_id']))) ?></a><?php else: ?><span class="text-muted">-</span><?php endif; ?></td>
                             <td><?= esc((string) ($issue['karigar_name'] ?? $issue['issue_to'] ?? '-')) ?></td>
                             <td><?= esc((string) ($issue['warehouse_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($issue['purpose'] ?? '-')) ?></td>

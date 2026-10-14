@@ -9,6 +9,9 @@ $status = (string) ($row['status'] ?? 'pending');
         <div class="col-md-3"><div class="approval-material"><small class="text-muted">Warehouse</small><strong class="d-block"><?= esc($payload['location_name'] ?? '-') ?></strong></div></div>
         <div class="col-md-3"><div class="approval-material"><small class="text-muted">Issue Date</small><strong class="d-block"><?= esc($payload['issue_date'] ?? '-') ?></strong></div></div>
         <div class="col-md-3"><div class="approval-material"><small class="text-muted">Purpose</small><strong class="d-block"><?= esc($payload['purpose'] ?? '-') ?></strong></div></div>
+        <?php if (! empty($payload['stone_lines']) && ! empty($payload['stone_order_id'])): ?>
+        <div class="col-md-6"><div class="approval-material"><small class="text-muted">Stone issued for order</small><strong class="d-block"><a href="<?= site_url('admin/orders/' . (int) $payload['stone_order_id']) ?>"><?= esc((string) (($payload['stone_order_no'] ?? '') ?: ('#' . (int) $payload['stone_order_id']))) ?></a></strong></div></div>
+        <?php endif; ?>
     </div>
     <div class="row g-3">
     <?php foreach (['gold' => ['Gold','weight_gm','gm'], 'diamond' => ['Diamond','carat','ct'], 'stone' => ['Stone','qty','qty']] as $material => $meta): $lines = is_array($payload[$material . '_lines'] ?? null) ? $payload[$material . '_lines'] : []; if ($lines === []) continue; ?>

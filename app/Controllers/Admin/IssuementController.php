@@ -23,6 +23,7 @@ use App\Services\KarigarMaterialAccountingService;
 use App\Services\MobileNotificationEventService;
 use App\Services\PdfService;
 use App\Services\StoneInventory\StockService as StoneStockService;
+use App\Services\StoneInventory\StoneIssueOrderService;
 use Throwable;
 
 class IssuementController extends BaseController
@@ -110,8 +111,9 @@ class IssuementController extends BaseController
 
         $stoneList = [];
         $stoneRows = $db->table('stone_inventory_issue_headers ih')
-            ->select("'Stone' as material_type, ih.id, ih.voucher_no, ih.issue_date, ih.attachment_path, k.name as karigar_name, iloc.name as warehouse_name, ih.purpose, COALESCE(SUM(il.qty),0) as total_qty, COALESCE(SUM(il.pcs),0) as total_pcs, COALESCE(SUM(il.line_value),0) as total_value", false)
+            ->select("'Stone' as material_type, ih.id, ih.voucher_no, ih.issue_date, ih.attachment_path, ih.order_id, o.order_no, k.name as karigar_name, iloc.name as warehouse_name, ih.purpose, COALESCE(SUM(il.qty),0) as total_qty, COALESCE(SUM(il.pcs),0) as total_pcs, COALESCE(SUM(il.line_value),0) as total_value", false)
             ->join('stone_inventory_issue_lines il', 'il.issue_id = ih.id', 'left')
+            ->join('orders o', 'o.id = ih.order_id', 'left')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->groupBy('ih.id')
@@ -200,6 +202,7 @@ class IssuementController extends BaseController
             'diamondBagItems' => (new DiamondBagTraceService())->availableBagItems(),
             'diamondOrders' => db_connect()->table('orders')->select('id, order_no, order_name')->whereNotIn('status', ['Cancelled', 'Completed'])->orderBy('id', 'DESC')->limit(1000)->get()->getResultArray(),
             'stoneItems' => $this->stoneItemOptions(),
+            'stoneOrders' => (new StoneIssueOrderService())->orderOptions(),
             'suggestedVoucherNo' => $suggestedVoucherNo,
         ]);
     }
@@ -219,6 +222,8 @@ class IssuementController extends BaseController
             'goldLines' => $bundle['goldLines'],
             'diamondLines' => $bundle['diamondLines'],
             'stoneLines' => $bundle['stoneLines'],
+            'stoneOrderNo' => $bundle['stoneOrderNo'],
+            'stoneOrderId' => $bundle['stoneOrderId'],
             'totalValue' => $bundle['totalValue'],
         ]);
     }
@@ -243,6 +248,8 @@ class IssuementController extends BaseController
             'goldLines' => $bundle['goldLines'],
             'diamondLines' => $bundle['diamondLines'],
             'stoneLines' => $bundle['stoneLines'],
+            'stoneOrderNo' => $bundle['stoneOrderNo'],
+            'stoneOrderId' => $bundle['stoneOrderId'],
             'totalValue' => $bundle['totalValue'],
             'pdfMode' => true,
         ]);
@@ -281,6 +288,14 @@ class IssuementController extends BaseController
         $stoneLines = $this->collectStoneLines();
         if ($stoneLines['error'] !== null) {
             return redirect()->back()->withInput()->with('error', $stoneLines['error']);
+        }
+        // Stone is issued order-wise: one order applies to every stone line in this voucher.
+        $stoneOrderId = (int) $this->request->getPost('stone_order_id');
+        if ($stoneLines['lines'] !== []) {
+            $stoneOrderError = (new StoneIssueOrderService())->validate($stoneOrderId);
+            if ($stoneOrderError !== null) {
+                return redirect()->back()->withInput()->with('error', $stoneOrderError);
+            }
         }
 
         if ($goldLines['lines'] === [] && $diamondLines['lines'] === [] && $stoneLines['lines'] === []) {
@@ -399,6 +414,7 @@ class IssuementController extends BaseController
                 $stoneIssueId = (int) $this->stoneHeaderModel->insert([
                     'voucher_no' => $commonVoucherNo,
                     'issue_date' => $issueDate,
+                    'order_id' => $stoneOrderId,
                     'karigar_id' => $karigarId,
                     'location_id' => $locationId,
                     'issue_to' => $issueTo,
@@ -485,8 +501,9 @@ class IssuementController extends BaseController
             ->getRowArray();
 
         $stoneHeader = $db->table('stone_inventory_issue_headers ih')
-            ->select('ih.*, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode, k.department as labour_department, k.skills_text as labour_skills, k.rate_per_gm as labour_rate_per_gm, k.wastage_percentage as labour_wastage_percentage, k.aadhaar_no as labour_aadhaar_no, k.pan_no as labour_pan_no, k.joining_date as labour_joining_date, k.bank_name as labour_bank_name, k.bank_account_no as labour_bank_account_no, k.ifsc_code as labour_ifsc_code')
+            ->select('ih.*, so.order_no as stone_order_no, k.name as karigar_name, iloc.name as warehouse_name, k.name as labour_name, k.phone as labour_phone, k.email as labour_email, k.address as labour_address, k.city as labour_city, k.state as labour_state, k.pincode as labour_pincode, k.department as labour_department, k.skills_text as labour_skills, k.rate_per_gm as labour_rate_per_gm, k.wastage_percentage as labour_wastage_percentage, k.aadhaar_no as labour_aadhaar_no, k.pan_no as labour_pan_no, k.joining_date as labour_joining_date, k.bank_name as labour_bank_name, k.bank_account_no as labour_bank_account_no, k.ifsc_code as labour_ifsc_code')
             ->join('karigars k', 'k.id = ih.karigar_id', 'left')
+            ->join('orders so', 'so.id = ih.order_id', 'left')
             ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
             ->where('ih.voucher_no', $voucherNo)
             ->orderBy('ih.id', 'DESC')
@@ -575,6 +592,8 @@ class IssuementController extends BaseController
             'goldLines' => $goldLines,
             'diamondLines' => $diamondLines,
             'stoneLines' => $stoneLines,
+            'stoneOrderNo' => is_array($stoneHeader) ? (string) ($stoneHeader['stone_order_no'] ?? '') : '',
+            'stoneOrderId' => is_array($stoneHeader) ? (int) ($stoneHeader['order_id'] ?? 0) : 0,
             'totalValue' => $goldTotalValue + $diamondTotalValue + $stoneTotalValue,
         ];
     }

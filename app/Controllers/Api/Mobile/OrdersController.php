@@ -495,6 +495,7 @@ class OrdersController extends MobileBaseController
                 : [],
             'diamond_supported' => $this->diamondBagService->supportsOrder($id),
             'diamond_bags' => $this->diamondBagService->issuedForOrder($id),
+            'stone_issues' => (new \App\Services\StoneInventory\StoneIssueOrderService($db))->issuesForOrder($id),
             'can_create_diamond_bag' => $this->diamondBagService->canCreateForOrder(
                 $id,
                 $mobileUserId,

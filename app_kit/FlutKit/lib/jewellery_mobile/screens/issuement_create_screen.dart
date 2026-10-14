@@ -40,6 +40,8 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   List<dynamic> _goldItems = [];
   List<dynamic> _diamondItems = [];
   List<dynamic> _orders = [];
+  // Stone is issued order-wise: one order covers every stone line.
+  int? _stoneOrderId;
   List<dynamic> _stoneItems = [];
   final List<_IssueLine> _goldLines = [];
   final List<_IssueLine> _diamondLines = [];
@@ -236,6 +238,10 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
       _show('Add at least one Gold, Diamond, or Stone line.');
       return;
     }
+    if (_stoneLines.isNotEmpty && (_stoneOrderId ?? 0) <= 0) {
+      _show('Select the order this stone is issued for.');
+      return;
+    }
     if (_attachment == null) {
       _show('Attachment is required.');
       return;
@@ -273,6 +279,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
               },
             )
             .toList(),
+        if (_stoneLines.isNotEmpty) 'stone_order_id': _stoneOrderId,
         'stone_lines': _stoneLines
             .map(
               (line) => {
@@ -365,6 +372,18 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
                     icon: Icons.scatter_plot_outlined,
                     lines: _stoneLines,
                     add: () => setState(() => _stoneLines.add(_IssueLine())),
+                    header: _stoneLines.isEmpty
+                        ? null
+                        : _itemDropdown(
+                            'Stone issued for order',
+                            _stoneOrderId,
+                            _orders,
+                            (row) => [
+                              '${row['order_no'] ?? ''}',
+                              '${row['order_name'] ?? ''}'.trim(),
+                            ].where((part) => part.isNotEmpty).join(' · '),
+                            (value) => setState(() => _stoneOrderId = value),
+                          ),
                     builder: _stoneLine,
                   ),
                   FilledButton.icon(
@@ -457,6 +476,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
     required List<_IssueLine> lines,
     required VoidCallback add,
     VoidCallback? addComplete,
+    Widget? header,
     required Widget Function(_IssueLine) builder,
   }) => Container(
     margin: const EdgeInsets.only(bottom: AppSpacing.lg),
@@ -485,6 +505,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
+        if (header != null) ...[header, const SizedBox(height: AppSpacing.md)],
         if (lines.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),

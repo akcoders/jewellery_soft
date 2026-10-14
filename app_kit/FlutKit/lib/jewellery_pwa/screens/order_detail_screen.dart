@@ -13,6 +13,7 @@ import 'package:flutkit/jewellery_pwa/screens/order_followup_form_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/order_receiving_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/diamond_bags_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart';
+import 'package:flutkit/jewellery_pwa/widgets/order_full_details.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:image_picker/image_picker.dart';
@@ -43,6 +44,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   List<dynamic> _familyOrders = [];
   List<dynamic> _workRequests = [];
   List<dynamic> _diamondBags = [];
+  List<dynamic> _stoneIssues = [];
   List<dynamic> _karigars = [];
   List<dynamic> _assignmentCustomers = [];
   bool _canAssignKarigar = false;
@@ -101,6 +103,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _familyOrders = (data['family_orders'] as List?) ?? <dynamic>[];
         _workRequests = requests;
         _diamondBags = (data['diamond_bags'] as List?) ?? <dynamic>[];
+        _stoneIssues = (data['stone_issues'] as List?) ?? <dynamic>[];
         _karigars = (data['karigars'] as List?) ?? <dynamic>[];
         _assignmentCustomers =
             (data['assignment_customers'] as List?) ?? <dynamic>[];
@@ -1569,6 +1572,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                   ],
                   const SizedBox(height: 24),
+                  const AppSectionTitle('Complete order details'),
+                  const SizedBox(height: AppSpacing.md),
+                  OrderFullDetails(
+                    order: _order,
+                    stoneIssues: _stoneIssues,
+                    isReceived: _receipt.isNotEmpty,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
                   const AppSectionTitle('People & responsibility'),
                   const SizedBox(height: 14),
                   LayoutBuilder(

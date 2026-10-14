@@ -931,6 +931,7 @@ class OrderController extends BaseController
             'receiveSummary' => is_array($receiveSummary) ? $receiveSummary : [],
             'studdedDetails' => $studdedDetails,
             'diamondBags' => $this->diamondBagService->issuedForOrder($id),
+            'stoneIssues' => (new \App\Services\StoneInventory\StoneIssueOrderService())->issuesForOrder($id),
             'canCreateDiamondBag' => $this->rbacService->userCan((int) session('admin_id'), 'diamond.inventory.manage')
                 && $this->diamondBagService->canCreateForOrder($id, (int) session('admin_id'), true),
             'canDeleteOrder' => $this->rbacService->userCan((int) session('admin_id'), 'orders.delete'),
@@ -2534,8 +2535,8 @@ class OrderController extends BaseController
         $db->table('stone_inventory_issue_headers')->insert([
             'voucher_no' => 'SRV-' . $movementId,
             'issue_date' => date('Y-m-d'),
-            // Material issues remain independent from orders; the receive movement is the audit link.
-            'order_id' => null,
+            // Stone issues are order-wise; the receive movement remains the audit link.
+            'order_id' => $orderId > 0 ? $orderId : null,
             'receive_movement_id' => $movementId,
             'karigar_id' => $karigarId,
             'location_id' => $locationId,

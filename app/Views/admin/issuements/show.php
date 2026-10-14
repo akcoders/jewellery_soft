@@ -112,7 +112,7 @@
 
 <?php if (($stoneLines ?? []) !== []): ?>
 <div class="card erp-data-card">
-    <div class="card-header"><h6 class="mb-0">Stone Lines</h6></div>
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2"><h6 class="mb-0">Stone Lines</h6><?php if (! empty($stoneOrderId)): ?><span class="small">Issued for order <a href="<?= site_url('admin/orders/' . (int) $stoneOrderId) ?>"><strong><?= esc((string) (($stoneOrderNo ?? '') ?: ('#' . (int) $stoneOrderId))) ?></strong></a></span><?php endif; ?></div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-bordered datatable mb-0">

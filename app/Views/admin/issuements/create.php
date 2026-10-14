@@ -120,6 +120,16 @@
             <button type="button" class="btn btn-sm btn-primary" id="add-stone-line"><i class="fe fe-plus"></i> Add Stone</button>
         </div>
         <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label" for="stone_order_id">Stone issued for order <span class="text-danger">*</span></label>
+                <select name="stone_order_id" id="stone_order_id" class="form-select js-searchable-select" data-placeholder="Select the order for these stone lines">
+                    <option value="">Select the order for these stone lines</option>
+                    <?php foreach (($stoneOrders ?? []) as $order): ?>
+                        <option value="<?= (int) $order['id'] ?>" <?= (string) old('stone_order_id') === (string) $order['id'] ? 'selected' : '' ?>><?= esc(\App\Services\StoneInventory\StoneIssueOrderService::label($order)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="text-muted">Required when any stone line is added; all stone lines in this voucher are issued for this order.</small>
+            </div>
             <div class="table-responsive">
                 <table class="table table-bordered align-middle mb-0">
                     <thead>
