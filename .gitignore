@@ -160,3 +160,6 @@ anuj/*
 docs/aabhushan-user-guide/screenshots/
 docs/aabhushan-user-guide/Aabhushan-User-Guide.html
 docs/aabhushan-user-guide/Aabhushan-User-Guide.md
+
+# React admin frontend (built output is committed under public/template/assets/react)
+/frontend/node_modules/

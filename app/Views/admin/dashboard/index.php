@@ -14,7 +14,55 @@ $statusBadge = static function (string $status): string {
 $orderSource = static function (array $row): string {
     return trim((string) (($row['customer_name'] ?? '') ?: ($row['order_from'] ?? '') ?: '-'));
 };
+
+$dashboardRow = static function (array $row) use ($orderSource): array {
+    return [
+        'id'           => (int) ($row['id'] ?? 0),
+        'orderNo'      => (string) ($row['order_no'] ?? ''),
+        'orderName'    => (string) ($row['order_name'] ?? ''),
+        'orderType'    => (string) ($row['order_type'] ?? ''),
+        'priority'     => (string) ($row['priority'] ?? ''),
+        'status'       => (string) ($row['status'] ?? ''),
+        'source'       => $orderSource($row),
+        'dueDate'      => ! empty($row['due_date']) ? date('d M Y', strtotime((string) $row['due_date'])) : '',
+        'dueRaw'       => ! empty($row['due_date']) ? date('Y-m-d', strtotime((string) $row['due_date'])) : '',
+        'createdAt'    => ! empty($row['created_at']) ? date('d M, h:i A', strtotime((string) $row['created_at'])) : '',
+        'thumbnailUrl' => (string) ($row['thumbnail_url'] ?? ''),
+        'url'          => site_url('admin/orders/' . (int) ($row['id'] ?? 0)),
+    ];
+};
+$dashboardPayload = [
+    'adminName' => (string) (session('admin_name') ?: 'Admin'),
+    'today'     => date('l, d M Y'),
+    'todayIso'  => date('Y-m-d'),
+    'hour'      => (int) date('G'),
+    'can'       => [
+        'createOrder'    => admin_can('orders.create'),
+        'createCustomer' => admin_can('customers.create'),
+    ],
+    'urls'      => [
+        'newOrder'      => site_url('admin/orders/create'),
+        'newCustomer'   => site_url('admin/customers/create'),
+        'freshOrders'   => site_url('admin/orders/fresh'),
+        'orders'        => site_url('admin/orders'),
+        'customers'     => site_url('admin/customers'),
+        'goldStock'     => site_url('admin/gold-inventory/stock'),
+    ],
+    'counts'    => array_map('intval', $counts ?? []),
+    'goldCards' => $goldCards ?? [],
+    'ordersNeedingAssignment' => array_map($dashboardRow, $ordersNeedingAssignment ?? []),
+    'recentOrders'            => array_map($dashboardRow, $recentOrders ?? []),
+    'statusBreakdown'         => $statusBreakdown ?? [],
+    'ordersTrend'             => $ordersTrend ?? [],
+];
+$reactSegments = service('uri')->getSegments();
+$reactAssetDir = ((string) ($reactSegments[0] ?? '') === 'public') ? 'public/template/assets/react' : 'template/assets/react';
+$reactFsDir = FCPATH . 'template/assets/react/';
+$reactVersion = static fn (string $file): string => (string) (@filemtime($reactFsDir . $file) ?: '1');
+$reactReady = is_file($reactFsDir . 'dashboard.js');
 ?>
+<script type="application/json" id="erp-dashboard-data"><?= json_encode($dashboardPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
+<div id="erp-react-dashboard">
 
 <section class="erp-dashboard-hero mb-4" data-app-tour="dashboard-overview">
     <div>
@@ -206,4 +254,14 @@ $orderSource = static function (array $row): string {
         </div>
     </div>
 </div>
+</div>
 <?= $this->endSection() ?>
+
+<?php if ($reactReady): ?>
+<?= $this->section('styles') ?>
+<link rel="stylesheet" href="<?= base_url($reactAssetDir . '/dashboard.css') ?>?v=<?= esc($reactVersion('dashboard.css')) ?>">
+<?= $this->endSection() ?>
+<?= $this->section('scripts') ?>
+<script type="module" src="<?= base_url($reactAssetDir . '/dashboard.js') ?>?v=<?= esc($reactVersion('dashboard.js')) ?>"></script>
+<?= $this->endSection() ?>
+<?php endif; ?>

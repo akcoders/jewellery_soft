@@ -1618,8 +1618,20 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
         }
     </style>
     <?= $this->renderSection('styles') ?>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="<?= esc($assetBase) ?>/css/aurum-theme.css?v=<?= esc((string) (@filemtime(FCPATH . 'template/assets/css/aurum-theme.css') ?: '1')) ?>">
 </head>
 <body class="<?= $isOrders ? 'module-orders' : '' ?>">
+    <script>
+        (function () {
+            var theme = 'dark';
+            try { theme = localStorage.getItem('erp-theme') === 'light' ? 'light' : 'dark'; } catch (e) {}
+            document.body.setAttribute('data-erp-theme', theme);
+            document.body.setAttribute('data-bs-theme', theme);
+        })();
+    </script>
     <div id="globalLoaderOverlay" class="global-loader-overlay active" aria-hidden="false">
         <div class="global-loader-card">
             <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
@@ -1671,6 +1683,12 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
             </a>
 
             <ul class="nav nav-tabs user-menu" data-app-tour="profile">
+                <li class="nav-item d-flex align-items-center">
+                    <button type="button" class="erp-theme-toggle" data-erp-theme-toggle aria-label="Switch colour theme" title="Switch light / dark theme">
+                        <svg class="erp-theme-toggle__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+                        <svg class="erp-theme-toggle__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    </button>
+                </li>
                 <li class="nav-item d-flex align-items-center">
                     <button type="button" class="admin-alert-trigger" data-bs-toggle="modal" data-bs-target="#adminAlertCenterModal" aria-label="Open pending alerts" title="Pending alerts">
                         <i class="fe fe-bell"></i>
@@ -2397,6 +2415,18 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
             }
         });
     </script>
+    <script>
+        document.addEventListener('click', function (event) {
+            var toggle = event.target.closest('[data-erp-theme-toggle]');
+            if (!toggle) return;
+            var next = document.body.getAttribute('data-erp-theme') === 'light' ? 'dark' : 'light';
+            document.body.setAttribute('data-erp-theme', next);
+            document.body.setAttribute('data-bs-theme', next);
+            try { localStorage.setItem('erp-theme', next); } catch (e) {}
+            document.dispatchEvent(new CustomEvent('erp:theme-change', { detail: { theme: next } }));
+        });
+    </script>
+    <script src="<?= esc($assetBase) ?>/js/aurum-theme.js?v=<?= esc((string) (@filemtime(FCPATH . 'template/assets/js/aurum-theme.js') ?: '1')) ?>"></script>
     <?= $this->renderSection('scripts') ?>
 </body>
 </html>

@@ -197,7 +197,44 @@ class DashboardController extends BaseController
         }
         unset($row);
 
+        // Read-only chart data for the React dashboard.
+        $statusBreakdown = [];
+        $ordersTrend = [];
+        try {
+            $statusRows = $db->table('orders')
+                ->select('status, COUNT(*) as total', false)
+                ->groupBy('status')
+                ->get()
+                ->getResultArray();
+            foreach ($statusRows as $row) {
+                $statusBreakdown[] = [
+                    'status' => (string) (($row['status'] ?? '') ?: 'Unknown'),
+                    'total'  => (int) ($row['total'] ?? 0),
+                ];
+            }
+
+            $trendStart = date('Y-m-d', strtotime('-13 days'));
+            $trendRows = $db->table('orders')
+                ->select('DATE(created_at) as day, COUNT(*) as total', false)
+                ->where('created_at >=', $trendStart . ' 00:00:00')
+                ->groupBy('DATE(created_at)')
+                ->get()
+                ->getResultArray();
+            $trendMap = [];
+            foreach ($trendRows as $row) {
+                $trendMap[(string) ($row['day'] ?? '')] = (int) ($row['total'] ?? 0);
+            }
+            for ($i = 13; $i >= 0; $i--) {
+                $day = date('Y-m-d', strtotime('-' . $i . ' days'));
+                $ordersTrend[] = ['day' => $day, 'total' => (int) ($trendMap[$day] ?? 0)];
+            }
+        } catch (\Throwable $exception) {
+            log_message('error', 'Dashboard chart data failed: {message}', ['message' => $exception->getMessage()]);
+        }
+
         return view('admin/dashboard/index', [
+            'statusBreakdown' => $statusBreakdown,
+            'ordersTrend'     => $ordersTrend,
             'title'          => 'Admin Dashboard',
             'counts'         => $counts,
             'goldCards'      => [
