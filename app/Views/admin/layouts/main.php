@@ -2396,7 +2396,7 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
             'adminId' => (int) (session('admin_id') ?? 0),
         ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     </script>
-    <script src="<?= esc($assetBase) ?>/js/admin-application-tour.js"></script>
+    <script src="<?= esc($assetBase) ?>/js/admin-application-tour.js?v=<?= esc((string) (@filemtime(FCPATH . 'template/assets/js/admin-application-tour.js') ?: '1')) ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const alertModalElement = document.getElementById('adminAlertCenterModal');

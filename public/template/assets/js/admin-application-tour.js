@@ -484,6 +484,25 @@
         }
     }
 
+    // CSRF tokens regenerate on every verified POST. Push the fresh hash into
+    // the page's forms too, otherwise forms rendered before this request
+    // would be rejected with "The action you requested is not allowed".
+    function syncCsrf(data) {
+        if (!data || !data.csrfHash) {
+            return;
+        }
+        config.csrfHash = data.csrfHash;
+        var tokenName = data.csrfToken || config.csrfToken;
+        if (!tokenName) {
+            return;
+        }
+        document.querySelectorAll('input[type="hidden"]').forEach(function (input) {
+            if (input.name === tokenName) {
+                input.value = data.csrfHash;
+            }
+        });
+    }
+
     async function saveState(action, stepKey) {
         try {
             var response = await window.fetch(config.stateUrl, {
@@ -499,9 +518,7 @@
                 body: JSON.stringify({ action: action, stepKey: stepKey })
             });
             var data = await response.json();
-            if (data.csrfHash) {
-                config.csrfHash = data.csrfHash;
-            }
+            syncCsrf(data);
             return response.ok && data.success === true;
         } catch (error) {
             return false;
@@ -519,9 +536,7 @@
                 }
             });
             var data = await response.json();
-            if (data.csrfHash) {
-                config.csrfHash = data.csrfHash;
-            }
+            syncCsrf(data);
             return response.ok && data.success === true ? data.tour : null;
         } catch (error) {
             return null;
