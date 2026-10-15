@@ -32,13 +32,11 @@ class TasksController extends MobileBaseController
 
         $query = trim((string) $this->request->getGet('q'));
         $builder = db_connect()->table('mobile_tasks t')
-            ->select('t.*, creator.name as assigned_by_name, COALESCE(followup_schedule.order_id, material_request.order_id) AS order_id, request_order.assigned_karigar_id AS request_karigar_id', false)
+            ->select('t.*, creator.name as assigned_by_name')
             ->join('admin_users creator', 'creator.id = t.created_by', 'left')
-            ->join('order_followup_schedules followup_schedule', "followup_schedule.id = t.reference_id AND t.reference_type = 'order_followup'", 'left')
-            ->join('order_work_requests material_request', "material_request.id = t.reference_id AND t.reference_type IN ('order_gold_request','order_diamond_bag')", 'left')
-            ->join('orders request_order', 'request_order.id = material_request.order_id', 'left')
             ->where('t.admin_user_id', (int) ($this->mobileAdmin['id'] ?? 0))
             ->where('t.counts_for_performance', 1)
+            ->where('t.reference_type', null)
             ->where('t.status !=', 'cancelled')
             ->groupStart()
                 ->where('t.is_done', 0)
@@ -55,13 +53,10 @@ class TasksController extends MobileBaseController
         $now = date('Y-m-d H:i:s');
         foreach ($rows as &$row) {
             $row['is_overdue'] = (int) ($row['is_done'] ?? 0) === 0 && (string) ($row['scheduled_at'] ?? '') < $now;
-            $usesWorkflowScore = StaffPerformanceService::taskUsesDedicatedWorkflowScore(
-                (string) ($row['reference_type'] ?? '')
-            );
             $completedByOther = (int) ($row['is_done'] ?? 0) === 1
                 && (int) ($row['completed_by'] ?? 0) > 0
                 && (int) ($row['completed_by'] ?? 0) !== (int) ($row['admin_user_id'] ?? 0);
-            if ($usesWorkflowScore || $completedByOther) {
+            if ($completedByOther) {
                 $row['score_delta'] = 0.0;
             } elseif ($row['is_overdue']) {
                 $row['score_delta'] = StaffPerformanceService::taskPoints((string) ($row['scheduled_at'] ?? ''), $now);

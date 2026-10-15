@@ -178,7 +178,7 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
                 ),
                 SizedBox(height: 5),
                 Text(
-                  'Normal tasks: on time +2 · late −2 per started day. Workflows with their own point rule are scored only once.',
+                  'Only tasks assigned directly from Staff Tasks appear here: on time +2 · late −2 per started day.',
                   style: TextStyle(color: Colors.white70),
                 ),
               ],

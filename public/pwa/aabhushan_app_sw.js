@@ -1,7 +1,7 @@
 "use strict";
 
 const CACHE_PREFIX = "aabhushan-pwa-";
-const CACHE_NAME = CACHE_PREFIX + "20261014181027";
+const CACHE_NAME = CACHE_PREFIX + "20261015021211";
 const APP_SHELL = [
   "./",
   "./index.html",

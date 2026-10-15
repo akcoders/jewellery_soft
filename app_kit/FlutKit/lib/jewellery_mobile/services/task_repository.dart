@@ -65,9 +65,7 @@ class TaskItem {
   bool get isGoldRequestTask =>
       referenceType == 'order_gold_request' && referenceId > 0;
   bool get isLinkedWorkflowTask => referenceType.isNotEmpty;
-  bool get usesDedicatedWorkflowScore =>
-      referenceType == 'order_followup' ||
-      referenceType == 'order_gold_request';
+  bool get usesDedicatedWorkflowScore => isLinkedWorkflowTask;
   bool get canOpenLinkedWorkflow =>
       isDiamondBagTask ||
       isDiamondBagRequestTask ||

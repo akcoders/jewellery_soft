@@ -22,13 +22,14 @@ class AdminTasksController extends MobileBaseController
             ->join('admin_users assignee', 'assignee.id = t.admin_user_id', 'left')
             ->join('admin_users creator', 'creator.id = t.created_by', 'left')
             ->where('t.counts_for_performance', 1)
+            ->where('t.reference_type', null)
             ->orderBy('t.id', 'DESC')->limit(150)->get()->getResultArray();
         $now = date('Y-m-d H:i:s');
         foreach ($rows as &$row) {
             $completedByOther = (int) ($row['is_done'] ?? 0) === 1
                 && (int) ($row['completed_by'] ?? 0) > 0
                 && (int) ($row['completed_by'] ?? 0) !== (int) ($row['admin_user_id'] ?? 0);
-            if (StaffPerformanceService::taskUsesDedicatedWorkflowScore((string) ($row['reference_type'] ?? '')) || $completedByOther) {
+            if ($completedByOther) {
                 $row['score_delta'] = 0.0;
             } elseif ((int) ($row['is_done'] ?? 0) === 0 && (string) ($row['scheduled_at'] ?? '') < $now) {
                 $row['score_delta'] = StaffPerformanceService::taskPoints((string) ($row['scheduled_at'] ?? ''), $now);

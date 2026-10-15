@@ -39,7 +39,7 @@ void main() {
       expect(scheduler.cancelled, [taskReminderNotificationId(42)]);
     });
 
-    test('only workflows with their own points suppress normal task scoring', () {
+    test('all transactional workflows suppress Staff Task scoring', () {
       final followup = TaskItem.fromApi({
         'id': 1,
         'reference_type': 'order_followup',
@@ -58,7 +58,7 @@ void main() {
 
       expect(followup.usesDedicatedWorkflowScore, isTrue);
       expect(issuement.usesDedicatedWorkflowScore, isTrue);
-      expect(diamondBag.usesDedicatedWorkflowScore, isFalse);
+      expect(diamondBag.usesDedicatedWorkflowScore, isTrue);
     });
   });
 }

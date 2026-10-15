@@ -22,6 +22,9 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
     {
         $service = $this->source('Services/StaffPerformanceService.php');
         $diamondWorkflow = $this->source('Services/DiamondRequirementService.php');
+        $webTasks = $this->source('Controllers/Admin/PerformanceController.php');
+        $mobileTasks = $this->source('Controllers/Api/Mobile/TasksController.php');
+        $mobileAdminTasks = $this->source('Controllers/Api/Mobile/AdminTasksController.php');
 
         $this->assertStringContainsString('f.points_enabled', $service);
         $this->assertStringContainsString('public const BASE_SCORE = 100.0', $service);
@@ -35,11 +38,16 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('public const RETURN_POINTS = 0.25', $service);
         $this->assertStringContainsString('public const RECEIVING_POINTS = 0.25', $service);
         $this->assertStringContainsString('public const PURCHASE_POINTS = 0.25', $service);
-        // Follow-up/issuement mirrors score in their own category; other assigned work uses the task rule.
-        $this->assertStringContainsString("DEDICATED_WORKFLOW_TASK_TYPES = ['order_followup', 'order_gold_request']", $service);
-        $this->assertStringContainsString("->orWhereNotIn('t.reference_type', self::DEDICATED_WORKFLOW_TASK_TYPES)", $service);
+        // Only manually assigned Staff Tasks are scored as tasks; every transactional mirror is excluded.
+        $this->assertStringContainsString("->where('t.reference_type', null)", $service);
+        $this->assertStringNotContainsString('DEDICATED_WORKFLOW_TASK_TYPES', $service);
+        $this->assertStringNotContainsString("->orWhereNotIn('t.reference_type'", $service);
         $this->assertStringNotContainsString("->notLike('t.reference_type', 'inventory_%')", $service);
-        $this->assertStringContainsString('StaffPerformanceService::taskPoints(', $diamondWorkflow);
+        $this->assertStringContainsString("'score_delta' => 0", $diamondWorkflow);
+        $this->assertStringContainsString("->where('t.reference_type', null)", $webTasks);
+        $this->assertStringContainsString("->where('t.reference_type', null)", $mobileTasks);
+        $this->assertStringContainsString("->where('t.reference_type', null)", $mobileAdminTasks);
+        $this->assertStringContainsString("'approval_pause_intervals'", $service);
         $this->assertStringNotContainsString("'followup_approval_credit_per_day'", $service);
         $this->assertStringContainsString("private const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OWNER']", $service);
         $this->assertStringContainsString("'events_by_user'", $service);
@@ -135,7 +143,7 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertSame(2, $summary['followup_delay_days']);
     }
 
-    public function testApprovalWaitingTimeDoesNotPauseOrCreditLatePoints(): void
+    public function testReviewedApprovalWaitingTimeIsExcludedFromLatePoints(): void
     {
         $service = new \App\Services\StaffPerformanceService();
         $metrics = new \ReflectionMethod($service, 'metrics');
@@ -150,10 +158,32 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
             ]],
         ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
 
-        $this->assertSame(16.0, $summary['points_lost']);
-        $this->assertSame(8, $summary['followup_delay_days']);
+        $this->assertSame(6.0, $summary['points_lost']);
+        $this->assertSame(3, $summary['followup_delay_days']);
         $this->assertSame(0.0, $summary['points_earned']);
         $this->assertSame(0, $summary['followup_approval_credit_days']);
+    }
+
+    public function testCurrentlyPendingApprovalDoesNotBecomeOverdue(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [], [[
+            'status' => 'pending',
+            'due_at' => '2026-10-02 10:00:00',
+            'created_at' => '2026-10-01 09:00:00',
+            'performance_until_at' => '2026-10-01 09:00:00',
+            'approval_pending' => true,
+            'approval_pause_intervals' => [[
+                'start_at' => '2026-10-01 09:00:00',
+                'end_at' => '2026-10-15 10:00:00',
+            ]],
+        ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(0.0, $summary['points_lost']);
+        $this->assertSame(0, $summary['followup_delay_days']);
+        $this->assertSame(0, $summary['followup_overdue']);
+        $this->assertSame(100.0, $summary['score']);
     }
 
     public function testTimelySubmittedFollowupGetsNoApprovalWaitingCredit(): void

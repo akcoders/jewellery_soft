@@ -158,9 +158,9 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                     ),
                     child: Text(
                       isNoPoint
-                          ? 'Score impact: 0 for approval. A separate late penalty still applies if the follow-up was late.'
+                          ? 'Score impact: 0 for approval. Submission lateness still applies; approval-pending wait time does not.'
                           : isApproval
-                          ? 'Score impact: +2 for approval. If it was late, the separate late penalty still applies.'
+                          ? 'Score impact: +2 for approval. Submission lateness still applies; approval-pending wait time does not.'
                           : 'Score impact: −2 only. The update remains visible in the order chain.',
                       style: TextStyle(
                         color: isNoPoint

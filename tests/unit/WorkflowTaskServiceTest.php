@@ -52,7 +52,7 @@ final class WorkflowTaskServiceTest extends CIUnitTestCase
         $service->complete('order_diamond_bag', 18, 7);
         $diamond = $db->table('mobile_tasks')->where('id', $diamondId)->get()->getRowArray();
         $this->assertSame('completed_late', $diamond['status']);
-        $this->assertSame(-4.0, (float) $diamond['score_delta']);
+        $this->assertSame(0.0, (float) $diamond['score_delta']);
         $db->close();
     }
 

@@ -313,7 +313,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Points include orders, approved follow-ups, issuements, returns, receivings, purchases, standalone tasks and completion ratings.',
+              'Points include orders, approved follow-ups, issuements, returns, receivings, purchases, manually assigned Staff Tasks and completion ratings.',
               style: TextStyle(
                 color: Color(0xFFD6C4CE),
                 fontSize: 12,
@@ -322,7 +322,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Approval points and late penalties are calculated separately. Waiting for admin approval does not add any extra credit.',
+              'Admin approval pending time is excluded from delay. Approval points and applicable pre-submission late penalties remain separate.',
               style: TextStyle(
                 color: Color(0xFFD6C4CE),
                 fontSize: 12,

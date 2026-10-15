@@ -52,6 +52,7 @@ class PerformanceController extends BaseController
             ->join('admin_users assignee', 'assignee.id = t.admin_user_id', 'left')
             ->join('admin_users creator', 'creator.id = t.created_by', 'left')
             ->where('t.counts_for_performance', 1)
+            ->where('t.reference_type', null)
             ->orderBy('t.scheduled_at', 'DESC')
             ->orderBy('t.id', 'DESC')
             ->get()->getResultArray();

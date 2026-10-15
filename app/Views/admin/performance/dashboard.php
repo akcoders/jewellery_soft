@@ -37,6 +37,7 @@ $followupEventTypes = ['Follow-up', 'Approved follow-up', 'Disapproved follow-up
         <div class="col-6 col-lg"><div class="performance-rule"><span>Approved follow-up</span><strong>+<?= number_format((float) ($rules['approved_followup'] ?? 2), 1) ?></strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Approved · no point</span><strong>0</strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Disapproved follow-up</span><strong><?= number_format((float) ($rules['disapproved_followup'] ?? -2), 1) ?></strong></div></div>
+        <div class="col-6 col-lg"><div class="performance-rule"><span>Approval pending</span><strong>No delay</strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Rating above 3</span><strong>+<?= number_format((float) ($rules['rating_point_step'] ?? 5), 0) ?>/star</strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Rating below 3</span><strong>-<?= number_format((float) ($rules['rating_point_step'] ?? 5), 0) ?>/star</strong></div></div>
         <div class="col-6 col-lg"><div class="performance-rule"><span>Issuement</span><strong>+<?= number_format((float) ($rules['issuement'] ?? .25), 2) ?></strong></div></div>

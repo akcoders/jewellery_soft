@@ -55943,7 +55943,7 @@ this.ahG()},
 E(a){var s,r,q,p=null,o=A.at(a,B.eq,t.w).w.ax,n=A.cb(B.hS,this.gZv(),p),m=A.bN(B.V,1.5),l=A.b([new A.c5(5,B.ag,B.V.be(0.23),B.m,42)],t.V)
 l=A.an(p,A.b3a("assets/images/brand/aabhushan_mark.png",B.ev,"Aabhushan"),B.l,p,p,new A.ai(B.mZ,p,m,p,l,p,B.br),p,138,p,B.tW,p,p,138)
 m=t.p
-s=A.a1(A.b([l,B.dt,B.af4,B.j5,B.agE,B.Gj,A.c1(o?A.an(p,p,B.l,B.V,p,p,p,2,p,p,p,p,p):A.UZ(B.V.be(0.22),B.V,2,p,p),p,92)],m),B.n,B.e,B.a0,0,B.k)
+s=A.a1(A.b([l,B.dt,B.af4,B.j5,B.agD,B.Gj,A.c1(o?A.an(p,p,B.l,B.V,p,p,p,2,p,p,p,p,p):A.UZ(B.V.be(0.22),B.V,2,p,p),p,92)],m),B.n,B.e,B.a0,0,B.k)
 l=A.lA(p,new A.LC(390,p),p,p,p,-160,-190,p)
 r=A.lA(-230,new A.LC(430,p),p,p,-170,p,p,p)
 if(o)q=s
@@ -57007,7 +57007,7 @@ k=A.dd(B.ii,A.j("Prepared on "+A.bcX(n.CW),m,m,m,m,m,m,m),new A.aFe(n))
 j=n.r||n.w?m:n.gazA()
 s=n.cx==null?"Add a bag photo":"Replace bag photo"
 r=t.p
-s=A.b([B.agJ,B.u,l,B.u,k,B.u,new A.tp(j,s,"Optional \xb7 camera or gallery \xb7 up to 4 MB",n.w,m)],r)
+s=A.b([B.agI,B.u,l,B.u,k,B.u,new A.tp(j,s,"Optional \xb7 camera or gallery \xb7 up to 4 MB",n.w,m)],r)
 l=n.cx
 if(l!=null){k=n.cy
 B.b.G(s,A.b([B.u,new A.m9(k,l,n.r||n.w?m:new A.aFf(n),m)],r))}s.push(B.u)
@@ -57021,7 +57021,7 @@ s.push(A.cu(m,!1,n.e,B.VQ,!1,m,m,m,m,m,3,m,!1,m,m,m,m,!1,m,m,B.D,B.S,m,m))
 s.push(B.E)
 l=n.r
 k=l||n.w?m:n.gane()
-s.push(A.dN(l?B.he:B.kJ,B.agx,k,m))
+s.push(A.dN(l?B.he:B.kJ,B.agw,k,m))
 return A.kz(m,A.a1(s,B.o,B.e,B.f,0,B.k),n.d)},
 anc(a){var s,r,q,p,o,n,m,l,k,j=this,i=null,h=j.ay,g=h[a],f=J.iI(j.at,new A.aEO(g)),e=A.Q(f,f.$ti.i("x.E"))
 f=t.p
@@ -57788,7 +57788,7 @@ if(g.length===0)m.push(new A.a7(B.nB,A.j("No "+h+" lines added.",r,r,r,B.b7,r,r,
 s=new A.fk(g,A.U(g).i("fk<1>"))
 B.b.G(m,s.gfP(s).eS(0,new A.aIT(this,h,g,c),t.l))
 m.push(A.dd(B.d2,A.j("Add "+h+" Line",r,r,r,r,r,r,r),a))
-if(b!=null)B.b.G(m,A.b([B.X,A.dN(B.kJ,B.agK,b,r)],n))
+if(b!=null)B.b.G(m,A.b([B.X,A.dN(B.kJ,B.agJ,b,r)],n))
 return A.an(r,A.a1(m,B.n,B.e,B.f,0,B.k),B.l,r,r,new A.ai(q,r,o,p,r,r,B.r),r,r,B.i3,B.T,r,r,r)},
 awi(a,b,c,d,e,f){return this.On(a,null,b,c,null,d,e,f)},
 awj(a,b,c,d,e,f,g){return this.On(a,b,c,d,null,e,f,g)},
@@ -59030,7 +59030,7 @@ i=A.b([B.afQ,B.b0,A.j(i,a4,a4,a4,B.qh,a4,a4,a4)],h)
 if(b.length!==0){a0=A.ho(b)
 a1=e.h(0,a8)
 i.push(A.j(a0+(J.B(a1==null?"":a1).length===0?"":" \xb7 "+A.f(e.h(0,a8))),a4,a4,a4,B.cx,a4,a4,a4))}i.push(B.PD)
-i.push(B.agz)
+i.push(B.agy)
 i.push(B.b0)
 i.push(A.j(a.length===0?"Not scheduled (terminal stage)":A.ho(a),a4,a4,a4,B.az,a4,a4,a4))
 k=A.an(a4,A.a1(i,B.o,B.e,B.f,0,B.k),B.l,a4,a4,new A.ai(B.hL,a4,k,j,a4,a4,B.r),a4,a4,a4,B.bS,a4,a4,1/0)
@@ -59156,8 +59156,8 @@ if(b)m=B.iG
 else m=d?B.l7:B.l6
 m=m.be(0.08)
 l=A.ah(12)
-if(b)k="Score impact: 0 for approval. A separate late penalty still applies if the follow-up was late."
-else k=d?"Score impact: +2 for approval. If it was late, the separate late penalty still applies.":"Score impact: \u22122 only. The update remains visible in the order chain."
+if(b)k="Score impact: 0 for approval. Submission lateness still applies; approval-pending wait time does not."
+else k=d?"Score impact: +2 for approval. Submission lateness still applies; approval-pending wait time does not.":"Score impact: \u22122 only. The update remains visible in the order chain."
 if(b)j=B.rO
 else j=d?B.t7:B.te
 B.b.G(p,A.b([n,B.u,A.an(f,A.j(k,f,f,f,A.d3(f,f,j,f,f,f,f,f,f,f,f,12,f,f,B.a8,f,f,!0,f,f,f,f,f,f,f,f),f,f,f),B.l,f,f,new A.ai(m,f,f,l,f,f,B.r),f,f,f,B.R0,f,f,1/0),B.aL],q))}n=d?"Approval note (optional)":"Reason for disapproval"
@@ -59203,7 +59203,7 @@ A.aLF.prototype={
 $2(a,b){var s,r=b.b
 r=r<430?r:(r-10)/2
 s=this.a
-return A.df(A.b([A.c1(A.dN(B.U5,B.agw,new A.aLx(s),null),null,r),A.c1(A.dd(B.TI,B.afd,new A.aLy(s)),null,r)],t.p),B.am,8,10)},
+return A.df(A.b([A.c1(A.dN(B.U5,B.agv,new A.aLx(s),null),null,r),A.c1(A.dd(B.TI,B.afd,new A.aLy(s)),null,r)],t.p),B.am,8,10)},
 $S:97}
 A.aLx.prototype={
 $0(){return this.a.ug("customer")},
@@ -59669,7 +59669,7 @@ break
 case 6:case 1:return A.p(q,r)
 case 2:return A.o(o.at(-1),r)}})
 return A.q($async$yr,r)},
-E(a){var s,r,q,p=this,o=null,n=A.h2(o,!0,o,B.agA,o,o)
+E(a){var s,r,q,p=this,o=null,n=A.h2(o,!0,o,B.agz,o,o)
 if(p.d)s=B.S3
 else{s=p.e
 r=p.gax8()
@@ -59810,7 +59810,7 @@ $S:0}
 A.iC.prototype={}
 A.qy.prototype={
 V(){var s=$.a4(),r=t.s
-return new A.Mw(new A.bf(null,t.am),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(new A.cc("0",B.aG,B.af),s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(new A.cc("0",B.aG,B.af),s),new A.ax(B.v,s),new A.be(Date.now(),0,!1),new A.be(Date.now(),0,!1),[],[],[],[],[],[],A.b([],r),A.b([],r),B.Z5,B.Zp,A.b([A.bc2()],t.XT),A.b([],t.M6))}}
+return new A.Mw(new A.bf(null,t.am),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(new A.cc("0",B.aG,B.af),s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(B.v,s),new A.ax(new A.cc("0",B.aG,B.af),s),new A.ax(B.v,s),new A.be(Date.now(),0,!1),new A.be(Date.now(),0,!1),[],[],[],[],[],[],A.b([],r),A.b([],r),B.Z5,B.Zq,A.b([A.bc2()],t.XT),A.b([],t.M6))}}
 A.Mw.prototype={
 a8(){var s,r=this
 r.ak()
@@ -60154,7 +60154,7 @@ q.push(e.oG("Certificate, Pricing & Delivery",p))
 p=!e.dx
 m=!p||e.dy?d:e.gazE()
 l=e.dy
-o=A.b([new A.tp(m,"Add reference photos","Camera or gallery \xb7 JPG, PNG, WebP \xb7 up to 10 MB",l,d),A.dd(B.Vg,B.agH,!p||l?d:e.gazB())],o)
+o=A.b([new A.tp(m,"Add reference photos","Camera or gallery \xb7 JPG, PNG, WebP \xb7 up to 10 MB",l,d),A.dd(B.Vg,B.agG,!p||l?d:e.gazB())],o)
 p=e.R.length
 if(p!==0)o.push(A.j(""+p+" file(s) selected",d,d,d,d,d,d,d))
 p=e.R
@@ -61008,7 +61008,7 @@ m.push(A.an(a,A.a1(A.b([B.a5t,B.E,j,B.aL,i,B.d9,A.df(A.b([h,c.OR("Priority",A.f(
 if(c.fr.a!==0){k=B.V.be(0.12)
 j=A.ah(12)
 B.b.G(m,A.b([B.u,A.an(a,B.a5s,B.l,a,a,new A.ai(k,a,A.bN(B.V.be(0.4),1),j,a,a,B.r),a,a,a,B.bS,a,a,a)],n))}if(c.db)B.b.G(m,A.b([B.u,A.dd(B.UQ,A.j(J.A(c.f,a2)==null?"Rate completed order":"Update rating \xb7 "+A.f(J.A(c.f,a2))+"/5",a,a,a,a,a,a,a),c.gaA3())],n))
-if(c.dx)B.b.G(m,A.b([B.u,A.dN(B.v5,B.ago,c.gaAc(),a)],n))
+if(c.dx)B.b.G(m,A.b([B.u,A.dN(B.v5,B.agn,c.gaAc(),a)],n))
 if(c.dy.a!==0){k=B.aE.be(0.06)
 j=A.j("Gross "+B.d.U(c.kv(c.dy.h(0,"gross_weight_gm")),3)+" gm \xb7 Net "+B.d.U(c.kv(c.dy.h(0,"net_gold_weight_gm")),3)+" gm \xb7 Pure "+B.d.U(c.kv(c.dy.h(0,a3)),3)+" gm",a,a,a,a,a,a,a)
 i=c.dy.h(0,"wastage_type")
@@ -61038,7 +61038,7 @@ if(J.eL(c.y)){k=A.b([B.E,B.J6,B.u],n)
 j=J.eM(c.y,t.f)
 B.b.G(k,A.eb(j,new A.aPh(c),j.$ti.i("x.E"),t.l))
 B.b.G(m,k)}if(c.ay||J.eL(c.z)){k=A.b([B.RD],n)
-if(c.ch)k.push(A.dd(B.U9,B.agp,c.gamw()))
+if(c.ch)k.push(A.dd(B.U9,B.ago,c.gamw()))
 k=A.b([A.ar(k,B.n,B.e,B.f,0,a),B.u],n)
 if(J.dn(c.z))k.push(A.j(c.ch?"No diamond bag has been issued to this order yet. You can prepare a size-wise bag now.":"No diamond bag has been issued to this order yet.",a,a,a,B.b7,a,a,a))
 else{j=J.eM(c.z,t.f)
@@ -61055,7 +61055,7 @@ k=J.A(c.f,a1)
 d=J.B(k==null?"":k)
 if(e.length!==0||d.length!==0){k=A.b([],n)
 if(p.length!==0)k.push(A.dN(B.kJ,B.afq,new A.aPl(c,p),a))
-if(o.length!==0)k.push(A.dN(B.Um,B.agr,new A.aPm(c,o),a))
+if(o.length!==0)k.push(A.dN(B.Um,B.agq,new A.aPm(c,o),a))
 B.b.G(m,A.b([B.J7,B.u,A.d7(new A.a7(B.T,A.df(k,B.am,10,10),a),a,a,a,a),B.E],n))}m.push(B.IZ)
 m.push(B.u)
 if(J.dn(c.r))m.push(B.It)
@@ -61177,7 +61177,7 @@ $1(a){return new A.it(new A.aOO(this.a,this.b),null)},
 $S:52}
 A.aOO.prototype={
 $2(a,b){var s=null,r=this.a,q=t.p,p=A.c1(A.a1(A.b([B.aho,B.E,A.ar(A.FU(5,new A.aOL(r,b),!0,t.l),B.n,B.iF,B.f,0,s),B.u,A.k2(s,B.bg,!1,s,!0,B.q,s,A.la(),this.b,s,s,s,s,s,2,B.Wy,B.ad,!0,s,!0,s,!1,s,B.bL,s,s,s,s,s,s,500,s,3,s,s,!1,"\u2022",s,s,s,s,s,!1,s,s,!1,s,!0,s,B.bk,s,s,s,s,s,s,s,s,s,s,s,s,!0,B.D,s,B.S,s,s,s,s)],q),B.n,B.e,B.a0,0,B.k),s,430),o=A.f8(B.cF,new A.aOM(a),s)
-return A.hn(A.b([o,A.jA(B.agI,r.a===0?s:new A.aON(a),s)],q),p,s,s,B.ahv)},
+return A.hn(A.b([o,A.jA(B.agH,r.a===0?s:new A.aON(a),s)],q),p,s,s,B.ahw)},
 $S:49}
 A.aOL.prototype={
 $1(a){var s=null,r=a+1,q=this.a
@@ -61827,7 +61827,7 @@ s=A.c1(A.hX(A.a1(o,B.ay,B.e,B.a0,0,B.k),j,j,j,B.ac),j,460)
 q=r.b
 p=A.f8(B.cF,q?j:new A.aOj(n),j)
 i=q||r.a==null?j:new A.aOk(r,k.b,b,i,m,n)
-return A.hn(A.b([p,A.dN(q?B.Gh:B.vm,B.agu,i,j)],l),s,j,j,h)},
+return A.hn(A.b([p,A.dN(q?B.Gh:B.vm,B.agt,i,j)],l),s,j,j,h)},
 $S:49}
 A.aOh.prototype={
 $0(){var s=0,r=A.r(t.H),q=this,p,o,n,m
@@ -62924,7 +62924,7 @@ r=p.length
 q=A.I(a).ok.r
 q=q==null?l:q.Gv(B.j,B.a8)
 n=t.p
-n=A.b([A.an(l,A.a1(A.b([B.U1,B.aL,A.j(""+r+" awaiting approval",l,l,l,q,l,l,l),B.X,B.agy],n),B.o,B.e,B.f,0,B.k),B.l,l,l,new A.ai(B.w,l,l,s,l,l,B.r),l,l,l,B.bk,l,l,l),B.aN,B.Ji,B.u],n)
+n=A.b([A.an(l,A.a1(A.b([B.U1,B.aL,A.j(""+r+" awaiting approval",l,l,l,q,l,l,l),B.X,B.agx],n),B.o,B.e,B.f,0,B.k),B.l,l,l,new A.ai(B.w,l,l,s,l,l,B.r),l,l,l,B.bk,l,l,l),B.aN,B.Ji,B.u],n)
 if(p.length===0)n.push(B.II)
 s=m.gayw()
 B.b.G(n,new A.R(p,s,A.U(p).i("R<1,d>")))
@@ -63550,7 +63550,7 @@ A.aRK.prototype={
 $0(){return this.a.a1N(1)},
 $S:0}
 A.aRL.prototype={
-$2(a,b){var s=null,r=this.b,q=t.p,p=A.a1(A.b([B.afk,B.ap,A.j(B.d.U(r,1),s,s,s,B.ab8,s,s,s)],q),B.o,B.e,B.f,0,B.k),o=this.a,n=A.a1(A.b([A.ar(A.b([B.Us,B.c7,A.ap(A.j(o.aBf(r),s,s,s,B.aed,s,s,s),1)],q),B.n,B.e,B.f,0,s),B.ap,A.j("Starts at "+B.d.U(o.lf(o.f.h(0,"base_score")),0)+" points each month.",s,s,s,B.GS,s,s,s),B.dv,B.ahB,B.dv,B.agn],q),B.o,B.e,B.f,0,B.k)
+$2(a,b){var s=null,r=this.b,q=t.p,p=A.a1(A.b([B.afk,B.ap,A.j(B.d.U(r,1),s,s,s,B.ab8,s,s,s)],q),B.o,B.e,B.f,0,B.k),o=this.a,n=A.a1(A.b([A.ar(A.b([B.Us,B.c7,A.ap(A.j(o.aBf(r),s,s,s,B.aed,s,s,s),1)],q),B.n,B.e,B.f,0,s),B.ap,A.j("Starts at "+B.d.U(o.lf(o.f.h(0,"base_score")),0)+" points each month.",s,s,s,B.GS,s,s,s),B.dv,B.agL,B.dv,B.ahu],q),B.o,B.e,B.f,0,B.k)
 if(b.b<520)return A.a1(A.b([p,B.aN,n],q),B.o,B.e,B.f,0,B.k)
 return A.ar(A.b([A.ap(p,3),B.Gg,A.ap(n,5)],q),B.n,B.e,B.f,0,s)},
 $S:55}
@@ -64420,13 +64420,13 @@ s=A.b([A.an(q,B.OK,B.l,q,q,new A.ai(q,q,q,A.ah(18),q,B.XD,B.r),q,q,q,B.T,q,q,q),
 if(J.dn(r.e))s.push(B.ID)
 B.b.G(s,J.cm(r.e,r.gaCP(),t.l))
 return A.ha(A.dO(s,q,B.T,q,q,!1),r.gFm())},
-aCQ(a){var s,r,q,p,o,n,m,l,k,j,i,h=null,g="order_gold_request",f=a.f
-if(f)s=B.aE
+aCQ(a){var s,r,q,p,o,n,m,l,k,j,i,h=null,g=a.f
+if(g)s=B.aE
 else s=a.y?B.au:B.V
 r=a.Q
-q=r==="order_followup"
-if(q||r===g)p=f?"Completed \xb7 scored in workflow":"Linked workflow"
-else if(f){o=a.z
+q=r.length!==0
+if(q)p=g?"Completed \xb7 scored in workflow":"Linked workflow"
+else if(g){o=a.z
 if(o===0)o="Completed \xb7 0"
 else o=o>0?"Completed on time \xb7 +"+B.d.U(o,0):"Completed late \xb7 "+B.d.U(o,0)
 p=o}else{o=a.y?"Overdue":"Pending"
@@ -64442,17 +64442,16 @@ m=a.c
 if(m.length!==0)i.push(new A.a7(B.kc,A.j(m,h,h,h,B.b7,h,h,h),h))
 i.push(B.PB)
 i.push(A.ar(A.b([A.cx(B.Tb,s,h,17),B.q1,A.ap(A.j("Due "+A.ho(a.d),h,h,h,B.fa,h,h,h),1),A.j(p,h,h,h,A.d3(h,h,s,h,h,h,h,h,h,h,h,11,h,h,B.a1,h,h,!0,h,h,h,h,h,h,h,h),h,h,h)],l),B.n,B.e,B.f,0,h))
-if(!f){if(!this.r)m=r.length!==0&&!a.ga6I()
+if(!g){if(!this.r)m=q&&!a.ga6I()
 else m=!0
 m=m?h:new A.aWY(this,a)
-l=r.length!==0
-k=A.cx(l?B.oA:B.Tz,h,h,h)
+l=A.cx(q?B.oA:B.Tz,h,h,h)
 if(r==="diamond_requirement"&&a.as>0)r="Open Bag Creation Request"
-else if(q&&a.at>0)r="Open order follow-up"
-else if(r===g&&a.as>0)r="Create gold issuement"
+else if(r==="order_followup"&&a.at>0)r="Open order follow-up"
+else if(r==="order_gold_request"&&a.as>0)r="Create gold issuement"
 else if(a.gIK())r="Create diamond bag"
-else r=l?"Complete in linked workflow":"Complete With Proof"
-i.push(new A.a7(B.QS,A.c1(A.dN(k,A.j(r,h,h,h,h,h,h,h),m,h),h,1/0),h))}return A.an(h,A.a1(i,B.o,B.e,B.f,0,B.k),B.l,h,h,new A.ai(B.j,h,n,o,B.bK,h,B.r),h,h,B.bt,B.T,h,h,h)}}
+else r=q?"Complete in linked workflow":"Complete With Proof"
+i.push(new A.a7(B.QS,A.c1(A.dN(l,A.j(r,h,h,h,h,h,h,h),m,h),h,1/0),h))}return A.an(h,A.a1(i,B.o,B.e,B.f,0,B.k),B.l,h,h,new A.ai(B.j,h,n,o,B.bK,h,B.r),h,h,B.bt,B.T,h,h,h)}}
 A.aWS.prototype={
 $0(){var s=this.a
 s.f=!0
@@ -64668,7 +64667,7 @@ s=A.ah(18)
 p=A.bN(B.Q,1)
 o=t.p
 n=A.b([A.ar(A.b([new A.k8(d,c,34,g),B.c7,A.ap(A.j(a,g,g,g,B.m0,g,g,g),1)],o),B.n,B.e,B.f,0,g),B.aL],o)
-if(r.length===0)n.push(B.ahw)
+if(r.length===0)n.push(B.ahx)
 else for(m=A.k_(r,0,A.x7(6,"count",t.S),A.U(r).c),l=m.$ti,m=new A.bX(m,m.gD(0),l.i("bX<a8.E>")),k=t.Jn,l=l.i("a8.E");m.B();){j=m.d
 if(j==null)j=l.a(j)
 i=A.j(j.a,g,g,g,B.lY,g,g,g)
@@ -128997,9 +128996,9 @@ B.abL=new A.u(!0,B.j,null,null,null,null,21,B.a1,null,null,null,null,null,null,n
 B.aga=new A.a2("My Assigned Tasks",null,B.abL,null,null,null,null,null,null,null)
 B.dT=new A.bK(null,5,null,null)
 B.GP=new A.u(!0,B.aq,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.agL=new A.a2("Normal tasks: on time +2 \xb7 late \u22122 per started day. Workflows with their own point rule are scored only once.",null,B.GP,null,null,null,null,null,null,null)
-B.Zr=s([B.aga,B.dT,B.agL],t.p)
-B.OK=new A.js(B.ac,B.e,B.f,B.o,null,B.k,null,0,B.Zr,null)
+B.agK=new A.a2("Only tasks assigned directly from Staff Tasks appear here: on time +2 \xb7 late \u22122 per started day.",null,B.GP,null,null,null,null,null,null,null)
+B.Zg=s([B.aga,B.dT,B.agK],t.p)
+B.OK=new A.js(B.ac,B.e,B.f,B.o,null,B.k,null,0,B.Zg,null)
 B.tr=new A.DX(0,"none")
 B.OL=new A.DX(1,"waiting")
 B.ne=new A.DX(3,"done")
@@ -129182,8 +129181,8 @@ B.ahc=new A.a2("Select vendor",null,null,null,null,null,null,null,null,null)
 B.PJ=new A.bi(null,B.ahc,B.a5,null,t.EP)
 B.agg=new A.a2("+ Add New Category",null,null,null,null,null,null,null,null,null)
 B.PK=new A.bi(0,B.agg,B.a5,null,t.R)
-B.agv=new A.a2("Standalone order",null,null,null,null,null,null,null,null,null)
-B.PM=new A.bi(0,B.agv,B.a5,null,t.R)
+B.agu=new A.a2("Standalone order",null,null,null,null,null,null,null,null,null)
+B.PM=new A.bi(0,B.agu,B.a5,null,t.R)
 B.afe=new A.a2("Follower change",null,null,null,null,null,null,null,null,null)
 B.PP=new A.bi("follower_change",B.afe,B.a5,null,t.Q)
 B.afn=new A.a2("Diamond requirement",null,null,null,null,null,null,null,null,null)
@@ -129196,16 +129195,16 @@ B.ah_=new A.a2("Custom / New Item",null,null,null,null,null,null,null,null,null)
 B.PW=new A.bi(0,B.ah_,B.a5,null,t.R)
 B.agT=new A.a2("Order delay",null,null,null,null,null,null,null,null,null)
 B.Q1=new A.bi("order_delay",B.agT,B.a5,null,t.Q)
-B.agF=new A.a2("Select design",null,null,null,null,null,null,null,null,null)
-B.Q2=new A.bi(null,B.agF,B.a5,null,t.EP)
+B.agE=new A.a2("Select design",null,null,null,null,null,null,null,null,null)
+B.Q2=new A.bi(null,B.agE,B.a5,null,t.EP)
 B.af_=new A.a2("Not allocated",null,null,null,null,null,null,null,null,null)
 B.Q3=new A.bi(null,B.af_,B.a5,null,t.EP)
-B.ahz=new A.a2("Select sales person (optional)",null,null,null,null,null,null,null,null,null)
-B.Q4=new A.bi(null,B.ahz,B.a5,null,t.EP)
+B.ahA=new A.a2("Select sales person (optional)",null,null,null,null,null,null,null,null,null)
+B.Q4=new A.bi(null,B.ahA,B.a5,null,t.EP)
 B.agO=new A.a2("Gold requirement",null,null,null,null,null,null,null,null,null)
 B.Q9=new A.bi("gold_requirement",B.agO,B.a5,null,t.Q)
-B.agD=new A.a2("Unallocated / general jobwork",null,null,null,null,null,null,null,null,null)
-B.Qd=new A.bi(null,B.agD,B.a5,null,t.R)
+B.agC=new A.a2("Unallocated / general jobwork",null,null,null,null,null,null,null,null,null)
+B.Qd=new A.bi(null,B.agC,B.a5,null,t.R)
 B.aht=new A.a2("Select (optional)",null,null,null,null,null,null,null,null,null)
 B.Qg=new A.bi(null,B.aht,B.a5,null,t.EP)
 B.Qh=new A.Ev(null,null,null,null)
@@ -129415,8 +129414,8 @@ B.H_=new A.u(!0,B.j,null,"CormorantGaramond",null,null,25,B.a8,null,null,null,nu
 B.afA=new A.a2("Packing List Generator",null,B.H_,null,null,null,null,null,null,null)
 B.du=new A.bK(null,3,null,null)
 B.adb=new A.u(!0,B.aq,null,null,null,null,12,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.ags=new A.a2("Select completed & received orders for one A4 landscape PDF.",null,B.adb,null,null,null,null,null,null,null)
-B.a_F=s([B.ahk,B.dT,B.afA,B.du,B.ags],t.p)
+B.agr=new A.a2("Select completed & received orders for one A4 landscape PDF.",null,B.adb,null,null,null,null,null,null,null)
+B.a_F=s([B.ahk,B.dT,B.afA,B.du,B.agr],t.p)
 B.OH=new A.js(B.ac,B.e,B.f,B.o,null,B.k,null,0,B.a_F,null)
 B.RC=new A.hu(1,B.cg,B.OH,null)
 B.Jj=new A.dg("Diamond Bag",null,null)
@@ -129427,20 +129426,20 @@ B.hi=new A.u(!0,null,null,null,null,null,16,B.a1,null,null,null,null,null,null,n
 B.af1=new A.a2("Diamonds from order bags",null,B.hi,null,null,null,null,null,null,null)
 B.cx=new A.u(!0,B.J,null,null,null,null,11,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.agc=new A.a2("Select one or more issued bag lines. PCS and weight are automatic.",null,B.cx,null,null,null,null,null,null,null)
-B.Zo=s([B.af1,B.agc],t.p)
-B.OJ=new A.js(B.ac,B.e,B.f,B.o,null,B.k,null,0,B.Zo,null)
+B.Zp=s([B.af1,B.agc],t.p)
+B.OJ=new A.js(B.ac,B.e,B.f,B.o,null,B.k,null,0,B.Zp,null)
 B.RE=new A.hu(1,B.cg,B.OJ,null)
 B.acQ=new A.u(!0,B.V,null,null,null,null,11,B.a1,null,1.6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.afV=new A.a2("DELIVERY REGISTER",null,B.acQ,null,null,null,null,null,null,null)
-B.ahx=new A.a2("Delivery Challans",null,B.H_,null,null,null,null,null,null,null)
-B.ZX=s([B.afV,B.dT,B.ahx],t.p)
+B.ahy=new A.a2("Delivery Challans",null,B.H_,null,null,null,null,null,null,null)
+B.ZX=s([B.afV,B.dT,B.ahy],t.p)
 B.OI=new A.js(B.ac,B.e,B.f,B.o,null,B.k,null,0,B.ZX,null)
 B.RF=new A.hu(1,B.cg,B.OI,null)
 B.ak8=new A.a17(null)
 B.ub=new A.hu(1,B.cg,B.ak8,null)
 B.abc=new A.u(!0,B.j,null,null,null,null,null,B.a1,null,1.2,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.ahy=new A.a2("DELIVERY CHALLAN",null,B.abc,null,null,null,null,null,null,null)
-B.RG=new A.hu(1,B.cg,B.ahy,null)
+B.ahz=new A.a2("DELIVERY CHALLAN",null,B.abc,null,null,null,null,null,null,null)
+B.RG=new A.hu(1,B.cg,B.ahz,null)
 B.ar=new A.iU(600)
 B.a9j=new A.u(!0,B.ax,null,null,null,null,10,B.ar,null,1.5,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.ahM=new A.a2("TOTAL STOCK VALUE",null,B.a9j,null,null,null,null,null,null,null)
@@ -130018,8 +130017,8 @@ B.Or=new A.z(1,0.41568627450980394,0.20784313725490197,0.3058823529411765,B.h)
 B.ZW=s([B.w,B.Or],t.W)
 B.Xp=new A.es(B.bq,B.cn,B.b2,B.ZW,null,null)
 B.MT=new A.z(1,0.4823529411764706,0.1607843137254902,0.2784313725490196,B.h)
-B.Zq=s([B.w,B.MT],t.W)
-B.Xr=new A.es(B.de,B.dA,B.b2,B.Zq,null,null)
+B.Zr=s([B.w,B.MT],t.W)
+B.Xr=new A.es(B.de,B.dA,B.b2,B.Zr,null,null)
 B.NR=new A.z(1,0.403921568627451,0.25098039215686274,0.3137254901960784,B.h)
 B.a_z=s([B.w,B.NR],t.W)
 B.Xs=new A.es(B.bq,B.cn,B.b2,B.a_z,null,null)
@@ -130160,19 +130159,19 @@ B.a_x=s([2.48660575,1.36351941],t.n)
 B.YS=s([2.62226596,1.44717976],t.n)
 B.Z0=s([2.7514899,1.53385819],t.n)
 B.ZO=s([3.36298265,1.98288283],t.n)
-B.Zg=s([4.08649929,2.23811846],t.n)
+B.Zh=s([4.08649929,2.23811846],t.n)
 B.ZB=s([4.85481134,2.47563463],t.n)
 B.YW=s([5.62945551,2.72948597],t.n)
 B.Zc=s([6.43023796,2.98020421],t.n)
-B.vK=s([B.Za,B.XW,B.a_v,B.a_x,B.YS,B.Z0,B.ZO,B.Zg,B.ZB,B.YW,B.Zc],t.zg)
+B.vK=s([B.Za,B.XW,B.a_v,B.a_x,B.YS,B.Z0,B.ZO,B.Zh,B.ZB,B.YW,B.Zc],t.zg)
 B.YN=s(["AM","PM"],t.s)
 B.vL=s(["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],t.s)
 B.afL=new A.a2("Low",null,null,null,null,null,null,null,null,null)
 B.PN=new A.bi("low",B.afL,B.a5,null,t.Q)
-B.ahu=new A.a2("High",null,null,null,null,null,null,null,null,null)
-B.PL=new A.bi("high",B.ahu,B.a5,null,t.Q)
-B.agt=new A.a2("Urgent",null,null,null,null,null,null,null,null,null)
-B.Q_=new A.bi("urgent",B.agt,B.a5,null,t.Q)
+B.ahv=new A.a2("High",null,null,null,null,null,null,null,null,null)
+B.PL=new A.bi("high",B.ahv,B.a5,null,t.Q)
+B.ags=new A.a2("Urgent",null,null,null,null,null,null,null,null,null)
+B.Q_=new A.bi("urgent",B.ags,B.a5,null,t.Q)
 B.YP=s([B.PN,B.tH,B.PL,B.Q_],t.FG)
 B.YQ=s(["All","Pending","Completed"],t.s)
 B.YR=s([B.mL,B.mM],A.aX("L<Df>"))
@@ -130276,7 +130275,7 @@ B.vT=s([0,21,51,121,151,191,271,321,360],t.n)
 B.c4=new A.ve(0,"portrait")
 B.dO=new A.ve(1,"landscape")
 B.vU=s([B.c4,B.dO],A.aX("L<ve>"))
-B.Zp=s(["","IGI","Kalasha","IGI / Kalasha","Other"],t.s)
+B.Zq=s(["","IGI","Kalasha","IGI / Kalasha","Other"],t.s)
 B.Zs=s(["Pending","Partial","Paid"],t.s)
 B.Zt=s(["Q1","Q2","Q3","Q4"],t.s)
 B.Zu=s([-1,0,0,1,0,0,-1,0,1,0,0,0,-1,1,0,1,1,1,1,0],t.n)
@@ -131097,22 +131096,22 @@ B.a_u=s([B.AQ,null,null,B.eY],t.L)
 B.a_w=s([B.AR,null,null,B.iE],t.L)
 B.YE=s([B.iz,B.iz,B.l_,null],t.L)
 B.a_P=s([B.kW,null,B.kW,null],t.L)
-B.Zi=s([B.dn,null,null,B.eV],t.L)
-B.Zj=s([B.d3,null,null,B.eW],t.L)
-B.Zk=s([B.d4,null,null,B.eX],t.L)
+B.Zj=s([B.dn,null,null,B.eV],t.L)
+B.Zk=s([B.d3,null,null,B.eW],t.L)
+B.Zl=s([B.d4,null,null,B.eX],t.L)
 B.a_T=s([B.dp,null,null,B.eY],t.L)
 B.a_D=s([B.oW,null,null,B.p2],t.L)
 B.YF=s([B.iy,B.iy,B.kZ,null],t.L)
 B.a_0=s([B.c2,null,null,B.eU],t.L)
-B.Zl=s([B.eR,null,null,B.iB],t.L)
+B.Zm=s([B.eR,null,null,B.iB],t.L)
 B.Yu=s([B.kV,null,null,B.p0],t.L)
-B.Zm=s([B.eS,null,null,B.iD],t.L)
+B.Zn=s([B.eS,null,null,B.iD],t.L)
 B.a_E=s([B.ix,null,null,B.p1],t.L)
 B.YG=s([B.iA,B.iA,B.l0,null],t.L)
-B.Zn=s([B.iv,null,null,B.iC],t.L)
+B.Zo=s([B.iv,null,null,B.iC],t.L)
 B.a_8=s([B.iw,null,null,B.iE],t.L)
 B.YH=s([B.ea,B.ea,B.eT,null],t.L)
-B.a1T=new A.dF(["*",B.Yr,"+",B.a_s,"-",B.Z7,".",B.ZM,"/",B.XO,"0",B.a_O,"1",B.a_I,"2",B.YB,"3",B.a_V,"4",B.a_G,"5",B.Yw,"6",B.XU,"7",B.YO,"8",B.a_u,"9",B.a_w,"Alt",B.YE,"AltGraph",B.a_P,"ArrowDown",B.Zi,"ArrowLeft",B.Zj,"ArrowRight",B.Zk,"ArrowUp",B.a_T,"Clear",B.a_D,"Control",B.YF,"Delete",B.a_0,"End",B.Zl,"Enter",B.Yu,"Home",B.Zm,"Insert",B.a_E,"Meta",B.YG,"PageDown",B.Zn,"PageUp",B.a_8,"Shift",B.YH],A.aX("dF<l,T<n?>>"))
+B.a1T=new A.dF(["*",B.Yr,"+",B.a_s,"-",B.Z7,".",B.ZM,"/",B.XO,"0",B.a_O,"1",B.a_I,"2",B.YB,"3",B.a_V,"4",B.a_G,"5",B.Yw,"6",B.XU,"7",B.YO,"8",B.a_u,"9",B.a_w,"Alt",B.YE,"AltGraph",B.a_P,"ArrowDown",B.Zj,"ArrowLeft",B.Zk,"ArrowRight",B.Zl,"ArrowUp",B.a_T,"Clear",B.a_D,"Control",B.YF,"Delete",B.a_0,"End",B.Zm,"Enter",B.Yu,"Home",B.Zn,"Insert",B.a_E,"Meta",B.YG,"PageDown",B.Zo,"PageUp",B.a_8,"Shift",B.YH],A.aX("dF<l,T<n?>>"))
 B.a2C={KeyA:0,KeyB:1,KeyC:2,KeyD:3,KeyE:4,KeyF:5,KeyG:6,KeyH:7,KeyI:8,KeyJ:9,KeyK:10,KeyL:11,KeyM:12,KeyN:13,KeyO:14,KeyP:15,KeyQ:16,KeyR:17,KeyS:18,KeyT:19,KeyU:20,KeyV:21,KeyW:22,KeyX:23,KeyY:24,KeyZ:25,Digit1:26,Digit2:27,Digit3:28,Digit4:29,Digit5:30,Digit6:31,Digit7:32,Digit8:33,Digit9:34,Digit0:35,Minus:36,Equal:37,BracketLeft:38,BracketRight:39,Backslash:40,Semicolon:41,Quote:42,Backquote:43,Comma:44,Period:45,Slash:46}
 B.p6=new A.cH(B.a2C,["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","1","2","3","4","5","6","7","8","9","0","-","=","[","]","\\",";","'","`",",",".","/"],t.li)
 B.a1Z=new A.dF([B.jc,-7,B.hl,1,B.m4,7,B.fd,-1],A.aX("dF<oT,w>"))
@@ -131593,8 +131592,8 @@ B.a4v=new A.zn("logout",!0,B.a5r,null,t.wI)
 B.a4w=new A.vs(null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.Ob=new A.z(0.6,1,0.9764705882352941,0.9294117647058824,B.h)
 B.aaF=new A.u(!0,B.Ob,null,null,null,null,9,null,null,2.1,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.agG=new A.a2("CRAFTED WITH PRECISION",null,B.aaF,B.bD,null,null,null,null,null,null)
-B.a4x=new A.qM(0,null,0,30,null,null,B.agG,null)
+B.agF=new A.a2("CRAFTED WITH PRECISION",null,B.aaF,B.bD,null,null,null,null,null,null)
+B.a4x=new A.qM(0,null,0,30,null,null,B.agF,null)
 B.pq=new A.vt(0,"platformDefault")
 B.F2=new A.vt(1,"inAppWebView")
 B.F3=new A.vt(2,"inAppBrowserView")
@@ -131685,14 +131684,14 @@ B.a5s=new A.r4(B.aX,B.e,B.f,B.n,null,B.k,null,0,B.a_B,null)
 B.UP=new A.au(B.bJ,20,B.ax,null,null)
 B.tp=new A.z(1,0.9137254901960784,0.8431372549019608,0.8705882352941177,B.h)
 B.ad3=new A.u(!0,B.tp,null,null,null,null,11,B.a8,null,1.5,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.agC=new A.a2("ORDER OVERVIEW",null,B.ad3,null,null,null,null,null,null,null)
-B.YY=s([B.UP,B.c7,B.agC],t.p)
+B.agB=new A.a2("ORDER OVERVIEW",null,B.ad3,null,null,null,null,null,null,null)
+B.YY=s([B.UP,B.c7,B.agB],t.p)
 B.a5t=new A.r4(B.aX,B.e,B.f,B.n,null,B.k,null,0,B.YY,null)
 B.TR=new A.au(B.fQ,null,B.aE,null,null)
 B.hk=new A.u(!0,null,null,null,null,null,null,B.a1,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.agB=new A.a2("Receiving posted",null,B.hk,null,null,null,null,null,null,null)
-B.Zh=s([B.TR,B.b6,B.agB],t.p)
-B.a5u=new A.r4(B.aX,B.e,B.f,B.n,null,B.k,null,0,B.Zh,null)
+B.agA=new A.a2("Receiving posted",null,B.hk,null,null,null,null,null,null,null)
+B.Zi=s([B.TR,B.b6,B.agA],t.p)
+B.a5u=new A.r4(B.aX,B.e,B.f,B.n,null,B.k,null,0,B.Zi,null)
 B.a5v=new A.HX(1333)
 B.py=new A.HX(2222)
 B.a5w=new A.Xs(null,null)
@@ -132019,16 +132018,16 @@ B.a83=new A.mX(5,"timeout")
 B.a84=new A.A1(null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.ag9=new A.a2("Finished jewellery received successfully.",null,null,null,null,null,null,null,null,null)
 B.a85=new A.io(B.ag9,null,null,null,null,null,null,null,null,null,null,null,null,B.K,!1,null,null,null,B.q,null)
-B.ahA=new A.a2("Unable to open document.",null,null,null,null,null,null,null,null,null)
-B.a86=new A.io(B.ahA,null,null,null,null,null,null,null,null,null,null,null,null,B.K,!1,null,null,null,B.q,null)
+B.ahB=new A.a2("Unable to open document.",null,null,null,null,null,null,null,null,null)
+B.a86=new A.io(B.ahB,null,null,null,null,null,null,null,null,null,null,null,null,B.K,!1,null,null,null,B.q,null)
 B.ahK=new A.a2("No active staff follower is available.",null,null,null,null,null,null,null,null,null)
 B.a87=new A.io(B.ahK,null,null,null,null,null,null,null,null,null,null,null,null,B.K,!1,null,null,null,B.q,null)
 B.ah8=new A.a2("Notification marked as done.",null,null,null,null,null,null,null,null,null)
 B.a88=new A.io(B.ah8,null,null,null,null,null,null,null,null,null,null,null,null,B.K,!1,null,null,null,B.q,null)
 B.afx=new A.a2("Unable to open PDF download.",null,null,null,null,null,null,null,null,null)
 B.a89=new A.io(B.afx,null,null,null,null,null,null,null,null,null,null,null,null,B.K,!1,null,null,null,B.q,null)
-B.agq=new A.a2("Order follower updated.",null,null,null,null,null,null,null,null,null)
-B.a8a=new A.io(B.agq,null,null,null,null,null,null,null,null,null,null,null,null,B.K,!1,null,null,null,B.q,null)
+B.agp=new A.a2("Order follower updated.",null,null,null,null,null,null,null,null,null)
+B.a8a=new A.io(B.agp,null,null,null,null,null,null,null,null,null,null,null,null,B.K,!1,null,null,null,B.q,null)
 B.ag6=new A.a2("Completion rating saved.",null,null,null,null,null,null,null,null,null)
 B.a8b=new A.io(B.ag6,null,null,null,null,null,null,null,null,null,null,null,null,B.K,!1,null,null,null,B.q,null)
 B.Gq=new A.IF(0,"permissive")
@@ -132595,24 +132594,24 @@ B.agi=new A.a2("Review request",null,null,null,null,null,null,null,null,null)
 B.agl=new A.a2("Submit Proof",null,null,null,null,null,null,null,null,null)
 B.Hf=new A.a2("Add Bag Row",null,null,null,null,null,null,null,null,null)
 B.agm=new A.a2("View Image",null,null,null,null,null,null,null,null,null)
-B.GZ=new A.u(!0,B.jN,null,null,null,null,12,null,null,null,null,null,1.5,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.agn=new A.a2("Approval points and late penalties are calculated separately. Waiting for admin approval does not add any extra credit.",null,B.GZ,null,null,null,null,null,null,null)
-B.ago=new A.a2("Receive finished jewellery",null,null,null,null,null,null,null,null,null)
-B.agp=new A.a2("Create Bag",null,null,null,null,null,null,null,null,null)
-B.agr=new A.a2("Delivery challan",null,null,null,null,null,null,null,null,null)
+B.agn=new A.a2("Receive finished jewellery",null,null,null,null,null,null,null,null,null)
+B.ago=new A.a2("Create Bag",null,null,null,null,null,null,null,null,null)
+B.agq=new A.a2("Delivery challan",null,null,null,null,null,null,null,null,null)
 B.Hg=new A.a2("Create Delivery Challan",null,null,null,null,null,null,null,null,null)
-B.agu=new A.a2("Create Issuement",null,null,null,null,null,null,null,null,null)
-B.agw=new A.a2("New Customer",null,null,null,null,null,null,null,null,null)
-B.agx=new A.a2("Complete & Mark Bag Ready",null,null,null,null,null,null,null,null,null)
-B.agy=new A.a2("Review order changes and keep work moving.",null,B.H8,null,null,null,null,null,null,null)
-B.agz=new A.a2("Next follow-up",null,B.GY,null,null,null,null,null,null,null)
-B.agA=new A.a2("Notifications",null,null,null,null,null,null,null,null,null)
+B.agt=new A.a2("Create Issuement",null,null,null,null,null,null,null,null,null)
+B.agv=new A.a2("New Customer",null,null,null,null,null,null,null,null,null)
+B.agw=new A.a2("Complete & Mark Bag Ready",null,null,null,null,null,null,null,null,null)
+B.agx=new A.a2("Review order changes and keep work moving.",null,B.H8,null,null,null,null,null,null,null)
+B.agy=new A.a2("Next follow-up",null,B.GY,null,null,null,null,null,null,null)
+B.agz=new A.a2("Notifications",null,null,null,null,null,null,null,null,null)
 B.aeb=new A.u(!0,B.V,null,null,null,null,10,B.ar,null,3,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.agE=new A.a2("JEWELLERY WORKSPACE",null,B.aeb,null,null,null,null,null,null,null)
-B.agH=new A.a2("Choose PDF / CAD file",null,null,null,null,null,null,null,null,null)
-B.agI=new A.a2("Save Rating",null,null,null,null,null,null,null,null,null)
-B.agJ=new A.a2("PREPARE SIZE-WISE BAG",null,B.lX,null,null,null,null,null,null,null)
-B.agK=new A.a2("Issue Complete Bag",null,null,null,null,null,null,null,null,null)
+B.agD=new A.a2("JEWELLERY WORKSPACE",null,B.aeb,null,null,null,null,null,null,null)
+B.agG=new A.a2("Choose PDF / CAD file",null,null,null,null,null,null,null,null,null)
+B.agH=new A.a2("Save Rating",null,null,null,null,null,null,null,null,null)
+B.agI=new A.a2("PREPARE SIZE-WISE BAG",null,B.lX,null,null,null,null,null,null,null)
+B.agJ=new A.a2("Issue Complete Bag",null,null,null,null,null,null,null,null,null)
+B.GZ=new A.u(!0,B.jN,null,null,null,null,12,null,null,null,null,null,1.5,null,null,null,null,null,null,null,null,null,null,null,null,null)
+B.agL=new A.a2("Points include orders, approved follow-ups, issuements, returns, receivings, purchases, manually assigned Staff Tasks and completion ratings.",null,B.GZ,null,null,null,null,null,null,null)
 B.agM=new A.a2("This order is closed. The follower will change without scheduling another follow-up.",null,null,null,null,null,null,null,null,null)
 B.agN=new A.a2("GST & Invoice Total",null,B.hi,null,null,null,null,null,null,null)
 B.agQ=new A.a2("New Order",null,null,null,null,null,null,null,null,null)
@@ -132644,9 +132643,9 @@ B.aho=new A.a2("Rate the completed order from 1 to 5. This rating is included in
 B.ahq=new A.a2("Change",null,null,null,null,null,null,null,null,null)
 B.ahr=new A.a2("Change Order Follower",null,null,null,null,null,null,null,null,null)
 B.ahs=new A.a2("Assign",null,null,null,null,null,null,null,null,null)
-B.ahv=new A.a2("Order completion rating",null,null,null,null,null,null,null,null,null)
-B.ahw=new A.a2("Nothing recorded this month.",null,B.bE,null,null,null,null,null,null,null)
-B.ahB=new A.a2("Points include orders, approved follow-ups, issuements, returns, receivings, purchases, standalone tasks and completion ratings.",null,B.GZ,null,null,null,null,null,null,null)
+B.ahu=new A.a2("Admin approval pending time is excluded from delay. Approval points and applicable pre-submission late penalties remain separate.",null,B.GZ,null,null,null,null,null,null,null)
+B.ahw=new A.a2("Order completion rating",null,null,null,null,null,null,null,null,null)
+B.ahx=new A.a2("Nothing recorded this month.",null,B.bE,null,null,null,null,null,null,null)
 B.aaI=new A.u(!0,B.J,null,null,null,null,8,B.a1,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.ahC=new A.a2("RECEIVED",null,B.aaI,null,null,null,null,null,null,null)
 B.ahF=new A.a2("Cancel task?",null,null,null,null,null,null,null,null,null)

@@ -60,11 +60,8 @@ class WorkflowTaskService
             'status' => $onTime ? 'completed_on_time' : 'completed_late',
             'completed_at' => $eventAt,
             'completed_by' => $completedBy,
-            // Follow-up/issuement mirrors score in their activity; all other assigned work scores once as a task.
-            'score_delta' => $completedBy !== (int) $task['admin_user_id']
-                || StaffPerformanceService::taskUsesDedicatedWorkflowScore($type)
-                ? 0
-                : StaffPerformanceService::taskPoints((string) $task['scheduled_at'], $eventAt),
+            // Transactional workflow tasks never count as Staff Task points.
+            'score_delta' => 0,
             'updated_at' => $now,
         ]);
     }

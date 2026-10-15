@@ -29,6 +29,8 @@ Late calculation ka exact example:
 
 Approval point aur late penalty alag rules hain. Isliye late follow-up approve hone par approval ka `+2` aur applicable late penalty dono lagenge. "No point" approval me approval bonus `0` rahega, lekin follow-up late tha to late penalty phir bhi lagegi.
 
+Follow-up admin approval me pending hone ke dauran wait-time ko employee delay nahi maana jayega. Submission se pehle jo late penalty already ban chuki thi woh rahegi, lekin admin ke pending period me nayi late-day unit nahi badhegi. Approval ya rejection ke baad agle pending follow-up ka delay timer resume hoga.
+
 ## Completion rating points
 
 Completed aur received order par `orders.assign` permission wala admin Order Details screen se **Rate Order** ya **Update Rating** use kar sakta hai. Rating 1 se 5 stars tak hogi aur existing formula retain kiya gaya hai:
@@ -47,10 +49,10 @@ Rating assigned order follower ke performance me rating save hone wale month me 
 
 ## Duplicate scoring protection
 
-- Standalone task aur aisa linked assigned work jiska alag business point rule nahi hai, normal task ke `+2/-2 per started late day` rule se ek baar score hoga.
-- Order follow-up aur gold issuement request ki mirror task entry normal task points dobara add/minus nahi karegi, kyunki inka approval/issuement score alag se lagta hai.
-- Linked workflow ko sirf ek applicable rule se score kiya jayega. Example: gold issuement complete hone par `+0.25`; uski linked mobile task ke alag `+2` points nahi milenge. Diamond-bag preparation jiska alag listed business point nahi hai, normal task rule se score hoga.
-- Order follow-up schedule aur uski mobile task ek hi work hain; scoring follow-up rule se hogi, mirror task se nahi.
+- Task category me sirf **Staff Tasks** screen/API se particular employee ke naam par manually assigned task aayega.
+- Jis task ka `reference_type` hai woh transactional/workflow task hai; follow-up, issuement, diamond bag ya koi bhi aisa task Task category/list me count nahi hoga.
+- Har transactional workflow ko sirf uske applicable business rule se score kiya jayega. Example: gold issuement complete hone par `+0.25`; uski linked mobile task ke alag `+2` points nahi milenge.
+- Order follow-up schedule aur uski workflow task scoring follow-up rule se hogi, Staff Task rule se nahi.
 - Duplicate follow-up text aur photo/evidence performance points ko add ya minus nahi karte. Admin approval decision, lateness aur listed business activities hi follow-up/business points ko affect karte hain.
 
 ## Late points aur cron
@@ -60,10 +62,11 @@ Pending late task/follow-up ka point dashboard aur mobile performance API khulte
 ## Correction summary
 
 - Follow-up approval ko `+2`, no-point approval ko `0`, aur disapproval ko `-2` kiya gaya.
+- Admin approval pending rehne ka time follow-up delay se exclude kiya gaya.
 - Late penalty ko due time cross hote hi `-2`, phir har additional started 24-hour period par `-2` kiya gaya.
 - Order, issuement, return, receiving aur purchase ko `+0.25` each kiya gaya.
 - Duplicate/photo based performance points hata diye gaye.
 - Rating ka existing 5-point-per-star-from-3 formula retain kiya gaya.
 - Completed received order par admin rating button, rating update aur remark flow retain aur verify kiya gaya.
-- Normal task aur separately scored linked workflow ki calculation alag ki gayi, jisse duplicate points nahi aayenge aur baaki assigned tasks normal `+2/-2` rule me rahenge.
+- Task calculation sirf manually assigned Staff Tasks tak limit ki gayi; saare transactional/workflow tasks Task category se exclude hain.
 - Point calculation ke liye koi SQL report/import file required nahi hai; live application service hi calculation karegi.
