@@ -55,6 +55,17 @@ class TasksController extends MobileBaseController
         $now = date('Y-m-d H:i:s');
         foreach ($rows as &$row) {
             $row['is_overdue'] = (int) ($row['is_done'] ?? 0) === 0 && (string) ($row['scheduled_at'] ?? '') < $now;
+            $usesWorkflowScore = StaffPerformanceService::taskUsesDedicatedWorkflowScore(
+                (string) ($row['reference_type'] ?? '')
+            );
+            $completedByOther = (int) ($row['is_done'] ?? 0) === 1
+                && (int) ($row['completed_by'] ?? 0) > 0
+                && (int) ($row['completed_by'] ?? 0) !== (int) ($row['admin_user_id'] ?? 0);
+            if ($usesWorkflowScore || $completedByOther) {
+                $row['score_delta'] = 0.0;
+            } elseif ($row['is_overdue']) {
+                $row['score_delta'] = StaffPerformanceService::taskPoints((string) ($row['scheduled_at'] ?? ''), $now);
+            }
             $row['proof_url'] = ! empty($row['proof_path']) ? base_url(ltrim((string) $row['proof_path'], '/')) : null;
         }
         unset($row);
@@ -83,7 +94,7 @@ class TasksController extends MobileBaseController
         if ((int) ($task['is_done'] ?? 0) === 1 || in_array((string) ($task['status'] ?? ''), ['cancelled', 'completed_on_time', 'completed_late'], true)) {
             return $this->fail('Task is already closed.', 422);
         }
-        if (in_array((string) ($task['reference_type'] ?? ''), ['diamond_requirement', 'order_followup', 'order_gold_request', 'order_diamond_bag'], true)) {
+        if (trim((string) ($task['reference_type'] ?? '')) !== '') {
             return $this->fail('Complete this task through its linked order or issuement workflow.', 422);
         }
 
@@ -101,6 +112,7 @@ class TasksController extends MobileBaseController
 
         $completedAt = date('Y-m-d H:i:s');
         $onTime = $completedAt <= (string) ($task['scheduled_at'] ?? '');
+        $points = StaffPerformanceService::taskPoints((string) ($task['scheduled_at'] ?? ''), $completedAt);
         try {
             db_connect()->transException(true)->transStart();
             $this->taskModel->update($id, [
@@ -111,7 +123,7 @@ class TasksController extends MobileBaseController
                 'proof_name' => $saved['name'],
                 'proof_path' => $saved['path'],
                 'proof_note' => $proofNote !== '' ? $proofNote : null,
-                'score_delta' => $onTime ? StaffPerformanceService::TASK_ON_TIME_POINTS : StaffPerformanceService::TASK_LATE_POINTS,
+                'score_delta' => $points,
             ]);
             $this->pushService->cancelByReference('mobile_tasks', $id);
             db_connect()->transComplete();
@@ -126,8 +138,10 @@ class TasksController extends MobileBaseController
 
         return $this->ok([
             'task' => $this->taskModel->find($id),
-            'points' => $onTime ? StaffPerformanceService::TASK_ON_TIME_POINTS : StaffPerformanceService::TASK_LATE_POINTS,
-        ], $onTime ? 'Task completed on time. +2 points.' : 'Task completed after its due time. -2 points.');
+            'points' => $points,
+        ], $onTime
+            ? 'Task completed on time. +2 points.'
+            : 'Task completed late. ' . number_format($points, 0) . ' points.');
     }
 
     private function saveProof(string $encoded): array

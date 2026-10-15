@@ -8,7 +8,7 @@ use Config\Database;
 
 final class WorkflowTaskServiceTest extends CIUnitTestCase
 {
-    public function testAssignmentReassignmentAndCompletionScoreOnlyOnce(): void
+    public function testLinkedWorkflowTaskIsStoredOnceAndDoesNotDuplicateActivityPoints(): void
     {
         $db = Database::connect([
             'DBDriver' => 'SQLite3', 'database' => ':memory:', 'DBPrefix' => '',
@@ -33,13 +33,26 @@ final class WorkflowTaskServiceTest extends CIUnitTestCase
         $service->complete('order_followup', 15, 8);
         $completed = $db->table('mobile_tasks')->where('id', $id)->get()->getRowArray();
         $this->assertSame(1, (int) $completed['is_done']);
-        $this->assertSame(2.0, (float) $completed['score_delta']);
+        $this->assertSame(0.0, (float) $completed['score_delta']);
 
         $service->complete('order_followup', 15, 8);
         $service->assign('order_followup', 15, 7, 'Different assignee', $dueAt, 1);
         $unchanged = $db->table('mobile_tasks')->where('id', $id)->get()->getRowArray();
         $this->assertSame(8, (int) $unchanged['admin_user_id']);
-        $this->assertSame(2.0, (float) $unchanged['score_delta']);
+        $this->assertSame(0.0, (float) $unchanged['score_delta']);
+
+        $diamondId = $service->assign(
+            'order_diamond_bag',
+            18,
+            7,
+            'Prepare diamond bag',
+            date('Y-m-d H:i:s', strtotime('-25 hours')),
+            1
+        );
+        $service->complete('order_diamond_bag', 18, 7);
+        $diamond = $db->table('mobile_tasks')->where('id', $diamondId)->get()->getRowArray();
+        $this->assertSame('completed_late', $diamond['status']);
+        $this->assertSame(-4.0, (float) $diamond['score_delta']);
         $db->close();
     }
 
@@ -66,8 +79,8 @@ final class WorkflowTaskServiceTest extends CIUnitTestCase
         $this->assertSame('cancelled', $cancelled['status']);
         $this->assertSame(0.0, (float) $cancelled['score_delta']);
 
-        $otherId = $service->assign('order_followup', 17, 7, 'Follow up C', $dueAt, 1);
-        $service->complete('order_followup', 17, 9);
+        $otherId = $service->assign('order_diamond_bag', 17, 7, 'Prepare diamond bag C', $dueAt, 1);
+        $service->complete('order_diamond_bag', 17, 9);
         $other = $db->table('mobile_tasks')->where('id', $otherId)->get()->getRowArray();
         $this->assertSame(1, (int) $other['is_done']);
         $this->assertSame(0.0, (float) $other['score_delta']);

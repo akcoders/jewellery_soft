@@ -64,6 +64,15 @@ class TaskItem {
       referenceType == 'order_followup' && orderId > 0;
   bool get isGoldRequestTask =>
       referenceType == 'order_gold_request' && referenceId > 0;
+  bool get isLinkedWorkflowTask => referenceType.isNotEmpty;
+  bool get usesDedicatedWorkflowScore =>
+      referenceType == 'order_followup' ||
+      referenceType == 'order_gold_request';
+  bool get canOpenLinkedWorkflow =>
+      isDiamondBagTask ||
+      isDiamondBagRequestTask ||
+      isOrderFollowupTask ||
+      isGoldRequestTask;
   factory TaskItem.fromApi(Map<String, dynamic> json) {
     return TaskItem(
       id: _safeInt(json['id']),

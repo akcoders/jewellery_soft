@@ -219,7 +219,7 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
                 ),
                 SizedBox(height: 5),
                 Text(
-                  'Points update when the assigned work is completed. On time +2 · Late −2',
+                  'Normal tasks: on time +2 · late −2 per started day. Workflows with their own point rule are scored only once.',
                   style: TextStyle(color: Colors.white70),
                 ),
               ],
@@ -242,7 +242,9 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
     final color = completed
         ? AppColors.success
         : (task.isOverdue ? AppColors.danger : AppColors.brandGold);
-    final status = completed
+    final status = task.usesDedicatedWorkflowScore
+        ? (completed ? 'Completed · scored in workflow' : 'Linked workflow')
+        : completed
         ? task.scoreDelta == 0
               ? 'Completed · 0'
               : task.scoreDelta > 0
@@ -349,18 +351,16 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _submitting
+                  onPressed:
+                      _submitting ||
+                          (task.isLinkedWorkflowTask &&
+                              !task.canOpenLinkedWorkflow)
                       ? null
-                      : () =>
-                            (task.isDiamondBagTask ||
-                                task.isOrderFollowupTask ||
-                                task.isGoldRequestTask)
+                      : () => task.canOpenLinkedWorkflow
                             ? _openWorkflowTask(task)
                             : _completeTask(task),
                   icon: Icon(
-                    (task.isDiamondBagTask ||
-                            task.isOrderFollowupTask ||
-                            task.isGoldRequestTask)
+                    task.isLinkedWorkflowTask
                         ? Icons.inventory_2_outlined
                         : Icons.verified_outlined,
                   ),
@@ -371,6 +371,10 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
                         ? 'Open order follow-up'
                         : task.isGoldRequestTask
                         ? 'Create gold issuement'
+                        : task.isDiamondBagRequestTask
+                        ? 'Create diamond bag'
+                        : task.isLinkedWorkflowTask
+                        ? 'Complete in linked workflow'
                         : 'Complete With Proof',
                   ),
                 ),

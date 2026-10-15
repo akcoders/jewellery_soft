@@ -21,22 +21,60 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
     public function testScoreIsTransparentAndExcludesAdminRoles(): void
     {
         $service = $this->source('Services/StaffPerformanceService.php');
+        $diamondWorkflow = $this->source('Services/DiamondRequirementService.php');
 
         $this->assertStringContainsString('f.points_enabled', $service);
         $this->assertStringContainsString('public const BASE_SCORE = 100.0', $service);
         $this->assertStringContainsString('public const TASK_ON_TIME_POINTS = 2.0', $service);
         $this->assertStringContainsString('public const TASK_LATE_POINTS = -2.0', $service);
-        $this->assertStringContainsString('public const FOLLOWUP_ON_TIME_POINTS = 1.0', $service);
+        $this->assertStringContainsString('public const FOLLOWUP_ON_TIME_POINTS = 0.0', $service);
         $this->assertStringContainsString('public const FOLLOWUP_LATE_POINTS = -2.0', $service);
-        $this->assertStringContainsString('public const DISAPPROVED_FOLLOWUP_POINTS = 0.0', $service);
-        $this->assertStringContainsString("->notLike('t.reference_type', 'inventory_%')", $service);
-        // Follow-up schedules are scored once; their mirror workflow task must not add points again.
-        $this->assertStringContainsString("->where('t.reference_type !=', 'order_followup')", $service);
-        $this->assertStringContainsString("->where('status', 'rejected')", $service);
-        $this->assertStringContainsString("\$request['status'] === 'approved'", $service);
-        $this->assertStringContainsString("'followup_approval_credit_per_day' => abs(self::FOLLOWUP_LATE_POINTS)", $service);
+        $this->assertStringContainsString('public const DISAPPROVED_FOLLOWUP_POINTS = -2.0', $service);
+        $this->assertStringContainsString('public const ORDER_ENTRY_POINTS = 0.25', $service);
+        $this->assertStringContainsString('public const ISSUEMENT_POINTS = 0.25', $service);
+        $this->assertStringContainsString('public const RETURN_POINTS = 0.25', $service);
+        $this->assertStringContainsString('public const RECEIVING_POINTS = 0.25', $service);
+        $this->assertStringContainsString('public const PURCHASE_POINTS = 0.25', $service);
+        // Follow-up/issuement mirrors score in their own category; other assigned work uses the task rule.
+        $this->assertStringContainsString("DEDICATED_WORKFLOW_TASK_TYPES = ['order_followup', 'order_gold_request']", $service);
+        $this->assertStringContainsString("->orWhereNotIn('t.reference_type', self::DEDICATED_WORKFLOW_TASK_TYPES)", $service);
+        $this->assertStringNotContainsString("->notLike('t.reference_type', 'inventory_%')", $service);
+        $this->assertStringContainsString('StaffPerformanceService::taskPoints(', $diamondWorkflow);
+        $this->assertStringNotContainsString("'followup_approval_credit_per_day'", $service);
         $this->assertStringContainsString("private const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OWNER']", $service);
         $this->assertStringContainsString("'events_by_user'", $service);
+    }
+
+    public function testLatePenaltyStartsImmediatelyAndGrowsAfterEveryFullTwentyFourHours(): void
+    {
+        $this->assertSame(0, \App\Services\StaffPerformanceService::lateDayUnits(
+            '2026-10-01 10:00:00',
+            '2026-10-01 10:00:00'
+        ));
+        $this->assertSame(1, \App\Services\StaffPerformanceService::lateDayUnits(
+            '2026-10-01 10:00:00',
+            '2026-10-01 10:00:01'
+        ));
+        $this->assertSame(1, \App\Services\StaffPerformanceService::lateDayUnits(
+            '2026-10-01 10:00:00',
+            '2026-10-02 10:00:00'
+        ));
+        $this->assertSame(2, \App\Services\StaffPerformanceService::lateDayUnits(
+            '2026-10-01 10:00:00',
+            '2026-10-02 10:00:01'
+        ));
+        $this->assertSame(2.0, \App\Services\StaffPerformanceService::taskPoints(
+            '2026-10-01 10:00:00',
+            '2026-10-01 09:59:59'
+        ));
+        $this->assertSame(-2.0, \App\Services\StaffPerformanceService::taskPoints(
+            '2026-10-01 10:00:00',
+            '2026-10-01 10:00:01'
+        ));
+        $this->assertSame(-4.0, \App\Services\StaffPerformanceService::taskPoints(
+            '2026-10-01 10:00:00',
+            '2026-10-02 10:00:01'
+        ));
     }
 
     public function testFollowupDelayCostsTwoPointsPerDayUsingSubmissionTimeNotApprovalTime(): void
@@ -78,8 +116,8 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
             'score_delta' => 0,
         ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
 
-        $this->assertSame(4.0, $summary['points_lost']);
-        $this->assertSame(2, $summary['followup_delay_days']);
+        $this->assertSame(2.0, $summary['points_lost']);
+        $this->assertSame(1, $summary['followup_delay_days']);
     }
 
     public function testApprovalDelayBeforeTheNextFollowupExistsDoesNotAddDelayPoints(): void
@@ -97,7 +135,7 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertSame(2, $summary['followup_delay_days']);
     }
 
-    public function testRejectedFollowupDoesNotEarnApprovalDelayCredit(): void
+    public function testApprovalWaitingTimeDoesNotPauseOrCreditLatePoints(): void
     {
         $service = new \App\Services\StaffPerformanceService();
         $metrics = new \ReflectionMethod($service, 'metrics');
@@ -112,13 +150,13 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
             ]],
         ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
 
-        $this->assertSame(6.0, $summary['points_lost']);
-        $this->assertSame(3, $summary['followup_delay_days']);
+        $this->assertSame(16.0, $summary['points_lost']);
+        $this->assertSame(8, $summary['followup_delay_days']);
         $this->assertSame(0.0, $summary['points_earned']);
         $this->assertSame(0, $summary['followup_approval_credit_days']);
     }
 
-    public function testTimelySubmittedFollowupGetsTwoPointsPerFullDayUntilApproved(): void
+    public function testTimelySubmittedFollowupGetsNoApprovalWaitingCredit(): void
     {
         $service = new \App\Services\StaffPerformanceService();
         $metrics = new \ReflectionMethod($service, 'metrics');
@@ -135,10 +173,10 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
 
         $this->assertSame(0.0, $summary['points_lost']);
-        $this->assertSame(6.0, $summary['points_earned']);
-        $this->assertSame(106.0, $summary['score']);
-        $this->assertSame(3, $summary['followup_approval_credit_days']);
-        $this->assertSame(6.0, $summary['followup_approval_credit_points']);
+        $this->assertSame(0.0, $summary['points_earned']);
+        $this->assertSame(100.0, $summary['score']);
+        $this->assertSame(0, $summary['followup_approval_credit_days']);
+        $this->assertSame(0.0, $summary['followup_approval_credit_points']);
     }
 
     public function testPendingOrRejectedFollowupDoesNotEarnApprovalDelayCredit(): void
@@ -188,41 +226,46 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertSame(0.0, $summary['followup_approval_credit_points']);
     }
 
-    public function testPerformanceAnalysisIncludesFollowupQualityAndScheduleDiscipline(): void
+    public function testPerformanceAnalysisUsesOnlyConfiguredPointEvents(): void
     {
         $service = new \App\Services\StaffPerformanceService();
         $metrics = new \ReflectionMethod($service, 'metrics');
         $summary = $metrics->invoke($service, [[
-            'status' => 'completed_on_time', 'is_done' => 1, 'score_delta' => 2,
+            'status' => 'completed_on_time', 'is_done' => 1,
+            'scheduled_at' => '2026-10-10 10:00:00',
+            'completed_at' => '2026-10-10 09:00:00',
         ]], [[
             'status' => 'completed_on_time', 'due_at' => '2026-10-10 10:00:00',
             'completed_at' => '2026-10-10 09:00:00', 'score_delta' => 0,
         ]], [], [
             ['type' => 'Approved follow-up', 'score_delta' => 2],
-            ['type' => 'Meaningful update', 'score_delta' => .25],
-            ['type' => 'Duplicate follow-up', 'score_delta' => -1],
-            ['type' => 'Image evidence missing', 'score_delta' => -.5],
+            ['type' => 'Order Entry', 'score_delta' => .25],
+            ['type' => 'Issuement', 'score_delta' => .25],
+            ['type' => 'Return', 'score_delta' => .25],
+            ['type' => 'Receiving', 'score_delta' => .25],
+            ['type' => 'Purchase', 'score_delta' => .25],
         ], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
 
-        $this->assertSame(2, $summary['followup_submission_count']);
-        $this->assertSame(1, $summary['meaningful_updates']);
-        $this->assertSame(1, $summary['duplicate_followups']);
-        $this->assertSame(1, $summary['missing_image_followups']);
-        $this->assertSame(50.0, $summary['evidence_compliance_rate']);
-        $this->assertSame(50.0, $summary['unique_update_rate']);
+        $this->assertSame(1, $summary['followup_submission_count']);
+        $this->assertSame(0, $summary['meaningful_updates']);
+        $this->assertSame(0, $summary['duplicate_followups']);
+        $this->assertSame(0, $summary['missing_image_followups']);
         $this->assertSame(100.0, $summary['on_time_rate']);
-        $this->assertSame('Needs review', $summary['performance_band']);
-        $this->assertTrue($summary['needs_attention']);
+        $this->assertSame('Excellent', $summary['performance_band']);
+        $this->assertFalse($summary['needs_attention']);
         $this->assertTrue($summary['has_scored_activity']);
         $this->assertSame(2, $summary['due_action_count']);
         $this->assertSame(2.0, $summary['point_earned_breakdown']['Completed tasks']);
         $this->assertSame(2.0, $summary['point_earned_breakdown']['Approved follow-up']);
-        $this->assertSame(.25, $summary['point_earned_breakdown']['Meaningful update']);
-        $this->assertSame(1.0, $summary['point_loss_breakdown']['Duplicate follow-up']);
-        $this->assertSame(.5, $summary['point_loss_breakdown']['Image evidence missing']);
+        $this->assertSame(.25, $summary['point_earned_breakdown']['Order Entry']);
+        $this->assertSame(.25, $summary['point_earned_breakdown']['Issuement']);
+        $this->assertSame(.25, $summary['point_earned_breakdown']['Return']);
+        $this->assertSame(.25, $summary['point_earned_breakdown']['Receiving']);
+        $this->assertSame(.25, $summary['point_earned_breakdown']['Purchase']);
+        $this->assertSame(105.3, $summary['score']);
     }
 
-    public function testPendingAndDisapprovedFollowupsDoNotChangeScore(): void
+    public function testDisapprovedFollowupDeductsTwoPoints(): void
     {
         $service = new \App\Services\StaffPerformanceService();
         $metrics = new \ReflectionMethod($service, 'metrics');
@@ -232,58 +275,69 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
             'due_at' => '2026-10-10 10:00:00',
             'completed_at' => '2026-10-10 09:00:00',
         ]], [], [[
-            'type' => 'Disapproved follow-up', 'score_delta' => 0,
+            'type' => 'Disapproved follow-up', 'score_delta' => -2,
         ]], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
 
-        $this->assertSame(0.0, $summary['points_lost']);
-        $this->assertSame(100.0, $summary['score']);
+        $this->assertSame(2.0, $summary['points_lost']);
+        $this->assertSame(98.0, $summary['score']);
         $this->assertSame(1, $summary['disapproved_followups']);
-        $this->assertSame(0, $summary['followup_on_time']);
+        $this->assertSame(1, $summary['followup_on_time']);
         $this->assertSame('Approval rejected', $summary['performance_band']);
+    }
+
+    public function testApprovedWithoutPointsIsCountedSeparatelyAndAddsZero(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [], [], [], [[
+            'type' => 'Approved follow-up',
+            'score_delta' => 0,
+        ]], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(0, $summary['approved_followups']);
+        $this->assertSame(1, $summary['no_point_followups']);
+        $this->assertSame(1, $summary['followup_submission_count']);
+        $this->assertSame(0.0, $summary['points_earned']);
+        $this->assertSame(100.0, $summary['score']);
+    }
+
+    public function testCompletionRatingKeepsExistingFivePointStepFromThreeStars(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $metrics = new \ReflectionMethod($service, 'metrics');
+        $summary = $metrics->invoke($service, [], [], [
+            ['completion_rating' => 5],
+            ['completion_rating' => 2],
+        ], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+
+        $this->assertSame(10.0, $summary['points_earned']);
+        $this->assertSame(5.0, $summary['points_lost']);
+        $this->assertSame(105.0, $summary['score']);
+        $this->assertSame(2, $summary['rating_count']);
+        $this->assertSame(3.5, $summary['rating_average']);
+        $this->assertSame(10.0, $summary['point_earned_breakdown']['Completion ratings']);
+        $this->assertSame(5.0, $summary['point_loss_breakdown']['Low completion ratings']);
     }
 
     public function testPerformanceViewShowsManagementQualityAndRiskAnalysis(): void
     {
         $view = $this->source('Views/admin/performance/dashboard.php');
 
-        $this->assertStringContainsString('Follow-up Quality', $view);
+        $this->assertStringContainsString('Follow-up Decisions', $view);
         $this->assertStringContainsString('Management Focus', $view);
-        $this->assertStringContainsString('Evidence Compliance', $view);
         $this->assertStringContainsString('Employee Performance Analysis', $view);
         $this->assertStringContainsString("analysis_summary", $view);
         $this->assertStringContainsString('staff-points-chart', $view);
         $this->assertStringContainsString('loss-reasons-chart', $view);
         $this->assertStringContainsString('earned-reasons-chart', $view);
         $this->assertStringContainsString('team-discipline-chart', $view);
-        $this->assertStringContainsString('Follow-up Evidence &amp; Scoring Audit', $view);
+        $this->assertStringContainsString('Follow-up Scoring Audit', $view);
         $this->assertStringContainsString('id="followup-audit-table"', $view);
         $this->assertStringContainsString('apexcharts.min.js', $view);
+        $this->assertStringNotContainsString('Evidence Compliance', $view);
+        $this->assertStringNotContainsString('Duplicate penalty', $view);
+        $this->assertStringNotContainsString('Missing image', $view);
         $this->assertStringNotContainsString('activity-row', $view);
-    }
-
-    public function testDuplicateAuditEventKeepsFollowupAndMatchedIdsForAdminReview(): void
-    {
-        $events = new \ReflectionMethod(new \App\Services\StaffPerformanceService(), 'events');
-        $rows = $events->invoke(new \App\Services\StaffPerformanceService(), [], [], [], [[
-            'type' => 'Duplicate follow-up', 'title' => 'ORD-1', 'reference' => 'Matched follow-up #4',
-            'occurred_at' => '2026-10-13 10:00:00', 'score_delta' => -1, 'order_id' => 9,
-            'followup_id' => 12, 'matched_followup_id' => 4,
-        ]], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
-
-        $this->assertSame(12, $rows[0]['followup_id']);
-        $this->assertSame(4, $rows[0]['matched_followup_id']);
-    }
-
-    public function testFollowupAuditEventKeepsValidEvidenceLink(): void
-    {
-        $events = new \ReflectionMethod(new \App\Services\StaffPerformanceService(), 'events');
-        $rows = $events->invoke(new \App\Services\StaffPerformanceService(), [], [], [], [[
-            'type' => 'Meaningful update', 'title' => 'ORD-2', 'reference' => 'Unique update',
-            'occurred_at' => '2026-10-13 11:00:00', 'score_delta' => .25, 'order_id' => 10,
-            'followup_id' => 13, 'proof_url' => 'http://localhost/uploads/followups/evidence.jpg',
-        ]], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
-
-        $this->assertSame('http://localhost/uploads/followups/evidence.jpg', $rows[0]['proof_url']);
     }
 
     public function testFollowerIsAssignedWithKarigarAndEveryDueFollowupIsTracked(): void

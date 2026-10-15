@@ -653,9 +653,13 @@ class DiamondRequirementService
                 'completed_at' => $completedAt,
                 'completed_by' => $completedBy,
                 'proof_note' => 'Automatically completed when the assigned diamond bag was prepared.',
-                'score_delta' => $onTime
-                    ? StaffPerformanceService::TASK_ON_TIME_POINTS
-                    : StaffPerformanceService::TASK_LATE_POINTS,
+                // Diamond preparation has no separate business-activity score, so it is a normal task.
+                'score_delta' => $completedBy === (int) ($task['admin_user_id'] ?? 0)
+                    ? StaffPerformanceService::taskPoints(
+                        (string) ($task['scheduled_at'] ?? ''),
+                        $completedAt
+                    )
+                    : 0,
             ]);
         }
         return $taskId;

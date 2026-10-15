@@ -38,8 +38,10 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('completeOrderFollowup(', $followups);
         $this->assertStringContainsString("'approval_status'", $migration);
         $this->assertStringContainsString('Pending approval', $orderView);
-        $this->assertStringContainsString("'Disapproved follow-up', 'score_delta' => 0.0", $quality);
-        $this->assertStringContainsString("'Approved follow-up', 'score_delta' => \$pointsEnabled ? 2.0 : 0.0", $quality);
+        $this->assertStringContainsString("'type' => 'Disapproved follow-up'", $quality);
+        $this->assertStringContainsString('StaffPerformanceService::DISAPPROVED_FOLLOWUP_POINTS', $quality);
+        $this->assertStringContainsString("'type' => 'Approved follow-up'", $quality);
+        $this->assertStringContainsString('StaffPerformanceService::PROPER_FOLLOWUP_POINTS : 0.0', $quality);
         $this->assertStringContainsString("'pending_followup_approval'", $orders);
         $this->assertStringContainsString("'Followup disapproved'", $events);
     }
@@ -128,15 +130,24 @@ final class FollowupApprovalAndRatingWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('_showRequestDetails', $appDesk);
     }
 
-    public function testCompletionRatingFeedsPerformanceAndDeliveryPdfIsSafe(): void
+    public function testAdminCanRateCompletedReceivedOrderAndRatingFeedsPerformance(): void
     {
         $performance = $this->source('Services/StaffPerformanceService.php');
+        $adminOrders = $this->source('Controllers/Admin/OrderController.php');
         $orders = $this->source('Controllers/Api/Mobile/OrdersController.php');
+        $orderView = $this->source('Views/admin/orders/show.php');
+        $routes = $this->source('Config/Routes.php');
         $pdf = $this->source('Views/pdf/delivery_challan.php');
 
+        $this->assertStringContainsString("orders/(:num)/rating", $routes);
+        $this->assertStringContainsString('public function rate(int $id)', $adminOrders);
+        $this->assertStringContainsString('Rating is available only after completed order receiving.', $adminOrders);
+        $this->assertStringContainsString('id="rateOrderModal"', $orderView);
+        $this->assertStringContainsString('Save Rating', $orderView);
         $this->assertStringContainsString('completion_rating', $orders);
-        $this->assertStringContainsString('RATING_POINT_STEP', $performance);
+        $this->assertStringContainsString('RATING_POINT_STEP = 5.0', $performance);
         $this->assertStringContainsString('rating_average', $performance);
+        $this->assertStringContainsString("'rating_point_step' => self::RATING_POINT_STEP", $performance);
         $this->assertStringContainsString('Value (INR)', $pdf);
         $this->assertStringContainsString('INR <?= number_format($total,2) ?>', $pdf);
         $this->assertStringNotContainsString("Receiver's Signature", $pdf);

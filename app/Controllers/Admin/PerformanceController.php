@@ -156,6 +156,6 @@ class PerformanceController extends BaseController
         } catch (Throwable $e) {
             return redirect()->back()->with('error', $e->getMessage());
         }
-        return redirect()->back()->with('success', 'Follow-up duplicate decision updated and its score recalculated.');
+        return redirect()->back()->with('success', 'Follow-up duplicate decision saved for audit. It does not affect points.');
     }
 }

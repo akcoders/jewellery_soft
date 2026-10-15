@@ -101,27 +101,24 @@ class FollowupQualityService
             if (trim((string) ($followup['review_note'] ?? '')) !== '') {
                 $reason .= ' ' . trim((string) $followup['review_note']);
             }
-            return [['type' => 'Disapproved follow-up', 'score_delta' => 0.0, 'reason' => $reason]];
+            return [[
+                'type' => 'Disapproved follow-up',
+                'score_delta' => StaffPerformanceService::DISAPPROVED_FOLLOWUP_POINTS,
+                'reason' => $reason,
+            ]];
         }
         if ($approvalStatus !== 'approved') {
             return [];
         }
         $pointsEnabled = (int) ($followup['points_enabled'] ?? 1) !== 0;
 
-        $events = [];
-        if ($this->isDuplicate($followup)) {
-            $matchedId = (int) ($followup['duplicate_followup_id'] ?? 0);
-            $reason = (string) (($followup['duplicate_reason'] ?? '') ?: 'Duplicate confirmed by administrator.');
-            if ($matchedId > 0) $reason .= ' Matched follow-up #' . $matchedId . '.';
-            $events[] = ['type' => 'Duplicate follow-up', 'score_delta' => $pointsEnabled ? -1.0 : 0.0, 'reason' => $reason];
-        } else {
-            $events[] = ['type' => 'Approved follow-up', 'score_delta' => $pointsEnabled ? 2.0 : 0.0, 'reason' => 'Follow-up approved by administrator.'];
-            if ($this->hasValidImage($followup)) $events[] = ['type' => 'Meaningful update', 'score_delta' => $pointsEnabled ? 0.25 : 0.0, 'reason' => 'Valid unique update with image evidence.'];
-        }
-        if (! $this->hasValidImage($followup)) {
-            $events[] = ['type' => 'Image evidence missing', 'score_delta' => $pointsEnabled ? -0.5 : 0.0, 'reason' => 'Image evidence missing'];
-        }
-        return $events;
+        return [[
+            'type' => 'Approved follow-up',
+            'score_delta' => $pointsEnabled ? StaffPerformanceService::PROPER_FOLLOWUP_POINTS : 0.0,
+            'reason' => $pointsEnabled
+                ? 'Follow-up approved by administrator.'
+                : 'Follow-up approved without performance points.',
+        ]];
     }
 
     public function overrideDuplicate(int $followupId, bool $isDuplicate, int $adminId, string $reason): void

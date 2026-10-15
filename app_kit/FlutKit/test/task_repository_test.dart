@@ -38,6 +38,28 @@ void main() {
       expect(api.completedNote, 'Packing verified');
       expect(scheduler.cancelled, [taskReminderNotificationId(42)]);
     });
+
+    test('only workflows with their own points suppress normal task scoring', () {
+      final followup = TaskItem.fromApi({
+        'id': 1,
+        'reference_type': 'order_followup',
+        'reference_id': 10,
+      });
+      final issuement = TaskItem.fromApi({
+        'id': 2,
+        'reference_type': 'order_gold_request',
+        'reference_id': 11,
+      });
+      final diamondBag = TaskItem.fromApi({
+        'id': 3,
+        'reference_type': 'order_diamond_bag',
+        'reference_id': 12,
+      });
+
+      expect(followup.usesDedicatedWorkflowScore, isTrue);
+      expect(issuement.usesDedicatedWorkflowScore, isTrue);
+      expect(diamondBag.usesDedicatedWorkflowScore, isFalse);
+    });
   });
 }
 

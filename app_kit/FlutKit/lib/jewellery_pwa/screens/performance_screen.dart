@@ -313,7 +313,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Points include orders, proper follow-ups, issuements, purchases, tasks and completion ratings.',
+              'Points include orders, approved follow-ups, issuements, returns, receivings, purchases, standalone tasks and completion ratings.',
               style: TextStyle(
                 color: Color(0xFFD6C4CE),
                 fontSize: 12,
@@ -322,7 +322,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'On-time submissions delayed by approval earn +2 points per full approval-delay day. Rejected requests do not earn this credit.',
+              'Approval points and late penalties are calculated separately. Waiting for admin approval does not add any extra credit.',
               style: TextStyle(
                 color: Color(0xFFD6C4CE),
                 fontSize: 12,
@@ -367,7 +367,14 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         _breakdownRow(
           'Tasks completed late',
           _integer(_summary['task_late']),
-          _ruleLabel('task_late_or_overdue'),
+          'tracked below',
+          AppColors.danger,
+          LucideIcons.clock_3,
+        ),
+        _breakdownRow(
+          'Task late day units',
+          _integer(_summary['task_delay_days']),
+          _ruleLabel('task_delay_per_day'),
           AppColors.danger,
           LucideIcons.clock_3,
         ),
@@ -386,13 +393,6 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           LucideIcons.clock_3,
         ),
         _breakdownRow(
-          'On-time approval delay days',
-          _integer(_summary['followup_approval_credit_days']),
-          _ruleLabel('followup_approval_credit_per_day'),
-          AppColors.success,
-          LucideIcons.circle_check,
-        ),
-        _breakdownRow(
           'Approved follow-ups',
           _integer(
             _summary['approved_followups'] ?? _summary['proper_followups'],
@@ -400,6 +400,13 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           _ruleLabel('approved_followup'),
           AppColors.success,
           LucideIcons.calendar_check,
+        ),
+        _breakdownRow(
+          'Approved without points',
+          _integer(_summary['no_point_followups']),
+          '0 each',
+          AppColors.textSecondary,
+          LucideIcons.circle_minus,
         ),
         _breakdownRow(
           'Disapproved follow-ups',
@@ -423,6 +430,20 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           LucideIcons.send,
         ),
         _breakdownRow(
+          'Returns',
+          _integer(_summary['returns']),
+          _ruleLabel('return'),
+          AppColors.diamond,
+          LucideIcons.undo_2,
+        ),
+        _breakdownRow(
+          'Receivings',
+          _integer(_summary['receivings']),
+          _ruleLabel('receiving'),
+          AppColors.success,
+          LucideIcons.package_check,
+        ),
+        _breakdownRow(
           'Purchases',
           _integer(_summary['purchases']),
           _ruleLabel('purchase'),
@@ -432,7 +453,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         _breakdownRow(
           'Completion ratings',
           _integer(_summary['rating_count']),
-          '${_number(_summary['rating_average']).toStringAsFixed(1)}/5 average',
+          '${_number(_summary['rating_average']).toStringAsFixed(1)}/5 · ±${_number(_rules['rating_point_step'] ?? 5).toStringAsFixed(0)} per star from 3',
           AppColors.brandGold,
           LucideIcons.star,
           divider: false,
@@ -444,7 +465,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
   String _ruleLabel(String key) {
     if (!_rules.containsKey(key)) return 'Task scored';
     final points = _number(_rules[key]);
-    if (key == 'followup_delay_per_day') {
+    if (key == 'followup_delay_per_day' || key == 'task_delay_per_day') {
       return '${points.toStringAsFixed(1)} per day';
     }
     return '${points > 0 ? '+' : ''}${points.toStringAsFixed(1)} each';
