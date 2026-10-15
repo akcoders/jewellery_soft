@@ -47,7 +47,10 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("->where('t.reference_type', null)", $webTasks);
         $this->assertStringContainsString("->where('t.reference_type', null)", $mobileTasks);
         $this->assertStringContainsString("->where('t.reference_type', null)", $mobileAdminTasks);
-        $this->assertStringContainsString("'approval_pause_intervals'", $service);
+        $this->assertStringContainsString('withoutApprovalPendingFollowups', $service);
+        $this->assertStringContainsString('isApprovalPendingFollowup', $service);
+        $this->assertStringNotContainsString("'approval_pending'", $service);
+        $this->assertStringNotContainsString("'approval_pause_intervals'", $service);
         $this->assertStringNotContainsString("'followup_approval_credit_per_day'", $service);
         $this->assertStringContainsString("private const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OWNER']", $service);
         $this->assertStringContainsString("'events_by_user'", $service);
@@ -128,7 +131,7 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertSame(1, $summary['followup_delay_days']);
     }
 
-    public function testApprovalDelayBeforeTheNextFollowupExistsDoesNotAddDelayPoints(): void
+    public function testFollowupDelayStartsWhenTheScheduleActuallyExists(): void
     {
         $service = new \App\Services\StaffPerformanceService();
         $metrics = new \ReflectionMethod($service, 'metrics');
@@ -143,47 +146,85 @@ final class StaffPerformanceWorkflowTest extends CIUnitTestCase
         $this->assertSame(2, $summary['followup_delay_days']);
     }
 
-    public function testReviewedApprovalWaitingTimeIsExcludedFromLatePoints(): void
+    public function testUnsubmittedOverdueFollowupIsNotExcludedByApprovalPendingFlag(): void
     {
+        $timezone = new \DateTimeZone('Asia/Kolkata');
+        $now = new \DateTimeImmutable('now', $timezone);
         $service = new \App\Services\StaffPerformanceService();
         $metrics = new \ReflectionMethod($service, 'metrics');
         $summary = $metrics->invoke($service, [], [[
             'status' => 'pending',
-            'due_at' => '2026-10-01 10:00:00',
-            'created_at' => '2026-09-30 10:00:00',
-            'performance_until_at' => '2026-10-09 10:00:00',
-            'approval_pause_intervals' => [[
-                'start_at' => '2026-10-02 10:00:00',
-                'end_at' => '2026-10-07 10:00:00',
-            ]],
-        ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+            'due_at' => $now->modify('-1 hour')->format('Y-m-d H:i:s'),
+            'created_at' => $now->modify('-2 hours')->format('Y-m-d H:i:s'),
+            'approval_pending' => true,
+        ]], [], [], $now->modify('-2 days')->format('Y-m-d H:i:s'), $now->modify('+2 days')->format('Y-m-d H:i:s'));
 
-        $this->assertSame(6.0, $summary['points_lost']);
-        $this->assertSame(3, $summary['followup_delay_days']);
-        $this->assertSame(0.0, $summary['points_earned']);
-        $this->assertSame(0, $summary['followup_approval_credit_days']);
+        $this->assertSame(2.0, $summary['points_lost']);
+        $this->assertSame(1, $summary['followup_delay_days']);
+        $this->assertSame(0, $summary['followup_on_time']);
+        $this->assertSame(0, $summary['followup_late']);
+        $this->assertSame(1, $summary['followup_overdue']);
+        $this->assertSame(1, $summary['due_action_count']);
+        $this->assertSame(98.0, $summary['score']);
+        $this->assertTrue($summary['has_scored_activity']);
     }
 
-    public function testCurrentlyPendingApprovalDoesNotBecomeOverdue(): void
+    public function testCompletedFollowupAwaitingApprovalIsExcludedFromMetricsAndAuditEvents(): void
     {
         $service = new \App\Services\StaffPerformanceService();
+        $pendingApproval = [[
+            'id' => 77,
+            'order_id' => 12,
+            'order_no' => 'ORD-12',
+            'status' => 'completed_late',
+            'completed_followup_approval_status' => 'pending',
+            'due_at' => '2026-10-01 08:00:00',
+            'created_at' => '2026-09-30 08:00:00',
+            'completed_at' => '2026-10-03 08:00:00',
+        ]];
+
         $metrics = new \ReflectionMethod($service, 'metrics');
-        $summary = $metrics->invoke($service, [], [[
-            'status' => 'pending',
-            'due_at' => '2026-10-02 10:00:00',
-            'created_at' => '2026-10-01 09:00:00',
-            'performance_until_at' => '2026-10-01 09:00:00',
-            'approval_pending' => true,
-            'approval_pause_intervals' => [[
-                'start_at' => '2026-10-01 09:00:00',
-                'end_at' => '2026-10-15 10:00:00',
-            ]],
-        ]], [], [], '2026-10-01 00:00:00', '2026-11-01 00:00:00');
+        $summary = $metrics->invoke(
+            $service,
+            [],
+            $pendingApproval,
+            [],
+            [],
+            '2026-10-01 00:00:00',
+            '2026-11-01 00:00:00'
+        );
+        $events = new \ReflectionMethod($service, 'events');
+        $audit = $events->invoke(
+            $service,
+            [],
+            $pendingApproval,
+            [],
+            [],
+            '2026-10-01 00:00:00',
+            '2026-11-01 00:00:00'
+        );
 
         $this->assertSame(0.0, $summary['points_lost']);
-        $this->assertSame(0, $summary['followup_delay_days']);
+        $this->assertSame(0, $summary['followup_late']);
         $this->assertSame(0, $summary['followup_overdue']);
-        $this->assertSame(100.0, $summary['score']);
+        $this->assertSame(0, $summary['due_action_count']);
+        $this->assertFalse($summary['has_scored_activity']);
+        $this->assertSame([], $audit);
+    }
+
+    public function testApprovalPendingRowsAreRemovedBeforeDashboardGrouping(): void
+    {
+        $service = new \App\Services\StaffPerformanceService();
+        $filter = new \ReflectionMethod($service, 'withoutApprovalPendingFollowups');
+        $rows = $filter->invoke($service, [
+            ['id' => 1, 'completed_followup_approval_status' => 'pending'],
+            ['id' => 2, 'approval_pending' => true],
+            ['id' => 3, 'completed_followup_approval_status' => 'approved'],
+            ['id' => 4, 'completed_followup_approval_status' => 'rejected'],
+            ['id' => 5, 'status' => 'pending'],
+        ]);
+
+        $this->assertSame([2, 3, 4, 5], array_column($rows, 'id'));
     }
 
     public function testTimelySubmittedFollowupGetsNoApprovalWaitingCredit(): void

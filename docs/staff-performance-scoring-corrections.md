@@ -29,7 +29,9 @@ Late calculation ka exact example:
 
 Approval point aur late penalty alag rules hain. Isliye late follow-up approve hone par approval ka `+2` aur applicable late penalty dono lagenge. "No point" approval me approval bonus `0` rahega, lekin follow-up late tha to late penalty phir bhi lagegi.
 
-Follow-up admin approval me pending hone ke dauran wait-time ko employee delay nahi maana jayega. Submission se pehle jo late penalty already ban chuki thi woh rahegi, lekin admin ke pending period me nayi late-day unit nahi badhegi. Approval ya rejection ke baad agle pending follow-up ka delay timer resume hoga.
+Sirf woh submitted follow-up performance ki sabhi categories se exclude hoga jiska admin approval abhi pending hai: na delay, na overdue, na on-time/late aur na point audit. Admin approve ya disapprove karega tab woh calculation me enter hoga.
+
+Jo next follow-up abhi submit nahi hua hai woh active rahega. Uska due time cross hone par woh normal overdue/delay me count hoga aur notification cron/reminder bhi normal chalega, chahe pichhle submitted follow-up ka approval pending ho.
 
 ## Completion rating points
 
@@ -62,7 +64,7 @@ Pending late task/follow-up ka point dashboard aur mobile performance API khulte
 ## Correction summary
 
 - Follow-up approval ko `+2`, no-point approval ko `0`, aur disapproval ko `-2` kiya gaya.
-- Admin approval pending rehne ka time follow-up delay se exclude kiya gaya.
+- Sirf submitted aur admin-approval-pending follow-up ko performance categories aur audit events se exclude kiya gaya; unsubmitted overdue follow-up normal count hoga.
 - Late penalty ko due time cross hote hi `-2`, phir har additional started 24-hour period par `-2` kiya gaya.
 - Order, issuement, return, receiving aur purchase ko `+0.25` each kiya gaya.
 - Duplicate/photo based performance points hata diye gaye.

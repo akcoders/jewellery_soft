@@ -515,93 +515,22 @@ class StaffPerformanceService
         $followups = $builder->groupEnd()
             ->orderBy('s.due_at', 'DESC')
             ->get()->getResultArray();
-        if ($followups === [] || ! $db->tableExists('mobile_approval_requests')) {
-            return $followups;
-        }
+        return $this->withoutApprovalPendingFollowups($followups);
+    }
 
-        // Every new schedule is created immediately after the preceding follow-up.
-        // Link that source follow-up to its approval request so admin waiting time
-        // can be removed from the next schedule's delay calculation.
-        $orderIds = array_values(array_unique(array_map(
-            static fn(array $row): int => (int) ($row['order_id'] ?? 0),
-            $followups
-        )));
-        $sourceFollowupBySchedule = [];
-        $previousScheduleByOrder = [];
-        if ($orderIds !== []) {
-            $scheduleHistory = $db->table('order_followup_schedules')
-                ->select('id, order_id, completed_followup_id')
-                ->whereIn('order_id', $orderIds)
-                ->orderBy('order_id', 'ASC')
-                ->orderBy('id', 'ASC')
-                ->get()->getResultArray();
-            foreach ($scheduleHistory as $schedule) {
-                $orderId = (int) ($schedule['order_id'] ?? 0);
-                $previous = $previousScheduleByOrder[$orderId] ?? null;
-                if (is_array($previous) && (int) ($previous['completed_followup_id'] ?? 0) > 0) {
-                    $sourceFollowupBySchedule[(int) $schedule['id']] = (int) $previous['completed_followup_id'];
-                }
-                $previousScheduleByOrder[$orderId] = $schedule;
-            }
-        }
+    /** @param list<array<string,mixed>> $followups @return list<array<string,mixed>> */
+    private function withoutApprovalPendingFollowups(array $followups): array
+    {
+        return array_values(array_filter(
+            $followups,
+            fn(array $followup): bool => ! $this->isApprovalPendingFollowup($followup)
+        ));
+    }
 
-        $sourceFollowupIds = array_values(array_unique(array_values($sourceFollowupBySchedule)));
-        if ($sourceFollowupIds === []) {
-            return $followups;
-        }
-        $approvalByFollowup = [];
-        $approvalRequests = $db->table('mobile_approval_requests')
-            ->select('id, subject_table, subject_id, requested_by, status, payload_json, created_at, reviewed_at')
-            ->where('request_type', 'followup')
-            ->where('subject_table', 'order_followups')
-            ->whereIn('subject_id', $sourceFollowupIds)
-            ->whereIn('requested_by', $staffIds)
-            ->whereIn('status', ['pending', 'approved', 'rejected'])
-            ->orderBy('id', 'ASC')
-            ->get()->getResultArray();
-        foreach ($approvalRequests as $request) {
-            $payload = json_decode((string) ($request['payload_json'] ?? '{}'), true);
-            $payload = is_array($payload) ? $payload : [];
-            $followupId = (string) ($request['subject_table'] ?? '') === 'order_followups'
-                ? (int) ($request['subject_id'] ?? 0)
-                : (int) ($payload['followup_id'] ?? 0);
-            if ($followupId <= 0 || ! in_array($followupId, $sourceFollowupIds, true)) {
-                continue;
-            }
-            $submittedAt = $this->normalizeDateTime((string) ($payload['followup_taken_on'] ?? ''))
-                ?? $this->normalizeDateTime((string) ($request['created_at'] ?? ''));
-            if ($submittedAt === null) {
-                continue;
-            }
-            $approvalByFollowup[$followupId] = [
-                'requested_by' => (int) ($request['requested_by'] ?? 0),
-                'status' => strtolower((string) ($request['status'] ?? 'pending')),
-                'submitted_at' => $submittedAt,
-                'reviewed_at' => $this->normalizeDateTime((string) ($request['reviewed_at'] ?? '')),
-            ];
-        }
-
-        $now = $this->now();
-        foreach ($followups as &$followup) {
-            $sourceFollowupId = (int) ($sourceFollowupBySchedule[(int) ($followup['id'] ?? 0)] ?? 0);
-            $approval = $approvalByFollowup[$sourceFollowupId] ?? null;
-            if (! is_array($approval)
-                || (int) ($approval['requested_by'] ?? 0) !== (int) ($followup['assigned_to'] ?? 0)) {
-                continue;
-            }
-            $approvalEnd = (string) (($approval['reviewed_at'] ?? '') ?: $now);
-            $followup['approval_pause_intervals'] = [[
-                'start_at' => (string) $approval['submitted_at'],
-                'end_at' => $approvalEnd,
-            ]];
-            if ((string) $approval['status'] === 'pending' && (string) ($followup['status'] ?? '') === 'pending') {
-                $followup['performance_until_at'] = (string) $approval['submitted_at'];
-                $followup['approval_pending'] = true;
-            }
-        }
-        unset($followup);
-
-        return $followups;
+    /** @param array<string,mixed> $followup */
+    private function isApprovalPendingFollowup(array $followup): bool
+    {
+        return strtolower(trim((string) ($followup['completed_followup_approval_status'] ?? ''))) === 'pending';
     }
 
     private function ratingRows(array $staffIds, string $start, string $end): array
@@ -836,6 +765,9 @@ class StaffPerformanceService
         }
 
         foreach ($followups as $followup) {
+            if ($this->isApprovalPendingFollowup($followup)) {
+                continue;
+            }
             $status = strtolower((string) ($followup['status'] ?? 'pending'));
             $effectiveAt = (string) (($followup['performance_until_at'] ?? '') ?: $now);
             $delay = $this->followupDelayBreakdown($followup, $periodStart, $periodEnd, $now);
@@ -1030,11 +962,13 @@ class StaffPerformanceService
             ];
         }
         foreach ($followups as $followup) {
+            if ($this->isApprovalPendingFollowup($followup)) {
+                continue;
+            }
             $status = strtolower((string) ($followup['status'] ?? 'pending'));
             $completedApprovalStatus = strtolower((string) ($followup['completed_followup_approval_status'] ?? 'approved'));
             $evaluatedAt = (string) ($followup['performance_until_at'] ?? $now);
             $overdue = $status === 'pending' && (string) ($followup['due_at'] ?? '') < $evaluatedAt;
-            $sourceApprovalPending = (bool) ($followup['approval_pending'] ?? false);
             $delay = $this->followupDelayBreakdown($followup, $periodStart, $periodEnd, $now);
             $awaitingOrRejected = str_starts_with($status, 'completed')
                 && in_array($completedApprovalStatus, ['pending', 'rejected'], true);
@@ -1045,9 +979,7 @@ class StaffPerformanceService
                 'reference' => (string) ($followup['order_no'] ?? ''),
                 'due_at' => (string) ($followup['due_at'] ?? ''),
                 'completed_at' => (string) (($followup['completed_at'] ?? '') ?: ($followup['performance_until_at'] ?? '')),
-                'status' => $sourceApprovalPending
-                    ? 'approval_pending'
-                    : ($awaitingOrRejected ? 'approval_' . $completedApprovalStatus : ($overdue ? 'overdue' : $status)),
+                'status' => $awaitingOrRejected ? 'approval_' . $completedApprovalStatus : ($overdue ? 'overdue' : $status),
                 'score_delta' => $delta,
                 'order_id' => (int) ($followup['order_id'] ?? 0),
                 'proof_url' => null,
@@ -1097,7 +1029,7 @@ class StaffPerformanceService
     ): array
     {
         $status = strtolower((string) ($followup['status'] ?? 'pending'));
-        if ($status === 'completed_by_other') {
+        if ($status === 'completed_by_other' || $this->isApprovalPendingFollowup($followup)) {
             return ['penalty_days' => 0, 'approval_credit_days' => 0];
         }
         $endAt = str_starts_with($status, 'completed')
@@ -1115,20 +1047,17 @@ class StaffPerformanceService
                 $dueAt,
                 $endAt,
                 $periodStart,
-                $periodEnd,
-                (array) ($followup['approval_pause_intervals'] ?? [])
+                $periodEnd
             ),
             'approval_credit_days' => 0,
         ];
     }
 
-    /** @param list<array<string,mixed>> $pauseIntervals */
     private function delayUnitsInPeriod(
         string $dueAt,
         string $evaluatedAt,
         string $periodStart,
-        string $periodEnd,
-        array $pauseIntervals = []
+        string $periodEnd
     ): int
     {
         $due = strtotime($dueAt);
@@ -1144,52 +1073,9 @@ class StaffPerformanceService
             return 0;
         }
 
-        $unitsBeforePeriod = $this->lateUnitsAt($due, min($evaluated, $start), $pauseIntervals);
-        $unitsThroughLimit = $this->lateUnitsAt($due, $limit, $pauseIntervals);
+        $unitsBeforePeriod = self::lateDayUnits(date('Y-m-d H:i:s', $due), date('Y-m-d H:i:s', min($evaluated, $start)));
+        $unitsThroughLimit = self::lateDayUnits(date('Y-m-d H:i:s', $due), date('Y-m-d H:i:s', $limit));
         return max(0, $unitsThroughLimit - $unitsBeforePeriod);
-    }
-
-    /** @param list<array<string,mixed>> $pauseIntervals */
-    private function lateUnitsAt(int $due, int $evaluated, array $pauseIntervals): int
-    {
-        if ($evaluated <= $due) {
-            return 0;
-        }
-
-        $pauses = [];
-        foreach ($pauseIntervals as $interval) {
-            if (! is_array($interval)) {
-                continue;
-            }
-            $pauseStart = strtotime((string) ($interval['start_at'] ?? ''));
-            $pauseEnd = strtotime((string) ($interval['end_at'] ?? ''));
-            if ($pauseStart === false || $pauseEnd === false || $pauseEnd <= $pauseStart) {
-                continue;
-            }
-            $pauseStart = max($due, $pauseStart);
-            $pauseEnd = min($evaluated, $pauseEnd);
-            if ($pauseEnd > $pauseStart) {
-                $pauses[] = [$pauseStart, $pauseEnd];
-            }
-        }
-        usort($pauses, static fn(array $left, array $right): int => $left[0] <=> $right[0]);
-
-        $activeSeconds = 0;
-        $cursor = $due;
-        foreach ($pauses as [$pauseStart, $pauseEnd]) {
-            if ($pauseEnd <= $cursor) {
-                continue;
-            }
-            if ($pauseStart > $cursor) {
-                $activeSeconds += $pauseStart - $cursor;
-            }
-            $cursor = max($cursor, $pauseEnd);
-        }
-        if ($evaluated > $cursor) {
-            $activeSeconds += $evaluated - $cursor;
-        }
-
-        return $activeSeconds > 0 ? (int) ceil($activeSeconds / 86400) : 0;
     }
 
     private function monthRange(int $year, int $month): array

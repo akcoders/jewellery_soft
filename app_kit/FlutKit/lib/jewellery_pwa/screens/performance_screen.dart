@@ -322,7 +322,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Admin approval pending time is excluded from delay. Approval points and applicable pre-submission late penalties remain separate.',
+              'Only a submitted follow-up awaiting admin approval is excluded. An unsubmitted follow-up still becomes overdue after its due time.',
               style: TextStyle(
                 color: Color(0xFFD6C4CE),
                 fontSize: 12,
