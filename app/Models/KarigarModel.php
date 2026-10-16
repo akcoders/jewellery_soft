@@ -12,6 +12,7 @@ class KarigarModel extends Model
     protected $allowedFields = [
         'name',
         'phone',
+        'attrai_number',
         'email',
         'address',
         'city',

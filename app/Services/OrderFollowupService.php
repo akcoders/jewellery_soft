@@ -26,6 +26,7 @@ class OrderFollowupService
             throw $e;
         }
         $this->notifyCreated((int) $created['order_id'], (int) $created['id']);
+        $this->notifyOrderStageChanged($created);
         return $created;
     }
 
@@ -67,6 +68,11 @@ class OrderFollowupService
             (new MobileNotificationEventService())->notifyApprovalRequested($approval);
         } catch (Throwable $e) {
             log_message('error', 'Approval request notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+        try {
+            (new AttraiIntegrationService())->notifyApprovalRequested($approval);
+        } catch (Throwable $e) {
+            log_message('error', 'ATTRAI follow-up approval notification failed: {message}', ['message' => $e->getMessage()]);
         }
         $this->notifyCreated((int) $created['order_id'], (int) $created['id']);
 
@@ -122,6 +128,8 @@ class OrderFollowupService
             'reference' => 'Order #' . (int) $followup['order_id'],
             'order_id' => (int) $followup['order_id'],
             'approval_status' => $status,
+            'from_status' => $approved ? (string) ($order['status'] ?? '') : '',
+            'to_status' => $approved ? (string) ($followup['stage'] ?? '') : '',
         ];
     }
 
@@ -239,6 +247,8 @@ class OrderFollowupService
             'stage' => $stage,
             'followup_scope' => $scope,
             'approval_status' => $approvalStatus,
+            'from_status' => (string) ($order['status'] ?? ''),
+            'to_status' => $approvalStatus === 'approved' ? $stage : '',
         ];
     }
 
@@ -278,6 +288,25 @@ class OrderFollowupService
             (new MobileNotificationEventService())->notifyFollowupAdded($orderId, $followupId);
         } catch (Throwable $e) {
             log_message('error', 'Follow-up notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+    }
+
+    /** @param array<string,mixed> $result */
+    public function notifyOrderStageChanged(array $result): void
+    {
+        $orderId = (int) ($result['order_id'] ?? 0);
+        $from = trim((string) ($result['from_status'] ?? ''));
+        $to = trim((string) ($result['to_status'] ?? ''));
+        if ($orderId <= 0 || $to === '' || $from === $to) {
+            return;
+        }
+        try {
+            (new OrderWhatsAppService())->notifyOrderStatusChanged($orderId, $from, $to, 'Updated from approved follow-up.');
+            if (in_array($to, ['Ready', 'Completed'], true)) {
+                (new OrderWhatsAppService())->notifyOrderReady($orderId, $to);
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'ATTRAI order follow-up update failed: {message}', ['message' => $e->getMessage()]);
         }
     }
 }

@@ -29,6 +29,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
   final _contact = TextEditingController();
   final _priorityLevel = TextEditingController(text: '0');
   final _whatsappNumber = TextEditingController();
+  final _attraiNumber = TextEditingController();
   final _diamondSpec = TextEditingController();
   final _stoneSpec = TextEditingController();
   final _notes = TextEditingController();
@@ -99,6 +100,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
       _contact,
       _priorityLevel,
       _whatsappNumber,
+      _attraiNumber,
       _diamondSpec,
       _stoneSpec,
       _notes,
@@ -296,6 +298,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
         'status': _status,
         'priority_level': int.tryParse(_priorityLevel.text.trim()) ?? 0,
         'whatsapp_notification_number': _whatsappNumber.text.trim(),
+        'attrai_notification_number': _attraiNumber.text.trim(),
         'whatsapp_notify_order_created': _notifyWhatsapp,
         'expected_diamond_spec': _diamondSpec.text.trim(),
         'expected_stone_spec': _stoneSpec.text.trim(),
@@ -542,6 +545,11 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
                       _text(
                         _whatsappNumber,
                         'WhatsApp Notification No',
+                        keyboard: TextInputType.phone,
+                      ),
+                      _text(
+                        _attraiNumber,
+                        'ATTRAI Information Number',
                         keyboard: TextInputType.phone,
                       ),
                       SwitchListTile.adaptive(

@@ -102,6 +102,11 @@ $showRepairFields = $orderTypeValue === 'Repair';
                     <input type="tel" name="contact_number" id="order-contact-number" class="form-control" maxlength="40" value="<?= esc((string) old('contact_number', (string) ($order['contact_number'] ?? ''))) ?>">
                 </div>
                 <div class="col-md-3 mb-3">
+                    <label class="form-label">ATTRAI Information Number</label>
+                    <input type="tel" name="attrai_notification_number" class="form-control" maxlength="40" value="<?= esc((string) old('attrai_notification_number', (string) ($order['attrai_notification_number'] ?? ''))) ?>" placeholder="91XXXXXXXXXX">
+                    <small class="text-muted">All order updates and images go to this number.</small>
+                </div>
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Material Category <span class="text-danger">*</span></label>
                     <select name="material_category" class="form-control js-searchable-select" required>
                         <?php foreach (['Gold', 'Diamond', 'Jadau', 'Silver'] as $material): ?>

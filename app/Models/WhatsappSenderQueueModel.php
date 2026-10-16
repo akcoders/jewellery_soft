@@ -12,6 +12,7 @@ class WhatsappSenderQueueModel extends Model
     protected $allowedFields = [
         'message_no',
         'event_key',
+        'provider_key',
         'source_type',
         'source_id',
         'order_id',

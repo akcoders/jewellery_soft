@@ -20,6 +20,10 @@
                     <input type="text" name="phone" class="form-control" value="<?= esc(old('phone')) ?>">
                 </div>
                 <div class="col-md-4 mb-3">
+                    <label class="form-label">ATTRAI Number</label>
+                    <input type="text" name="attrai_number" class="form-control" maxlength="40" value="<?= esc(old('attrai_number')) ?>" placeholder="91XXXXXXXXXX">
+                </div>
+                <div class="col-md-4 mb-3">
                     <label class="form-label">Email</label>
                     <input type="email" name="email" class="form-control" value="<?= esc(old('email')) ?>">
                 </div>

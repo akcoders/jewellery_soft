@@ -60,6 +60,12 @@
                                 value="<?= esc(old('mobile', (string) ($row['mobile'] ?? ''))) ?>">
                         </div>
                         <div class="col-md-6 mb-3">
+                            <label class="form-label">ATTRAI Number</label>
+                            <input type="text" name="attrai_number" class="form-control" maxlength="40" placeholder="91XXXXXXXXXX"
+                                value="<?= esc(old('attrai_number', (string) ($row['attrai_number'] ?? ''))) ?>">
+                            <small class="text-muted">Order assignment and follow-up information is sent to this number.</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">Email</label>
                             <input type="email" name="email" class="form-control" maxlength="120"
                                 value="<?= esc(old('email', (string) ($row['email'] ?? ''))) ?>">

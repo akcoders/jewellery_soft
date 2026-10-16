@@ -6,6 +6,7 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 $routes->get('/', 'Home::index');
+$routes->post('integrations/attrai/webhook', 'Integrations\AttraiWebhookController::receive');
 
 $routes->get('customer/login', 'Customer\AuthController::login');
 $routes->post('customer/login', 'Customer\AuthController::attemptLogin', ['filter' => 'csrf']);
@@ -158,6 +159,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('vendors', 'Admin\VendorController::store', ['filter' => 'permission:masters.vendors.manage']);
     $routes->get('company-settings', 'Admin\CompanySettingsController::index', ['filter' => 'permission:company-settings.read']);
     $routes->post('company-settings', 'Admin\CompanySettingsController::update', ['filter' => 'permission:company-settings.manage']);
+    $routes->post('company-settings/attrai-test', 'Admin\CompanySettingsController::sendAttraiTest', ['filter' => ['permission:company-settings.manage', 'csrf']]);
     $routes->get('system/database-update', 'Admin\DatabaseUpdateController::index', ['filter' => 'permission:company-settings.manage']);
     $routes->post('system/database-update', 'Admin\DatabaseUpdateController::run', ['filter' => 'permission:company-settings.manage']);
     $routes->get('system/maintenance', 'Admin\SystemMaintenanceController::index', ['filter' => 'permission:company-settings.manage']);

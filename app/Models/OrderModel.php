@@ -42,6 +42,7 @@ class OrderModel extends Model
         'due_date',
         'order_notes',
         'whatsapp_notification_number',
+        'attrai_notification_number',
         'whatsapp_notify_order_created',
         'expected_diamond_spec',
         'expected_stone_spec',

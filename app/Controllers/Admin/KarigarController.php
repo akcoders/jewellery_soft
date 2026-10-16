@@ -78,6 +78,7 @@ class KarigarController extends BaseController
         $karigarId = $this->karigarModel->insert([
             'name'            => trim((string) $this->request->getPost('name')),
             'phone'           => $this->nullableString($this->request->getPost('phone')),
+            'attrai_number'   => $this->nullableString($this->request->getPost('attrai_number')),
             'email'           => $this->nullableString($this->request->getPost('email')),
             'address'         => $this->nullableString($this->request->getPost('address')),
             'city'            => $this->nullableString($this->request->getPost('city')),
@@ -147,6 +148,7 @@ class KarigarController extends BaseController
         $this->karigarModel->update($id, [
             'name'            => trim((string) $this->request->getPost('name')),
             'phone'           => $this->nullableString($this->request->getPost('phone')),
+            'attrai_number'   => $this->nullableString($this->request->getPost('attrai_number')),
             'email'           => $this->nullableString($this->request->getPost('email')),
             'address'         => $this->nullableString($this->request->getPost('address')),
             'city'            => $this->nullableString($this->request->getPost('city')),
@@ -418,6 +420,7 @@ class KarigarController extends BaseController
         return [
             'name'            => 'required|max_length[150]',
             'phone'           => 'permit_empty|max_length[20]',
+            'attrai_number'   => 'permit_empty|max_length[40]',
             'email'           => 'permit_empty|valid_email|max_length[120]',
             'department'      => 'permit_empty|max_length[100]',
             'rate_per_gm'     => 'required|decimal|greater_than_equal_to[0]',

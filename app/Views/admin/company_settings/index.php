@@ -122,7 +122,8 @@
 
                 <div class="col-12">
                     <div class="border rounded-3 p-3 mt-2">
-                        <h6 class="mb-3">WhatsApp API Settings</h6>
+                        <h6 class="mb-1">WhatsApp API &amp; Shared Order Message Settings</h6>
+                        <p class="small text-muted mb-3">Order-created, status, ready, over-budget and delay toggles/templates below are shared. When ATTRAI is enabled, those order messages use the ATTRAI connection.</p>
                         <div class="row g-3">
                             <div class="col-md-2">
                                 <label class="form-label">Enable</label>
@@ -245,10 +246,146 @@
                     </div>
                 </div>
 
+                <div class="col-12">
+                    <div class="border rounded-3 p-3 mt-2">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <div>
+                                <h6 class="mb-1">ATTRAI Approval &amp; Assignment Integration</h6>
+                                <small class="text-muted">Separate ATTRAI connection for order updates, approvals and karigar assignment. Approval actions are signed, expire after 7 days, and call the ERP approval workflow directly.</small>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="attrai_enabled" id="attrai_enabled" value="1" <?= ! empty($setting['attrai_enabled']) ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="attrai_enabled">Enable ATTRAI</label>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">ATTRAI Send API URL</label>
+                                <input type="url" name="attrai_api_url" class="form-control" maxlength="500" value="<?= esc((string) old('attrai_api_url', (string) ($setting['attrai_api_url'] ?? ''))) ?>" placeholder="https://api.attrai.example/messages">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Method</label>
+                                <?php $attraiMethod = (string) old('attrai_http_method', (string) ($setting['attrai_http_method'] ?? 'POST')); ?>
+                                <select name="attrai_http_method" class="form-select">
+                                    <?php foreach (['POST', 'PUT', 'PATCH'] as $method): ?>
+                                        <option value="<?= esc($method) ?>" <?= $attraiMethod === $method ? 'selected' : '' ?>><?= esc($method) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Auth Type</label>
+                                <?php $attraiAuthType = (string) old('attrai_auth_type', (string) ($setting['attrai_auth_type'] ?? 'bearer')); ?>
+                                <select name="attrai_auth_type" class="form-select">
+                                    <?php foreach (['none', 'bearer', 'basic', 'custom'] as $authType): ?>
+                                        <option value="<?= esc($authType) ?>" <?= $attraiAuthType === $authType ? 'selected' : '' ?>><?= esc(strtoupper($authType)) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Sender ID</label>
+                                <input type="text" name="attrai_sender_id" class="form-control" maxlength="190" value="<?= esc((string) old('attrai_sender_id', (string) ($setting['attrai_sender_id'] ?? ''))) ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Auth Header</label>
+                                <input type="text" name="attrai_auth_header" class="form-control" maxlength="80" value="<?= esc((string) old('attrai_auth_header', (string) ($setting['attrai_auth_header'] ?? 'Authorization'))) ?>">
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">API Token / Key</label>
+                                <input type="text" name="attrai_auth_token" class="form-control font-monospace" maxlength="500" value="<?= esc((string) old('attrai_auth_token', (string) ($setting['attrai_auth_token'] ?? ''))) ?>" autocomplete="off">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Approval Admin Numbers</label>
+                                <textarea name="attrai_approval_numbers" class="form-control" rows="2" placeholder="919999999999,918888888888"><?= esc((string) old('attrai_approval_numbers', (string) ($setting['attrai_approval_numbers'] ?? ''))) ?></textarea>
+                                <small class="text-muted">Follow-up, issuement, customer and karigar approval messages are sent to these admin numbers.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Extra Headers JSON</label>
+                                <textarea name="attrai_extra_headers_json" class="form-control font-monospace" rows="4" placeholder='{"X-API-KEY":"value"}'><?= esc((string) old('attrai_extra_headers_json', (string) ($setting['attrai_extra_headers_json'] ?? ''))) ?></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Text / Order Update Body Template</label>
+                                <textarea name="attrai_body_template" class="form-control font-monospace" rows="4" placeholder='{"to":{{to_json}},"message":{{message_json}},"sender":{{sender_id_json}}}'><?= esc((string) old('attrai_body_template', (string) ($setting['attrai_body_template'] ?? ''))) ?></textarea>
+                                <small class="text-muted">Used for order updates, karigar/follower assignment and demo messages. Image fields: {{media_url_json}}, {{message_type_json}}.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Webhook URL</label>
+                                <input type="text" class="form-control" readonly value="<?= esc(site_url('integrations/attrai/webhook')) ?>">
+                                <small class="text-muted">Configure this as the interactive-button callback URL in ATTRAI.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Webhook Secret</label>
+                                <input type="text" name="attrai_webhook_secret" class="form-control font-monospace" maxlength="255" value="<?= esc((string) old('attrai_webhook_secret', (string) ($setting['attrai_webhook_secret'] ?? ''))) ?>" autocomplete="off">
+                                <small class="text-muted">Send it as <code>X-Attrai-Webhook-Secret</code>, <code>X-Webhook-Secret</code>, Bearer token, or webhook <code>?token=...</code>. A secret is generated on first save when blank.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Approval Audit Reviewer</label>
+                                <?php $selectedAttraiReviewer = (int) old('attrai_approval_reviewer_id', (string) ($setting['attrai_approval_reviewer_id'] ?? '0')); ?>
+                                <select name="attrai_approval_reviewer_id" class="form-select">
+                                    <option value="">Select admin / owner</option>
+                                    <?php foreach (($attraiReviewers ?? []) as $reviewer): ?>
+                                        <option value="<?= (int) ($reviewer['id'] ?? 0) ?>" <?= $selectedAttraiReviewer === (int) ($reviewer['id'] ?? 0) ? 'selected' : '' ?>>
+                                            <?= esc((string) (($reviewer['name'] ?? '') ?: ($reviewer['email'] ?? 'Admin'))) ?><?= ! empty($reviewer['email']) ? ' · ' . esc((string) $reviewer['email']) : '' ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="text-muted">ATTRAI approvals are recorded in this administrator's name.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label d-block">Events</label>
+                                <div class="form-check form-check-inline mt-2">
+                                    <input class="form-check-input" type="checkbox" name="attrai_notify_approval_requested" id="attrai_notify_approval_requested" value="1" <?= (int) old('attrai_notify_approval_requested', (string) ($setting['attrai_notify_approval_requested'] ?? '1')) === 1 ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="attrai_notify_approval_requested">Approval requests</label>
+                                </div>
+                                <div class="form-check form-check-inline mt-2">
+                                    <input class="form-check-input" type="checkbox" name="attrai_notify_karigar_assigned" id="attrai_notify_karigar_assigned" value="1" <?= (int) old('attrai_notify_karigar_assigned', (string) ($setting['attrai_notify_karigar_assigned'] ?? '1')) === 1 ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="attrai_notify_karigar_assigned">Karigar assignment</label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Approval Message Template</label>
+                                <textarea name="attrai_template_approval_requested" class="form-control" rows="5" placeholder="{{request_label}} approval required (#{{approval_request_id}}).&#10;{{summary}}\nChoose an action in ATTRAI."><?= esc((string) old('attrai_template_approval_requested', (string) ($setting['attrai_template_approval_requested'] ?? ''))) ?></textarea>
+                                <small class="text-muted">Placeholders: {{approval_request_id}}, {{request_type}}, {{request_label}}, {{summary}}, {{company_name}}.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Karigar Assignment Template</label>
+                                <textarea name="attrai_template_karigar_assigned" class="form-control" rows="5" placeholder="Hello {{karigar_name}}, order {{order_no}} is assigned to you. Due: {{due_date}}."><?= esc((string) old('attrai_template_karigar_assigned', (string) ($setting['attrai_template_karigar_assigned'] ?? ''))) ?></textarea>
+                                <small class="text-muted">Placeholders: {{order_no}}, {{order_name}}, {{customer_name}}, {{karigar_name}}, {{priority}}, {{status}}, {{due_date}}, {{company_name}}.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Follower Assignment Template</label>
+                                <textarea name="attrai_template_follower_assigned" class="form-control" rows="5" placeholder="Hello {{follower_name}}, you are following order {{order_no}}. Karigar: {{karigar_name}}. Due: {{due_date}}."><?= esc((string) old('attrai_template_follower_assigned', (string) ($setting['attrai_template_follower_assigned'] ?? ''))) ?></textarea>
+                                <small class="text-muted">Sent immediately with the order image to the employee profile's ATTRAI number.</small>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">ATTRAI Interactive Approval Body Template</label>
+                                <textarea name="attrai_approval_body_template" class="form-control font-monospace" rows="7" placeholder='{"to":{{to_json}},"message":{{message_json}},"buttons":{{actions_json}},"webhook_url":{{webhook_url_json}}}'><?= esc((string) old('attrai_approval_body_template', (string) ($setting['attrai_approval_body_template'] ?? ''))) ?></textarea>
+                                <small class="text-muted">Map this JSON to the exact ATTRAI send API. Available values include {{to_json}}, {{message_json}}, {{actions_json}}, {{approve_action_id_json}}, {{approve_no_point_action_id_json}}, {{reject_action_id_json}}, {{webhook_url_json}}, {{media_url_json}} and {{message_type_json}}.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="col-md-12">
                     <button type="submit" class="btn btn-primary">Save Settings</button>
                 </div>
             </div>
+        </form>
+
+        <form method="post" action="<?= site_url('admin/company-settings/attrai-test') ?>" class="border rounded-3 p-3 mt-4">
+            <?= csrf_field() ?>
+            <h6 class="mb-2">Send ATTRAI Demo</h6>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label">Demo Mobile Number</label>
+                    <input type="tel" name="test_number" class="form-control" required value="918261973645" placeholder="91XXXXXXXXXX">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-outline-primary">Send Demo Now</button>
+                </div>
+            </div>
+            <small class="text-muted d-block mt-2">Save valid ATTRAI API settings first. This action sends immediately and stores the response in the WhatsApp sender queue.</small>
         </form>
     </div>
 </div>

@@ -39,6 +39,9 @@
                             <td>
                                 <div class="fw-semibold"><?= esc((string) ($row['full_name'] ?? '-')) ?></div>
                                 <div class="text-muted small"><?= esc((string) ($row['mobile'] ?? '-')) ?></div>
+                                <?php if (! empty($row['attrai_number'])): ?>
+                                    <div class="text-muted small">ATTRAI: <?= esc((string) $row['attrai_number']) ?></div>
+                                <?php endif; ?>
                             </td>
                             <td><?= esc((string) ($row['department_name'] ?? '-')) ?></td>
                             <td><?= esc((string) ($row['designation_name'] ?? '-')) ?></td>

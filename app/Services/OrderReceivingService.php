@@ -249,6 +249,18 @@ class OrderReceivingService
             throw $e;
         }
 
+        try {
+            (new OrderWhatsAppService())->notifyOrderStatusChanged(
+                $orderId,
+                (string) ($order['status'] ?? ''),
+                'Completed',
+                'Finished jewellery received.'
+            );
+            (new OrderWhatsAppService())->notifyOrderReady($orderId, 'Completed');
+        } catch (Throwable $e) {
+            log_message('error', 'ATTRAI receiving update failed: {message}', ['message' => $e->getMessage()]);
+        }
+
         return [
             'order_id' => $orderId,
             'order_no' => (string) ($order['order_no'] ?? ''),

@@ -4,6 +4,8 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\CompanySettingModel;
+use App\Services\AttraiIntegrationService;
+use Throwable;
 
 class CompanySettingsController extends BaseController
 {
@@ -20,6 +22,7 @@ class CompanySettingsController extends BaseController
         return view('admin/company_settings/index', [
             'title' => 'Company Settings',
             'setting' => $this->getSettingRow(),
+            'attraiReviewers' => $this->attraiReviewers(),
         ]);
     }
 
@@ -60,6 +63,21 @@ class CompanySettingsController extends BaseController
             'whatsapp_template_order_ready' => 'permit_empty',
             'whatsapp_template_order_over_budget' => 'permit_empty',
             'whatsapp_template_order_delay_daily' => 'permit_empty',
+            'attrai_api_url' => 'permit_empty|max_length[500]',
+            'attrai_http_method' => 'permit_empty|in_list[POST,PUT,PATCH]',
+            'attrai_auth_type' => 'permit_empty|in_list[none,bearer,basic,custom]',
+            'attrai_auth_header' => 'permit_empty|max_length[80]',
+            'attrai_auth_token' => 'permit_empty|max_length[500]',
+            'attrai_sender_id' => 'permit_empty|max_length[190]',
+            'attrai_extra_headers_json' => 'permit_empty',
+            'attrai_body_template' => 'permit_empty',
+            'attrai_approval_numbers' => 'permit_empty',
+            'attrai_webhook_secret' => 'permit_empty|max_length[255]',
+            'attrai_approval_reviewer_id' => 'permit_empty|integer|greater_than[0]',
+            'attrai_template_approval_requested' => 'permit_empty',
+            'attrai_template_karigar_assigned' => 'permit_empty',
+            'attrai_template_follower_assigned' => 'permit_empty',
+            'attrai_approval_body_template' => 'permit_empty',
         ])) {
             $errors = $this->validator ? $this->validator->getErrors() : [];
             $message = $errors === [] ? 'Validation failed.' : (string) array_values($errors)[0];
@@ -68,6 +86,14 @@ class CompanySettingsController extends BaseController
 
         $row = $this->getSettingRow();
         $id = (int) ($row['id'] ?? 0);
+        $attraiEnabled = $this->request->getPost('attrai_enabled') ? 1 : 0;
+        $attraiSecret = trim((string) $this->request->getPost('attrai_webhook_secret'));
+        if ($attraiEnabled === 1 && $attraiSecret === '') {
+            $attraiSecret = trim((string) ($row['attrai_webhook_secret'] ?? ''));
+            if ($attraiSecret === '') {
+                $attraiSecret = bin2hex(random_bytes(24));
+            }
+        }
         $data = [
             'company_name' => trim((string) $this->request->getPost('company_name')) ?: null,
             'address_line' => trim((string) $this->request->getPost('address_line')) ?: null,
@@ -110,6 +136,24 @@ class CompanySettingsController extends BaseController
             'whatsapp_template_order_ready' => trim((string) $this->request->getPost('whatsapp_template_order_ready')) ?: null,
             'whatsapp_template_order_over_budget' => trim((string) $this->request->getPost('whatsapp_template_order_over_budget')) ?: null,
             'whatsapp_template_order_delay_daily' => trim((string) $this->request->getPost('whatsapp_template_order_delay_daily')) ?: null,
+            'attrai_enabled' => $attraiEnabled,
+            'attrai_api_url' => trim((string) $this->request->getPost('attrai_api_url')) ?: null,
+            'attrai_http_method' => strtoupper(trim((string) $this->request->getPost('attrai_http_method'))) ?: 'POST',
+            'attrai_auth_type' => strtolower(trim((string) $this->request->getPost('attrai_auth_type'))) ?: 'bearer',
+            'attrai_auth_header' => trim((string) $this->request->getPost('attrai_auth_header')) ?: 'Authorization',
+            'attrai_auth_token' => trim((string) $this->request->getPost('attrai_auth_token')) ?: null,
+            'attrai_sender_id' => trim((string) $this->request->getPost('attrai_sender_id')) ?: null,
+            'attrai_extra_headers_json' => trim((string) $this->request->getPost('attrai_extra_headers_json')) ?: null,
+            'attrai_body_template' => trim((string) $this->request->getPost('attrai_body_template')) ?: null,
+            'attrai_approval_numbers' => trim((string) $this->request->getPost('attrai_approval_numbers')) ?: null,
+            'attrai_webhook_secret' => $attraiSecret !== '' ? $attraiSecret : null,
+            'attrai_approval_reviewer_id' => (int) $this->request->getPost('attrai_approval_reviewer_id') ?: null,
+            'attrai_notify_approval_requested' => $this->request->getPost('attrai_notify_approval_requested') ? 1 : 0,
+            'attrai_notify_karigar_assigned' => $this->request->getPost('attrai_notify_karigar_assigned') ? 1 : 0,
+            'attrai_template_approval_requested' => trim((string) $this->request->getPost('attrai_template_approval_requested')) ?: null,
+            'attrai_template_karigar_assigned' => trim((string) $this->request->getPost('attrai_template_karigar_assigned')) ?: null,
+            'attrai_template_follower_assigned' => trim((string) $this->request->getPost('attrai_template_follower_assigned')) ?: null,
+            'attrai_approval_body_template' => trim((string) $this->request->getPost('attrai_approval_body_template')) ?: null,
         ];
 
         $logo = $this->request->getFile('logo');
@@ -138,6 +182,19 @@ class CompanySettingsController extends BaseController
         return redirect()->to(site_url('admin/company-settings'))->with('success', 'Company settings saved.');
     }
 
+    public function sendAttraiTest()
+    {
+        $number = trim((string) $this->request->getPost('test_number'));
+        try {
+            (new AttraiIntegrationService())->sendTestMessage($number);
+            return redirect()->to(site_url('admin/company-settings'))
+                ->with('success', 'ATTRAI demo message sent to ' . $number . '.');
+        } catch (Throwable $e) {
+            return redirect()->to(site_url('admin/company-settings'))
+                ->with('error', $e->getMessage());
+        }
+    }
+
     /**
      * @return array<string,mixed>
      */
@@ -145,5 +202,24 @@ class CompanySettingsController extends BaseController
     {
         $row = $this->model->orderBy('id', 'ASC')->first();
         return is_array($row) ? $row : [];
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function attraiReviewers(): array
+    {
+        $db = db_connect();
+        if (! $db->tableExists('admin_users')) {
+            return [];
+        }
+        $builder = $db->table('admin_users au')
+            ->select('au.id, au.name, au.email')
+            ->where('au.is_active', 1);
+        if ($db->tableExists('user_roles') && $db->tableExists('roles')) {
+            $builder->join('user_roles ur', 'ur.user_id = au.id', 'inner')
+                ->join('roles r', 'r.id = ur.role_id', 'inner')
+                ->whereIn('r.role_code', ['SUPER_ADMIN', 'ADMIN', 'OWNER'])
+                ->groupBy(['au.id', 'au.name', 'au.email']);
+        }
+        return $builder->orderBy('au.name', 'ASC')->get()->getResultArray();
     }
 }

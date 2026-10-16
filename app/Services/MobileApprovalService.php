@@ -78,6 +78,11 @@ class MobileApprovalService
             } catch (Throwable $e) {
                 log_message('error', 'Approval request notification failed: {message}', ['message' => $e->getMessage()]);
             }
+            try {
+                (new AttraiIntegrationService())->notifyApprovalRequested($request);
+            } catch (Throwable $e) {
+                log_message('error', 'ATTRAI approval request notification failed: {message}', ['message' => $e->getMessage()]);
+            }
         }
         return $request;
     }
@@ -209,6 +214,9 @@ class MobileApprovalService
                 log_message('error', 'Approved mobile issuement notification failed: {message}', ['message' => $e->getMessage()]);
             }
         }
+        if ((string) ($request['request_type'] ?? '') === 'followup') {
+            (new OrderFollowupService($this->db))->notifyOrderStageChanged($result);
+        }
         $approved = $this->find($id) ?? [];
         $approved['was_reapproved'] = $isReapprovable;
         try {
@@ -322,6 +330,7 @@ class MobileApprovalService
         $id = (int) (new KarigarModel())->insert([
             'name' => $name,
             'phone' => $this->nullable($payload['phone'] ?? null),
+            'attrai_number' => $this->nullable($payload['attrai_number'] ?? null),
             'email' => $this->nullable($payload['email'] ?? null),
             'address' => $this->nullable($payload['address'] ?? null),
             'city' => $this->nullable($payload['city'] ?? null),

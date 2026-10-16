@@ -156,7 +156,7 @@ class OrderWhatsAppService
             return ['status' => 'skipped', 'message' => 'Order not found.'];
         }
 
-        $phone = $this->preferredCustomerPhone($context);
+        $phone = $this->preferredCustomerPhone($context, $this->settings());
         if ($phone === null) {
             return ['status' => 'skipped', 'message' => 'Customer/lead phone not available.'];
         }
@@ -181,7 +181,15 @@ class OrderWhatsAppService
             return ['status' => 'skipped', 'message' => 'Order not found.'];
         }
 
-        $phones = $this->alertPhones($this->settings());
+        $settings = $this->settings();
+        $phones = $this->alertPhones($settings);
+        if ((int) ($settings['attrai_enabled'] ?? 0) === 1) {
+            $orderPhone = $this->preferredCustomerPhone($context, $settings);
+            if ($orderPhone !== null) {
+                $phones[] = $orderPhone;
+            }
+            $phones = array_values(array_unique($phones));
+        }
         if ($phones === []) {
             return ['status' => 'skipped', 'message' => 'Alert numbers not configured.'];
         }
@@ -207,20 +215,25 @@ class OrderWhatsAppService
         if (! $this->isToggleEnabled($settings, $toggleField)) {
             return ['status' => 'skipped', 'message' => 'Event disabled in settings.'];
         }
+        if (! $this->isConfigured($settings)) {
+            return ['status' => 'skipped', 'message' => 'ATTRAI/WhatsApp provider is disabled or incomplete.'];
+        }
         if ($eventHash !== null && $this->alreadySent($eventHash)) {
             return ['status' => 'skipped', 'message' => 'Already sent.'];
         }
 
+        $providerKey = (int) ($settings['attrai_enabled'] ?? 0) === 1 ? 'attrai' : 'whatsapp';
+        $providerSettings = $this->outboundProviderSettings($settings);
         $messageTemplate = trim((string) ($settings[$templateField] ?? ''));
         $result = ['status' => 'skipped', 'message' => 'No recipients.'];
 
         foreach ($phones as $phone) {
-            $variables = $this->buildVariables($context, $extra, $eventKey, $phone, $settings);
+            $variables = $this->buildVariables($context, $extra, $eventKey, $phone, $providerSettings);
             $message = $messageTemplate !== ''
                 ? $this->replacePlaceholders($messageTemplate, $variables)
                 : $this->defaultMessage($eventKey, $variables);
 
-            $requestPayload = $this->buildRequestPayload($settings, $variables, $message, $phone);
+            $requestPayload = $this->buildRequestPayload($providerSettings, $variables, $message, $phone);
             $logId = (int) $this->logModel->insert([
                 'event_key' => $eventKey,
                 'event_hash' => $eventHash,
@@ -235,15 +248,17 @@ class OrderWhatsAppService
 
             $queueId = $this->senderQueueService->enqueue([
                 'event_key' => $eventKey,
+                'provider_key' => $providerKey,
                 'source_type' => 'whatsapp_message_logs',
                 'source_id' => $logId,
                 'order_id' => (int) ($context['order_id'] ?? 0) ?: null,
                 'customer_id' => (int) ($context['customer_id'] ?? 0) ?: null,
-                'sender_number' => trim((string) ($settings['whatsapp_sender_id'] ?? '')) ?: null,
+                'sender_number' => trim((string) ($providerSettings['whatsapp_sender_id'] ?? '')) ?: null,
                 'recipient_number' => $phone,
                 'recipient_name' => (string) ($context['customer_name'] ?? ''),
-                'message_type' => 'text',
+                'message_type' => $variables['message_type'],
                 'message_text' => $message,
+                'media_url' => $variables['media_url'] !== '' ? $variables['media_url'] : null,
                 'request_payload' => $requestPayload['log_payload'],
                 'scheduled_at' => date('Y-m-d H:i:s'),
             ]);
@@ -255,7 +270,7 @@ class OrderWhatsAppService
 
             $result = [
                 'status' => 'queued',
-                'message' => 'Message queued for WhatsApp sender cron.',
+                'message' => 'Message queued for outbound sender.',
                 'log_id' => $logId,
                 'queue_id' => $queueId,
             ];
@@ -271,6 +286,10 @@ class OrderWhatsAppService
      */
     private function buildRequestPayload(array $settings, array $variables, string $message, string $phone): array
     {
+        $variables['message'] = $message;
+        $variables['message_json'] = json_encode($message, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '""';
+        $variables['to'] = $phone;
+        $variables['to_json'] = json_encode($phone, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '""';
         $bodyTemplate = trim((string) ($settings['whatsapp_body_template'] ?? ''));
         $resolved = $bodyTemplate !== ''
             ? $this->replacePlaceholders($bodyTemplate, $variables)
@@ -280,6 +299,8 @@ class OrderWhatsAppService
                 'sender' => trim((string) ($settings['whatsapp_sender_id'] ?? '')) ?: null,
                 'event' => $variables['event_key'],
                 'order_no' => $variables['order_no'],
+                'message_type' => $variables['message_type'],
+                'media_url' => $variables['media_url'] !== '' ? $variables['media_url'] : null,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         $headers = [
@@ -386,6 +407,8 @@ class OrderWhatsAppService
         $vars['sender_id'] = trim((string) ($settings['whatsapp_sender_id'] ?? ''));
         $vars['company_name'] = trim((string) ($settings['company_name'] ?? ($vars['company_name'] ?? '')));
         $vars['message'] = $vars['message'] ?? '';
+        $vars['media_url'] = trim((string) ($context['order_image_url'] ?? ''));
+        $vars['message_type'] = $vars['media_url'] !== '' ? 'image' : 'text';
 
         foreach ($vars as $key => $value) {
             $vars[$key . '_json'] = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '""';
@@ -400,7 +423,7 @@ class OrderWhatsAppService
     private function orderContext(int $orderId): ?array
     {
         $row = db_connect()->table('orders o')
-            ->select('o.id as order_id, o.order_no, o.order_type, o.order_from, o.status, o.priority, o.due_date, o.order_notes, o.whatsapp_notification_number, o.expected_diamond_spec, o.expected_stone_spec, o.assigned_karigar_id, o.created_at, c.id as customer_id, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, l.id as lead_id, l.name as lead_name, l.phone as lead_phone, k.name as karigar_name', false)
+            ->select('o.id as order_id, o.order_no, o.order_type, o.order_from, o.status, o.priority, o.due_date, o.order_notes, o.whatsapp_notification_number, o.attrai_notification_number, o.expected_diamond_spec, o.expected_stone_spec, o.assigned_karigar_id, o.created_at, c.id as customer_id, c.name as customer_name, c.phone as customer_phone, c.email as customer_email, l.id as lead_id, l.name as lead_name, l.phone as lead_phone, k.name as karigar_name', false)
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('leads l', 'l.id = o.lead_id', 'left')
             ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
@@ -461,7 +484,13 @@ class OrderWhatsAppService
         }
 
         $row['customer_display_name'] = trim((string) ($row['customer_name'] ?: $row['lead_name'] ?: $row['order_from'] ?: 'Customer'));
-        $row['customer_phone_display'] = trim((string) ($row['whatsapp_notification_number'] ?: $row['customer_phone'] ?: $row['lead_phone'] ?: ''));
+        $row['customer_phone_display'] = trim((string) ($row['attrai_notification_number'] ?: $row['whatsapp_notification_number'] ?: $row['customer_phone'] ?: $row['lead_phone'] ?: ''));
+        $images = (new OrderThumbnailService())->map([$orderId], false);
+        $row['order_image_url'] = trim((string) ($images[$orderId] ?? ''));
+        if ($row['order_image_url'] === '') {
+            $logo = trim((string) (($this->settings()['logo_path'] ?? '')));
+            $row['order_image_url'] = $logo !== '' ? base_url(ltrim($logo, '/')) : '';
+        }
         $row['due_date_display'] = $this->formatDate((string) ($row['due_date'] ?? ''));
         $row['created_at_display'] = $this->formatDateTime((string) ($row['created_at'] ?? ''));
         $row['gold_budget'] = $this->formatNumber($goldBudget, 3);
@@ -485,9 +514,14 @@ class OrderWhatsAppService
         return $row;
     }
 
-    private function preferredCustomerPhone(array $context): ?string
+    private function preferredCustomerPhone(array $context, array $settings): ?string
     {
-        $phone = trim((string) ($context['whatsapp_notification_number'] ?? ''));
+        $phone = (int) ($settings['attrai_enabled'] ?? 0) === 1
+            ? trim((string) ($context['attrai_notification_number'] ?? ''))
+            : '';
+        if ($phone === '') {
+            $phone = trim((string) ($context['whatsapp_notification_number'] ?? ''));
+        }
         if ($phone === '') {
             $phone = trim((string) ($context['customer_phone'] ?? ''));
         }
@@ -504,7 +538,9 @@ class OrderWhatsAppService
      */
     private function alertPhones(array $settings): array
     {
-        $raw = trim((string) ($settings['whatsapp_alert_numbers'] ?? ''));
+        $raw = (int) ($settings['attrai_enabled'] ?? 0) === 1
+            ? trim((string) ($settings['attrai_approval_numbers'] ?? ''))
+            : trim((string) ($settings['whatsapp_alert_numbers'] ?? ''));
         if ($raw === '') {
             return [];
         }
@@ -529,6 +565,9 @@ class OrderWhatsAppService
         }
 
         $normalized = preg_replace('/[^0-9+]/', '', $trimmed);
+        if ($normalized !== null && preg_match('/^\d{10}$/', $normalized) === 1) {
+            $normalized = '91' . $normalized;
+        }
         return $normalized !== '' ? $normalized : null;
     }
 
@@ -546,7 +585,28 @@ class OrderWhatsAppService
      */
     private function isConfigured(array $settings): bool
     {
+        if ((int) ($settings['attrai_enabled'] ?? 0) === 1) {
+            return trim((string) ($settings['attrai_api_url'] ?? '')) !== '';
+        }
         return ! empty($settings['whatsapp_enabled']) && trim((string) ($settings['whatsapp_api_url'] ?? '')) !== '';
+    }
+
+    /** @param array<string,mixed> $settings @return array<string,mixed> */
+    private function outboundProviderSettings(array $settings): array
+    {
+        if ((int) ($settings['attrai_enabled'] ?? 0) !== 1) {
+            return $settings;
+        }
+        $settings['whatsapp_enabled'] = 1;
+        $settings['whatsapp_api_url'] = $settings['attrai_api_url'] ?? null;
+        $settings['whatsapp_http_method'] = $settings['attrai_http_method'] ?? 'POST';
+        $settings['whatsapp_auth_type'] = $settings['attrai_auth_type'] ?? 'bearer';
+        $settings['whatsapp_auth_header'] = $settings['attrai_auth_header'] ?? 'Authorization';
+        $settings['whatsapp_auth_token'] = $settings['attrai_auth_token'] ?? null;
+        $settings['whatsapp_sender_id'] = $settings['attrai_sender_id'] ?? null;
+        $settings['whatsapp_extra_headers_json'] = $settings['attrai_extra_headers_json'] ?? null;
+        $settings['whatsapp_body_template'] = $settings['attrai_body_template'] ?? null;
+        return $settings;
     }
 
     /**
@@ -554,6 +614,9 @@ class OrderWhatsAppService
      */
     private function isToggleEnabled(array $settings, string $field): bool
     {
+        if ((int) ($settings['attrai_enabled'] ?? 0) === 1) {
+            return true;
+        }
         return (int) ($settings[$field] ?? 1) === 1;
     }
 

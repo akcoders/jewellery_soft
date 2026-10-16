@@ -36,6 +36,7 @@
                         <th>Name</th>
                         <th>Department</th>
                         <th>Phone</th>
+                        <th>ATTRAI</th>
                         <th>City</th>
                         <th>Work Completed</th>
                         <th>Work Pending</th>
@@ -46,13 +47,14 @@
                 </thead>
                 <tbody>
                     <?php if ($karigars === []): ?>
-                        <tr><td colspan="9" class="text-center text-muted">No karigar records.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted">No karigar records.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($karigars as $k): ?>
                         <tr>
                             <td><?= esc($k['name']) ?></td>
                             <td><?= esc($k['department'] ?: '-') ?></td>
                             <td><?= esc($k['phone'] ?: '-') ?></td>
+                            <td><?= esc($k['attrai_number'] ?? '-') ?></td>
                             <td><?= esc($k['city'] ?: '-') ?></td>
                             <?php $completedWork = (int) ($k['completed_work_count'] ?? 0); ?>
                             <?php $pendingWork = (int) ($k['pending_work_count'] ?? 0); ?>

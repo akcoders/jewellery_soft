@@ -16,6 +16,7 @@ class EmployeeModel extends Model
         'designation_id',
         'full_name',
         'mobile',
+        'attrai_number',
         'email',
         'work_location',
         'joining_date',

@@ -162,6 +162,11 @@ $showRepairFields = $selectedOrderType === 'Repair';
                     <label class="form-label">WhatsApp Notification No</label>
                     <input type="tel" name="whatsapp_notification_number" class="form-control" value="<?= esc((string) old('whatsapp_notification_number')) ?>" placeholder="91XXXXXXXXXX">
                 </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">ATTRAI Information Number</label>
+                    <input type="tel" name="attrai_notification_number" class="form-control" maxlength="40" value="<?= esc((string) old('attrai_notification_number')) ?>" placeholder="91XXXXXXXXXX">
+                    <small class="text-muted">All order updates and images go to this number.</small>
+                </div>
                 <div class="col-md-3 mb-3 d-flex align-items-end">
                     <div class="form-check mb-2">
                         <input type="checkbox" name="whatsapp_notify_order_created" value="1" id="whatsapp-notify-order-created" class="form-check-input" <?= old('whatsapp_notify_order_created', '1') ? 'checked' : '' ?>>

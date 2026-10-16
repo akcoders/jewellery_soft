@@ -44,6 +44,7 @@ class WhatsappSenderQueueService
         return (int) $this->queueModel->insert([
             'message_no' => $messageNo,
             'event_key' => $this->nullableString($data['event_key'] ?? null),
+            'provider_key' => $this->nullableString($data['provider_key'] ?? null) ?: 'whatsapp',
             'source_type' => $this->nullableString($data['source_type'] ?? null),
             'source_id' => $this->nullableInt($data['source_id'] ?? null),
             'order_id' => $this->nullableInt($data['order_id'] ?? null),
@@ -106,6 +107,28 @@ class WhatsappSenderQueueService
     }
 
     /**
+     * Dispatch one known queue row immediately. This is used by the admin test
+     * action without accidentally sending an older pending queue item first.
+     *
+     * @return array{status:string,queue_id:int}
+     */
+    public function dispatchById(int $id): array
+    {
+        $row = $id > 0 ? $this->queueModel->find($id) : null;
+        if (! is_array($row)) {
+            throw new \RuntimeException('WhatsApp queue message not found.');
+        }
+        if ((string) ($row['status'] ?? '') === 'sent') {
+            return ['status' => 'sent', 'queue_id' => $id];
+        }
+
+        return [
+            'status' => $this->dispatchRow($row, $this->settings()),
+            'queue_id' => $id,
+        ];
+    }
+
+    /**
      * @param array<string,mixed> $row
      * @param array<string,mixed> $settings
      */
@@ -126,6 +149,7 @@ class WhatsappSenderQueueService
             'error_message' => null,
         ]);
 
+        $settings = $this->providerSettings($settings, (string) ($row['provider_key'] ?? 'whatsapp'));
         if (! $this->isConfigured($settings)) {
             $this->markFailed($id, $attempts, (int) ($row['max_attempts'] ?? 3), 'WhatsApp API is disabled or not configured.', null, null, null);
             return 'failed';
@@ -330,6 +354,25 @@ class WhatsappSenderQueueService
     private function settings(): array
     {
         return $this->companySettingModel->orderBy('id', 'ASC')->first() ?? [];
+    }
+
+    /** @param array<string,mixed> $settings @return array<string,mixed> */
+    private function providerSettings(array $settings, string $provider): array
+    {
+        if (strtolower(trim($provider)) !== 'attrai') {
+            return $settings;
+        }
+
+        $settings['whatsapp_enabled'] = (int) ($settings['attrai_enabled'] ?? 0);
+        $settings['whatsapp_api_url'] = $settings['attrai_api_url'] ?? null;
+        $settings['whatsapp_http_method'] = $settings['attrai_http_method'] ?? 'POST';
+        $settings['whatsapp_auth_type'] = $settings['attrai_auth_type'] ?? 'bearer';
+        $settings['whatsapp_auth_header'] = $settings['attrai_auth_header'] ?? 'Authorization';
+        $settings['whatsapp_auth_token'] = $settings['attrai_auth_token'] ?? null;
+        $settings['whatsapp_sender_id'] = $settings['attrai_sender_id'] ?? null;
+        $settings['whatsapp_extra_headers_json'] = $settings['attrai_extra_headers_json'] ?? null;
+        $settings['whatsapp_body_template'] = $settings['attrai_body_template'] ?? null;
+        return $settings;
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Models\OrderItemModel;
 use App\Models\OrderModel;
 use App\Models\OrderStatusHistoryModel;
 use App\Services\DiamondBagService;
+use App\Services\AttraiIntegrationService;
 use App\Services\MobileApprovalService;
 use App\Services\MobileNotificationEventService;
 use App\Services\MobileUserPolicyService;
@@ -278,6 +279,7 @@ class OrdersController extends MobileBaseController
             $contactNumber = trim((string) ($customer['phone'] ?? ''));
         }
         $whatsappNumber = preg_replace('/\D+/', '', (string) ($payload['whatsapp_notification_number'] ?? '')) ?: '';
+        $attraiNumber = preg_replace('/\D+/', '', (string) ($payload['attrai_notification_number'] ?? '')) ?: '';
         $notifyWhatsapp = ! empty($payload['whatsapp_notify_order_created']);
         $savedFiles = [];
         $orderId = 0;
@@ -321,6 +323,7 @@ class OrdersController extends MobileBaseController
                 'due_date' => $dueDate,
                 'order_notes' => trim((string) ($payload['order_notes'] ?? '')),
                 'whatsapp_notification_number' => $whatsappNumber !== '' ? $whatsappNumber : null,
+                'attrai_notification_number' => $attraiNumber !== '' ? $attraiNumber : null,
                 'whatsapp_notify_order_created' => $notifyWhatsapp ? 1 : 0,
                 'expected_diamond_spec' => trim((string) ($payload['expected_diamond_spec'] ?? '')) ?: null,
                 'expected_stone_spec' => trim((string) ($payload['expected_stone_spec'] ?? '')) ?: null,
@@ -388,12 +391,10 @@ class OrdersController extends MobileBaseController
             return $this->fail('Could not create the order: ' . $e->getMessage(), 500);
         }
 
-        if ($notifyWhatsapp) {
-            try {
-                (new OrderWhatsAppService())->notifyOrderCreated($orderId);
-            } catch (Throwable $e) {
-                log_message('error', 'Mobile order WhatsApp notification failed: {message}', ['message' => $e->getMessage()]);
-            }
+        try {
+            (new OrderWhatsAppService())->notifyOrderCreated($orderId);
+        } catch (Throwable $e) {
+            log_message('error', 'Mobile order ATTRAI/WhatsApp notification failed: {message}', ['message' => $e->getMessage()]);
         }
         try {
             $this->mobileNotificationEvents->notifyOrderCreated($orderId, 'mobile');
@@ -791,6 +792,11 @@ class OrdersController extends MobileBaseController
         } catch (Throwable $e) {
             log_message('error', 'Mobile follower reassignment push failed: {message}', ['message' => $e->getMessage()]);
         }
+        try {
+            (new AttraiIntegrationService())->notifyFollowerAssigned($id);
+        } catch (Throwable $e) {
+            log_message('error', 'Mobile ATTRAI follower reassignment failed: {message}', ['message' => $e->getMessage()]);
+        }
 
         return $this->ok([
             'order_id' => $id,
@@ -844,6 +850,11 @@ class OrdersController extends MobileBaseController
             $this->mobileNotificationEvents->notifyFollowerAssigned($id);
         } catch (Throwable $e) {
             log_message('error', 'Mobile order assignment push failed: {message}', ['message' => $e->getMessage()]);
+        }
+        try {
+            (new AttraiIntegrationService())->notifyKarigarAssigned($id);
+        } catch (Throwable $e) {
+            log_message('error', 'Mobile ATTRAI karigar assignment failed: {message}', ['message' => $e->getMessage()]);
         }
         return $this->ok(['order_id' => $id], 'Karigar and follower assigned.');
     }

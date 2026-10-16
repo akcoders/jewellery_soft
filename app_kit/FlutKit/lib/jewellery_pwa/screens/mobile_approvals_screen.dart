@@ -1798,6 +1798,7 @@ class _MasterRequestDialogState extends State<_MasterRequestDialog> {
                   required: true,
                 ),
                 _field('phone', 'Phone'),
+                if (!customer) _field('attrai_number', 'ATTRAI Number'),
                 _field('email', 'Email', type: TextInputType.emailAddress),
                 if (customer) ...[
                   _field('gstin', 'GSTIN'),

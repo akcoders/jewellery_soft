@@ -220,6 +220,7 @@ $stoneRange = $statementRange($stoneStatement ?? [], 'opening_weight', 'closing_
             <div class="card-body">
                 <p class="mb-1"><strong>Status:</strong> <?= (int) $karigar['is_active'] === 1 ? 'Active' : 'Inactive' ?></p>
                 <p class="mb-1"><strong>Phone:</strong> <?= esc($karigar['phone'] ?: '-') ?></p>
+                <p class="mb-1"><strong>ATTRAI:</strong> <?= esc($karigar['attrai_number'] ?? '-') ?></p>
                 <p class="mb-1"><strong>Email:</strong> <?= esc($karigar['email'] ?: '-') ?></p>
                 <p class="mb-1"><strong>Department:</strong> <?= esc($karigar['department'] ?: '-') ?></p>
                 <p class="mb-1"><strong>Skills:</strong> <?= esc($karigar['skills_text'] ?: '-') ?></p>

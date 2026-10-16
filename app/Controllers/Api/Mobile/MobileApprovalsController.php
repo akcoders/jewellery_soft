@@ -64,6 +64,7 @@ class MobileApprovalsController extends MobileBaseController
         $clean = [
             'name' => $name,
             'phone' => mb_substr(trim((string) ($payload['phone'] ?? '')), 0, 20),
+            'attrai_number' => mb_substr(trim((string) ($payload['attrai_number'] ?? '')), 0, 40),
             'email' => mb_substr($email, 0, 191),
             'address' => mb_substr(trim((string) ($payload['address'] ?? '')), 0, 500),
             'city' => mb_substr(trim((string) ($payload['city'] ?? '')), 0, 120),

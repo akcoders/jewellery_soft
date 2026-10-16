@@ -28,6 +28,7 @@ use App\Models\OrderStatusHistoryModel;
 use App\Models\StoneLedgerEntryModel;
 use App\Models\DeliveryChallanModel;
 use App\Services\AdminPostingService;
+use App\Services\AttraiIntegrationService;
 use App\Services\DiamondBagService;
 use App\Services\DiamondBagTraceService;
 use App\Services\FinishedJewelleryService;
@@ -648,6 +649,7 @@ class OrderController extends BaseController
             'status'      => 'required',
             'order_notes' => 'permit_empty',
             'whatsapp_notification_number' => 'permit_empty|max_length[40]',
+            'attrai_notification_number' => 'permit_empty|max_length[40]',
             'whatsapp_notify_order_created' => 'permit_empty|in_list[1]',
             'expected_diamond_spec' => 'permit_empty',
             'expected_stone_spec' => 'permit_empty',
@@ -779,6 +781,7 @@ class OrderController extends BaseController
                 'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
                 'order_notes' => trim((string) $this->request->getPost('order_notes')),
                 'whatsapp_notification_number' => $this->normalizeWhatsappNumber((string) $this->request->getPost('whatsapp_notification_number')),
+                'attrai_notification_number' => $this->normalizeWhatsappNumber((string) $this->request->getPost('attrai_notification_number')),
                 'whatsapp_notify_order_created' => $this->request->getPost('whatsapp_notify_order_created') ? 1 : 0,
                 'expected_diamond_spec' => trim((string) $this->request->getPost('expected_diamond_spec')) ?: null,
                 'expected_stone_spec' => trim((string) $this->request->getPost('expected_stone_spec')) ?: null,
@@ -847,9 +850,7 @@ class OrderController extends BaseController
             return redirect()->back()->withInput()->with('error', $this->orderCreationFailureMessage($e));
         }
 
-        if ($this->request->getPost('whatsapp_notify_order_created')) {
-            $this->dispatchWhatsappOrderCreated((int) $orderId);
-        }
+        $this->dispatchWhatsappOrderCreated((int) $orderId);
 
         try {
             $this->mobileNotificationEvents->notifyOrderCreated((int) $orderId, 'admin');
@@ -1007,6 +1008,7 @@ class OrderController extends BaseController
             'priority'    => 'required',
             'due_date'    => 'permit_empty|valid_date',
             'order_notes' => 'permit_empty',
+            'attrai_notification_number' => 'permit_empty|max_length[40]',
         ];
         if ($isRepairOrder) {
             $rules = $rules + [
@@ -1090,6 +1092,7 @@ class OrderController extends BaseController
             'priority'    => $priority,
             'due_date'    => $this->nullableDate((string) $this->request->getPost('due_date')),
             'order_notes' => trim((string) $this->request->getPost('order_notes')),
+            'attrai_notification_number' => $this->normalizeWhatsappNumber((string) $this->request->getPost('attrai_notification_number')),
             'repair_ornament_details' => $isRepairOrder ? trim((string) $this->request->getPost('repair_ornament_details')) : null,
             'repair_work_details' => $isRepairOrder ? trim((string) $this->request->getPost('repair_work_details')) : null,
             'repair_receive_weight_gm' => $isRepairOrder ? (float) $this->request->getPost('repair_receive_weight_gm') : null,
@@ -1173,6 +1176,11 @@ class OrderController extends BaseController
         } catch (Throwable $e) {
             log_message('error', 'Order follower assignment push failed: {message}', ['message' => $e->getMessage()]);
         }
+        try {
+            (new AttraiIntegrationService())->notifyKarigarAssigned($id);
+        } catch (Throwable $e) {
+            log_message('error', 'ATTRAI karigar assignment failed: {message}', ['message' => $e->getMessage()]);
+        }
 
         return redirect()->back()->with('success', 'Customer, karigar and first follow-up assigned successfully.');
     }
@@ -1227,6 +1235,11 @@ class OrderController extends BaseController
             $this->mobileNotificationEvents->notifyFollowerAssigned($id);
         } catch (Throwable $e) {
             log_message('error', 'Order follower reassignment push failed: {message}', ['message' => $e->getMessage()]);
+        }
+        try {
+            (new AttraiIntegrationService())->notifyFollowerAssigned($id);
+        } catch (Throwable $e) {
+            log_message('error', 'ATTRAI follower reassignment failed: {message}', ['message' => $e->getMessage()]);
         }
 
         return redirect()->back()->with('success', 'Order follower updated successfully.');
