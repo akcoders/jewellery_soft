@@ -291,6 +291,32 @@
                                 <textarea name="attrai_approval_numbers" class="form-control font-monospace" rows="2" placeholder="53817425,53817426"><?= esc((string) old('attrai_approval_numbers', (string) ($setting['attrai_approval_numbers'] ?? ''))) ?></textarea>
                                 <small class="text-muted">Use Arattai user IDs, not mobile numbers. Multiple IDs can be comma-separated.</small>
                             </div>
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+                                        <strong>Recent Arattai Users</strong>
+                                        <small class="text-muted">Ask the admin to send <code>Hi</code> to your Arattai Business Number, then refresh this page.</small>
+                                    </div>
+                                    <?php if (empty($recentArattaiUsers)): ?>
+                                        <div class="small text-muted">No incoming Arattai user captured yet.</div>
+                                    <?php else: ?>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm align-middle mb-0">
+                                                <thead><tr><th>Name</th><th>Arattai User ID</th><th>Last seen</th></tr></thead>
+                                                <tbody>
+                                                <?php foreach ($recentArattaiUsers as $arattaiUser): ?>
+                                                    <tr>
+                                                        <td><?= esc((string) (($arattaiUser['name'] ?? '') ?: 'Unknown')) ?></td>
+                                                        <td><code class="user-select-all"><?= esc((string) ($arattaiUser['id'] ?? '')) ?></code></td>
+                                                        <td><?= esc((string) ($arattaiUser['last_seen_at'] ?? '')) ?></td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Webhook URL</label>
                                 <input type="text" class="form-control" readonly value="<?= esc(site_url('integrations/attrai/webhook')) ?>">

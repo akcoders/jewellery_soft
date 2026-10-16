@@ -28,6 +28,8 @@ Arattai verifies the URL with `GET ?challenge=...`; the ERP echoes the challenge
 
 **Approval Admin Arattai User IDs** must contain Arattai user IDs, not phone numbers. The ID is available at `entity.user.id` in an incoming `chat.message.received` event.
 
+For easy setup, ask the intended admin to send `Hi` to the Arattai Business Number and refresh Company Settings. The signed webhook stores the last 100 senders in `writable/arattai-users.json` and displays them under **Recent Arattai Users**. Copy the required ID into **Approval Admin Arattai User IDs**.
+
 Direct approval buttons use Arattai conversational input messages, so the approval admin must be inside Arattai's active conversation window. Approval actions remain Approve, Approve - No Point (follow-up only), and Disapprove. Signed actions expire after seven days and already-reviewed requests are not processed twice.
 
 ## Hostinger cron

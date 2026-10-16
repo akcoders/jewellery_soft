@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\CompanySettingModel;
 use App\Services\ArattaiOAuthService;
 use App\Services\AttraiIntegrationService;
+use App\Services\ArattaiUserCaptureService;
 use Throwable;
 
 class CompanySettingsController extends BaseController
@@ -25,6 +26,7 @@ class CompanySettingsController extends BaseController
             'setting' => $this->getSettingRow(),
             'attraiReviewers' => $this->attraiReviewers(),
             'attraiRedirectUri' => (new ArattaiOAuthService())->redirectUri(),
+            'recentArattaiUsers' => (new ArattaiUserCaptureService())->recent(),
         ]);
     }
 

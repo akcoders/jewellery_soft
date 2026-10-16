@@ -64,6 +64,19 @@ final class AttraiIntegrationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("'Arattai-BusinessNumberId'", $queue);
     }
 
+    public function testIncomingArattaiUsersAreCapturedForAdminSetup(): void
+    {
+        $capture = $this->source('Services/ArattaiUserCaptureService.php');
+        $webhook = $this->source('Controllers/Integrations/AttraiWebhookController.php');
+        $settings = $this->source('Views/admin/company_settings/index.php');
+
+        $this->assertStringContainsString("'chat.message.received'", $capture);
+        $this->assertStringContainsString("['entity']", $capture);
+        $this->assertStringContainsString("['user']", $capture);
+        $this->assertStringContainsString('ArattaiUserCaptureService', $webhook);
+        $this->assertStringContainsString('Recent Arattai Users', $settings);
+    }
+
     public function testOrderUpdatesAndKarigarAssignmentUseAttraiProvider(): void
     {
         $orders = $this->source('Services/OrderWhatsAppService.php');

@@ -4,6 +4,7 @@ namespace App\Controllers\Integrations;
 
 use App\Controllers\BaseController;
 use App\Services\AttraiIntegrationService;
+use App\Services\ArattaiUserCaptureService;
 use RuntimeException;
 use Throwable;
 
@@ -32,6 +33,11 @@ class AttraiWebhookController extends BaseController
                 $rawBody,
                 trim($this->request->getHeaderLine('X-Hub-Signature-256'))
             );
+            try {
+                (new ArattaiUserCaptureService())->capture($payload);
+            } catch (Throwable $e) {
+                log_message('warning', 'Arattai user ID capture failed: {message}', ['message' => $e->getMessage()]);
+            }
             $result = $service->handleWebhook($payload);
             return $this->response->setJSON(['ok' => true, 'data' => $result]);
         } catch (RuntimeException $e) {
