@@ -250,8 +250,8 @@
                     <div class="border rounded-3 p-3 mt-2">
                         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                             <div>
-                                <h6 class="mb-1">ATTRAI Approval &amp; Assignment Integration</h6>
-                                <small class="text-muted">Separate ATTRAI connection for order updates, approvals and karigar assignment. Approval actions are signed, expire after 7 days, and call the ERP approval workflow directly.</small>
+                                <h6 class="mb-1">Arattai Approval &amp; Transaction Integration</h6>
+                                <small class="text-muted">Enter the OAuth client credentials once. The ERP obtains and refreshes Bearer tokens automatically.</small>
                             </div>
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" name="attrai_enabled" id="attrai_enabled" value="1" <?= ! empty($setting['attrai_enabled']) ? 'checked' : '' ?>>
@@ -261,62 +261,45 @@
 
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">ATTRAI Send API URL</label>
-                                <input type="url" name="attrai_api_url" class="form-control" maxlength="500" value="<?= esc((string) old('attrai_api_url', (string) ($setting['attrai_api_url'] ?? ''))) ?>" placeholder="https://api.attrai.example/messages">
+                                <label class="form-label">Arattai Client ID</label>
+                                <input type="text" name="attrai_client_id" class="form-control font-monospace" maxlength="500" value="<?= esc((string) old('attrai_client_id', (string) ($setting['attrai_client_id'] ?? ''))) ?>" autocomplete="off">
                             </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Method</label>
-                                <?php $attraiMethod = (string) old('attrai_http_method', (string) ($setting['attrai_http_method'] ?? 'POST')); ?>
-                                <select name="attrai_http_method" class="form-select">
-                                    <?php foreach (['POST', 'PUT', 'PATCH'] as $method): ?>
-                                        <option value="<?= esc($method) ?>" <?= $attraiMethod === $method ? 'selected' : '' ?>><?= esc($method) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Auth Type</label>
-                                <?php $attraiAuthType = (string) old('attrai_auth_type', (string) ($setting['attrai_auth_type'] ?? 'bearer')); ?>
-                                <select name="attrai_auth_type" class="form-select">
-                                    <?php foreach (['none', 'bearer', 'basic', 'custom'] as $authType): ?>
-                                        <option value="<?= esc($authType) ?>" <?= $attraiAuthType === $authType ? 'selected' : '' ?>><?= esc(strtoupper($authType)) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Sender ID</label>
-                                <input type="text" name="attrai_sender_id" class="form-control" maxlength="190" value="<?= esc((string) old('attrai_sender_id', (string) ($setting['attrai_sender_id'] ?? ''))) ?>">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Auth Header</label>
-                                <input type="text" name="attrai_auth_header" class="form-control" maxlength="80" value="<?= esc((string) old('attrai_auth_header', (string) ($setting['attrai_auth_header'] ?? 'Authorization'))) ?>">
-                            </div>
-                            <div class="col-md-8">
-                                <label class="form-label">API Token / Key</label>
-                                <input type="text" name="attrai_auth_token" class="form-control font-monospace" maxlength="500" value="<?= esc((string) old('attrai_auth_token', (string) ($setting['attrai_auth_token'] ?? ''))) ?>" autocomplete="off">
+                            <div class="col-md-6">
+                                <label class="form-label">Arattai Client Secret</label>
+                                <input type="password" name="attrai_client_secret" class="form-control font-monospace" maxlength="1000" value="" autocomplete="new-password" placeholder="<?= ! empty($setting['attrai_client_secret']) ? 'Saved — leave blank to keep it' : 'Paste Client Secret' ?>">
+                                <small class="text-muted">The secret is never displayed again after saving.</small>
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Approval Admin Numbers</label>
-                                <textarea name="attrai_approval_numbers" class="form-control" rows="2" placeholder="919999999999,918888888888"><?= esc((string) old('attrai_approval_numbers', (string) ($setting['attrai_approval_numbers'] ?? ''))) ?></textarea>
-                                <small class="text-muted">Follow-up, issuement, customer and karigar approval messages are sent to these admin numbers.</small>
+                                <label class="form-label">Authorized Redirect URI</label>
+                                <input type="text" class="form-control font-monospace" readonly value="<?= esc((string) ($attraiRedirectUri ?? '')) ?>">
+                                <small class="text-muted">Add this exact URL in the Arattai API Console client settings.</small>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Extra Headers JSON</label>
-                                <textarea name="attrai_extra_headers_json" class="form-control font-monospace" rows="4" placeholder='{"X-API-KEY":"value"}'><?= esc((string) old('attrai_extra_headers_json', (string) ($setting['attrai_extra_headers_json'] ?? ''))) ?></textarea>
+                            <div class="col-md-4">
+                                <label class="form-label">Company ID</label>
+                                <input type="text" name="attrai_company_id" class="form-control font-monospace" readonly value="<?= esc((string) old('attrai_company_id', (string) ($setting['attrai_company_id'] ?? ''))) ?>">
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Text / Order Update Body Template</label>
-                                <textarea name="attrai_body_template" class="form-control font-monospace" rows="4" placeholder='{"to":{{to_json}},"message":{{message_json}},"sender":{{sender_id_json}}}'><?= esc((string) old('attrai_body_template', (string) ($setting['attrai_body_template'] ?? ''))) ?></textarea>
-                                <small class="text-muted">Used for order updates, karigar/follower assignment and demo messages. Image fields: {{media_url_json}}, {{message_type_json}}.</small>
+                            <div class="col-md-4">
+                                <label class="form-label">Business ID</label>
+                                <input type="text" name="attrai_business_id" class="form-control font-monospace" readonly value="<?= esc((string) old('attrai_business_id', (string) ($setting['attrai_business_id'] ?? ''))) ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Business Number ID</label>
+                                <input type="text" name="attrai_business_number_id" class="form-control font-monospace" readonly value="<?= esc((string) old('attrai_business_number_id', (string) ($setting['attrai_business_number_id'] ?? ''))) ?>">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Approval Admin Arattai User IDs</label>
+                                <textarea name="attrai_approval_numbers" class="form-control font-monospace" rows="2" placeholder="53817425,53817426"><?= esc((string) old('attrai_approval_numbers', (string) ($setting['attrai_approval_numbers'] ?? ''))) ?></textarea>
+                                <small class="text-muted">Use Arattai user IDs, not mobile numbers. Multiple IDs can be comma-separated.</small>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Webhook URL</label>
                                 <input type="text" class="form-control" readonly value="<?= esc(site_url('integrations/attrai/webhook')) ?>">
-                                <small class="text-muted">Configure this as the interactive-button callback URL in ATTRAI.</small>
+                                <small class="text-muted">Conversation webhook: select only <code>chat.message.received</code>.</small>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Webhook Secret</label>
-                                <input type="text" name="attrai_webhook_secret" class="form-control font-monospace" maxlength="255" value="<?= esc((string) old('attrai_webhook_secret', (string) ($setting['attrai_webhook_secret'] ?? ''))) ?>" autocomplete="off">
-                                <small class="text-muted">Send it as <code>X-Attrai-Webhook-Secret</code>, <code>X-Webhook-Secret</code>, Bearer token, or webhook <code>?token=...</code>. A secret is generated on first save when blank.</small>
+                                <input type="password" name="attrai_webhook_secret" class="form-control font-monospace" maxlength="255" value="" autocomplete="new-password" placeholder="<?= ! empty($setting['attrai_webhook_secret']) ? 'Saved — leave blank to keep it' : 'Paste the Arattai webhook Shared Secret' ?>">
+                                <small class="text-muted">Paste the Shared Secret generated in Arattai Webhooks. It validates <code>X-Hub-Signature-256</code>.</small>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Approval Audit Reviewer</label>
@@ -343,25 +326,12 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-6">
-                                <label class="form-label">Approval Message Template</label>
-                                <textarea name="attrai_template_approval_requested" class="form-control" rows="5" placeholder="{{request_label}} approval required (#{{approval_request_id}}).&#10;{{summary}}\nChoose an action in ATTRAI."><?= esc((string) old('attrai_template_approval_requested', (string) ($setting['attrai_template_approval_requested'] ?? ''))) ?></textarea>
-                                <small class="text-muted">Placeholders: {{approval_request_id}}, {{request_type}}, {{request_label}}, {{summary}}, {{company_name}}.</small>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Karigar Assignment Template</label>
-                                <textarea name="attrai_template_karigar_assigned" class="form-control" rows="5" placeholder="Hello {{karigar_name}}, order {{order_no}} is assigned to you. Due: {{due_date}}."><?= esc((string) old('attrai_template_karigar_assigned', (string) ($setting['attrai_template_karigar_assigned'] ?? ''))) ?></textarea>
-                                <small class="text-muted">Placeholders: {{order_no}}, {{order_name}}, {{customer_name}}, {{karigar_name}}, {{priority}}, {{status}}, {{due_date}}, {{company_name}}.</small>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Follower Assignment Template</label>
-                                <textarea name="attrai_template_follower_assigned" class="form-control" rows="5" placeholder="Hello {{follower_name}}, you are following order {{order_no}}. Karigar: {{karigar_name}}. Due: {{due_date}}."><?= esc((string) old('attrai_template_follower_assigned', (string) ($setting['attrai_template_follower_assigned'] ?? ''))) ?></textarea>
-                                <small class="text-muted">Sent immediately with the order image to the employee profile's ATTRAI number.</small>
-                            </div>
                             <div class="col-12">
-                                <label class="form-label">ATTRAI Interactive Approval Body Template</label>
-                                <textarea name="attrai_approval_body_template" class="form-control font-monospace" rows="7" placeholder='{"to":{{to_json}},"message":{{message_json}},"buttons":{{actions_json}},"webhook_url":{{webhook_url_json}}}'><?= esc((string) old('attrai_approval_body_template', (string) ($setting['attrai_approval_body_template'] ?? ''))) ?></textarea>
-                                <small class="text-muted">Map this JSON to the exact ATTRAI send API. Available values include {{to_json}}, {{message_json}}, {{actions_json}}, {{approve_action_id_json}}, {{approve_no_point_action_id_json}}, {{reject_action_id_json}}, {{webhook_url_json}}, {{media_url_json}} and {{message_type_json}}.</small>
+                                <div class="border rounded p-3 bg-light">
+                                    <div><strong>OAuth:</strong> <?= ! empty($setting['attrai_refresh_token']) ? '<span class="text-success">Connected</span>' : '<span class="text-danger">Not connected</span>' ?></div>
+                                    <div><strong>Approval template:</strong> <?= esc((string) (($setting['attrai_approval_template_status'] ?? '') ?: 'not created')) ?><?= ! empty($setting['attrai_approval_template_id']) ? ' · ' . esc((string) $setting['attrai_approval_template_id']) : '' ?></div>
+                                    <div><strong>Order-update template:</strong> <?= esc((string) (($setting['attrai_update_template_status'] ?? '') ?: 'not created')) ?><?= ! empty($setting['attrai_update_template_id']) ? ' · ' . esc((string) $setting['attrai_update_template_id']) : '' ?></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -372,6 +342,18 @@
                 </div>
             </div>
         </form>
+
+        <div class="border rounded-3 p-3 mt-4">
+            <h6 class="mb-2">Arattai One-time Setup</h6>
+            <p class="small text-muted">First save Client ID and Client Secret, then connect. After connection, create and submit both ERP templates.</p>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="<?= site_url('admin/company-settings/arattai/connect') ?>" class="btn btn-outline-primary">Connect Arattai</a>
+                <form method="post" action="<?= site_url('admin/company-settings/arattai/templates') ?>">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="btn btn-outline-success" <?= empty($setting['attrai_refresh_token']) ? 'disabled' : '' ?>>Create &amp; Submit ERP Templates</button>
+                </form>
+            </div>
+        </div>
 
         <form method="post" action="<?= site_url('admin/company-settings/attrai-test') ?>" class="border rounded-3 p-3 mt-4">
             <?= csrf_field() ?>

@@ -6,6 +6,7 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 $routes->get('/', 'Home::index');
+$routes->get('integrations/attrai/webhook', 'Integrations\AttraiWebhookController::verify');
 $routes->post('integrations/attrai/webhook', 'Integrations\AttraiWebhookController::receive');
 
 $routes->get('customer/login', 'Customer\AuthController::login');
@@ -160,6 +161,9 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->get('company-settings', 'Admin\CompanySettingsController::index', ['filter' => 'permission:company-settings.read']);
     $routes->post('company-settings', 'Admin\CompanySettingsController::update', ['filter' => 'permission:company-settings.manage']);
     $routes->post('company-settings/attrai-test', 'Admin\CompanySettingsController::sendAttraiTest', ['filter' => ['permission:company-settings.manage', 'csrf']]);
+    $routes->get('company-settings/arattai/connect', 'Admin\CompanySettingsController::connectArattai', ['filter' => 'permission:company-settings.manage']);
+    $routes->get('company-settings/arattai/oauth/callback', 'Admin\CompanySettingsController::arattaiOAuthCallback', ['filter' => 'permission:company-settings.manage']);
+    $routes->post('company-settings/arattai/templates', 'Admin\CompanySettingsController::createArattaiTemplates', ['filter' => ['permission:company-settings.manage', 'csrf']]);
     $routes->get('system/database-update', 'Admin\DatabaseUpdateController::index', ['filter' => 'permission:company-settings.manage']);
     $routes->post('system/database-update', 'Admin\DatabaseUpdateController::run', ['filter' => 'permission:company-settings.manage']);
     $routes->get('system/maintenance', 'Admin\SystemMaintenanceController::index', ['filter' => 'permission:company-settings.manage']);

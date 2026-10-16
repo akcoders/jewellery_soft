@@ -233,7 +233,9 @@ class OrderWhatsAppService
                 ? $this->replacePlaceholders($messageTemplate, $variables)
                 : $this->defaultMessage($eventKey, $variables);
 
-            $requestPayload = $this->buildRequestPayload($providerSettings, $variables, $message, $phone);
+            $requestPayload = $providerKey === 'attrai'
+                ? ['request_options' => [], 'log_payload' => '']
+                : $this->buildRequestPayload($providerSettings, $variables, $message, $phone);
             $logId = (int) $this->logModel->insert([
                 'event_key' => $eventKey,
                 'event_hash' => $eventHash,
@@ -538,9 +540,7 @@ class OrderWhatsAppService
      */
     private function alertPhones(array $settings): array
     {
-        $raw = (int) ($settings['attrai_enabled'] ?? 0) === 1
-            ? trim((string) ($settings['attrai_approval_numbers'] ?? ''))
-            : trim((string) ($settings['whatsapp_alert_numbers'] ?? ''));
+        $raw = trim((string) ($settings['whatsapp_alert_numbers'] ?? ''));
         if ($raw === '') {
             return [];
         }
@@ -586,7 +586,10 @@ class OrderWhatsAppService
     private function isConfigured(array $settings): bool
     {
         if ((int) ($settings['attrai_enabled'] ?? 0) === 1) {
-            return trim((string) ($settings['attrai_api_url'] ?? '')) !== '';
+            return trim((string) ($settings['attrai_refresh_token'] ?? '')) !== ''
+                && trim((string) ($settings['attrai_company_id'] ?? '')) !== ''
+                && trim((string) ($settings['attrai_business_number_id'] ?? '')) !== ''
+                && trim((string) ($settings['attrai_update_template_id'] ?? '')) !== '';
         }
         return ! empty($settings['whatsapp_enabled']) && trim((string) ($settings['whatsapp_api_url'] ?? '')) !== '';
     }

@@ -66,8 +66,8 @@ class AttraiIntegrationService
             : $this->defaultApprovalMessage($variables, $requestType === 'followup');
 
         $queueIds = [];
-        foreach ($this->alertPhones($settings) as $phone) {
-            $perRecipient = $variables + ['to' => $phone, 'message' => $message];
+        foreach ($this->approvalUserIds($settings) as $userId) {
+            $perRecipient = $variables + ['to' => $userId, 'message' => $message];
             $requestPayload = $this->approvalRequestPayload($settings, $perRecipient, $actions);
             $queueIds[] = $this->queueService->enqueue([
                 'event_key' => 'approval_requested',
@@ -76,7 +76,7 @@ class AttraiIntegrationService
                 'source_id' => $requestId,
                 'order_id' => $this->orderIdFromApproval($request),
                 'sender_number' => $settings['attrai_sender_id'] ?? null,
-                'recipient_number' => $phone,
+                'recipient_number' => $userId,
                 'recipient_name' => 'Approval Admin',
                 'message_type' => 'interactive',
                 'message_text' => $message,
@@ -88,7 +88,7 @@ class AttraiIntegrationService
 
         return [
             'status' => $queueIds === [] ? 'skipped' : 'queued',
-            'message' => $queueIds === [] ? 'No approval alert number is configured.' : 'ATTRAI approval message queued.',
+            'message' => $queueIds === [] ? 'No approval admin Arattai user ID is configured.' : 'Arattai approval message queued.',
             'queue_ids' => $queueIds,
         ];
     }
@@ -229,20 +229,37 @@ class AttraiIntegrationService
      * @param array<string,mixed> $payload
      * @return array<string,mixed>
      */
-    public function handleWebhook(array $payload, string $providedSecret): array
+    public function verifyWebhookSignature(string $rawBody, string $providedSignature): void
+    {
+        $settings = $this->settings();
+        $secret = trim((string) ($settings['attrai_webhook_secret'] ?? ''));
+        if ($secret === '' || $providedSignature === '') {
+            throw new RuntimeException('Arattai webhook signature or Shared Secret is missing.');
+        }
+        if (! str_starts_with(strtolower($providedSignature), 'sha256=')) {
+            throw new RuntimeException('Invalid Arattai webhook signature format.');
+        }
+        $provided = trim(substr($providedSignature, 7));
+        $expected = base64_encode(hash_hmac('sha256', $rawBody, $secret, true));
+        if ($provided === '' || ! hash_equals($expected, $provided)) {
+            throw new RuntimeException('Invalid Arattai webhook signature.');
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     * @return array<string,mixed>
+     */
+    public function handleWebhook(array $payload): array
     {
         $settings = $this->settings();
         if ((int) ($settings['attrai_enabled'] ?? 0) !== 1) {
-            throw new RuntimeException('ATTRAI integration is disabled.');
-        }
-        $secret = trim((string) ($settings['attrai_webhook_secret'] ?? ''));
-        if ($secret === '' || $providedSecret === '' || ! hash_equals($secret, $providedSecret)) {
-            throw new RuntimeException('Invalid ATTRAI webhook secret.');
+            throw new RuntimeException('Arattai integration is disabled.');
         }
 
         $actionId = $this->extractActionId($payload);
         if ($actionId === '') {
-            throw new RuntimeException('ATTRAI action id was not found in the webhook payload.');
+            return ['status' => 'ignored', 'message' => 'No ERP approval action was present.'];
         }
         $action = $this->verifySignedAction($actionId, $settings);
         $reviewerId = (int) ($settings['attrai_approval_reviewer_id'] ?? 0);
@@ -363,21 +380,27 @@ class AttraiIntegrationService
         foreach ($variables as $key => $value) {
             $variables[$key . '_json'] = json_encode((string) $value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '""';
         }
-        $template = trim((string) ($settings['attrai_approval_body_template'] ?? ''));
-        if ($template !== '') {
-            return $this->replacePlaceholders($template, $variables);
+        $content = [
+            'body' => mb_substr((string) ($variables['message'] ?? ''), 0, 2000),
+            'footer' => ['text' => 'Aabhushan ERP approval'],
+            'options' => array_map(
+                static fn (array $action): array => [
+                    'id' => (string) ($action['id'] ?? ''),
+                    'label' => (string) ($action['title'] ?? 'Review'),
+                ],
+                json_decode((string) $variables['actions_json'], true) ?: []
+            ),
+        ];
+        $mediaUrl = trim((string) ($variables['media_url'] ?? ''));
+        if ($mediaUrl !== '') {
+            $content['header'] = ['type' => 'image', 'link' => $mediaUrl];
         }
 
         return json_encode([
-            'to' => (string) ($variables['to'] ?? ''),
-            'message' => (string) ($variables['message'] ?? ''),
-            'sender' => trim((string) ($settings['attrai_sender_id'] ?? '')) ?: null,
-            'event' => 'approval_requested',
-            'reference' => 'approval-' . (string) ($variables['approval_request_id'] ?? ''),
-            'actions' => json_decode((string) $variables['actions_json'], true),
-            'webhook_url' => (string) ($variables['webhook_url'] ?? ''),
-            'message_type' => (string) ($variables['message_type'] ?? 'interactive'),
-            'media_url' => trim((string) ($variables['media_url'] ?? '')) ?: null,
+            'category' => 'input',
+            'type' => 'quick_reply',
+            'user_id' => (string) ($variables['to'] ?? ''),
+            'content' => $content,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
 
@@ -540,7 +563,7 @@ class AttraiIntegrationService
             && (int) ($settings['attrai_notify_approval_requested'] ?? 1) === 1
             && trim((string) ($settings['attrai_webhook_secret'] ?? '')) !== ''
             && (int) ($settings['attrai_approval_reviewer_id'] ?? 0) > 0
-            && $this->alertPhones($settings) !== [];
+            && $this->approvalUserIds($settings) !== [];
     }
 
     /** @param array<string,mixed> $settings */
@@ -551,17 +574,17 @@ class AttraiIntegrationService
     }
 
     /** @param array<string,mixed> $settings @return list<string> */
-    private function alertPhones(array $settings): array
+    private function approvalUserIds(array $settings): array
     {
         $parts = preg_split('/[\s,;]+/', trim((string) ($settings['attrai_approval_numbers'] ?? ''))) ?: [];
-        $phones = [];
+        $userIds = [];
         foreach ($parts as $part) {
-            $phone = $this->normalizePhone($part);
-            if ($phone !== '') {
-                $phones[] = $phone;
+            $userId = preg_replace('/\D+/', '', trim($part)) ?? '';
+            if ($userId !== '') {
+                $userIds[] = $userId;
             }
         }
-        return array_values(array_unique($phones));
+        return array_values(array_unique($userIds));
     }
 
     private function normalizePhone(string $phone): string

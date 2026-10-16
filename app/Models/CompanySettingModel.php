@@ -70,6 +70,20 @@ class CompanySettingModel extends Model
         'attrai_template_karigar_assigned',
         'attrai_template_follower_assigned',
         'attrai_approval_body_template',
+        'attrai_client_id',
+        'attrai_client_secret',
+        'attrai_access_token',
+        'attrai_refresh_token',
+        'attrai_token_expires_at',
+        'attrai_api_domain',
+        'attrai_company_id',
+        'attrai_business_id',
+        'attrai_business_number_id',
+        'attrai_approval_template_id',
+        'attrai_approval_template_status',
+        'attrai_update_template_id',
+        'attrai_update_template_status',
+        'attrai_connected_at',
     ];
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';

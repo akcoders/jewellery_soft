@@ -9,24 +9,34 @@ use Throwable;
 
 class AttraiWebhookController extends BaseController
 {
+    public function verify()
+    {
+        $challenge = trim((string) $this->request->getGet('challenge'));
+        if ($challenge === '') {
+            return $this->response->setStatusCode(400)->setJSON(['message' => 'challenge is required']);
+        }
+        return $this->response->setJSON(['challenge' => $challenge]);
+    }
+
     public function receive()
     {
-        $payload = $this->request->getJSON(true);
-        if (! is_array($payload)) {
-            $payload = $this->request->getPost();
-        }
+        $rawBody = (string) $this->request->getBody();
+        $payload = json_decode($rawBody, true);
         if (! is_array($payload)) {
             $payload = [];
         }
 
         try {
-            $result = (new AttraiIntegrationService())->handleWebhook(
-                $payload,
-                $this->webhookSecret()
+            $service = new AttraiIntegrationService();
+            $service->verifyWebhookSignature(
+                $rawBody,
+                trim($this->request->getHeaderLine('X-Hub-Signature-256'))
             );
+            $result = $service->handleWebhook($payload);
             return $this->response->setJSON(['ok' => true, 'data' => $result]);
         } catch (RuntimeException $e) {
-            $status = str_contains(strtolower($e->getMessage()), 'secret') ? 401 : 422;
+            $message = strtolower($e->getMessage());
+            $status = str_contains($message, 'signature') || str_contains($message, 'secret') ? 401 : 422;
             return $this->response->setStatusCode($status)->setJSON([
                 'ok' => false,
                 'message' => $e->getMessage(),
@@ -40,18 +50,4 @@ class AttraiWebhookController extends BaseController
         }
     }
 
-    private function webhookSecret(): string
-    {
-        foreach (['X-Attrai-Webhook-Secret', 'X-Webhook-Secret'] as $header) {
-            $value = trim($this->request->getHeaderLine($header));
-            if ($value !== '') {
-                return $value;
-            }
-        }
-        $authorization = trim($this->request->getHeaderLine('Authorization'));
-        if (stripos($authorization, 'Bearer ') === 0) {
-            return trim(substr($authorization, 7));
-        }
-        return trim((string) $this->request->getGet('token'));
-    }
 }

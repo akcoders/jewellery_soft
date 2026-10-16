@@ -149,14 +149,25 @@ class WhatsappSenderQueueService
             'error_message' => null,
         ]);
 
-        $settings = $this->providerSettings($settings, (string) ($row['provider_key'] ?? 'whatsapp'));
+        $provider = strtolower(trim((string) ($row['provider_key'] ?? 'whatsapp')));
+        try {
+            $settings = $this->providerSettings($settings, $provider, $row);
+        } catch (Throwable $e) {
+            $this->markFailed($id, $attempts, (int) ($row['max_attempts'] ?? 3), $e->getMessage(), null, null, null);
+            return 'failed';
+        }
         if (! $this->isConfigured($settings)) {
-            $this->markFailed($id, $attempts, (int) ($row['max_attempts'] ?? 3), 'WhatsApp API is disabled or not configured.', null, null, null);
+            $this->markFailed($id, $attempts, (int) ($row['max_attempts'] ?? 3), ucfirst($provider) . ' API is disabled or not configured.', null, null, null);
             return 'failed';
         }
 
-        $payload = $this->buildRequestPayload($settings, $row);
-        $response = $this->sendHttpRequest($settings, $payload);
+        try {
+            $payload = $this->buildRequestPayload($settings, $row);
+            $response = $this->sendHttpRequest($settings, $payload);
+        } catch (Throwable $e) {
+            $this->markFailed($id, $attempts, (int) ($row['max_attempts'] ?? 3), $e->getMessage(), null, null, null);
+            return 'failed';
+        }
         $providerMessageId = $this->extractProviderMessageId($response['response_payload']);
 
         if ($response['ok']) {
@@ -195,9 +206,14 @@ class WhatsappSenderQueueService
     {
         $body = trim((string) ($row['request_payload'] ?? ''));
         if ($body === '') {
+            if (! empty($settings['attrai_official'])) {
+                $body = $this->buildArattaiTransactionBody($settings, $row);
+            }
             $variables = $this->queueVariables($settings, $row);
             $bodyTemplate = trim((string) ($settings['whatsapp_body_template'] ?? ''));
-            if ($bodyTemplate !== '') {
+            if ($body !== '') {
+                // Official Arattai payload was built above.
+            } elseif ($bodyTemplate !== '') {
                 $body = $this->replacePlaceholders($bodyTemplate, $variables);
             } elseif (trim((string) ($row['payload_json'] ?? '')) !== '') {
                 $body = (string) $row['payload_json'];
@@ -356,23 +372,80 @@ class WhatsappSenderQueueService
         return $this->companySettingModel->orderBy('id', 'ASC')->first() ?? [];
     }
 
-    /** @param array<string,mixed> $settings @return array<string,mixed> */
-    private function providerSettings(array $settings, string $provider): array
+    /** @param array<string,mixed> $settings @param array<string,mixed> $row @return array<string,mixed> */
+    private function providerSettings(array $settings, string $provider, array $row = []): array
     {
         if (strtolower(trim($provider)) !== 'attrai') {
             return $settings;
         }
 
+        $companyId = trim((string) ($settings['attrai_company_id'] ?? ''));
+        $businessNumberId = trim((string) ($settings['attrai_business_number_id'] ?? ''));
+        if ($companyId === '' || $businessNumberId === '') {
+            throw new \RuntimeException('Connect Arattai first; Company ID or Business Number ID is missing.');
+        }
+        $settings['attrai_official'] = 1;
         $settings['whatsapp_enabled'] = (int) ($settings['attrai_enabled'] ?? 0);
-        $settings['whatsapp_api_url'] = $settings['attrai_api_url'] ?? null;
-        $settings['whatsapp_http_method'] = $settings['attrai_http_method'] ?? 'POST';
-        $settings['whatsapp_auth_type'] = $settings['attrai_auth_type'] ?? 'bearer';
-        $settings['whatsapp_auth_header'] = $settings['attrai_auth_header'] ?? 'Authorization';
-        $settings['whatsapp_auth_token'] = $settings['attrai_auth_token'] ?? null;
-        $settings['whatsapp_sender_id'] = $settings['attrai_sender_id'] ?? null;
-        $settings['whatsapp_extra_headers_json'] = $settings['attrai_extra_headers_json'] ?? null;
-        $settings['whatsapp_body_template'] = $settings['attrai_body_template'] ?? null;
+        $settings['whatsapp_api_url'] = ArattaiOAuthService::API_ROOT
+            . ((string) ($row['event_key'] ?? '') === 'approval_requested' ? '/messages' : '/transactions');
+        $settings['whatsapp_http_method'] = 'POST';
+        $settings['whatsapp_auth_type'] = 'bearer';
+        $settings['whatsapp_auth_header'] = 'Authorization';
+        $settings['whatsapp_auth_token'] = (new ArattaiOAuthService())->accessToken();
+        $settings['whatsapp_sender_id'] = $businessNumberId;
+        $settings['whatsapp_extra_headers_json'] = json_encode([
+            'Arattai-CompanyId' => $companyId,
+            'Arattai-BusinessNumberId' => $businessNumberId,
+        ], JSON_UNESCAPED_SLASHES);
+        $settings['whatsapp_body_template'] = null;
         return $settings;
+    }
+
+    /** @param array<string,mixed> $settings @param array<string,mixed> $row */
+    private function buildArattaiTransactionBody(array $settings, array $row): string
+    {
+        $templateId = trim((string) ($settings['attrai_update_template_id'] ?? ''));
+        if ($templateId === '') {
+            throw new \RuntimeException('Create the Arattai ERP order-update template first.');
+        }
+        $recipient = $this->arattaiPhoneNumber((string) ($row['recipient_number'] ?? ''));
+        if ($recipient === '') {
+            throw new \RuntimeException('Arattai recipient phone number is invalid.');
+        }
+        $orderNo = '';
+        $orderId = (int) ($row['order_id'] ?? 0);
+        if ($orderId > 0) {
+            $order = db_connect()->table('orders')->select('order_no')->where('id', $orderId)->get()->getRowArray();
+            $orderNo = trim((string) ($order['order_no'] ?? ''));
+        }
+        if ($orderNo === '') {
+            $orderNo = $orderId > 0 ? ('#' . $orderId) : trim((string) ($row['source_id'] ?? 'ERP'));
+        }
+        $ackKey = preg_replace('/[^A-Za-z0-9_-]/', '_', (string) ($row['message_no'] ?? '')) ?: ('ERP_' . (int) ($row['id'] ?? 0));
+
+        return json_encode([
+            'id' => $templateId,
+            'phone_number' => $recipient,
+            'language' => 'en',
+            'variables' => [
+                'recipient_name' => trim((string) ($row['recipient_name'] ?? '')) ?: 'User',
+                'order_no' => $orderNo,
+                'update_message' => mb_substr(trim((string) ($row['message_text'] ?? 'ERP update')), 0, 1000),
+            ],
+            'ack_key' => substr($ackKey, 0, 64),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    }
+
+    private function arattaiPhoneNumber(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', trim($phone)) ?? '';
+        if (strlen($digits) === 10) {
+            $digits = '91' . $digits;
+        }
+        if (strlen($digits) === 12 && str_starts_with($digits, '91')) {
+            return '91-' . substr($digits, 2);
+        }
+        return '';
     }
 
     /**
@@ -414,9 +487,16 @@ class WhatsappSenderQueueService
         if (! is_array($decoded)) {
             return null;
         }
-        foreach (['message_id', 'messageId', 'id', 'wamid', 'sid'] as $key) {
+        foreach (['message_id', 'messageId', 'id', 'wamid', 'sid', 'ack_key'] as $key) {
             if (isset($decoded[$key]) && is_scalar($decoded[$key])) {
                 return (string) $decoded[$key];
+            }
+        }
+        if (is_array($decoded['data'] ?? null)) {
+            foreach (['id', 'ack_key', 'message_id'] as $key) {
+                if (isset($decoded['data'][$key]) && is_scalar($decoded['data'][$key])) {
+                    return (string) $decoded['data'][$key];
+                }
             }
         }
         return null;

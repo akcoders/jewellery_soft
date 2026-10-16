@@ -4,6 +4,7 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\CompanySettingModel;
+use App\Services\ArattaiOAuthService;
 use App\Services\AttraiIntegrationService;
 use Throwable;
 
@@ -23,6 +24,7 @@ class CompanySettingsController extends BaseController
             'title' => 'Company Settings',
             'setting' => $this->getSettingRow(),
             'attraiReviewers' => $this->attraiReviewers(),
+            'attraiRedirectUri' => (new ArattaiOAuthService())->redirectUri(),
         ]);
     }
 
@@ -78,6 +80,11 @@ class CompanySettingsController extends BaseController
             'attrai_template_karigar_assigned' => 'permit_empty',
             'attrai_template_follower_assigned' => 'permit_empty',
             'attrai_approval_body_template' => 'permit_empty',
+            'attrai_client_id' => 'permit_empty|max_length[500]',
+            'attrai_client_secret' => 'permit_empty|max_length[1000]',
+            'attrai_company_id' => 'permit_empty|max_length[80]',
+            'attrai_business_id' => 'permit_empty|max_length[80]',
+            'attrai_business_number_id' => 'permit_empty|max_length[80]',
         ])) {
             $errors = $this->validator ? $this->validator->getErrors() : [];
             $message = $errors === [] ? 'Validation failed.' : (string) array_values($errors)[0];
@@ -88,11 +95,12 @@ class CompanySettingsController extends BaseController
         $id = (int) ($row['id'] ?? 0);
         $attraiEnabled = $this->request->getPost('attrai_enabled') ? 1 : 0;
         $attraiSecret = trim((string) $this->request->getPost('attrai_webhook_secret'));
-        if ($attraiEnabled === 1 && $attraiSecret === '') {
+        if ($attraiSecret === '') {
             $attraiSecret = trim((string) ($row['attrai_webhook_secret'] ?? ''));
-            if ($attraiSecret === '') {
-                $attraiSecret = bin2hex(random_bytes(24));
-            }
+        }
+        $attraiClientSecret = trim((string) $this->request->getPost('attrai_client_secret'));
+        if ($attraiClientSecret === '') {
+            $attraiClientSecret = trim((string) ($row['attrai_client_secret'] ?? ''));
         }
         $data = [
             'company_name' => trim((string) $this->request->getPost('company_name')) ?: null,
@@ -137,14 +145,14 @@ class CompanySettingsController extends BaseController
             'whatsapp_template_order_over_budget' => trim((string) $this->request->getPost('whatsapp_template_order_over_budget')) ?: null,
             'whatsapp_template_order_delay_daily' => trim((string) $this->request->getPost('whatsapp_template_order_delay_daily')) ?: null,
             'attrai_enabled' => $attraiEnabled,
-            'attrai_api_url' => trim((string) $this->request->getPost('attrai_api_url')) ?: null,
-            'attrai_http_method' => strtoupper(trim((string) $this->request->getPost('attrai_http_method'))) ?: 'POST',
-            'attrai_auth_type' => strtolower(trim((string) $this->request->getPost('attrai_auth_type'))) ?: 'bearer',
-            'attrai_auth_header' => trim((string) $this->request->getPost('attrai_auth_header')) ?: 'Authorization',
-            'attrai_auth_token' => trim((string) $this->request->getPost('attrai_auth_token')) ?: null,
-            'attrai_sender_id' => trim((string) $this->request->getPost('attrai_sender_id')) ?: null,
-            'attrai_extra_headers_json' => trim((string) $this->request->getPost('attrai_extra_headers_json')) ?: null,
-            'attrai_body_template' => trim((string) $this->request->getPost('attrai_body_template')) ?: null,
+            'attrai_api_url' => ArattaiOAuthService::API_ROOT . '/transactions',
+            'attrai_http_method' => 'POST',
+            'attrai_auth_type' => 'bearer',
+            'attrai_auth_header' => 'Authorization',
+            'attrai_auth_token' => $row['attrai_access_token'] ?? $row['attrai_auth_token'] ?? null,
+            'attrai_sender_id' => trim((string) $this->request->getPost('attrai_business_number_id')) ?: ($row['attrai_business_number_id'] ?? null),
+            'attrai_extra_headers_json' => null,
+            'attrai_body_template' => null,
             'attrai_approval_numbers' => trim((string) $this->request->getPost('attrai_approval_numbers')) ?: null,
             'attrai_webhook_secret' => $attraiSecret !== '' ? $attraiSecret : null,
             'attrai_approval_reviewer_id' => (int) $this->request->getPost('attrai_approval_reviewer_id') ?: null,
@@ -153,7 +161,12 @@ class CompanySettingsController extends BaseController
             'attrai_template_approval_requested' => trim((string) $this->request->getPost('attrai_template_approval_requested')) ?: null,
             'attrai_template_karigar_assigned' => trim((string) $this->request->getPost('attrai_template_karigar_assigned')) ?: null,
             'attrai_template_follower_assigned' => trim((string) $this->request->getPost('attrai_template_follower_assigned')) ?: null,
-            'attrai_approval_body_template' => trim((string) $this->request->getPost('attrai_approval_body_template')) ?: null,
+            'attrai_approval_body_template' => null,
+            'attrai_client_id' => trim((string) $this->request->getPost('attrai_client_id')) ?: null,
+            'attrai_client_secret' => $attraiClientSecret !== '' ? $attraiClientSecret : null,
+            'attrai_company_id' => trim((string) $this->request->getPost('attrai_company_id')) ?: ($row['attrai_company_id'] ?? null),
+            'attrai_business_id' => trim((string) $this->request->getPost('attrai_business_id')) ?: ($row['attrai_business_id'] ?? null),
+            'attrai_business_number_id' => trim((string) $this->request->getPost('attrai_business_number_id')) ?: ($row['attrai_business_number_id'] ?? null),
         ];
 
         $logo = $this->request->getFile('logo');
@@ -192,6 +205,50 @@ class CompanySettingsController extends BaseController
         } catch (Throwable $e) {
             return redirect()->to(site_url('admin/company-settings'))
                 ->with('error', $e->getMessage());
+        }
+    }
+
+    public function connectArattai()
+    {
+        try {
+            $state = bin2hex(random_bytes(24));
+            session()->set('arattai_oauth_state', $state);
+            return redirect()->to((new ArattaiOAuthService())->authorizationUrl($state));
+        } catch (Throwable $e) {
+            return redirect()->to(site_url('admin/company-settings'))->with('error', $e->getMessage());
+        }
+    }
+
+    public function arattaiOAuthCallback()
+    {
+        $expectedState = trim((string) session('arattai_oauth_state'));
+        session()->remove('arattai_oauth_state');
+        $state = trim((string) $this->request->getGet('state'));
+        if ($expectedState === '' || $state === '' || ! hash_equals($expectedState, $state)) {
+            return redirect()->to(site_url('admin/company-settings'))->with('error', 'Arattai OAuth state validation failed. Please connect again.');
+        }
+        $error = trim((string) $this->request->getGet('error'));
+        if ($error !== '') {
+            return redirect()->to(site_url('admin/company-settings'))->with('error', 'Arattai authorization was not completed: ' . $error);
+        }
+
+        try {
+            (new ArattaiOAuthService())->connectFromAuthorizationCode((string) $this->request->getGet('code'));
+            return redirect()->to(site_url('admin/company-settings'))
+                ->with('success', 'Arattai connected. Company, business and business-number IDs were detected automatically.');
+        } catch (Throwable $e) {
+            return redirect()->to(site_url('admin/company-settings'))->with('error', $e->getMessage());
+        }
+    }
+
+    public function createArattaiTemplates()
+    {
+        try {
+            (new ArattaiOAuthService())->createAndSubmitDefaultTemplates();
+            return redirect()->to(site_url('admin/company-settings'))
+                ->with('success', 'Arattai approval and order-update templates were created and submitted for review.');
+        } catch (Throwable $e) {
+            return redirect()->to(site_url('admin/company-settings'))->with('error', $e->getMessage());
         }
     }
 

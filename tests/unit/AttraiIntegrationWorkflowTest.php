@@ -9,6 +9,7 @@ final class AttraiIntegrationWorkflowTest extends CIUnitTestCase
     public function testAttraiHasIndependentAdminConfigurationAndWebhook(): void
     {
         $migration = $this->source('Database/Migrations/2026-10-16-000112_AddAttraiIntegration.php');
+        $oauthMigration = $this->source('Database/Migrations/2026-10-16-000113_AddArattaiOfficialOAuth.php');
         $settings = $this->source('Views/admin/company_settings/index.php');
         $routes = $this->source('Config/Routes.php');
 
@@ -18,12 +19,17 @@ final class AttraiIntegrationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("'attrai_notification_number'", $migration);
         $this->assertStringContainsString("'karigars' => ['attrai_number'", $migration);
         $this->assertStringContainsString("'employees' => ['attrai_number'", $migration);
-        $this->assertStringContainsString('name="attrai_api_url"', $settings);
+        $this->assertStringContainsString("'attrai_client_id'", $oauthMigration);
+        $this->assertStringContainsString("'attrai_refresh_token'", $oauthMigration);
+        $this->assertStringContainsString('name="attrai_client_id"', $settings);
+        $this->assertStringContainsString('name="attrai_client_secret"', $settings);
         $this->assertStringContainsString('name="attrai_approval_numbers"', $settings);
-        $this->assertStringContainsString('name="attrai_approval_body_template"', $settings);
-        $this->assertStringContainsString('name="attrai_template_follower_assigned"', $settings);
+        $this->assertStringContainsString('Create &amp; Submit ERP Templates', $settings);
+        $this->assertStringContainsString("get('integrations/attrai/webhook'", $routes);
         $this->assertStringContainsString("integrations/attrai/webhook", $routes);
         $this->assertStringContainsString("company-settings/attrai-test", $routes);
+        $this->assertStringContainsString("company-settings/arattai/connect", $routes);
+        $this->assertStringContainsString("company-settings/arattai/templates", $routes);
     }
 
     public function testApprovalButtonsUseSignedActionsAndExistingApprovalService(): void
@@ -33,11 +39,29 @@ final class AttraiIntegrationWorkflowTest extends CIUnitTestCase
         $followup = $this->source('Services/OrderFollowupService.php');
 
         $this->assertStringContainsString("hash_hmac('sha256'", $service);
+        $this->assertStringContainsString("base64_encode(hash_hmac('sha256'", $service);
+        $this->assertStringContainsString("'category' => 'input'", $service);
+        $this->assertStringContainsString("'type' => 'quick_reply'", $service);
         $this->assertStringContainsString("'approve_no_point'", $service);
         $this->assertStringContainsString('$service->approve(', $service);
         $this->assertStringContainsString('$service->reject(', $service);
         $this->assertStringContainsString('ATTRAI approval request notification failed', $approval);
         $this->assertStringContainsString('ATTRAI follow-up approval notification failed', $followup);
+    }
+
+    public function testOfficialOAuthRefreshAndDefaultTemplatesAreImplemented(): void
+    {
+        $oauth = $this->source('Services/ArattaiOAuthService.php');
+        $queue = $this->source('Services/WhatsappSenderQueueService.php');
+
+        $this->assertStringContainsString('https://accounts.arattai.in/oauth/v2/auth', $oauth);
+        $this->assertStringContainsString("'grant_type' => 'refresh_token'", $oauth);
+        $this->assertStringContainsString('ArattaiBusiness.messagetemplates.CREATE', $oauth);
+        $this->assertStringContainsString('Aabhushan ERP approval alert', $oauth);
+        $this->assertStringContainsString('Aabhushan ERP order update', $oauth);
+        $this->assertStringContainsString("'/messagetemplates/'", $oauth);
+        $this->assertStringContainsString("'phone_number' =>", $queue);
+        $this->assertStringContainsString("'Arattai-BusinessNumberId'", $queue);
     }
 
     public function testOrderUpdatesAndKarigarAssignmentUseAttraiProvider(): void
