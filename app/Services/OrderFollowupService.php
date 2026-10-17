@@ -305,6 +305,10 @@ class OrderFollowupService
             if (in_array($to, ['Ready', 'Completed'], true)) {
                 (new OrderWhatsAppService())->notifyOrderReady($orderId, $to);
             }
+            (new AttraiIntegrationService())->notifyOrderStatusToFollower(
+                $orderId,
+                'Status changed from ' . ($from !== '' ? $from : '-') . ' to ' . $to . '.'
+            );
         } catch (Throwable $e) {
             log_message('error', 'ATTRAI order follow-up update failed: {message}', ['message' => $e->getMessage()]);
         }

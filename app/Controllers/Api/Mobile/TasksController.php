@@ -3,6 +3,7 @@
 namespace App\Controllers\Api\Mobile;
 
 use App\Models\MobileTaskModel;
+use App\Services\AttraiIntegrationService;
 use App\Services\MobilePushService;
 use App\Services\StaffPerformanceService;
 use Throwable;
@@ -129,6 +130,17 @@ class TasksController extends MobileBaseController
                 @unlink($absolutePath);
             }
             return $this->fail('Could not complete task: ' . $e->getMessage(), 500);
+        }
+
+        try {
+            (new AttraiIntegrationService())->notifyPointChange(
+                (int) ($this->mobileAdmin['id'] ?? 0),
+                $points,
+                $onTime ? 'Task completed on time' : 'Task completed late',
+                (string) ($task['title'] ?? ('Task #' . $id))
+            );
+        } catch (Throwable $e) {
+            log_message('error', 'Arattai task points notification failed: {message}', ['message' => $e->getMessage()]);
         }
 
         return $this->ok([

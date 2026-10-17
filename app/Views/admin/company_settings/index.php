@@ -302,11 +302,12 @@
                                     <?php else: ?>
                                         <div class="table-responsive">
                                             <table class="table table-sm align-middle mb-0">
-                                                <thead><tr><th>Name</th><th>Arattai User ID</th><th>Last seen</th></tr></thead>
+                                                <thead><tr><th>Name</th><th>Phone</th><th>Arattai User ID</th><th>Last seen</th></tr></thead>
                                                 <tbody>
                                                 <?php foreach ($recentArattaiUsers as $arattaiUser): ?>
                                                     <tr>
                                                         <td><?= esc((string) (($arattaiUser['name'] ?? '') ?: 'Unknown')) ?></td>
+                                                        <td><?= esc((string) (($arattaiUser['phone'] ?? '') ?: '-')) ?></td>
                                                         <td><code class="user-select-all"><?= esc((string) ($arattaiUser['id'] ?? '')) ?></code></td>
                                                         <td><?= esc((string) ($arattaiUser['last_seen_at'] ?? '')) ?></td>
                                                     </tr>
@@ -355,6 +356,7 @@
                             <div class="col-12">
                                 <div class="border rounded p-3 bg-light">
                                     <div><strong>OAuth:</strong> <?= ! empty($setting['attrai_refresh_token']) ? '<span class="text-success">Connected</span>' : '<span class="text-danger">Not connected</span>' ?></div>
+                                    <div><strong>Incoming webhook:</strong> <?= esc((string) (($setting['attrai_webhook_status'] ?? '') ?: 'not configured')) ?><?= ! empty($setting['attrai_webhook_id']) ? ' · ' . esc((string) $setting['attrai_webhook_id']) : '' ?></div>
                                     <div><strong>Approval template:</strong> <?= esc((string) (($setting['attrai_approval_template_status'] ?? '') ?: 'not created')) ?><?= ! empty($setting['attrai_approval_template_id']) ? ' · ' . esc((string) $setting['attrai_approval_template_id']) : '' ?></div>
                                     <div><strong>Order-update template:</strong> <?= esc((string) (($setting['attrai_update_template_status'] ?? '') ?: 'not created')) ?><?= ! empty($setting['attrai_update_template_id']) ? ' · ' . esc((string) $setting['attrai_update_template_id']) : '' ?></div>
                                 </div>
@@ -371,12 +373,16 @@
 
         <div class="border rounded-3 p-3 mt-4">
             <h6 class="mb-2">Arattai One-time Setup</h6>
-            <p class="small text-muted">First save Client ID and Client Secret, then connect. After connection, create and submit both ERP templates.</p>
+            <p class="small text-muted">Save Client ID and Client Secret, connect once, then configure the incoming conversation webhook. Conversational previews do not need approved templates.</p>
             <div class="d-flex flex-wrap gap-2">
                 <a href="<?= site_url('admin/company-settings/arattai/connect') ?>" class="btn btn-outline-primary">Connect Arattai</a>
                 <form method="post" action="<?= site_url('admin/company-settings/arattai/templates') ?>">
                     <?= csrf_field() ?>
                     <button type="submit" class="btn btn-outline-success" <?= empty($setting['attrai_refresh_token']) ? 'disabled' : '' ?>>Create &amp; Submit ERP Templates</button>
+                </form>
+                <form method="post" action="<?= site_url('admin/company-settings/arattai/webhook') ?>">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="btn btn-outline-warning" <?= empty($setting['attrai_refresh_token']) ? 'disabled' : '' ?>>Configure Incoming Webhook</button>
                 </form>
             </div>
         </div>
@@ -386,14 +392,29 @@
             <h6 class="mb-2">Send ATTRAI Demo</h6>
             <div class="row g-2 align-items-end">
                 <div class="col-md-6">
-                    <label class="form-label">Demo Mobile Number</label>
-                    <input type="tel" name="test_number" class="form-control" required value="918261973645" placeholder="91XXXXXXXXXX">
+                    <label class="form-label">Arattai User ID</label>
+                    <input type="text" name="test_number" class="form-control" required placeholder="Example: 53817425">
                 </div>
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-outline-primary">Send Demo Now</button>
                 </div>
             </div>
-            <small class="text-muted d-block mt-2">Save valid ATTRAI API settings first. This action sends immediately and stores the response in the WhatsApp sender queue.</small>
+            <small class="text-muted d-block mt-2">The user must first message your Business Number so the conversation window is active.</small>
+        </form>
+
+        <form method="post" action="<?= site_url('admin/company-settings/arattai/preview') ?>" class="border rounded-3 p-3 mt-4">
+            <?= csrf_field() ?>
+            <h6 class="mb-2">Send All Arattai Workflow Previews</h6>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label">Arattai User ID</label>
+                    <input type="text" name="arattai_user_id" class="form-control" required placeholder="Paste a captured Arattai User ID">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-outline-primary">Send All Previews</button>
+                </div>
+            </div>
+            <small class="text-muted d-block mt-2">Sends approval buttons, assignment, issuement, payment, points, overdue, upcoming and order-status designs.</small>
         </form>
     </div>
 </div>

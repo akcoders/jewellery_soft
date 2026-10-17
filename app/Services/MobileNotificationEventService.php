@@ -43,7 +43,7 @@ class MobileNotificationEventService
         }
 
         $order = db_connect()->table('orders o')
-            ->select('o.id, o.order_no, o.order_from, o.status, c.name AS customer_name')
+            ->select('o.id, o.order_no, o.order_from, o.status, o.created_by, c.name AS customer_name')
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->where('o.id', $orderId)
             ->get()
@@ -61,7 +61,7 @@ class MobileNotificationEventService
         }
         $message .= '.';
 
-        return $this->queueForPermission('orders.read', [
+        $summary = $this->queueForPermission('orders.read', [
             'type' => 'order_created',
             'reference_table' => 'orders',
             'reference_id' => $orderId,
@@ -76,6 +76,20 @@ class MobileNotificationEventService
                 'source' => trim($source) ?: 'system',
             ],
         ]);
+        try {
+            $arattai = new AttraiIntegrationService();
+            $arattai->notifyPointChange(
+                (int) ($order['created_by'] ?? 0),
+                StaffPerformanceService::TRANSACTION_POINTS,
+                'Order created',
+                $orderNo,
+                $orderId
+            );
+            $arattai->notifyOrderStatusToFollower($orderId, 'A new order has been created and assigned for follow-up.');
+        } catch (\Throwable $e) {
+            log_message('error', 'Arattai order points notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+        return $summary;
     }
 
     public function notifyOrderWorkRequestRaised(int $requestId): array
@@ -504,7 +518,7 @@ class MobileNotificationEventService
             }
             $message .= '.';
 
-            return $this->queueForPermission($event['permission'], [
+            $summary = $this->queueForPermission($event['permission'], [
                 'type' => $event['type'],
                 'reference_table' => $referenceTable,
                 'reference_id' => $referenceId,
@@ -523,6 +537,37 @@ class MobileNotificationEventService
                     'source' => trim($source) ?: 'system',
                 ],
             ]);
+            $createdBy = (int) ($details['created_by'] ?? 0);
+            if ($createdBy > 0) {
+                try {
+                    (new AttraiIntegrationService())->notifyPointChange(
+                        $createdBy,
+                        StaffPerformanceService::TRANSACTION_POINTS,
+                        ucfirst($event['label']) . ' created',
+                        $referenceNo !== '' ? $referenceNo : ($referenceTable . ' #' . $referenceId)
+                    );
+                } catch (\Throwable $e) {
+                    log_message('error', 'Arattai inventory points notification failed: {message}', ['message' => $e->getMessage()]);
+                }
+            }
+            if ($transactionType === 'issue' && (int) ($details['karigar_id'] ?? 0) > 0) {
+                try {
+                    (new AttraiIntegrationService())->notifyIssuementToKarigar(
+                        $referenceNo !== '' ? $referenceNo : ('ISS-' . $referenceId),
+                        (int) $details['karigar_id'],
+                        [
+                            'source_id' => $referenceId,
+                            'order_id' => (int) ($details['order_id'] ?? 0),
+                            'order_no' => (string) ($details['order_no'] ?? ''),
+                            'purpose' => (string) ($details['purpose'] ?? ''),
+                            'media_url' => (string) ($details['media_url'] ?? ''),
+                        ]
+                    );
+                } catch (\Throwable $e) {
+                    log_message('error', 'Arattai karigar issuement notification failed: {message}', ['message' => $e->getMessage()]);
+                }
+            }
+            return $summary;
         } catch (\Throwable $e) {
             log_message('error', 'Inventory transaction notification failed: {message}', [
                 'message' => $e->getMessage(),

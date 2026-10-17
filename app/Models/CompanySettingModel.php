@@ -63,6 +63,8 @@ class CompanySettingModel extends Model
         'attrai_body_template',
         'attrai_approval_numbers',
         'attrai_webhook_secret',
+        'attrai_webhook_id',
+        'attrai_webhook_status',
         'attrai_approval_reviewer_id',
         'attrai_notify_approval_requested',
         'attrai_notify_karigar_assigned',

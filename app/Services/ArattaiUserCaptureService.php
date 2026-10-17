@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ArattaiUserModel;
 use RuntimeException;
 
 class ArattaiUserCaptureService
@@ -25,6 +26,9 @@ class ArattaiUserCaptureService
 
         $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
         $user = is_array($entity['user'] ?? null) ? $entity['user'] : [];
+        if ($user === [] && is_array($payload['user'] ?? null)) {
+            $user = $payload['user'];
+        }
         $userId = preg_replace('/\D+/', '', trim((string) ($user['id'] ?? ''))) ?? '';
         if ($userId === '') {
             return null;
@@ -33,9 +37,25 @@ class ArattaiUserCaptureService
         $row = [
             'id' => $userId,
             'name' => trim((string) ($user['name'] ?? '')),
+            'phone' => trim((string) ($user['phone'] ?? $user['mobile'] ?? $user['phonenumber'] ?? '')),
             'last_seen_at' => date('Y-m-d H:i:s'),
             'message_type' => trim((string) ($entity['type'] ?? '')),
         ];
+        if (db_connect()->tableExists('arattai_users')) {
+            $model = new ArattaiUserModel();
+            $data = [
+                'arattai_user_id' => $row['id'],
+                'name' => $row['name'] !== '' ? $row['name'] : null,
+                'phone' => $row['phone'] !== '' ? $row['phone'] : null,
+                'last_message_type' => $row['message_type'] !== '' ? $row['message_type'] : null,
+                'last_seen_at' => $row['last_seen_at'],
+            ];
+            if ($model->find($row['id'])) {
+                $model->update($row['id'], $data);
+            } else {
+                $model->insert($data);
+            }
+        }
         $this->store($row);
         return $row;
     }
@@ -43,6 +63,15 @@ class ArattaiUserCaptureService
     /** @return list<array<string,string>> */
     public function recent(): array
     {
+        if (db_connect()->tableExists('arattai_users')) {
+            return array_map(static fn(array $row): array => [
+                'id' => (string) ($row['arattai_user_id'] ?? ''),
+                'name' => (string) ($row['name'] ?? ''),
+                'phone' => (string) ($row['phone'] ?? ''),
+                'message_type' => (string) ($row['last_message_type'] ?? ''),
+                'last_seen_at' => (string) ($row['last_seen_at'] ?? ''),
+            ], (new ArattaiUserModel())->orderBy('last_seen_at', 'DESC')->findAll(100));
+        }
         if (! is_file($this->storagePath)) {
             return [];
         }

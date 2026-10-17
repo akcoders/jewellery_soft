@@ -40,6 +40,10 @@ class WhatsappSenderQueueService
         if (is_array($payloadJson)) {
             $payloadJson = json_encode($payloadJson, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
+        $requestPayload = $data['request_payload'] ?? null;
+        if (is_array($requestPayload)) {
+            $requestPayload = json_encode($requestPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        }
 
         return (int) $this->queueModel->insert([
             'message_no' => $messageNo,
@@ -57,7 +61,7 @@ class WhatsappSenderQueueService
             'message_text' => $messageText,
             'media_url' => $this->nullableString($data['media_url'] ?? null),
             'payload_json' => $this->nullableString($payloadJson),
-            'request_payload' => $this->nullableString($data['request_payload'] ?? null),
+            'request_payload' => $this->nullableString($requestPayload),
             'status' => $this->nullableString($data['status'] ?? null) ?: 'pending',
             'attempts' => (int) ($data['attempts'] ?? 0),
             'max_attempts' => max(1, (int) ($data['max_attempts'] ?? 3)),
@@ -107,10 +111,10 @@ class WhatsappSenderQueueService
     }
 
     /**
-     * Dispatch one known queue row immediately. This is used by the admin test
-     * action without accidentally sending an older pending queue item first.
+     * Dispatch one known queue row immediately. This is used by admin previews
+     * and webhook replies without accidentally sending another pending item.
      *
-     * @return array{status:string,queue_id:int}
+     * @return array{status:string,queue_id:int,error_message?:?string,http_status_code?:?int,response_payload?:?string}
      */
     public function dispatchById(int $id): array
     {
@@ -122,9 +126,14 @@ class WhatsappSenderQueueService
             return ['status' => 'sent', 'queue_id' => $id];
         }
 
+        $status = $this->dispatchRow($row, $this->settings());
+        $fresh = $this->queueModel->find($id) ?? [];
         return [
-            'status' => $this->dispatchRow($row, $this->settings()),
+            'status' => $status,
             'queue_id' => $id,
+            'error_message' => $fresh['error_message'] ?? null,
+            'http_status_code' => isset($fresh['http_status_code']) ? (int) $fresh['http_status_code'] : null,
+            'response_payload' => $fresh['response_payload'] ?? null,
         ];
     }
 
@@ -386,8 +395,13 @@ class WhatsappSenderQueueService
         }
         $settings['attrai_official'] = 1;
         $settings['whatsapp_enabled'] = (int) ($settings['attrai_enabled'] ?? 0);
+        $requestPayload = json_decode(trim((string) ($row['request_payload'] ?? '')), true);
+        $isConversationPayload = is_array($requestPayload)
+            && in_array((string) ($requestPayload['category'] ?? ''), ['display', 'input'], true);
         $settings['whatsapp_api_url'] = ArattaiOAuthService::API_ROOT
-            . ((string) ($row['event_key'] ?? '') === 'approval_requested' ? '/messages' : '/transactions');
+            . ($isConversationPayload || (string) ($row['event_key'] ?? '') === 'approval_requested'
+                ? '/messages'
+                : '/transactions');
         $settings['whatsapp_http_method'] = 'POST';
         $settings['whatsapp_auth_type'] = 'bearer';
         $settings['whatsapp_auth_header'] = 'Authorization';

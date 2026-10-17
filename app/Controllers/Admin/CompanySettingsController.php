@@ -254,6 +254,34 @@ class CompanySettingsController extends BaseController
         }
     }
 
+    public function configureArattaiWebhook()
+    {
+        try {
+            $result = (new ArattaiOAuthService())->configureConversationWebhook();
+            return redirect()->to(site_url('admin/company-settings'))->with(
+                'success',
+                'Arattai incoming webhook configured: ' . (string) ($result['url'] ?? '')
+            );
+        } catch (Throwable $e) {
+            return redirect()->to(site_url('admin/company-settings'))->with(
+                'error',
+                $e->getMessage() . ' If webhook permission is missing, reconnect Arattai once and try again.'
+            );
+        }
+    }
+
+    public function sendArattaiPreview()
+    {
+        $userId = trim((string) $this->request->getPost('arattai_user_id'));
+        try {
+            $result = (new AttraiIntegrationService())->sendTemplatePreview($userId);
+            $flash = ($result['status'] ?? '') === 'sent' ? 'success' : 'error';
+            return redirect()->to(site_url('admin/company-settings'))->with($flash, (string) ($result['message'] ?? 'Preview completed.'));
+        } catch (Throwable $e) {
+            return redirect()->to(site_url('admin/company-settings'))->with('error', $e->getMessage());
+        }
+    }
+
     /**
      * @return array<string,mixed>
      */

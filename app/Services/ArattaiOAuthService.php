@@ -20,6 +20,9 @@ class ArattaiOAuthService
         'ArattaiBusiness.messagetemplates.READ',
         'ArattaiBusiness.messagetemplates.CREATE',
         'ArattaiBusiness.messagetemplates.UPDATE',
+        'ArattaiBusiness.webhooks.READ',
+        'ArattaiBusiness.webhooks.CREATE',
+        'ArattaiBusiness.webhooks.UPDATE',
     ];
 
     public function __construct(private ?CompanySettingModel $settingsModel = null)
@@ -179,6 +182,100 @@ class ArattaiOAuthService
             'attrai_update_template_status' => $saved['update']['status'],
         ]);
         return $saved;
+    }
+
+    /** @return array{webhook_id:string,status:string,url:string,events:list<string>,secret_selected:bool} */
+    public function configureConversationWebhook(): array
+    {
+        $settings = $this->settings();
+        $companyId = $this->requireValue(trim((string) ($settings['attrai_company_id'] ?? '')), 'Connect Arattai first; Company ID is missing.');
+        $numberId = $this->requireValue(trim((string) ($settings['attrai_business_number_id'] ?? '')), 'Connect Arattai first; Business Number ID is missing.');
+        $endpoint = site_url('integrations/attrai/webhook');
+
+        $this->apiRequest('POST', '/webhookverification', ['url' => $endpoint], true, $companyId);
+        $listed = $this->apiRequest(
+            'GET',
+            '/businessnumbers/' . rawurlencode($numberId) . '/webhooks',
+            null,
+            true,
+            $companyId
+        );
+        $webhook = null;
+        foreach ((array) ($listed['data'] ?? []) as $candidate) {
+            if (is_array($candidate) && (string) ($candidate['type'] ?? '') === 'conversation') {
+                $webhook = $candidate;
+                break;
+            }
+        }
+
+        $definition = [
+            'events' => ['chat.message.received'],
+            'type' => 'conversation',
+            'url' => $endpoint,
+            'description' => 'Aabhushan ERP incoming messages and approval actions',
+        ];
+        if (! is_array($webhook)) {
+            $created = $this->apiRequest(
+                'POST',
+                '/businessnumbers/' . rawurlencode($numberId) . '/webhooks',
+                $definition,
+                true,
+                $companyId
+            );
+            $webhook = is_array($created['data'] ?? null) ? $created['data'] : [];
+        } else {
+            $webhookId = $this->requireValue(trim((string) ($webhook['id'] ?? '')), 'Arattai webhook ID was not returned.');
+            $updated = $this->apiRequest('PATCH', '/webhooks/' . rawurlencode($webhookId), [
+                'events' => ['chat.message.received'],
+                'url' => $endpoint,
+                'status' => 'enabled',
+                'description' => $definition['description'],
+            ], true, $companyId);
+            $webhook = is_array($updated['data'] ?? null) ? $updated['data'] : ($updated !== [] ? $updated : $webhook);
+        }
+
+        $webhookId = $this->requireValue(trim((string) ($webhook['id'] ?? '')), 'Arattai webhook ID was not returned.');
+        $keysResponse = $this->apiRequest('GET', '/webhooks/' . rawurlencode($webhookId) . '/keys', null, true, $companyId);
+        $keys = is_array($keysResponse['data'] ?? null) ? $keysResponse['data'] : [];
+        $selectedKey = null;
+        foreach ($keys as $key) {
+            if (is_array($key) && ! empty($key['selected'])) {
+                $selectedKey = $key;
+                break;
+            }
+        }
+        if (! is_array($selectedKey)) {
+            if ($keys === []) {
+                $createdKeyResponse = $this->apiRequest('POST', '/webhooks/' . rawurlencode($webhookId) . '/keys', null, true, $companyId);
+                $selectedKey = is_array($createdKeyResponse['data'] ?? null) ? $createdKeyResponse['data'] : [];
+            } else {
+                $selectedKey = is_array($keys[0] ?? null) ? $keys[0] : [];
+            }
+            $keyId = $this->requireValue(trim((string) ($selectedKey['id'] ?? '')), 'Arattai webhook key ID was not returned.');
+            $this->apiRequest('PATCH', '/webhooks/' . rawurlencode($webhookId) . '/keys/' . rawurlencode($keyId), [
+                'selected' => true,
+            ], true, $companyId);
+            $selectedKey['selected'] = true;
+        }
+
+        $secret = trim((string) ($selectedKey['key'] ?? ''));
+        if ($secret === '') {
+            throw new RuntimeException('Arattai selected webhook key value was not returned. Select a key in Arattai and paste it in Company Settings.');
+        }
+        $settings = $this->settings();
+        $this->settingsModel->update((int) $settings['id'], [
+            'attrai_webhook_id' => $webhookId,
+            'attrai_webhook_status' => 'enabled',
+            'attrai_webhook_secret' => $secret,
+        ]);
+
+        return [
+            'webhook_id' => $webhookId,
+            'status' => 'enabled',
+            'url' => $endpoint,
+            'events' => ['chat.message.received'],
+            'secret_selected' => true,
+        ];
     }
 
     /**

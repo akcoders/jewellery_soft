@@ -155,6 +155,11 @@ class MobileApprovalService
         } catch (Throwable $e) {
             log_message('error', 'Approval rejection notification failed: {message}', ['message' => $e->getMessage()]);
         }
+        try {
+            (new AttraiIntegrationService())->notifyApprovalOutcome($request ?: ($before ?? []), 'reject');
+        } catch (Throwable $e) {
+            log_message('error', 'Arattai approval rejection notification failed: {message}', ['message' => $e->getMessage()]);
+        }
         return $request;
     }
 
@@ -223,6 +228,14 @@ class MobileApprovalService
             (new MobileNotificationEventService())->notifyApprovalOutcome($approved, true);
         } catch (Throwable $e) {
             log_message('error', 'Approval outcome notification failed: {message}', ['message' => $e->getMessage()]);
+        }
+        try {
+            (new AttraiIntegrationService())->notifyApprovalOutcome(
+                $approved,
+                $awardFollowupPoints ? 'approve' : 'approve_no_point'
+            );
+        } catch (Throwable $e) {
+            log_message('error', 'Arattai approval outcome notification failed: {message}', ['message' => $e->getMessage()]);
         }
         return $approved;
     }

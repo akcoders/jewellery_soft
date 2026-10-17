@@ -101,8 +101,9 @@ class AttraiIntegrationService
             return ['status' => 'skipped', 'message' => 'ATTRAI karigar assignment notification is disabled or incomplete.'];
         }
 
-        $row = db_connect()->table('orders o')
-            ->select('o.id, o.order_no, o.order_name, o.priority, o.due_date, o.status, k.id AS karigar_id, k.name AS karigar_name, k.phone AS karigar_phone, k.attrai_number AS karigar_attrai_number, c.name AS customer_name, follower.name AS follower_login_name, e.full_name AS follower_name, e.mobile AS follower_mobile, e.attrai_number AS follower_attrai_number')
+        $db = db_connect();
+        $row = $db->table('orders o')
+            ->select('o.id, o.order_no, o.order_name, o.priority, o.due_date, o.status, o.order_notes, o.additional_details, k.id AS karigar_id, k.name AS karigar_name, k.phone AS karigar_phone, k.attrai_number AS karigar_attrai_number, c.name AS customer_name, follower.name AS follower_login_name, e.full_name AS follower_name, e.mobile AS follower_mobile, e.attrai_number AS follower_attrai_number')
             ->join('karigars k', 'k.id = o.assigned_karigar_id', 'inner')
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('admin_users follower', 'follower.id = o.followup_assigned_to', 'left')
@@ -111,6 +112,24 @@ class AttraiIntegrationService
             ->get()->getRowArray();
         if (! is_array($row)) {
             return ['status' => 'skipped', 'message' => 'Assigned order not found.'];
+        }
+        $itemRows = $db->table('order_items oi')
+            ->select('oi.item_description, oi.size_label, oi.qty, dm.name AS design_name, dv.ring_size, dv.bangle_size, dv.length_mm')
+            ->join('design_masters dm', 'dm.id = oi.design_id', 'left')
+            ->join('design_variants dv', 'dv.id = oi.variant_id', 'left')
+            ->where('oi.order_id', $orderId)->orderBy('oi.id', 'ASC')->get()->getResultArray();
+        $itemDetails = [];
+        foreach ($itemRows as $item) {
+            $sizes = array_values(array_filter([
+                trim((string) ($item['size_label'] ?? '')),
+                trim((string) ($item['ring_size'] ?? '')) !== '' ? 'Ring ' . trim((string) $item['ring_size']) : '',
+                trim((string) ($item['bangle_size'] ?? '')) !== '' ? 'Bangle ' . trim((string) $item['bangle_size']) : '',
+                (float) ($item['length_mm'] ?? 0) > 0 ? number_format((float) $item['length_mm'], 2) . ' mm' : '',
+            ]));
+            $label = trim((string) (($item['design_name'] ?? '') ?: ($item['item_description'] ?? 'Item')));
+            $itemDetails[] = '• ' . $label
+                . ($sizes !== [] ? ' | Size: ' . implode(', ', array_unique($sizes)) : '')
+                . ' | Qty: ' . max(1, (int) ($item['qty'] ?? 1));
         }
         $karigarPhone = $this->normalizePhone((string) (($row['karigar_attrai_number'] ?? '') ?: ($row['karigar_phone'] ?? '')));
         $followerPhone = $this->normalizePhone((string) (($row['follower_attrai_number'] ?? '') ?: ($row['follower_mobile'] ?? '')));
@@ -130,12 +149,17 @@ class AttraiIntegrationService
             'company_name' => trim((string) ($settings['company_name'] ?? '')),
             'media_url' => $mediaUrl,
             'message_type' => $mediaUrl !== '' ? 'image' : 'text',
+            'item_details' => implode("\n", $itemDetails),
+            'description' => trim((string) (($row['additional_details'] ?? '') ?: ($row['order_notes'] ?? ''))),
         ];
         $template = trim((string) ($settings['attrai_template_karigar_assigned'] ?? ''));
         $message = $template !== ''
             ? $this->replacePlaceholders($template, $variables)
-            : "Hello {$variables['karigar_name']}, order {$variables['order_no']} has been assigned to you.\n"
-                . "Customer: " . ($variables['customer_name'] !== '' ? $variables['customer_name'] : '-') . "\n"
+            : "*New Order Assigned*\n"
+                . "Order: {$variables['order_no']}\n"
+                . "Work: " . ($variables['order_name'] !== '' ? $variables['order_name'] : '-') . "\n"
+                . ($variables['item_details'] !== '' ? $variables['item_details'] . "\n" : '')
+                . ($variables['description'] !== '' ? "Description: {$variables['description']}\n" : '')
                 . "Priority: " . ($variables['priority'] !== '' ? $variables['priority'] : '-') . "\n"
                 . "Due date: " . ($variables['due_date'] !== '' ? $variables['due_date'] : '-');
 
@@ -173,6 +197,11 @@ class AttraiIntegrationService
                 'message_type' => $mediaUrl !== '' ? 'image' : 'text',
                 'message_text' => $recipient['message'],
                 'media_url' => $mediaUrl !== '' ? $mediaUrl : null,
+                'request_payload' => $this->displayRequestPayload(
+                    (string) $recipient['phone'],
+                    (string) $recipient['message'],
+                    $mediaUrl
+                ),
                 'scheduled_at' => date('Y-m-d H:i:s'),
             ]);
             $queueIds[] = $queueId;
@@ -203,7 +232,7 @@ class AttraiIntegrationService
         }
         $phone = $this->normalizePhone($phone);
         if ($phone === '') {
-            throw new RuntimeException('Enter a valid demo mobile number.');
+            throw new RuntimeException('Enter a valid Arattai User ID.');
         }
         $queueId = $this->queueService->enqueue([
             'event_key' => 'attrai_demo',
@@ -213,13 +242,18 @@ class AttraiIntegrationService
             'recipient_number' => $phone,
             'recipient_name' => 'ATTRAI Demo',
             'message_type' => 'text',
-            'message_text' => 'ATTRAI integration demo from ' . (trim((string) ($settings['company_name'] ?? '')) ?: 'Jewellery ERP') . '. Order updates and approval notifications are connected.',
+            'message_text' => 'Arattai integration demo from ' . (trim((string) ($settings['company_name'] ?? '')) ?: 'Jewellery ERP') . '. Incoming webhook and conversational notifications are connected.',
+            'request_payload' => $this->displayRequestPayload(
+                $phone,
+                'Arattai integration demo from ' . (trim((string) ($settings['company_name'] ?? '')) ?: 'Jewellery ERP') . '. Incoming webhook and conversational notifications are connected.'
+            ),
             'scheduled_at' => date('Y-m-d H:i:s'),
-            'created_by' => (int) session('admin_id') ?: null,
+            'created_by' => null,
         ]);
         $dispatch = $this->queueService->dispatchById($queueId);
         if (($dispatch['status'] ?? '') !== 'sent') {
-            throw new RuntimeException('Demo message could not be sent. Check the queue error and ATTRAI API settings.');
+            $error = trim((string) ($dispatch['error_message'] ?? ''));
+            throw new RuntimeException('Demo message could not be sent' . ($error !== '' ? ': ' . mb_substr($error, 0, 500) : '.'));
         }
 
         return ['status' => 'sent', 'queue_id' => $queueId, 'recipient_number' => $phone];
@@ -259,7 +293,7 @@ class AttraiIntegrationService
 
         $actionId = $this->extractActionId($payload);
         if ($actionId === '') {
-            return ['status' => 'ignored', 'message' => 'No ERP approval action was present.'];
+            return $this->handleIncomingConversation($payload);
         }
         $action = $this->verifySignedAction($actionId, $settings);
         $reviewerId = (int) ($settings['attrai_approval_reviewer_id'] ?? 0);
@@ -273,6 +307,7 @@ class AttraiIntegrationService
             throw new RuntimeException('Approval request not found.');
         }
         if ((string) ($request['status'] ?? '') !== 'pending') {
+            $this->replyToWebhookUser($payload, 'This request was already ' . (string) ($request['status'] ?? 'reviewed') . '.');
             return [
                 'status' => 'already_reviewed',
                 'approval_request_id' => (int) $action['request_id'],
@@ -291,12 +326,547 @@ class AttraiIntegrationService
                 $decision !== 'approve_no_point'
             );
 
+        $approved = $decision !== 'reject';
+        $decisionLabel = $decision === 'approve_no_point'
+            ? 'approved with no points'
+            : ($approved ? 'approved successfully' : 'disapproved successfully');
+        $this->replyToWebhookUser(
+            $payload,
+            $this->approvalLabel((string) ($request['request_type'] ?? ''))
+                . ' request #' . (int) $action['request_id'] . ' was ' . $decisionLabel . '.'
+        );
+
         return [
             'status' => 'processed',
             'decision' => $decision,
             'approval_request_id' => (int) $action['request_id'],
             'approval_status' => (string) ($reviewed['status'] ?? ''),
         ];
+    }
+
+    /** @param array<string,mixed> $request */
+    public function notifyApprovalOutcome(array $request, string $decision): array
+    {
+        $requestedBy = (int) ($request['requested_by'] ?? 0);
+        $userId = $this->userIdForAdmin($requestedBy);
+        if ($userId === '') {
+            return ['status' => 'skipped', 'message' => 'Requester Arattai user ID is not configured.'];
+        }
+        $type = (string) ($request['request_type'] ?? '');
+        $label = $this->approvalLabel($type);
+        $isRejected = $decision === 'reject';
+        $points = $type === 'followup'
+            ? ($isRejected ? StaffPerformanceService::DISAPPROVED_FOLLOWUP_POINTS : ($decision === 'approve_no_point' ? 0.0 : StaffPerformanceService::PROPER_FOLLOWUP_POINTS))
+            : 0.0;
+        $message = $isRejected
+            ? "*{$label} Disapproved*\nYour request was disapproved."
+            : "*{$label} Approved Successfully*\nYour request has been approved.";
+        if ($type === 'followup') {
+            $message .= $points > 0
+                ? "\nCongratulations! You received +" . $this->formatPoints($points) . ' points.'
+                : ($points < 0
+                    ? "\n" . $this->formatPoints($points) . ' points deducted.'
+                    : "\nApproved as No Point: +0 points.");
+        }
+        $note = trim((string) ($request['review_note'] ?? ''));
+        if ($note !== '') {
+            $message .= "\nAdmin note: " . $note;
+        }
+        return $this->sendConversationMessage(
+            'approval_outcome',
+            $userId,
+            $message,
+            'mobile_approval_requests',
+            (int) ($request['id'] ?? 0),
+            $this->orderIdFromApproval($request),
+            trim((string) ($request['attachment_url'] ?? ''))
+        );
+    }
+
+    public function notifyPointChange(int $adminUserId, float $points, string $reason, string $reference = '', ?int $orderId = null): array
+    {
+        $userId = $this->userIdForAdmin($adminUserId);
+        if ($userId === '' || abs($points) < 0.0001) {
+            return ['status' => 'skipped', 'message' => 'Arattai user ID is missing or point change is zero.'];
+        }
+        $message = $points > 0
+            ? '*Congratulations! Points Received*'
+            : '*Performance Points Deducted*';
+        $message .= "\n" . ($points > 0 ? '+' : '') . $this->formatPoints($points) . ' points';
+        $message .= "\nReason: " . trim($reason);
+        if (trim($reference) !== '') {
+            $message .= "\nReference: " . trim($reference);
+        }
+        return $this->sendConversationMessage(
+            'points_changed',
+            $userId,
+            $message,
+            'admin_users',
+            $adminUserId,
+            $orderId
+        );
+    }
+
+    /** @param array<string,mixed> $context */
+    public function notifyIssuementToKarigar(string $voucherNo, int $karigarId, array $context = []): array
+    {
+        $db = db_connect();
+        $karigar = $db->table('karigars')->select('name, attrai_number')->where('id', $karigarId)->get()->getRowArray();
+        $userId = preg_replace('/\D+/', '', (string) ($karigar['attrai_number'] ?? '')) ?? '';
+        if ($userId === '') {
+            return ['status' => 'skipped', 'message' => 'Karigar Arattai user ID is not configured.'];
+        }
+        $parts = [];
+        foreach (['gold' => ['gold_inventory_issue_headers', 'gold_inventory_issue_lines', 'weight_gm', 'gm'], 'diamond' => ['issue_headers', 'issue_lines', 'carat', 'cts'], 'stone' => ['stone_inventory_issue_headers', 'stone_inventory_issue_lines', 'qty', 'cts']] as $label => $definition) {
+            [$headerTable, $lineTable, $quantityField, $unit] = $definition;
+            if (! $db->tableExists($headerTable) || ! $db->tableExists($lineTable)) {
+                continue;
+            }
+            $header = $db->table($headerTable)->select('id')->where('voucher_no', $voucherNo)->where('karigar_id', $karigarId)->get()->getRowArray();
+            if (! is_array($header)) {
+                continue;
+            }
+            $sum = $db->table($lineTable)->selectSum($quantityField, 'quantity')->where('issue_id', (int) $header['id'])->get()->getRowArray();
+            $parts[] = ucfirst($label) . ': ' . number_format((float) ($sum['quantity'] ?? 0), 3) . ' ' . $unit;
+        }
+        $message = "*Material Issued to You*\nVoucher: {$voucherNo}";
+        if ($parts !== []) {
+            $message .= "\n" . implode("\n", $parts);
+        }
+        if (trim((string) ($context['purpose'] ?? '')) !== '') {
+            $message .= "\nPurpose: " . trim((string) $context['purpose']);
+        }
+        if (trim((string) ($context['order_no'] ?? '')) !== '') {
+            $message .= "\nOrder: " . trim((string) $context['order_no']);
+        }
+        return $this->sendConversationMessage(
+            'issuement_to_karigar',
+            $userId,
+            $message,
+            'issuement_voucher',
+            (int) ($context['source_id'] ?? 0),
+            isset($context['order_id']) ? (int) $context['order_id'] : null,
+            trim((string) ($context['media_url'] ?? ''))
+        );
+    }
+
+    public function notifyKarigarPayment(int $karigarId, float $amount, string $paymentNo, string $paymentDate, string $reference = ''): array
+    {
+        $karigar = db_connect()->table('karigars')->select('name, attrai_number')->where('id', $karigarId)->get()->getRowArray();
+        $userId = preg_replace('/\D+/', '', (string) ($karigar['attrai_number'] ?? '')) ?? '';
+        if ($userId === '') {
+            return ['status' => 'skipped', 'message' => 'Karigar Arattai user ID is not configured.'];
+        }
+        $message = "*Payment Received*\nAmount: ₹" . number_format($amount, 2)
+            . "\nPayment No: " . trim($paymentNo)
+            . "\nDate: " . trim($paymentDate);
+        if (trim($reference) !== '') {
+            $message .= "\nReference: " . trim($reference);
+        }
+        return $this->sendConversationMessage('karigar_payment', $userId, $message, 'karigars', $karigarId);
+    }
+
+    public function notifyOrderStatusToFollower(int $orderId, string $message = ''): array
+    {
+        $db = db_connect();
+        $order = $db->table('orders')->select('id, order_no, order_name, status, due_date, followup_assigned_to')->where('id', $orderId)->get()->getRowArray();
+        if (! is_array($order)) {
+            return ['status' => 'skipped', 'message' => 'Order not found.'];
+        }
+        $userId = $this->userIdForAdmin((int) ($order['followup_assigned_to'] ?? 0));
+        if ($userId === '') {
+            return ['status' => 'skipped', 'message' => 'Follower Arattai user ID is not configured.'];
+        }
+        $body = "*Order Update*\nOrder: " . ((string) ($order['order_no'] ?? '') ?: ('#' . $orderId))
+            . "\nStatus: " . ((string) ($order['status'] ?? '') ?: '-')
+            . "\nDue: " . ((string) ($order['due_date'] ?? '') ?: '-');
+        if (trim($message) !== '') {
+            $body .= "\nUpdate: " . trim($message);
+        }
+        return $this->sendConversationMessage('order_update_follower', $userId, $body, 'orders', $orderId, $orderId, $this->orderImageUrl($orderId, $this->settings()));
+    }
+
+    /** @return array{scanned:int,queued:int} */
+    public function queueFollowupReminders(?\DateTimeImmutable $now = null): array
+    {
+        $now ??= new \DateTimeImmutable('now', new \DateTimeZone('Asia/Kolkata'));
+        $db = db_connect();
+        $rows = $db->table('orders o')
+            ->select('o.id, o.order_no, o.status, o.followup_due_at, o.followup_assigned_to, e.attrai_number')
+            ->join('employees e', 'e.admin_user_id = o.followup_assigned_to AND e.is_active = 1', 'inner')
+            ->where('o.followup_due_at IS NOT NULL', null, false)
+            ->whereNotIn('o.status', ['Ready', 'Complete', 'Completed', 'Packed', 'Delivered', 'Dispatched', 'Cancelled'])
+            ->where('o.followup_due_at <=', $now->modify('+24 hours')->format('Y-m-d H:i:s'))
+            ->where("NOT EXISTS (SELECT 1 FROM mobile_approval_requests mar INNER JOIN order_followups pending_followup ON pending_followup.id = mar.subject_id WHERE mar.request_type = 'followup' AND mar.status = 'pending' AND mar.subject_table = 'order_followups' AND pending_followup.order_id = o.id)", null, false)
+            ->get()->getResultArray();
+        $queued = 0;
+        foreach ($rows as $row) {
+            $userId = preg_replace('/\D+/', '', (string) ($row['attrai_number'] ?? '')) ?? '';
+            $due = strtotime((string) ($row['followup_due_at'] ?? '')) ?: 0;
+            if ($userId === '' || $due <= 0) {
+                continue;
+            }
+            $overdue = $due < $now->getTimestamp();
+            $delayDays = $overdue ? max(1, (int) ceil(($now->getTimestamp() - $due) / 86400)) : 0;
+            $slot = $overdue ? ('D' . $delayDays) : date('YmdH', $due);
+            $event = $overdue ? 'followup_overdue' : 'followup_upcoming';
+            if ($db->table('whatsapp_sender_queue')->where('provider_key', 'attrai')->where('event_key', $event)
+                ->where('source_type', 'orders')->where('source_id', (int) $row['id'])
+                ->where('recipient_number', $userId)->like('message_no', $slot)->countAllResults() > 0) {
+                continue;
+            }
+            $body = $overdue ? '*Follow-up Overdue*' : '*Upcoming Follow-up*';
+            $body .= "\nOrder: " . (string) $row['order_no']
+                . "\nDue: " . date('d M Y, h:i A', $due);
+            if ($overdue) {
+                $body .= "\nDelay: " . $delayDays . ' day(s)'
+                    . "\nPerformance impact: -2 points for this delay tier";
+            }
+            $result = $this->sendConversationMessage($event, $userId, $body, 'orders', (int) $row['id'], (int) $row['id'], '', false, $slot);
+            $queued += ($result['status'] ?? '') === 'queued' ? 1 : 0;
+        }
+        return ['scanned' => count($rows), 'queued' => $queued];
+    }
+
+    /** @return array{scanned:int,queued:int} */
+    public function queueOverdueTaskPointAlerts(?\DateTimeImmutable $now = null): array
+    {
+        $now ??= new \DateTimeImmutable('now', new \DateTimeZone('Asia/Kolkata'));
+        $db = db_connect();
+        if (! $db->tableExists('mobile_tasks')) {
+            return ['scanned' => 0, 'queued' => 0];
+        }
+        $rows = $db->table('mobile_tasks t')
+            ->select('t.id, t.admin_user_id, t.title, t.scheduled_at, e.attrai_number')
+            ->join('employees e', 'e.admin_user_id = t.admin_user_id AND e.is_active = 1', 'inner')
+            ->where('t.counts_for_performance', 1)
+            ->where('t.reference_type', null)
+            ->where('t.is_done', 0)
+            ->where('t.status !=', 'cancelled')
+            ->where('t.scheduled_at <', $now->format('Y-m-d H:i:s'))
+            ->get()->getResultArray();
+        $queued = 0;
+        foreach ($rows as $row) {
+            $userId = preg_replace('/\D+/', '', (string) ($row['attrai_number'] ?? '')) ?? '';
+            if ($userId === '') {
+                continue;
+            }
+            $due = strtotime((string) ($row['scheduled_at'] ?? '')) ?: $now->getTimestamp();
+            $delayDays = max(1, (int) ceil(($now->getTimestamp() - $due) / 86400));
+            $slot = 'D' . $delayDays;
+            if ($db->table('whatsapp_sender_queue')->where('provider_key', 'attrai')
+                ->where('event_key', 'task_overdue_points')->where('source_type', 'mobile_tasks')
+                ->where('source_id', (int) $row['id'])->where('recipient_number', $userId)
+                ->like('message_no', $slot)->countAllResults() > 0) {
+                continue;
+            }
+            $body = "*Performance Points Deducted*\n-2 points"
+                . "\nReason: Task overdue"
+                . "\nTask: " . ((string) ($row['title'] ?? '') ?: ('#' . (int) $row['id']))
+                . "\nDue: " . date('d M Y, h:i A', $due)
+                . "\nDelay: {$delayDays} day(s)";
+            $result = $this->sendConversationMessage(
+                'task_overdue_points', $userId, $body, 'mobile_tasks', (int) $row['id'], null, '', false, $slot
+            );
+            $queued += ($result['status'] ?? '') === 'queued' ? 1 : 0;
+        }
+        return ['scanned' => count($rows), 'queued' => $queued];
+    }
+
+    /** @return array{status:string,message:string,queue_ids:list<int>,dispatches:list<array<string,mixed>>} */
+    public function sendTemplatePreview(string $userId): array
+    {
+        $userId = preg_replace('/\D+/', '', trim($userId)) ?? '';
+        if ($userId === '') {
+            throw new RuntimeException('Enter a valid Arattai User ID.');
+        }
+        $settings = $this->settings();
+        $image = $this->companyLogoUrl($settings);
+        $samples = [
+            ['approval_preview', "*Follow-up Approval Required*\nOrder: ORD-DEMO-101\nStage: In Production\nCurrent note: Polishing is in progress.\nPrevious note: Casting completed.\nNext follow-up: Tomorrow 11:00 AM", true],
+            ['approval_success_preview', "*Follow-up Approved Successfully*\nCongratulations! You received +2 points.", false],
+            ['issuement_preview', "*Issuement Approval Required*\nVoucher: ISS-DEMO-101\nKarigar: Demo Karigar\nGold: 12.500 gm\nDiamond: 1.250 cts", true],
+            ['karigar_approval_preview', "*Karigar Creation Approval Required*\nName: Demo Karigar\nDepartment: Production", true],
+            ['karigar_assignment_preview', "*New Order Assigned*\nOrder: ORD-DEMO-101\nWork: Diamond Ring\n• Solitaire Ring | Size: Ring 14 | Qty: 1\nDescription: White gold, high polish\nDue date: 25 Oct 2026", false],
+            ['karigar_issuement_preview', "*Material Issued to You*\nVoucher: ISS-DEMO-101\nGold: 12.500 gm\nDiamond: 1.250 cts", false],
+            ['payment_preview', "*Payment Received*\nAmount: ₹5,000.00\nPayment No: PAY-DEMO-101", false],
+            ['points_credit_preview', "*Congratulations! Points Received*\n+2 points\nReason: Follow-up approved", false],
+            ['points_debit_preview', "*Performance Points Deducted*\n-2 points\nReason: Follow-up disapproved", false],
+            ['overdue_preview', "*Follow-up Overdue*\nOrder: ORD-DEMO-101\nDelay: 2 day(s)", false],
+            ['upcoming_preview', "*Upcoming Follow-up*\nOrder: ORD-DEMO-102\nDue: Tomorrow 11:00 AM", false],
+            ['order_status_preview', "*Order Status*\nOrder: ORD-DEMO-101\nStatus: In Production\nDue: 25 Oct 2026", false],
+        ];
+        $queueIds = [];
+        $dispatches = [];
+        foreach ($samples as [$event, $body, $buttons]) {
+            $payload = $buttons
+                ? $this->quickReplyPayload($userId, $body, [
+                    ['id' => 'preview.approve', 'label' => 'Approve'],
+                    ['id' => 'preview.reject', 'label' => 'Disapprove'],
+                ], $image)
+                : $this->displayRequestPayload($userId, $body, $image);
+            $queueId = $this->enqueueConversation($event, $userId, $body, 'arattai_preview', null, null, $image, $payload);
+            $queueIds[] = $queueId;
+            $dispatches[] = $this->queueService->dispatchById($queueId);
+        }
+        $sent = count(array_filter($dispatches, static fn(array $row): bool => ($row['status'] ?? '') === 'sent'));
+        $error = '';
+        foreach ($dispatches as $dispatch) {
+            if (($dispatch['status'] ?? '') !== 'sent' && trim((string) ($dispatch['error_message'] ?? '')) !== '') {
+                $error = trim((string) $dispatch['error_message']);
+                break;
+            }
+        }
+        return [
+            'status' => $sent === count($samples) ? 'sent' : ($sent > 0 ? 'partial' : 'failed'),
+            'message' => $sent . '/' . count($samples) . ' Arattai preview messages sent.' . ($error !== '' ? ' First error: ' . mb_substr($error, 0, 300) : ''),
+            'queue_ids' => $queueIds,
+            'dispatches' => $dispatches,
+        ];
+    }
+
+    /** @param array<string,mixed> $payload @return array<string,mixed> */
+    private function handleIncomingConversation(array $payload): array
+    {
+        if ((string) ($payload['event'] ?? '') !== 'chat.message.received') {
+            return ['status' => 'ignored', 'message' => 'Webhook event does not require ERP processing.'];
+        }
+        $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
+        $user = is_array($entity['user'] ?? null) ? $entity['user'] : [];
+        if ($user === [] && is_array($payload['user'] ?? null)) {
+            $user = $payload['user'];
+        }
+        $userId = preg_replace('/\D+/', '', (string) ($user['id'] ?? '')) ?? '';
+        if ($userId === '') {
+            return ['status' => 'ignored', 'message' => 'Incoming message has no Arattai user ID.'];
+        }
+        $entityContent = $entity['content'] ?? null;
+        $content = is_array($entityContent) ? $entityContent : [];
+        $buttonId = trim((string) ($entity['button_id'] ?? $content['button_id'] ?? ''));
+        if (str_starts_with($buttonId, 'preview.')) {
+            $this->sendConversationMessage('preview_action_reply', $userId, 'This is a design preview only. No ERP data was changed.', 'arattai_preview');
+            return ['status' => 'preview', 'message' => 'Preview action acknowledged.'];
+        }
+        $text = is_scalar($entityContent)
+            ? trim((string) $entityContent)
+            : trim((string) ($content['message'] ?? $content['body'] ?? $entity['message'] ?? ''));
+        if ($text === '') {
+            $this->sendConversationMessage('order_status_prompt', $userId, 'Please send your Order ID or Order Number to check its current status.', 'arattai_chat');
+            return ['status' => 'prompted', 'message' => 'Asked the user for an order ID.'];
+        }
+
+        $order = $this->findOrderFromMessage($text);
+        if (! is_array($order)) {
+            $this->sendConversationMessage(
+                'order_status_prompt',
+                $userId,
+                "Welcome to Aabhushan ERP.\nPlease send a valid Order ID or Order Number (example: ORD-1001) to check status.",
+                'arattai_chat'
+            );
+            return ['status' => 'prompted', 'message' => 'No order number was found; asked for one.'];
+        }
+
+        $orderId = (int) ($order['id'] ?? 0);
+        $body = "*Order Status*\nOrder: " . (string) ($order['order_no'] ?? ('#' . $orderId))
+            . "\nWork: " . ((string) ($order['order_name'] ?? '') ?: '-')
+            . "\nStatus: " . ((string) ($order['status'] ?? '') ?: '-')
+            . "\nPriority: " . ((string) ($order['priority'] ?? '') ?: '-')
+            . "\nDue: " . ((string) ($order['due_date'] ?? '') ?: '-');
+        $latest = db_connect()->table('order_followups')
+            ->select('stage, description, followup_taken_on')
+            ->where('order_id', $orderId)->where('approval_status', 'approved')
+            ->orderBy('followup_taken_on', 'DESC')->orderBy('id', 'DESC')->get()->getRowArray();
+        if (is_array($latest)) {
+            $body .= "\nLatest update: " . trim((string) (($latest['description'] ?? '') ?: ($latest['stage'] ?? '')));
+        }
+        $this->sendConversationMessage(
+            'order_status_reply',
+            $userId,
+            $body,
+            'orders',
+            $orderId,
+            $orderId,
+            $this->orderImageUrl($orderId, $this->settings())
+        );
+        return ['status' => 'replied', 'message' => 'Order status sent.', 'order_id' => $orderId];
+    }
+
+    /** @return array<string,mixed>|null */
+    private function findOrderFromMessage(string $message): ?array
+    {
+        $db = db_connect();
+        $message = trim($message);
+        $candidates = [$message];
+        if (preg_match_all('/[A-Za-z]{1,12}[A-Za-z0-9\/_-]*\d+[A-Za-z0-9\/_-]*/', $message, $matches)) {
+            $candidates = array_merge($candidates, $matches[0]);
+        }
+        foreach (array_values(array_unique($candidates)) as $candidate) {
+            $candidate = trim((string) $candidate, " \t\n\r\0\x0B#.,:;");
+            if ($candidate === '') {
+                continue;
+            }
+            $row = $db->table('orders')->select('id, order_no, order_name, status, priority, due_date')
+                ->where('deleted_at', null)->where('order_no', $candidate)->get()->getRowArray();
+            if (is_array($row)) {
+                return $row;
+            }
+        }
+        if (preg_match('/(?:order\s*(?:id|#)?\s*[:\-]?\s*|^#?)(\d{1,10})\b/i', $message, $match)) {
+            $row = $db->table('orders')->select('id, order_no, order_name, status, priority, due_date')
+                ->where('deleted_at', null)->where('id', (int) $match[1])->get()->getRowArray();
+            return is_array($row) ? $row : null;
+        }
+        return null;
+    }
+
+    /** @param array<string,mixed> $payload */
+    private function replyToWebhookUser(array $payload, string $message): void
+    {
+        $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
+        $user = is_array($entity['user'] ?? null) ? $entity['user'] : [];
+        if ($user === [] && is_array($payload['user'] ?? null)) {
+            $user = $payload['user'];
+        }
+        $userId = preg_replace('/\D+/', '', (string) ($user['id'] ?? '')) ?? '';
+        if ($userId !== '') {
+            try {
+                $this->sendConversationMessage('webhook_action_reply', $userId, $message, 'arattai_webhook');
+            } catch (\Throwable $e) {
+                log_message('error', 'Arattai webhook reply failed: {message}', ['message' => $e->getMessage()]);
+            }
+        }
+    }
+
+    /** @return array<string,mixed> */
+    private function sendConversationMessage(
+        string $event,
+        string $userId,
+        string $message,
+        string $sourceType,
+        ?int $sourceId = null,
+        ?int $orderId = null,
+        string $mediaUrl = '',
+        bool $dispatch = true,
+        string $messageSuffix = ''
+    ): array {
+        $settings = $this->settings();
+        if (! $this->baseConfigured($settings)) {
+            return ['status' => 'skipped', 'message' => 'Arattai integration is disabled or incomplete.'];
+        }
+        $userId = preg_replace('/\D+/', '', trim($userId)) ?? '';
+        if ($userId === '') {
+            return ['status' => 'skipped', 'message' => 'Arattai user ID is missing.'];
+        }
+        $queueId = $this->enqueueConversation(
+            $event,
+            $userId,
+            $message,
+            $sourceType,
+            $sourceId,
+            $orderId,
+            $mediaUrl,
+            $this->displayRequestPayload($userId, $message, $mediaUrl),
+            $messageSuffix
+        );
+        if (! $dispatch) {
+            return ['status' => 'queued', 'message' => 'Arattai message queued.', 'queue_id' => $queueId];
+        }
+        return $this->queueService->dispatchById($queueId) + ['message' => 'Arattai message processed.'];
+    }
+
+    /** @param array<string,mixed>|null $payload */
+    private function enqueueConversation(
+        string $event,
+        string $userId,
+        string $message,
+        string $sourceType,
+        ?int $sourceId = null,
+        ?int $orderId = null,
+        string $mediaUrl = '',
+        ?array $payload = null,
+        string $messageSuffix = ''
+    ): int {
+        $settings = $this->settings();
+        $messageNo = 'ARA-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $event) ?: 'MSG', 0, 12))
+            . '-' . date('YmdHis') . ($messageSuffix !== '' ? '-' . preg_replace('/[^A-Za-z0-9]/', '', $messageSuffix) : '')
+            . '-' . random_int(100, 999);
+        return $this->queueService->enqueue([
+            'message_no' => $messageNo,
+            'event_key' => $event,
+            'provider_key' => 'attrai',
+            'source_type' => $sourceType,
+            'source_id' => $sourceId,
+            'order_id' => $orderId,
+            'sender_number' => $settings['attrai_sender_id'] ?? null,
+            'recipient_number' => $userId,
+            'recipient_name' => 'Arattai User',
+            'message_type' => $mediaUrl !== '' ? 'image' : 'text',
+            'message_text' => $message,
+            'media_url' => $mediaUrl !== '' ? $mediaUrl : null,
+            'request_payload' => json_encode(
+                $payload ?? $this->displayRequestPayload($userId, $message, $mediaUrl),
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+            ),
+            'scheduled_at' => date('Y-m-d H:i:s'),
+            'created_by' => null,
+        ]);
+    }
+
+    /** @return array<string,mixed> */
+    private function displayRequestPayload(string $userId, string $message, string $mediaUrl = ''): array
+    {
+        if (trim($mediaUrl) !== '') {
+            return [
+                'category' => 'display',
+                'type' => 'link',
+                'user_id' => $userId,
+                'content' => [
+                    'url' => trim($mediaUrl),
+                    'body' => trim($message),
+                    'label' => 'View Image',
+                    'header' => ['type' => 'image', 'link' => trim($mediaUrl)],
+                    'footer' => ['text' => 'Aabhushan ERP'],
+                ],
+            ];
+        }
+        return [
+            'category' => 'display',
+            'type' => 'text',
+            'user_id' => $userId,
+            'content' => ['body' => trim($message)],
+        ];
+    }
+
+    /** @param list<array{id:string,label:string}> $options @return array<string,mixed> */
+    private function quickReplyPayload(string $userId, string $message, array $options, string $mediaUrl = ''): array
+    {
+        $content = [
+            'body' => mb_substr(trim($message), 0, 2000),
+            'footer' => ['text' => 'Aabhushan ERP'],
+            'options' => array_map(static fn(array $option): array => [
+                'id' => (string) $option['id'],
+                'label' => (string) $option['label'],
+            ], $options),
+        ];
+        if (trim($mediaUrl) !== '') {
+            $content['header'] = ['type' => 'image', 'link' => trim($mediaUrl)];
+        }
+        return ['category' => 'input', 'type' => 'quick_reply', 'user_id' => $userId, 'content' => $content];
+    }
+
+    private function userIdForAdmin(int $adminUserId): string
+    {
+        if ($adminUserId <= 0) {
+            return '';
+        }
+        $row = db_connect()->table('employees')->select('attrai_number')
+            ->where('admin_user_id', $adminUserId)->where('is_active', 1)->get()->getRowArray();
+        return preg_replace('/\D+/', '', (string) ($row['attrai_number'] ?? '')) ?? '';
+    }
+
+    private function formatPoints(float $points): string
+    {
+        return rtrim(rtrim(number_format($points, 2, '.', ''), '0'), '.');
     }
 
     /** @param array<string,mixed> $settings */
@@ -449,6 +1019,10 @@ class AttraiIntegrationService
             if ($variables['stage'] !== '') $lines[] = 'Stage: ' . $variables['stage'];
             if ($variables['description'] !== '') $lines[] = 'Update: ' . $variables['description'];
             if ($variables['next_followup_date'] !== '') $lines[] = 'Next follow-up: ' . $variables['next_followup_date'];
+            $previous = is_array($payload['previous_followup'] ?? null) ? $payload['previous_followup'] : [];
+            if (trim((string) ($previous['stage'] ?? '')) !== '') $lines[] = 'Previous stage: ' . trim((string) $previous['stage']);
+            if (trim((string) ($previous['description'] ?? '')) !== '') $lines[] = 'Previous note: ' . trim((string) $previous['description']);
+            if (trim((string) ($previous['followup_taken_on'] ?? '')) !== '') $lines[] = 'Previous follow-up: ' . trim((string) $previous['followup_taken_on']);
         } elseif ($type === 'issuement') {
             if ($variables['karigar_name'] !== '') $lines[] = 'Karigar: ' . $variables['karigar_name'];
             if ($variables['location_name'] !== '') $lines[] = 'Location: ' . $variables['location_name'];
@@ -589,11 +1163,7 @@ class AttraiIntegrationService
 
     private function normalizePhone(string $phone): string
     {
-        $phone = preg_replace('/\D+/', '', trim($phone)) ?? '';
-        if (strlen($phone) === 10) {
-            $phone = '91' . $phone;
-        }
-        return $phone;
+        return preg_replace('/\D+/', '', trim($phone)) ?? '';
     }
 
     /** @param array<string,string> $variables */

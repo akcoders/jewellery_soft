@@ -11,6 +11,8 @@ use App\Models\LabourBillModel;
 use App\Models\LabourBillPaymentModel;
 use App\Models\PurchaseBillPaymentModel;
 use App\Models\VendorPaymentModel;
+use App\Services\AttraiIntegrationService;
+use Throwable;
 
 class AccountsController extends BaseController
 {
@@ -569,6 +571,19 @@ class AccountsController extends BaseController
         if (! $db->transStatus() || $accountPaymentId <= 0) {
             return redirect()->back()->withInput()->with('error', 'Unable to save payment right now.');
         }
+        if ($partyType === 'karigar') {
+            try {
+                (new AttraiIntegrationService())->notifyKarigarPayment(
+                    $karigarId,
+                    $amount,
+                    $paymentNo,
+                    $paymentDate,
+                    $referenceNo ?? ''
+                );
+            } catch (Throwable $e) {
+                log_message('error', 'Arattai karigar payment notification failed: {message}', ['message' => $e->getMessage()]);
+            }
+        }
 
         return redirect()->to(site_url('admin/accounts/payments'))->with('success', 'Payment saved successfully.');
     }
@@ -660,6 +675,17 @@ class AccountsController extends BaseController
         $db->transComplete();
         if (! $db->transStatus()) {
             return redirect()->back()->with('error', 'Unable to update labour payment right now.');
+        }
+        try {
+            (new AttraiIntegrationService())->notifyKarigarPayment(
+                (int) ($bill['karigar_id'] ?? 0),
+                $payAmount,
+                $paymentNo,
+                (string) $this->request->getPost('payment_date'),
+                (string) ($bill['bill_no'] ?? $billId)
+            );
+        } catch (Throwable $e) {
+            log_message('error', 'Arattai labour payment notification failed: {message}', ['message' => $e->getMessage()]);
         }
 
         return redirect()->back()->with('success', 'Labour payment updated.');

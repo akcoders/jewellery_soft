@@ -234,7 +234,7 @@ class OrderWhatsAppService
                 : $this->defaultMessage($eventKey, $variables);
 
             $requestPayload = $providerKey === 'attrai'
-                ? ['request_options' => [], 'log_payload' => '']
+                ? ['request_options' => [], 'log_payload' => $this->arattaiConversationPayload($phone, $message, $variables['media_url'])]
                 : $this->buildRequestPayload($providerSettings, $variables, $message, $phone);
             $logId = (int) $this->logModel->insert([
                 'event_key' => $eventKey,
@@ -518,9 +518,11 @@ class OrderWhatsAppService
 
     private function preferredCustomerPhone(array $context, array $settings): ?string
     {
-        $phone = (int) ($settings['attrai_enabled'] ?? 0) === 1
-            ? trim((string) ($context['attrai_notification_number'] ?? ''))
-            : '';
+        $arattaiEnabled = (int) ($settings['attrai_enabled'] ?? 0) === 1;
+        $phone = $arattaiEnabled ? trim((string) ($context['attrai_notification_number'] ?? '')) : '';
+        if ($arattaiEnabled) {
+            return $this->normalizeArattaiUserId($phone);
+        }
         if ($phone === '') {
             $phone = trim((string) ($context['whatsapp_notification_number'] ?? ''));
         }
@@ -540,7 +542,9 @@ class OrderWhatsAppService
      */
     private function alertPhones(array $settings): array
     {
-        $raw = trim((string) ($settings['whatsapp_alert_numbers'] ?? ''));
+        $raw = (int) ($settings['attrai_enabled'] ?? 0) === 1
+            ? trim((string) ($settings['attrai_approval_numbers'] ?? ''))
+            : trim((string) ($settings['whatsapp_alert_numbers'] ?? ''));
         if ($raw === '') {
             return [];
         }
@@ -548,7 +552,9 @@ class OrderWhatsAppService
         $phones = preg_split('/[\s,;]+/', $raw) ?: [];
         $out = [];
         foreach ($phones as $phone) {
-            $normalized = $this->normalizePhone($phone);
+            $normalized = (int) ($settings['attrai_enabled'] ?? 0) === 1
+                ? $this->normalizeArattaiUserId($phone)
+                : $this->normalizePhone($phone);
             if ($normalized !== null) {
                 $out[] = $normalized;
             }
@@ -571,6 +577,12 @@ class OrderWhatsAppService
         return $normalized !== '' ? $normalized : null;
     }
 
+    private function normalizeArattaiUserId(string $userId): ?string
+    {
+        $userId = preg_replace('/\D+/', '', trim($userId)) ?? '';
+        return $userId !== '' ? $userId : null;
+    }
+
     /**
      * @return array<string,mixed>
      */
@@ -588,8 +600,7 @@ class OrderWhatsAppService
         if ((int) ($settings['attrai_enabled'] ?? 0) === 1) {
             return trim((string) ($settings['attrai_refresh_token'] ?? '')) !== ''
                 && trim((string) ($settings['attrai_company_id'] ?? '')) !== ''
-                && trim((string) ($settings['attrai_business_number_id'] ?? '')) !== ''
-                && trim((string) ($settings['attrai_update_template_id'] ?? '')) !== '';
+                && trim((string) ($settings['attrai_business_number_id'] ?? '')) !== '';
         }
         return ! empty($settings['whatsapp_enabled']) && trim((string) ($settings['whatsapp_api_url'] ?? '')) !== '';
     }
@@ -626,6 +637,27 @@ class OrderWhatsAppService
     private function alreadySent(string $eventHash): bool
     {
         return $this->logModel->where('event_hash', $eventHash)->countAllResults() > 0;
+    }
+
+    private function arattaiConversationPayload(string $userId, string $message, string $mediaUrl = ''): string
+    {
+        $payload = [
+            'category' => 'display',
+            'type' => 'text',
+            'user_id' => preg_replace('/\D+/', '', $userId) ?? '',
+            'content' => ['body' => trim($message)],
+        ];
+        if (trim($mediaUrl) !== '') {
+            $payload['type'] = 'link';
+            $payload['content'] = [
+                'url' => trim($mediaUrl),
+                'body' => trim($message),
+                'label' => 'View Image',
+                'header' => ['type' => 'image', 'link' => trim($mediaUrl)],
+                'footer' => ['text' => 'Aabhushan ERP'],
+            ];
+        }
+        return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
 
     /**

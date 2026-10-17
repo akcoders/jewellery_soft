@@ -260,6 +260,17 @@ class OrderReceivingService
         } catch (Throwable $e) {
             log_message('error', 'ATTRAI receiving update failed: {message}', ['message' => $e->getMessage()]);
         }
+        try {
+            (new AttraiIntegrationService())->notifyPointChange(
+                $createdBy,
+                StaffPerformanceService::TRANSACTION_POINTS,
+                'Order receiving completed',
+                (string) ($order['order_no'] ?? ('Order #' . $orderId)),
+                $orderId
+            );
+        } catch (Throwable $e) {
+            log_message('error', 'Arattai receiving points notification failed: {message}', ['message' => $e->getMessage()]);
+        }
 
         return [
             'order_id' => $orderId,
