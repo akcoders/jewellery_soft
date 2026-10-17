@@ -202,10 +202,10 @@ class CompanySettingsController extends BaseController
         $number = trim((string) $this->request->getPost('test_number'));
         try {
             (new AttraiIntegrationService())->sendTestMessage($number);
-            return redirect()->to(site_url('admin/company-settings'))
+            return redirect()->to(site_url('admin/company-settings') . '#arattai-test')
                 ->with('success', 'ATTRAI demo message sent to ' . $number . '.');
         } catch (Throwable $e) {
-            return redirect()->to(site_url('admin/company-settings'))
+            return redirect()->to(site_url('admin/company-settings') . '#arattai-test')
                 ->with('error', $e->getMessage());
         }
     }
@@ -276,9 +276,9 @@ class CompanySettingsController extends BaseController
         try {
             $result = (new AttraiIntegrationService())->sendTemplatePreview($userId);
             $flash = ($result['status'] ?? '') === 'sent' ? 'success' : 'error';
-            return redirect()->to(site_url('admin/company-settings'))->with($flash, (string) ($result['message'] ?? 'Preview completed.'));
+            return redirect()->to(site_url('admin/company-settings') . '#arattai-workflow-preview')->with($flash, (string) ($result['message'] ?? 'Preview completed.'));
         } catch (Throwable $e) {
-            return redirect()->to(site_url('admin/company-settings'))->with('error', $e->getMessage());
+            return redirect()->to(site_url('admin/company-settings') . '#arattai-workflow-preview')->with('error', $e->getMessage());
         }
     }
 

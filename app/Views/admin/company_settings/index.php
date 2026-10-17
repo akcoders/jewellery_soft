@@ -387,7 +387,7 @@
             </div>
         </div>
 
-        <form method="post" action="<?= site_url('admin/company-settings/attrai-test') ?>" class="border rounded-3 p-3 mt-4">
+        <form id="arattai-test" method="post" action="<?= site_url('admin/company-settings/attrai-test') ?>" class="border rounded-3 p-3 mt-4">
             <?= csrf_field() ?>
             <h6 class="mb-2">Send ATTRAI Demo</h6>
             <div class="row g-2 align-items-end">
@@ -402,7 +402,7 @@
             <small class="text-muted d-block mt-2">The user must first message your Business Number so the conversation window is active.</small>
         </form>
 
-        <form method="post" action="<?= site_url('admin/company-settings/arattai/preview') ?>" class="border rounded-3 p-3 mt-4">
+        <form id="arattai-workflow-preview" method="post" action="<?= site_url('admin/company-settings/arattai/preview') ?>" class="border rounded-3 p-3 mt-4">
             <?= csrf_field() ?>
             <h6 class="mb-2">Send All Arattai Workflow Previews</h6>
             <div class="row g-2 align-items-end">
