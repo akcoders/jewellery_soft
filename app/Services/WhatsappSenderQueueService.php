@@ -76,6 +76,10 @@ class WhatsappSenderQueueService
     public function dispatchPending(int $limit = 100): array
     {
         $limit = max(1, min(500, $limit));
+        // Use the same application clock that enqueue() uses. Database NOW()
+        // can be in a different timezone on shared hosting, which makes newly
+        // queued rows look like they are scheduled in the future.
+        $now = date('Y-m-d H:i:s');
         $result = ['scanned' => 0, 'sent' => 0, 'failed' => 0, 'skipped' => 0];
 
         $rows = $this->queueModel
@@ -88,7 +92,7 @@ class WhatsappSenderQueueService
             ->groupEnd()
             ->groupStart()
                 ->where('scheduled_at IS NULL', null, false)
-                ->orWhere('scheduled_at <= NOW()', null, false)
+                ->orWhere('scheduled_at <=', $now)
             ->groupEnd()
             ->orderBy('scheduled_at', 'ASC')
             ->orderBy('id', 'ASC')
