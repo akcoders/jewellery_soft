@@ -56,6 +56,15 @@ final class ArattaiOrderConversationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("'Confirm Order'", $wizard);
     }
 
+    public function testOfficialArattaiFileEnvelopeIsRecognisedAsAnImage(): void
+    {
+        $wizard = $this->source('Services/ArattaiOrderConversationService.php');
+
+        $this->assertStringContainsString("\$type === 'file'", $wizard);
+        $this->assertStringContainsString("str_starts_with(\$contentType, 'image/')", $wizard);
+        $this->assertStringContainsString("'type', 'mime_type', 'mimeType', 'content_type', 'contentType'", $wizard);
+    }
+
     public function testFinalOrderUsesOneDatabaseTransactionAndCreatesOperationalRecords(): void
     {
         $creation = $this->source('Services/ArattaiOrderCreationService.php');
