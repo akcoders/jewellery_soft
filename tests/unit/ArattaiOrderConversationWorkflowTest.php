@@ -82,7 +82,51 @@ final class ArattaiOrderConversationWorkflowTest extends CIUnitTestCase
         $integration = $this->source('Services/AttraiIntegrationService.php');
 
         $this->assertStringContainsString('quickReplyLabel($replyContext, $buttonId)', $integration);
-        $this->assertStringContainsString("'message_type' => (string) (\$payload['category'] ?? '') === 'input'", $integration);
+        $this->assertStringContainsString("? 'interactive'", $integration);
+        $this->assertStringContainsString("['image', 'document', 'audio', 'video']", $integration);
+    }
+
+    public function testArattaiTransactionMenuAndMaterialRulesAreImplemented(): void
+    {
+        $menu = $this->source('Services/ArattaiOrderConversationService.php');
+        $transactions = $this->source('Services/ArattaiTransactionConversationService.php');
+
+        foreach (['Follow-up', 'Issuement', 'Return', 'Bag Creation', 'Receiving', 'Packing List', 'Delivery Challan'] as $label) {
+            $this->assertStringContainsString("'{$label}'", $menu, $label);
+        }
+        $this->assertStringContainsString("['Skip Image', 'Cancel Current Process']", $transactions);
+        $this->assertStringContainsString('Issuement image is compulsory.', $transactions);
+        $this->assertStringContainsString("'add gold', 'gold' => 'erp_issue_gold_item'", $transactions);
+        $this->assertStringContainsString("'add diamond', 'diamond' => 'erp_issue_diamond_bag'", $transactions);
+        $this->assertStringContainsString("'add stone', 'stone' => 'erp_issue_stone_order'", $transactions);
+        $this->assertStringContainsString("'order_id' => null", $this->source('Services/MobileApprovalService.php'));
+        $this->assertStringContainsString('issuementContext((int) $bag[\'id\'])', $transactions);
+    }
+
+    public function testReturnBagReceivingAndDocumentsUseOperationalServices(): void
+    {
+        $transactions = $this->source('Services/ArattaiTransactionConversationService.php');
+        $integration = $this->source('Services/AttraiIntegrationService.php');
+        $routes = $this->source('Config/Routes.php');
+
+        $this->assertStringContainsString('returnableIssueLines', $transactions);
+        $this->assertStringContainsString('applyReturn($returnId)', $transactions);
+        $this->assertStringContainsString('DiamondBagService())->create', $transactions);
+        $this->assertStringContainsString('OrderReceivingService())->receive', $transactions);
+        $this->assertStringContainsString('No issued diamond bag line was found', $transactions);
+        $this->assertStringContainsString('No issued stone line was found', $transactions);
+        $this->assertStringContainsString("'type' => 'document'", $integration);
+        $this->assertStringContainsString('documents/issuements/(:segment)', $routes);
+        $this->assertStringContainsString('PDF will arrive after approval.', $transactions);
+    }
+
+    public function testTransactionConfirmationsAreIdempotent(): void
+    {
+        $transactions = $this->source('Services/ArattaiTransactionConversationService.php');
+
+        $this->assertStringContainsString("->where('status', 'active')->update(['status' => 'processing'", $transactions);
+        $this->assertStringContainsString('This action was already completed successfully.', $transactions);
+        $this->assertStringContainsString('Action already taken or currently processing.', $transactions);
     }
 
     private function source(string $relativePath): string
