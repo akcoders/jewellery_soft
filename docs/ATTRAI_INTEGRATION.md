@@ -20,7 +20,7 @@ Use the Webhook URL displayed by the deployed ERP. The expected current URL is:
 
 `https://aabhushan.webignitors.in/public/integrations/attrai/webhook`
 
-In **Arattai Business Platform > Developer space > Webhooks** configure only **Conversation** and select only `chat.message.received`.
+In **Arattai Business Platform > Developer space > Webhooks** configure **Conversation** and select `chat.message.received`, `chat.message.sent`, `chat.message.delivered`, and `chat.message.failed`.
 
 Arattai verifies the URL with `GET ?challenge=...`; the ERP echoes the challenge as JSON. Generate/select a Shared Secret in Arattai, then paste the same value into the ERP **Webhook Secret** field. POST events are accepted only when `X-Hub-Signature-256` matches the Base64 HMAC-SHA256 signature of the raw body.
 

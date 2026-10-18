@@ -77,6 +77,25 @@ final class AttraiIntegrationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('Recent Arattai Users', $settings);
     }
 
+    public function testArattaiAuditDeliveryAndPendingApprovalBacklogAreImplemented(): void
+    {
+        $migration = $this->source('Database/Migrations/2026-10-18-000115_AddArattaiDeliveryTracking.php');
+        $oauth = $this->source('Services/ArattaiOAuthService.php');
+        $queue = $this->source('Services/WhatsappSenderQueueService.php');
+        $integration = $this->source('Services/AttraiIntegrationService.php');
+        $routes = $this->source('Config/Routes.php');
+        $command = $this->source('Commands/SendPendingArattaiApprovals.php');
+
+        $this->assertStringContainsString("'delivery_status'", $migration);
+        $this->assertStringContainsString("'provider_failure_reason'", $migration);
+        $this->assertStringContainsString("'chat.message.delivered'", $oauth);
+        $this->assertStringContainsString('applyArattaiDeliveryEvent', $queue);
+        $this->assertStringContainsString("['ack_key']", $queue);
+        $this->assertStringContainsString('sendPendingApprovalBacklog', $integration);
+        $this->assertStringContainsString('arattai:send-pending-approvals', $command);
+        $this->assertStringContainsString("get('arattai-messages'", $routes);
+    }
+
     public function testOrderUpdatesAndKarigarAssignmentUseAttraiProvider(): void
     {
         $orders = $this->source('Services/OrderWhatsAppService.php');

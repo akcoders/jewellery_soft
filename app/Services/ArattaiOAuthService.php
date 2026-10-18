@@ -208,8 +208,14 @@ class ArattaiOAuthService
             }
         }
 
+        $events = [
+            'chat.message.received',
+            'chat.message.sent',
+            'chat.message.delivered',
+            'chat.message.failed',
+        ];
         $definition = [
-            'events' => ['chat.message.received'],
+            'events' => $events,
             'type' => 'conversation',
             'url' => $endpoint,
             'description' => 'Aabhushan ERP incoming messages and approval actions',
@@ -226,7 +232,7 @@ class ArattaiOAuthService
         } else {
             $webhookId = $this->requireValue(trim((string) ($webhook['id'] ?? '')), 'Arattai webhook ID was not returned.');
             $updated = $this->apiRequest('PATCH', '/webhooks/' . rawurlencode($webhookId), [
-                'events' => ['chat.message.received'],
+                'events' => $events,
                 'url' => $endpoint,
                 'status' => 'enabled',
                 'description' => $definition['description'],
@@ -273,7 +279,7 @@ class ArattaiOAuthService
             'webhook_id' => $webhookId,
             'status' => 'enabled',
             'url' => $endpoint,
-            'events' => ['chat.message.received'],
+            'events' => $events,
             'secret_selected' => true,
         ];
     }
