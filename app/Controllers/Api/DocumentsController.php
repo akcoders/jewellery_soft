@@ -263,6 +263,76 @@ class DocumentsController extends ApiBaseController
         );
     }
 
+    public function combinedIssuement(string $voucherNoParam)
+    {
+        $voucherNo = trim(rawurldecode($voucherNoParam));
+        if ($voucherNo === '') {
+            return $this->fail('Voucher number is required.', 422);
+        }
+        $db = db_connect();
+        $definitions = [
+            'gold' => ['gold_inventory_issue_headers', 'gold_inventory_issue_lines'],
+            'diamond' => ['issue_headers', 'issue_lines'],
+            'stone' => ['stone_inventory_issue_headers', 'stone_inventory_issue_lines'],
+        ];
+        $headers = [];
+        $materialLines = [];
+        foreach ($definitions as $material => [$headerTable, $lineTable]) {
+            $header = $db->table($headerTable . ' ih')
+                ->select('ih.*, k.name karigar_name, k.name labour_name, k.phone labour_phone, k.email labour_email, k.address labour_address, k.city labour_city, k.state labour_state, k.pincode labour_pincode, iloc.name warehouse_name')
+                ->join('karigars k', 'k.id = ih.karigar_id', 'left')
+                ->join('inventory_locations iloc', 'iloc.id = ih.location_id', 'left')
+                ->where('ih.voucher_no', $voucherNo)->orderBy('ih.id', 'DESC')->get()->getRowArray();
+            if (! is_array($header)) continue;
+            $headers[$material] = $header;
+            $headerId = (int) $header['id'];
+            if ($material === 'gold') {
+                $materialLines[$material] = $db->table($lineTable . ' l')
+                    ->select('l.*, gi.purity_code, gi.purity_percent, gi.color_name, gi.form_type')
+                    ->join('gold_inventory_items gi', 'gi.id = l.item_id', 'left')
+                    ->where('l.issue_id', $headerId)->orderBy('l.id', 'ASC')->get()->getResultArray();
+            } elseif ($material === 'diamond') {
+                $materialLines[$material] = $db->table($lineTable . ' l')
+                    ->select('l.*, i.diamond_type, i.shape, i.chalni_from, i.chalni_to, i.color, i.clarity, i.cut, b.bag_no, sm.name AS bag_shape, sz.size_label AS bag_size, o.order_no AS allocation_order_no')
+                    ->join('items i', 'i.id = l.item_id', 'left')
+                    ->join('diamond_bags b', 'b.id = l.bag_id', 'left')
+                    ->join('diamond_bag_items bi', 'bi.id = l.bag_item_id', 'left')
+                    ->join('diamond_shape_masters sm', 'sm.id = bi.shape_master_id', 'left')
+                    ->join('diamond_size_masters sz', 'sz.id = bi.size_master_id', 'left')
+                    ->join('orders o', 'o.id = l.allocation_order_id', 'left')
+                    ->where('l.issue_id', $headerId)->orderBy('l.id', 'ASC')->get()->getResultArray();
+            } else {
+                $materialLines[$material] = $db->table($lineTable . ' l')
+                    ->select('l.*, si.product_name, si.stone_type')
+                    ->join('stone_inventory_items si', 'si.id = l.item_id', 'left')
+                    ->where('l.issue_id', $headerId)->orderBy('l.id', 'ASC')->get()->getResultArray();
+            }
+        }
+        if ($headers === []) {
+            return $this->fail('Issuement not found.', 404);
+        }
+        $issue = reset($headers);
+        $totalValue = 0.0;
+        foreach ($materialLines as $rows) foreach ($rows as $row) $totalValue += (float) ($row['line_value'] ?? 0);
+        $pdf = $this->pdf->render('admin/vouchers/issuement_combined', [
+            'title' => 'Issuement Voucher',
+            'voucherNo' => $voucherNo,
+            'issue' => $issue,
+            'materialType' => implode(' + ', array_map('ucfirst', array_keys($headers))),
+            'supplierName' => trim((string) ($issue['issue_to'] ?? '')) ?: (trim((string) ($issue['karigar_name'] ?? '')) ?: '-'),
+            'goldLines' => $materialLines['gold'] ?? [],
+            'diamondLines' => $materialLines['diamond'] ?? [],
+            'stoneLines' => $materialLines['stone'] ?? [],
+            'totalValue' => $totalValue,
+            'company' => $this->companySetting(),
+            'pdfMode' => true,
+        ]);
+        $safeVoucher = preg_replace('/[^A-Za-z0-9_-]+/', '_', $voucherNo) ?: 'issuement';
+        return $this->response->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', 'attachment; filename="issuement_' . $safeVoucher . '.pdf"')
+            ->setBody($pdf);
+    }
+
     public function labourBill(int $billId)
     {
         $payload = $this->labourBillPayload($billId);
