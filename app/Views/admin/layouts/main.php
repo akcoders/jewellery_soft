@@ -68,6 +68,7 @@ $isAccountsTaxMasters = $isAccounts && $segment3 === 'tax-masters';
 $isAccountsOutstanding = $isAccounts && $segment3 === 'outstanding-summary';
 $isVendors  = $segment2 === 'vendors';
 $isCompanySettings = $segment2 === 'company-settings';
+$isArattaiUsers = $segment2 === 'arattai-users';
 $isDatabaseUpdate = $segment2 === 'system' && $segment3 === 'database-update';
 $isSystemMaintenance = $segment2 === 'system' && $segment3 === 'maintenance';
 $isInventory= $segment2 === 'inventory';
@@ -1950,6 +1951,9 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
                         <?php if ($canCompanySettings): ?>
                         <li class="<?= $isCompanySettings ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/company-settings') ?>"><i class="fe fe-briefcase"></i> <span>Company Settings</span></a>
+                        </li>
+                        <li class="<?= $isArattaiUsers ? 'active' : '' ?>">
+                            <a href="<?= site_url('admin/arattai-users') ?>"><i class="fe fe-user-check"></i> <span>Arattai User Mapping</span></a>
                         </li>
                         <?php endif; ?>
                         <?php if (admin_can('company-settings.manage')): ?>
