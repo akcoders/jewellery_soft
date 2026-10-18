@@ -152,7 +152,9 @@ foreach ($attachments as $file) {
     $type = strtolower(trim((string) ($file['file_type'] ?? '')));
     $photoGallery[$path] = [
         'url' => base_url($path),
-        'label' => str_contains($type, 'finish') ? 'Ready jewellery' : 'Order reference',
+        'label' => str_contains($type, 'finish')
+            ? 'Ready jewellery'
+            : (str_contains($type, 'signed') ? 'Signed order' : 'Order reference'),
         'name' => (string) (($file['file_name'] ?? '') ?: basename($path)),
     ];
 }
@@ -229,11 +231,12 @@ $statusClass = match ($status) {
                         ['Jewellery Category', ($order['order_category_name'] ?? '') ?: '-', 'fe fe-grid'],
                         ['Material Category', ($order['material_category'] ?? '') ?: '-', 'fe fe-gem'],
                         ['Order From', ($order['order_from'] ?? '') ?: '-', 'fe fe-log-in'],
-                        ['Customer', ($order['customer_name'] ?? '') ?: '-', 'fe fe-user'],
+                        ['Customer Account', ($order['customer_name'] ?? '') ?: '-', 'fe fe-users'],
+                        ['Customer Name', ($order['end_customer_name'] ?? '') ?: '-', 'fe fe-user'],
                         ['Contact Number', ($order['contact_number'] ?? '') ?: '-', 'fe fe-phone'],
                         ['Order Received', $formatDate((string) ($order['order_received_date'] ?? '')), 'fe fe-calendar'],
                         ['Assigned Karigar', ($order['karigar_name'] ?? '') ?: 'Not assigned', 'fe fe-tool'],
-                        ['Sales Person', ($order['sales_person_name'] ?? '') ?: '-', 'fe fe-briefcase'],
+                        ['Sales Executive', ($order['sales_executive_name'] ?? '') ?: (($order['sales_person_name'] ?? '') ?: '-'), 'fe fe-briefcase'],
                         ['Sales Mobile', ($order['sales_person_mobile'] ?? '') ?: '-', 'fe fe-phone'],
                         ['Order Follower', ($order['follower_name'] ?? '') ?: 'Not assigned', 'fe fe-user-check'],
                         ['Next Follow-up Due', $formatDate((string) ($order['followup_due_at'] ?? '')), 'fe fe-clock'],
