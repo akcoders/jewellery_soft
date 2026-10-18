@@ -136,6 +136,13 @@ class ArattaiOrderConversationService
         $sendOptions('arattai_main_menu', "Welcome to Aabhushan ERP.\nWhat would you like to do?", [
             'Create Order',
             'Order Status',
+            'Follow-up',
+            'Issuement',
+            'Return',
+            'Bag Creation',
+            'Receiving',
+            'Packing List',
+            'Delivery Challan',
         ]);
     }
 
@@ -512,7 +519,7 @@ class ArattaiOrderConversationService
     }
 
     /** @param array<string,mixed> $payload @return array<string,string> */
-    private function storeIncomingImage(array $payload, string $step): array
+    public function storeIncomingImage(array $payload, string $step): array
     {
         $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
         $type = mb_strtolower(trim((string) ($entity['type'] ?? $payload['type'] ?? '')));

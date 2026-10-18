@@ -52,6 +52,18 @@ final class AttraiIntegrationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('ATTRAI follow-up approval notification failed', $followup);
     }
 
+    public function testApprovalQuickRepliesResolveQuotedRequestContext(): void
+    {
+        $service = $this->source('Services/AttraiIntegrationService.php');
+
+        $this->assertStringContainsString('approvalRequestIdFromPayload', $service);
+        $this->assertStringContainsString("preg_match('/\\bRequest\\s*:\\s*#?\\s*(\\d+)\\b/i'", $service);
+        $this->assertStringContainsString("'reply_message_id'", $service);
+        $this->assertStringContainsString("'quotedMessageId'", $service);
+        $this->assertStringContainsString("'approval_context_missing'", $service);
+        $this->assertStringContainsString('Please tap Approve or Disapprove on the latest approval card again.', $service);
+    }
+
     public function testOfficialOAuthRefreshAndDefaultTemplatesAreImplemented(): void
     {
         $oauth = $this->source('Services/ArattaiOAuthService.php');
