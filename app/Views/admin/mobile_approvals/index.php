@@ -4,6 +4,7 @@
 $label = static fn(string $type): string => match ($type) {
     'customer_create' => 'New Customer',
     'karigar_create' => 'New Karigar',
+    'order_create' => 'New Order',
     'followup' => 'Order Follow-up',
     'delivery_challan' => 'Delivery Challan',
     default => 'Material Issuement',
@@ -11,12 +12,12 @@ $label = static fn(string $type): string => match ($type) {
 $icon = static fn(string $type): string => match ($type) {
     'customer_create' => 'fe-users',
     'karigar_create' => 'fe-user-check',
+    'order_create' => 'fe-shopping-bag',
     'followup' => 'fe-message-circle',
     'delivery_challan' => 'fe-file-text',
     default => 'fe-share-2',
 };
-// Filter key for the client-side chips; unknown types fall into "issuement" like $label does.
-$filterKey = static fn(string $type): string => in_array($type, ['customer_create', 'karigar_create', 'followup', 'delivery_challan'], true) ? $type : 'issuement';
+$filterKey = static fn(string $type): string => in_array($type, ['customer_create', 'karigar_create', 'order_create', 'followup', 'delivery_challan'], true) ? $type : 'issuement';
 $typeCounts = [];
 foreach (($items ?? []) as $pendingItem) {
     $key = $filterKey((string) ($pendingItem['request_type'] ?? ''));
@@ -28,6 +29,7 @@ $chips = [
     'delivery_challan' => ['Challans', 'fe-file-text'],
     'customer_create' => ['Customers', 'fe-users'],
     'karigar_create' => ['Karigars', 'fe-user-check'],
+    'order_create' => ['Orders', 'fe-shopping-bag'],
 ];
 ?>
 <style>

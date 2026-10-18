@@ -3,7 +3,18 @@ $payload = is_array($row['payload'] ?? null) ? $row['payload'] : [];
 $type = (string) ($row['request_type'] ?? '');
 $status = (string) ($row['status'] ?? 'pending');
 ?>
-<?php if ($type === 'issuement'): ?>
+<?php if ($type === 'order_create'): ?>
+    <div class="row g-3">
+        <?php foreach (['end_customer_name' => 'Customer', 'contact_number' => 'Mobile', 'sales_executive_name' => 'Sales Executive', 'material_category' => 'Category', 'item_description' => 'Item', 'qty' => 'Quantity', 'due_date' => 'Delivery Date'] as $key => $title): ?>
+        <div class="col-md-4"><div class="approval-material"><small class="text-muted"><?= esc($title) ?></small><strong class="d-block"><?= esc((string) (($payload[$key] ?? '') ?: '-')) ?></strong></div></div>
+        <?php endforeach; ?>
+    </div>
+    <div class="row g-3 mt-1">
+        <?php foreach (['reference_image' => 'Order Reference Image', 'signed_order_image' => 'Signed Order Image'] as $key => $title): $image = is_array($payload[$key] ?? null) ? $payload[$key] : []; $path = trim((string) ($image['relative_path'] ?? '')); ?>
+            <?php if ($path !== ''): ?><div class="col-md-6"><small class="text-muted d-block mb-2"><?= esc($title) ?></small><a href="<?= esc(base_url(ltrim($path, '/'))) ?>" target="_blank" rel="noopener"><img class="approval-photo" src="<?= esc(base_url(ltrim($path, '/'))) ?>" alt="<?= esc($title) ?>"></a></div><?php endif; ?>
+        <?php endforeach; ?>
+    </div>
+<?php elseif ($type === 'issuement'): ?>
     <div class="row g-3 mb-3">
         <div class="col-md-3"><div class="approval-material"><small class="text-muted">Karigar</small><strong class="d-block"><?= esc($payload['karigar_name'] ?? '-') ?></strong></div></div>
         <div class="col-md-3"><div class="approval-material"><small class="text-muted">Warehouse</small><strong class="d-block"><?= esc($payload['location_name'] ?? '-') ?></strong></div></div>
