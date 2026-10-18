@@ -166,6 +166,7 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('company-settings/arattai/templates', 'Admin\CompanySettingsController::createArattaiTemplates', ['filter' => ['permission:company-settings.manage', 'csrf']]);
     $routes->post('company-settings/arattai/webhook', 'Admin\CompanySettingsController::configureArattaiWebhook', ['filter' => ['permission:company-settings.manage', 'csrf']]);
     $routes->post('company-settings/arattai/preview', 'Admin\CompanySettingsController::sendArattaiPreview', ['filter' => ['permission:company-settings.manage', 'csrf']]);
+    $routes->get('arattai-messages', 'Admin\ArattaiMessagesController::index', ['filter' => 'permission:company-settings.read']);
     $routes->get('system/database-update', 'Admin\DatabaseUpdateController::index', ['filter' => 'permission:company-settings.manage']);
     $routes->post('system/database-update', 'Admin\DatabaseUpdateController::run', ['filter' => 'permission:company-settings.manage']);
     $routes->get('system/maintenance', 'Admin\SystemMaintenanceController::index', ['filter' => 'permission:company-settings.manage']);

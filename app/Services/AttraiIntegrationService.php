@@ -234,6 +234,12 @@ class AttraiIntegrationService
         if ($phone === '') {
             throw new RuntimeException('Enter a valid Arattai User ID.');
         }
+        $image = $this->companyLogoUrl($settings);
+        $message = 'Arattai integration demo from ' . (trim((string) ($settings['company_name'] ?? '')) ?: 'Jewellery ERP')
+            . ".\nTap the button below to test the incoming order-status flow.";
+        $payload = $this->quickReplyPayload($phone, $message, [
+            ['id' => 'preview.order_status', 'label' => 'Check Order Status'],
+        ], $image);
         $queueId = $this->queueService->enqueue([
             'event_key' => 'attrai_demo',
             'provider_key' => 'attrai',
@@ -241,12 +247,10 @@ class AttraiIntegrationService
             'sender_number' => $settings['attrai_sender_id'] ?? null,
             'recipient_number' => $phone,
             'recipient_name' => 'ATTRAI Demo',
-            'message_type' => 'text',
-            'message_text' => 'Arattai integration demo from ' . (trim((string) ($settings['company_name'] ?? '')) ?: 'Jewellery ERP') . '. Incoming webhook and conversational notifications are connected.',
-            'request_payload' => $this->displayRequestPayload(
-                $phone,
-                'Arattai integration demo from ' . (trim((string) ($settings['company_name'] ?? '')) ?: 'Jewellery ERP') . '. Incoming webhook and conversational notifications are connected.'
-            ),
+            'message_type' => 'interactive',
+            'message_text' => $message,
+            'media_url' => $image !== '' ? $image : null,
+            'request_payload' => $payload,
             'scheduled_at' => date('Y-m-d H:i:s'),
             'created_by' => null,
         ]);
@@ -291,9 +295,21 @@ class AttraiIntegrationService
             throw new RuntimeException('Arattai integration is disabled.');
         }
 
+        $event = trim((string) ($payload['event'] ?? ''));
+        if (in_array($event, ['chat.message.sent', 'chat.message.delivered', 'chat.message.failed', 'chat.message.deleted'], true)) {
+            return $this->queueService->applyArattaiDeliveryEvent($event, $payload);
+        }
+
         $actionId = $this->extractActionId($payload);
         if ($actionId === '') {
+            $actionId = $this->resolveQuickReplyAction($payload);
+        }
+        if ($actionId === '') {
             return $this->handleIncomingConversation($payload);
+        }
+        $actionUserId = $this->webhookUserId($payload);
+        if ($actionUserId === '' || ! in_array($actionUserId, $this->approvalUserIds($settings), true)) {
+            throw new RuntimeException('This Arattai user is not authorised to review ERP approvals.');
         }
         $action = $this->verifySignedAction($actionId, $settings);
         $reviewerId = (int) ($settings['attrai_approval_reviewer_id'] ?? 0);
@@ -439,6 +455,10 @@ class AttraiIntegrationService
         if (trim((string) ($context['order_no'] ?? '')) !== '') {
             $message .= "\nOrder: " . trim((string) $context['order_no']);
         }
+        $mediaUrl = trim((string) ($context['media_url'] ?? ''));
+        if ($mediaUrl === '') {
+            $mediaUrl = $this->issuementImageUrl($voucherNo, $karigarId);
+        }
         return $this->sendConversationMessage(
             'issuement_to_karigar',
             $userId,
@@ -446,7 +466,7 @@ class AttraiIntegrationService
             'issuement_voucher',
             (int) ($context['source_id'] ?? 0),
             isset($context['order_id']) ? (int) $context['order_id'] : null,
-            trim((string) ($context['media_url'] ?? ''))
+            $mediaUrl
         );
     }
 
@@ -463,7 +483,9 @@ class AttraiIntegrationService
         if (trim($reference) !== '') {
             $message .= "\nReference: " . trim($reference);
         }
-        return $this->sendConversationMessage('karigar_payment', $userId, $message, 'karigars', $karigarId);
+        return $this->sendConversationMessage(
+            'karigar_payment', $userId, $message, 'karigars', $karigarId, null, $this->companyLogoUrl($this->settings())
+        );
     }
 
     public function notifyOrderStatusToFollower(int $orderId, string $message = ''): array
@@ -522,7 +544,17 @@ class AttraiIntegrationService
                 $body .= "\nDelay: " . $delayDays . ' day(s)'
                     . "\nPerformance impact: -2 points for this delay tier";
             }
-            $result = $this->sendConversationMessage($event, $userId, $body, 'orders', (int) $row['id'], (int) $row['id'], '', false, $slot);
+            $result = $this->sendConversationMessage(
+                $event,
+                $userId,
+                $body,
+                'orders',
+                (int) $row['id'],
+                (int) $row['id'],
+                $this->orderImageUrl((int) $row['id'], $this->settings()),
+                false,
+                $slot
+            );
             $queued += ($result['status'] ?? '') === 'queued' ? 1 : 0;
         }
         return ['scanned' => count($rows), 'queued' => $queued];
@@ -573,32 +605,77 @@ class AttraiIntegrationService
         return ['scanned' => count($rows), 'queued' => $queued];
     }
 
+    /** @return array{scanned:int,skipped:int,queued:int,sent:int,failed:int} */
+    public function sendPendingApprovalBacklog(int $limit = 25, bool $force = false, int $dispatchLimit = 8): array
+    {
+        $limit = max(1, min(100, $limit));
+        $dispatchLimit = max(0, min(8, $dispatchLimit));
+        $requests = array_slice((new MobileApprovalService())->list(null, 'pending'), 0, $limit);
+        $result = ['scanned' => count($requests), 'skipped' => 0, 'queued' => 0, 'sent' => 0, 'failed' => 0];
+        $queueIds = [];
+        $db = db_connect();
+
+        foreach ($requests as $request) {
+            $requestId = (int) ($request['id'] ?? 0);
+            if ($requestId <= 0) {
+                $result['skipped']++;
+                continue;
+            }
+            if (! $force) {
+                $alreadyQueued = $db->table('whatsapp_sender_queue')
+                    ->where('provider_key', 'attrai')->where('event_key', 'approval_requested')
+                    ->where('source_type', 'mobile_approval_requests')->where('source_id', $requestId)
+                    ->countAllResults() > 0;
+                if ($alreadyQueued) {
+                    $result['skipped']++;
+                    continue;
+                }
+            }
+
+            $queued = $this->notifyApprovalRequested($request);
+            $newIds = array_values(array_filter(array_map('intval', (array) ($queued['queue_ids'] ?? []))));
+            $queueIds = array_merge($queueIds, $newIds);
+            $result['queued'] += count($newIds);
+        }
+
+        foreach (array_slice($queueIds, 0, $dispatchLimit) as $queueId) {
+            $dispatch = $this->queueService->dispatchById($queueId);
+            if (($dispatch['status'] ?? '') === 'sent') {
+                $result['sent']++;
+            } else {
+                $result['failed']++;
+            }
+        }
+        return $result;
+    }
+
     /** @return array{status:string,message:string,queue_ids:list<int>,dispatches:list<array<string,mixed>>} */
-    public function sendTemplatePreview(string $userId): array
+    public function sendTemplatePreview(string $userId, string $scenario = 'order_status'): array
     {
         $userId = preg_replace('/\D+/', '', trim($userId)) ?? '';
         if ($userId === '') {
             throw new RuntimeException('Enter a valid Arattai User ID.');
         }
         $settings = $this->settings();
-        $image = $this->companyLogoUrl($settings);
+        $logo = $this->companyLogoUrl($settings);
+        $orderImage = $this->latestOrderImageUrl($settings) ?: $logo;
+        $issuementImage = $this->latestIssuementApprovalImageUrl() ?: $logo;
         $samples = [
-            ['approval_preview', "*Follow-up Approval Required*\nOrder: ORD-DEMO-101\nStage: In Production\nCurrent note: Polishing is in progress.\nPrevious note: Casting completed.\nNext follow-up: Tomorrow 11:00 AM", true],
-            ['approval_success_preview', "*Follow-up Approved Successfully*\nCongratulations! You received +2 points.", false],
-            ['issuement_preview', "*Issuement Approval Required*\nVoucher: ISS-DEMO-101\nKarigar: Demo Karigar\nGold: 12.500 gm\nDiamond: 1.250 cts", true],
-            ['karigar_approval_preview', "*Karigar Creation Approval Required*\nName: Demo Karigar\nDepartment: Production", true],
-            ['karigar_assignment_preview', "*New Order Assigned*\nOrder: ORD-DEMO-101\nWork: Diamond Ring\n• Solitaire Ring | Size: Ring 14 | Qty: 1\nDescription: White gold, high polish\nDue date: 25 Oct 2026", false],
-            ['karigar_issuement_preview', "*Material Issued to You*\nVoucher: ISS-DEMO-101\nGold: 12.500 gm\nDiamond: 1.250 cts", false],
-            ['payment_preview', "*Payment Received*\nAmount: ₹5,000.00\nPayment No: PAY-DEMO-101", false],
-            ['points_credit_preview', "*Congratulations! Points Received*\n+2 points\nReason: Follow-up approved", false],
-            ['points_debit_preview', "*Performance Points Deducted*\n-2 points\nReason: Follow-up disapproved", false],
-            ['overdue_preview', "*Follow-up Overdue*\nOrder: ORD-DEMO-101\nDelay: 2 day(s)", false],
-            ['upcoming_preview', "*Upcoming Follow-up*\nOrder: ORD-DEMO-102\nDue: Tomorrow 11:00 AM", false],
-            ['order_status_preview', "*Order Status*\nOrder: ORD-DEMO-101\nStatus: In Production\nDue: 25 Oct 2026", false],
+            'followup_approval' => ['approval_preview', "*Follow-up Approval Required*\nOrder: ORD-DEMO-101\nStage: In Production\nCurrent note: Polishing is in progress.\nPrevious note: Casting completed.\nNext follow-up: Tomorrow 11:00 AM", true, $orderImage],
+            'issuement_approval' => ['issuement_preview', "*Issuement Approval Required*\nVoucher: ISS-DEMO-101\nKarigar: Demo Karigar\nGold: 12.500 gm\nDiamond: 1.250 cts", true, $issuementImage],
+            'karigar_assignment' => ['karigar_assignment_preview', "*New Order Assigned*\nOrder: ORD-DEMO-101\nWork: Diamond Ring\n• Solitaire Ring | Size: Ring 14 | Qty: 1\nDescription: White gold, high polish\nDue date: 25 Oct 2026", false, $orderImage],
+            'karigar_issuement' => ['karigar_issuement_preview', "*Material Issued to You*\nVoucher: ISS-DEMO-101\nGold: 12.500 gm\nDiamond: 1.250 cts", false, $issuementImage],
+            'payment' => ['payment_preview', "*Payment Received*\nAmount: ₹5,000.00\nPayment No: PAY-DEMO-101", false, $logo],
+            'points' => ['points_credit_preview', "*Congratulations! Points Received*\n+2 points\nReason: Follow-up approved", false, ''],
+            'followup_due' => ['overdue_preview', "*Follow-up Overdue*\nOrder: ORD-DEMO-101\nDelay: 2 day(s)", false, $orderImage],
+            'order_status' => ['order_status_preview', "*Order Status*\nOrder: ORD-DEMO-101\nStatus: In Production\nDue: 25 Oct 2026", false, $orderImage],
         ];
+        if (! isset($samples[$scenario])) {
+            throw new RuntimeException('Select a valid Arattai preview scenario.');
+        }
         $queueIds = [];
         $dispatches = [];
-        foreach ($samples as [$event, $body, $buttons]) {
+        foreach ([$samples[$scenario]] as [$event, $body, $buttons, $image]) {
             $payload = $buttons
                 ? $this->quickReplyPayload($userId, $body, [
                     ['id' => 'preview.approve', 'label' => 'Approve'],
@@ -618,8 +695,8 @@ class AttraiIntegrationService
             }
         }
         return [
-            'status' => $sent === count($samples) ? 'sent' : ($sent > 0 ? 'partial' : 'failed'),
-            'message' => $sent . '/' . count($samples) . ' Arattai preview messages sent.' . ($error !== '' ? ' First error: ' . mb_substr($error, 0, 300) : ''),
+            'status' => $sent === 1 ? 'sent' : 'failed',
+            'message' => $sent === 1 ? 'Arattai preview message sent.' : ('Arattai preview failed.' . ($error !== '' ? ' Reason: ' . mb_substr($error, 0, 300) : '')),
             'queue_ids' => $queueIds,
             'dispatches' => $dispatches,
         ];
@@ -640,9 +717,22 @@ class AttraiIntegrationService
         if ($userId === '') {
             return ['status' => 'ignored', 'message' => 'Incoming message has no Arattai user ID.'];
         }
+        if (! in_array($userId, $this->approvalUserIds($this->settings()), true)) {
+            $this->sendConversationMessage(
+                'order_status_denied',
+                $userId,
+                'This order-status assistant is available only to configured approval admins.',
+                'arattai_chat'
+            );
+            return ['status' => 'denied', 'message' => 'Incoming user is not a configured approval admin.'];
+        }
         $entityContent = $entity['content'] ?? null;
         $content = is_array($entityContent) ? $entityContent : [];
         $buttonId = trim((string) ($entity['button_id'] ?? $content['button_id'] ?? ''));
+        if ($buttonId === 'preview.order_status') {
+            $this->sendConversationMessage('order_status_prompt', $userId, 'Please send your Order ID or Order Number to check its current status.', 'arattai_chat');
+            return ['status' => 'prompted', 'message' => 'Asked the user for an order ID.'];
+        }
         if (str_starts_with($buttonId, 'preview.')) {
             $this->sendConversationMessage('preview_action_reply', $userId, 'This is a design preview only. No ERP data was changed.', 'arattai_preview');
             return ['status' => 'preview', 'message' => 'Preview action acknowledged.'];
@@ -722,12 +812,7 @@ class AttraiIntegrationService
     /** @param array<string,mixed> $payload */
     private function replyToWebhookUser(array $payload, string $message): void
     {
-        $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
-        $user = is_array($entity['user'] ?? null) ? $entity['user'] : [];
-        if ($user === [] && is_array($payload['user'] ?? null)) {
-            $user = $payload['user'];
-        }
-        $userId = preg_replace('/\D+/', '', (string) ($user['id'] ?? '')) ?? '';
+        $userId = $this->webhookUserId($payload);
         if ($userId !== '') {
             try {
                 $this->sendConversationMessage('webhook_action_reply', $userId, $message, 'arattai_webhook');
@@ -931,6 +1016,33 @@ class AttraiIntegrationService
         return '';
     }
 
+    /** @param array<string,mixed> $payload */
+    private function resolveQuickReplyAction(array $payload): string
+    {
+        $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
+        $ackKey = trim((string) ($entity['ack_key'] ?? $payload['ack_key'] ?? ''));
+        $content = $entity['content'] ?? null;
+        $selected = is_scalar($content) ? trim((string) $content) : '';
+        if ($ackKey === '' || $selected === '') {
+            return '';
+        }
+        $row = db_connect()->table('whatsapp_sender_queue')
+            ->select('request_payload')->where('provider_key', 'attrai')->where('message_no', $ackKey)
+            ->orderBy('id', 'DESC')->get()->getRowArray();
+        $requestPayload = json_decode((string) ($row['request_payload'] ?? ''), true);
+        foreach ((array) ($requestPayload['content']['options'] ?? []) as $option) {
+            if (! is_array($option)) {
+                continue;
+            }
+            $id = trim((string) ($option['id'] ?? ''));
+            $label = trim((string) ($option['label'] ?? ''));
+            if (str_starts_with($id, 'attrai.') && strcasecmp($selected, $label) === 0) {
+                return $id;
+            }
+        }
+        return '';
+    }
+
     /** @param array<string,mixed> $settings */
     private function approvalRequestPayload(array $settings, array $variables, array $actions): string
     {
@@ -1074,11 +1186,11 @@ class AttraiIntegrationService
     private function approvalImageUrl(array $request, array $settings): string
     {
         $attachmentUrl = trim((string) ($request['attachment_url'] ?? ''));
-        if ($attachmentUrl !== '') {
+        if ($attachmentUrl !== '' && $this->isImageUrl($attachmentUrl)) {
             return $attachmentUrl;
         }
         $attachmentPath = trim((string) ($request['attachment_path'] ?? ''));
-        if ($attachmentPath !== '') {
+        if ($attachmentPath !== '' && $this->isImageUrl($attachmentPath)) {
             return base_url(ltrim($attachmentPath, '/'));
         }
         $orderId = $this->orderIdFromApproval($request) ?? 0;
@@ -1096,7 +1208,79 @@ class AttraiIntegrationService
     private function companyLogoUrl(array $settings): string
     {
         $logo = trim((string) ($settings['logo_path'] ?? ''));
-        return $logo !== '' ? base_url(ltrim($logo, '/')) : '';
+        return $logo !== '' && $this->isImageUrl($logo) ? base_url(ltrim($logo, '/')) : '';
+    }
+
+    private function issuementImageUrl(string $voucherNo, int $karigarId): string
+    {
+        $db = db_connect();
+        foreach (['gold_inventory_issue_headers', 'issue_headers', 'stone_inventory_issue_headers'] as $table) {
+            if (! $db->tableExists($table) || ! $db->fieldExists('attachment_path', $table)) {
+                continue;
+            }
+            $row = $db->table($table)->select('attachment_path')->where('voucher_no', $voucherNo)
+                ->where('karigar_id', $karigarId)->get()->getRowArray();
+            $path = trim((string) ($row['attachment_path'] ?? ''));
+            if ($path !== '' && $this->isImageUrl($path)) {
+                return base_url(ltrim($path, '/'));
+            }
+        }
+        return $this->companyLogoUrl($this->settings());
+    }
+
+    /** @param array<string,mixed> $settings */
+    private function latestOrderImageUrl(array $settings): string
+    {
+        $db = db_connect();
+        if (! $db->tableExists('orders')) {
+            return $this->companyLogoUrl($settings);
+        }
+        $rows = $db->table('orders')->select('id')->where('deleted_at', null)->orderBy('id', 'DESC')->limit(30)->get()->getResultArray();
+        foreach ($rows as $row) {
+            $url = $this->orderImageUrl((int) ($row['id'] ?? 0), $settings);
+            if ($url !== '' && $url !== $this->companyLogoUrl($settings)) {
+                return $url;
+            }
+        }
+        return $this->companyLogoUrl($settings);
+    }
+
+    private function latestIssuementApprovalImageUrl(): string
+    {
+        $db = db_connect();
+        if (! $db->tableExists('mobile_approval_requests')) {
+            return '';
+        }
+        $rows = $db->table('mobile_approval_requests')->select('attachment_path')
+            ->where('request_type', 'issuement')->where('attachment_path IS NOT NULL', null, false)
+            ->orderBy('id', 'DESC')->limit(30)->get()->getResultArray();
+        foreach ($rows as $row) {
+            $path = trim((string) ($row['attachment_path'] ?? ''));
+            if ($path !== '' && $this->isImageUrl($path)) {
+                return base_url(ltrim($path, '/'));
+            }
+        }
+        return '';
+    }
+
+    private function isImageUrl(string $url): bool
+    {
+        if (mb_strlen(trim($url)) > 200) {
+            return false;
+        }
+        $path = (string) (parse_url(trim($url), PHP_URL_PATH) ?? $url);
+        return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'], true);
+    }
+
+    /** @param array<string,mixed> $payload */
+    private function webhookUserId(array $payload): string
+    {
+        $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
+        $user = is_array($entity['user'] ?? null) ? $entity['user'] : [];
+        if ($user === [] && is_array($payload['user'] ?? null)) {
+            $user = $payload['user'];
+        }
+        return preg_replace('/\D+/', '', (string) ($user['id'] ?? '')) ?? '';
     }
 
     /** @param array<string,mixed> $request */

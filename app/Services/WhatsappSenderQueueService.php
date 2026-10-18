@@ -137,6 +137,66 @@ class WhatsappSenderQueueService
         ];
     }
 
+    /** @param array<string,mixed> $payload @return array<string,mixed> */
+    public function applyArattaiDeliveryEvent(string $event, array $payload): array
+    {
+        $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
+        $ackKey = trim((string) ($entity['ack_key'] ?? $payload['ack_key'] ?? ''));
+        $providerMessageId = trim((string) ($entity['id'] ?? $payload['id'] ?? ''));
+        if ($ackKey === '' && $providerMessageId === '') {
+            return ['status' => 'ignored', 'message' => 'Delivery event has no ack_key or message ID.'];
+        }
+
+        $builder = $this->queueModel->where('provider_key', 'attrai');
+        if ($ackKey !== '') {
+            $builder->where('message_no', $ackKey);
+        } else {
+            $builder->where('provider_message_id', $providerMessageId);
+        }
+        $row = $builder->orderBy('id', 'DESC')->first();
+        if (! is_array($row)) {
+            return ['status' => 'unmatched', 'message' => 'No queued Arattai message matches this delivery event.'];
+        }
+
+        $deliveryStatus = match ($event) {
+            'chat.message.sent' => 'sent',
+            'chat.message.delivered' => 'delivered',
+            'chat.message.failed' => 'failed',
+            'chat.message.deleted' => 'deleted',
+            default => '',
+        };
+        if ($deliveryStatus === '') {
+            return ['status' => 'ignored', 'message' => 'Webhook is not an outbound delivery event.'];
+        }
+
+        $reason = null;
+        if ($deliveryStatus === 'failed') {
+            foreach (['message', 'reason', 'error', 'code'] as $key) {
+                if (isset($entity[$key]) && is_scalar($entity[$key]) && trim((string) $entity[$key]) !== '') {
+                    $reason = trim((string) $entity[$key]);
+                    break;
+                }
+            }
+            $reason ??= 'Arattai reported that the message could not be delivered.';
+        }
+        $updates = [
+            'delivery_status' => $deliveryStatus,
+            'delivery_updated_at' => date('Y-m-d H:i:s'),
+            'provider_failure_reason' => $reason,
+        ];
+        if ($providerMessageId !== '') {
+            $updates['provider_message_id'] = $providerMessageId;
+        }
+        $this->queueModel->update((int) $row['id'], $updates);
+
+        return [
+            'status' => 'updated',
+            'message' => 'Arattai delivery status updated.',
+            'queue_id' => (int) $row['id'],
+            'delivery_status' => $deliveryStatus,
+        ];
+    }
+
     /**
      * @param array<string,mixed> $row
      * @param array<string,mixed> $settings
@@ -186,6 +246,9 @@ class WhatsappSenderQueueService
                 'response_payload' => $response['response_payload'],
                 'http_status_code' => $response['http_status_code'],
                 'provider_message_id' => $providerMessageId,
+                'delivery_status' => 'accepted',
+                'delivery_updated_at' => date('Y-m-d H:i:s'),
+                'provider_failure_reason' => null,
                 'sent_at' => date('Y-m-d H:i:s'),
                 'failed_at' => null,
                 'locked_at' => null,
@@ -214,6 +277,13 @@ class WhatsappSenderQueueService
     private function buildRequestPayload(array $settings, array $row): array
     {
         $body = trim((string) ($row['request_payload'] ?? ''));
+        if ($body !== '' && ! empty($settings['attrai_official'])) {
+            $decoded = json_decode($body, true);
+            if (is_array($decoded) && in_array((string) ($decoded['category'] ?? ''), ['display', 'input'], true)) {
+                $decoded['ack_key'] = $this->arattaiAckKey((string) ($row['message_no'] ?? ''), (int) ($row['id'] ?? 0));
+                $body = json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+            }
+        }
         if ($body === '') {
             if (! empty($settings['attrai_official'])) {
                 $body = $this->buildArattaiTransactionBody($settings, $row);
@@ -332,7 +402,29 @@ class WhatsappSenderQueueService
             'failed_at' => $final ? date('Y-m-d H:i:s') : null,
             'locked_at' => null,
             'error_message' => $error,
+            'delivery_status' => 'failed',
+            'delivery_updated_at' => date('Y-m-d H:i:s'),
+            'provider_failure_reason' => $this->providerErrorReason($error, $responsePayload),
         ]);
+    }
+
+    private function arattaiAckKey(string $messageNo, int $id): string
+    {
+        $ackKey = preg_replace('/[^A-Za-z0-9_-]/', '_', trim($messageNo)) ?: ('ARA_' . $id);
+        return substr($ackKey, 0, 64);
+    }
+
+    private function providerErrorReason(string $error, ?string $responsePayload): string
+    {
+        $decoded = json_decode((string) $responsePayload, true);
+        if (is_array($decoded)) {
+            $code = trim((string) ($decoded['code'] ?? ''));
+            $message = trim((string) ($decoded['message'] ?? ''));
+            if ($code !== '' || $message !== '') {
+                return trim(($code !== '' ? $code . ': ' : '') . $message);
+            }
+        }
+        return mb_substr(trim($error) ?: 'Arattai request failed.', 0, 1000);
     }
 
     /**

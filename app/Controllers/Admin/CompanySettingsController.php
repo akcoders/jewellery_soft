@@ -273,8 +273,9 @@ class CompanySettingsController extends BaseController
     public function sendArattaiPreview()
     {
         $userId = trim((string) $this->request->getPost('arattai_user_id'));
+        $scenario = trim((string) $this->request->getPost('preview_scenario')) ?: 'order_status';
         try {
-            $result = (new AttraiIntegrationService())->sendTemplatePreview($userId);
+            $result = (new AttraiIntegrationService())->sendTemplatePreview($userId, $scenario);
             $flash = ($result['status'] ?? '') === 'sent' ? 'success' : 'error';
             return redirect()->to(site_url('admin/company-settings') . '#arattai-workflow-preview')->with($flash, (string) ($result['message'] ?? 'Preview completed.'));
         } catch (Throwable $e) {

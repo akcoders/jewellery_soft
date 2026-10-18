@@ -2,7 +2,7 @@
 
 ## Implemented workflows
 
-- Incoming `chat.message.received` webhook with exact challenge response, HMAC signature validation and event-ID deduplication.
+- Incoming message and outbound sent/delivered/failed webhooks with exact challenge response, HMAC signature validation and event-ID deduplication.
 - Incoming Arattai users stored in `arattai_users` and shown in Company Settings with name, phone (when supplied), user ID and last-seen time.
 - Follow-up, issuement and karigar approvals sent as conversational quick-reply messages with signed Approve / Disapprove actions. Follow-up also supports Approve - No Point.
 - Approval actions call the existing ERP approval service, update ERP data once, and send the requester and acting admin a result message.
@@ -12,7 +12,8 @@
 - Employee point credit/deduction messages cover follow-up decisions, task completion, daily overdue tasks, order creation, purchase, issuement, return and receiving.
 - Upcoming/overdue follow-up reminders are queued automatically. Approval-pending follow-ups continue to follow the performance exclusion rules in `StaffPerformanceService`.
 - Incoming free-text chat asks for an order ID/number and returns status, priority, due date, latest approved follow-up and image without customer or financial data.
-- Admin and CLI preview tools send every workflow design to a supplied Arattai user ID.
+- Admin and CLI preview tools send one selected workflow design at a time to stay below the conversational API rate limit.
+- **Admin > Arattai Message Audit** lists the reason each message was sent, its image, API result, delivery state and exact failure reason.
 
 ## Admin setup
 
@@ -26,19 +27,25 @@ Webhook URL:
 
 `https://aabhushan.webignitors.in/integrations/attrai/webhook`
 
-Subscribed event:
+Subscribed events:
 
-`chat.message.received`
+`chat.message.received`, `chat.message.sent`, `chat.message.delivered`, `chat.message.failed`
 
 Approved transactional templates are not required for these conversational messages, but Arattai only permits them while the recipient's conversation window is active. Business verification is still required later for business-initiated transactional template messages outside that window.
 
 ## Preview and cron
 
-Admin: Company Settings -> **Send All Arattai Workflow Previews**.
+Admin: Company Settings -> **Send One Arattai Workflow Preview**.
 
 CLI:
 
-`php spark arattai:send-template-preview ARATTAI_USER_ID`
+`php spark arattai:send-template-preview ARATTAI_USER_ID order_status`
+
+Send the current pending approval backlog (duplicates are skipped; at most eight new messages are sent immediately and the rest remain queued):
+
+`php spark arattai:send-pending-approvals 25`
+
+Only use `--force` when an already-queued approval must deliberately be resent.
 
 Hostinger cron, every minute:
 
@@ -52,5 +59,5 @@ Run once after pull:
 
 `php spark migrate`
 
-This creates `arattai_users`, `arattai_webhook_events`, and adds webhook ID/status fields to Company Settings. No manual SQL file is needed.
+This creates `arattai_users`, `arattai_webhook_events`, adds webhook ID/status fields to Company Settings, and adds outbound delivery tracking fields to the sender queue. No manual SQL file is needed.
 

@@ -375,6 +375,7 @@
             <h6 class="mb-2">Arattai One-time Setup</h6>
             <p class="small text-muted">Save Client ID and Client Secret, connect once, then configure the incoming conversation webhook. Conversational previews do not need approved templates.</p>
             <div class="d-flex flex-wrap gap-2">
+                <a href="<?= site_url('admin/arattai-messages') ?>" class="btn btn-outline-dark">Message Audit &amp; Failure Reasons</a>
                 <a href="<?= site_url('admin/company-settings/arattai/connect') ?>" class="btn btn-outline-primary">Connect Arattai</a>
                 <form method="post" action="<?= site_url('admin/company-settings/arattai/templates') ?>">
                     <?= csrf_field() ?>
@@ -404,17 +405,30 @@
 
         <form id="arattai-workflow-preview" method="post" action="<?= site_url('admin/company-settings/arattai/preview') ?>" class="border rounded-3 p-3 mt-4">
             <?= csrf_field() ?>
-            <h6 class="mb-2">Send All Arattai Workflow Previews</h6>
+            <h6 class="mb-2">Send One Arattai Workflow Preview</h6>
             <div class="row g-2 align-items-end">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <label class="form-label">Arattai User ID</label>
                     <input type="text" name="arattai_user_id" class="form-control" required placeholder="Paste a captured Arattai User ID">
                 </div>
+                <div class="col-md-4">
+                    <label class="form-label">Preview scenario</label>
+                    <select name="preview_scenario" class="form-select">
+                        <option value="order_status">Order status + order image</option>
+                        <option value="followup_approval">Follow-up approval + buttons</option>
+                        <option value="issuement_approval">Issuement approval + buttons</option>
+                        <option value="karigar_assignment">Karigar assignment</option>
+                        <option value="karigar_issuement">Karigar issuement</option>
+                        <option value="payment">Payment</option>
+                        <option value="followup_due">Follow-up due</option>
+                        <option value="points">Points (no image)</option>
+                    </select>
+                </div>
                 <div class="col-md-3">
-                    <button type="submit" class="btn btn-outline-primary">Send All Previews</button>
+                    <button type="submit" class="btn btn-outline-primary">Send Selected Preview</button>
                 </div>
             </div>
-            <small class="text-muted d-block mt-2">Sends approval buttons, assignment, issuement, payment, points, overdue, upcoming and order-status designs.</small>
+            <small class="text-muted d-block mt-2">Sends only one selected preview to avoid Arattai's conversational rate limit. All previews except points include a relevant image when available.</small>
         </form>
     </div>
 </div>
