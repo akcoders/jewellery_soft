@@ -361,6 +361,21 @@ class AttraiIntegrationService
             $this->approvalLabel((string) ($request['request_type'] ?? ''))
                 . ' request #' . (int) $action['request_id'] . ' was ' . $decisionLabel . '. ERP data has been updated.'
         );
+        if ($approved && (string) ($request['request_type'] ?? '') === 'issuement') {
+            $requesterUserId = $this->userIdForAdmin((int) ($request['requested_by'] ?? 0));
+            $voucherNo = trim((string) ($reviewed['result_reference'] ?? ''));
+            if ($voucherNo !== '' && ! hash_equals($requesterUserId, $actionUserId)) {
+                $this->sendConversationDocument(
+                    'issuement_approved_pdf',
+                    $actionUserId,
+                    'Approved Issuement · ' . $voucherNo,
+                    base_url('api/documents/issuements/' . rawurlencode($voucherNo)),
+                    'mobile_approval_requests',
+                    (int) $action['request_id'],
+                    $this->orderIdFromApproval($reviewed)
+                );
+            }
+        }
 
         return [
             'status' => 'processed',
@@ -398,7 +413,7 @@ class AttraiIntegrationService
         if ($note !== '') {
             $message .= "\nAdmin note: " . $note;
         }
-        return $this->sendConversationMessage(
+        $result = $this->sendConversationMessage(
             'approval_outcome',
             $userId,
             $message,
@@ -407,6 +422,25 @@ class AttraiIntegrationService
             $this->orderIdFromApproval($request),
             trim((string) ($request['attachment_url'] ?? ''))
         );
+        if (! $isRejected && $type === 'issuement') {
+            $voucherNo = trim((string) ($request['result_reference'] ?? ''));
+            if ($voucherNo !== '') {
+                try {
+                    $this->sendConversationDocument(
+                        'issuement_approved_pdf',
+                        $userId,
+                        'Approved Issuement · ' . $voucherNo,
+                        base_url('api/documents/issuements/' . rawurlencode($voucherNo)),
+                        'mobile_approval_requests',
+                        (int) ($request['id'] ?? 0),
+                        $this->orderIdFromApproval($request)
+                    );
+                } catch (Throwable $e) {
+                    log_message('error', 'Arattai approved issuement PDF failed: {message}', ['message' => $e->getMessage()]);
+                }
+            }
+        }
+        return $result;
     }
 
     public function notifyPointChange(int $adminUserId, float $points, string $reason, string $reference = '', ?int $orderId = null): array
@@ -765,6 +799,42 @@ class AttraiIntegrationService
             }
         }
 
+        $transaction = (new ArattaiTransactionConversationService())->handle(
+            $payload,
+            $userId,
+            $text,
+            $actorAdminUserId,
+            function (string $event, string $message) use ($userId): void {
+                $this->sendConversationMessage($event, $userId, $message, 'arattai_transaction_conversation');
+            },
+            function (string $event, string $message, array $labels) use ($userId): void {
+                $options = [];
+                foreach (array_slice($labels, 0, 10) as $index => $label) {
+                    $options[] = ['id' => $event . '.' . ($index + 1), 'label' => mb_substr((string) $label, 0, 80)];
+                }
+                $interactive = $this->quickReplyPayload($userId, $message, $options);
+                $this->sendConversationMessage(
+                    $event,
+                    $userId,
+                    $message,
+                    'arattai_transaction_conversation',
+                    null,
+                    null,
+                    '',
+                    true,
+                    '',
+                    $interactive
+                );
+            },
+            function (string $event, string $caption, string $url) use ($userId): void {
+                $this->sendConversationDocument($event, $userId, $caption, $url, 'arattai_transaction_conversation');
+            }
+        );
+        if (($transaction['handled'] ?? false) === true) {
+            unset($transaction['handled']);
+            return $transaction;
+        }
+
         $wizard = (new ArattaiOrderConversationService())->handle(
             $payload,
             $userId,
@@ -972,6 +1042,43 @@ class AttraiIntegrationService
         return $this->queueService->dispatchById($queueId) + ['message' => 'Arattai message processed.'];
     }
 
+    /** @return array<string,mixed> */
+    private function sendConversationDocument(
+        string $event,
+        string $userId,
+        string $caption,
+        string $url,
+        string $sourceType,
+        ?int $sourceId = null,
+        ?int $orderId = null
+    ): array {
+        $url = trim($url);
+        if (! filter_var($url, FILTER_VALIDATE_URL)) {
+            throw new RuntimeException('Arattai document URL is invalid.');
+        }
+        $payload = [
+            'category' => 'display',
+            'type' => 'document',
+            'user_id' => preg_replace('/\D+/', '', $userId) ?? '',
+            'content' => [
+                'link' => mb_substr($url, 0, 1000),
+                'caption' => mb_substr(trim($caption), 0, 200),
+            ],
+        ];
+        return $this->sendConversationMessage(
+            $event,
+            $userId,
+            $caption,
+            $sourceType,
+            $sourceId,
+            $orderId,
+            '',
+            true,
+            '',
+            $payload
+        );
+    }
+
     /** @param array<string,mixed>|null $payload */
     private function enqueueConversation(
         string $event,
@@ -988,6 +1095,12 @@ class AttraiIntegrationService
         $messageNo = 'ARA-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $event) ?: 'MSG', 0, 12))
             . '-' . date('YmdHis') . ($messageSuffix !== '' ? '-' . preg_replace('/[^A-Za-z0-9]/', '', $messageSuffix) : '')
             . '-' . random_int(100, 999);
+        $payloadType = mb_strtolower(trim((string) ($payload['type'] ?? '')));
+        $messageType = (string) ($payload['category'] ?? '') === 'input'
+            ? 'interactive'
+            : (in_array($payloadType, ['image', 'document', 'audio', 'video'], true)
+                ? $payloadType
+                : ($mediaUrl !== '' ? 'image' : 'text'));
         return $this->queueService->enqueue([
             'message_no' => $messageNo,
             'event_key' => $event,
@@ -998,9 +1111,7 @@ class AttraiIntegrationService
             'sender_number' => $settings['attrai_sender_id'] ?? null,
             'recipient_number' => $userId,
             'recipient_name' => 'Arattai User',
-            'message_type' => (string) ($payload['category'] ?? '') === 'input'
-                ? 'interactive'
-                : ($mediaUrl !== '' ? 'image' : 'text'),
+            'message_type' => $messageType,
             'message_text' => $message,
             'media_url' => $mediaUrl !== '' ? $mediaUrl : null,
             'request_payload' => json_encode(
