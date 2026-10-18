@@ -516,18 +516,25 @@ class ArattaiOrderConversationService
     {
         $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
         $type = mb_strtolower(trim((string) ($entity['type'] ?? $payload['type'] ?? '')));
-        if (! in_array($type, ['image', 'photo', 'media'], true)) {
+        $content = $entity['content'] ?? ($payload['content'] ?? null);
+        $contentType = mb_strtolower($this->nestedScalar($content, [
+            'type', 'mime_type', 'mimeType', 'content_type', 'contentType',
+        ]));
+        // Arattai sends customer images as entity.type="file" and places the
+        // real media type (for example image/jpeg) in entity.content.type.
+        $isImage = in_array($type, ['image', 'photo', 'media'], true)
+            || ($type === 'file' && str_starts_with($contentType, 'image/'));
+        if (! $isImage) {
             throw new RuntimeException('Please upload an image for this step.');
         }
 
-        $content = $entity['content'] ?? ($payload['content'] ?? null);
         $base64 = $this->nestedScalar($content, ['base64', 'data', 'file_base64']);
         $url = $this->nestedScalar($content, ['link', 'url', 'download_url', 'downloadUrl', 'media_url', 'mediaUrl']);
         if (is_scalar($content) && filter_var(trim((string) $content), FILTER_VALIDATE_URL)) {
             $url = trim((string) $content);
         }
         $originalName = $this->nestedScalar($content, ['file_name', 'fileName', 'name', 'filename']);
-        $mime = $this->nestedScalar($content, ['mime_type', 'mimeType', 'content_type', 'contentType']);
+        $mime = $contentType;
         if ($url === '') {
             $url = $this->nestedScalar($entity, ['link', 'url', 'download_url', 'downloadUrl', 'media_url', 'mediaUrl']);
         }
@@ -535,7 +542,7 @@ class ArattaiOrderConversationService
             $originalName = $this->nestedScalar($entity, ['file_name', 'fileName', 'name', 'filename']);
         }
         if ($mime === '') {
-            $mime = $this->nestedScalar($entity, ['mime_type', 'mimeType', 'content_type', 'contentType']);
+            $mime = $this->nestedScalar($entity, ['type', 'mime_type', 'mimeType', 'content_type', 'contentType']);
         }
 
         $binary = '';
