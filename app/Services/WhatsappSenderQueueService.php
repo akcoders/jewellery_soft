@@ -419,9 +419,16 @@ class WhatsappSenderQueueService
         $decoded = json_decode((string) $responsePayload, true);
         if (is_array($decoded)) {
             $code = trim((string) ($decoded['code'] ?? ''));
+            $field = is_scalar($decoded['error'] ?? null)
+                ? trim((string) $decoded['error'])
+                : '';
             $message = trim((string) ($decoded['message'] ?? ''));
-            if ($code !== '' || $message !== '') {
-                return trim(($code !== '' ? $code . ': ' : '') . $message);
+            if ($code !== '' || $field !== '' || $message !== '') {
+                return trim(
+                    ($code !== '' ? $code : 'Arattai error')
+                    . ($field !== '' ? ' [' . $field . ']' : '')
+                    . ($message !== '' ? ': ' . $message : '')
+                );
             }
         }
         return mb_substr(trim($error) ?: 'Arattai request failed.', 0, 1000);

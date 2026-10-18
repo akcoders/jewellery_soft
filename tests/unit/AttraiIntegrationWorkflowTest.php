@@ -42,6 +42,9 @@ final class AttraiIntegrationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("base64_encode(hash_hmac('sha256'", $service);
         $this->assertStringContainsString("'category' => 'input'", $service);
         $this->assertStringContainsString("'type' => 'quick_reply'", $service);
+        $this->assertStringNotContainsString("'id' => (string) \$option['id']", $service);
+        $this->assertStringContainsString("'type' => 'image'", $service);
+        $this->assertStringContainsString("'caption' => mb_substr", $service);
         $this->assertStringContainsString("'approve_no_point'", $service);
         $this->assertStringContainsString('$service->approve(', $service);
         $this->assertStringContainsString('$service->reject(', $service);
@@ -91,6 +94,7 @@ final class AttraiIntegrationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("'chat.message.delivered'", $oauth);
         $this->assertStringContainsString('applyArattaiDeliveryEvent', $queue);
         $this->assertStringContainsString("['ack_key']", $queue);
+        $this->assertStringContainsString("\$decoded['error']", $queue);
         $this->assertStringContainsString('sendPendingApprovalBacklog', $integration);
         $this->assertStringContainsString('arattai:send-pending-approvals', $command);
         $this->assertStringContainsString("get('arattai-messages'", $routes);

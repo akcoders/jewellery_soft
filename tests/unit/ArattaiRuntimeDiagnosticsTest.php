@@ -183,6 +183,53 @@ final class ArattaiRuntimeDiagnosticsTest extends CIUnitTestCase
         }
     }
 
+    public function testConversationalPayloadsFollowLiveArattaiFieldRules(): void
+    {
+        $service = $this->integration([]);
+
+        $displayMethod = new ReflectionMethod(AttraiIntegrationService::class, 'displayRequestPayload');
+        $image = $displayMethod->invoke(
+            $service,
+            '53817425',
+            str_repeat('Order detail ', 30),
+            'https://example.com/order.jpg'
+        );
+        $this->assertSame('display', $image['category']);
+        $this->assertSame('image', $image['type']);
+        $this->assertSame('https://example.com/order.jpg', $image['content']['link']);
+        $this->assertArrayHasKey('caption', $image['content']);
+        $this->assertLessThanOrEqual(200, mb_strlen($image['content']['caption']));
+        $this->assertArrayNotHasKey('body', $image['content']);
+
+        $quickReplyMethod = new ReflectionMethod(AttraiIntegrationService::class, 'quickReplyPayload');
+        $quickReply = $quickReplyMethod->invoke($service, '53817425', 'Approve this request?', [
+            ['id' => 'internal-only-action', 'label' => 'Approve'],
+            ['id' => 'internal-only-rejection', 'label' => 'Disapprove'],
+        ], 'https://example.com/order.jpg');
+        $this->assertSame('input', $quickReply['category']);
+        $this->assertSame('quick_reply', $quickReply['type']);
+        $this->assertSame([['label' => 'Approve'], ['label' => 'Disapprove']], $quickReply['content']['options']);
+        $this->assertSame('image', $quickReply['content']['header']['type']);
+    }
+
+    public function testProviderFailureReasonKeepsRejectedFieldPath(): void
+    {
+        $queue = $this->getMockBuilder(WhatsappSenderQueueService::class)
+            ->disableOriginalConstructor()
+            ->getMock();
+        $method = new ReflectionMethod(WhatsappSenderQueueService::class, 'providerErrorReason');
+        $reason = $method->invoke($queue, 'HTTP 400', json_encode([
+            'code' => 'invalid_input',
+            'error' => 'content.options[0].id',
+            'message' => 'Either the input stream or parameter is invalid or absent',
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame(
+            'invalid_input [content.options[0].id]: Either the input stream or parameter is invalid or absent',
+            $reason
+        );
+    }
+
     /** @param array<string,mixed> $settings */
     private function integration(array $settings, ?WhatsappSenderQueueService $queue = null): AttraiIntegrationService
     {

@@ -648,13 +648,10 @@ class OrderWhatsAppService
             'content' => ['body' => trim($message)],
         ];
         if (trim($mediaUrl) !== '') {
-            $payload['type'] = 'link';
+            $payload['type'] = 'image';
             $payload['content'] = [
-                'url' => trim($mediaUrl),
-                'body' => trim($message),
-                'label' => 'View Image',
-                'header' => ['type' => 'image', 'link' => trim($mediaUrl)],
-                'footer' => ['text' => 'Aabhushan ERP'],
+                'link' => mb_substr(trim($mediaUrl), 0, 1000),
+                'caption' => mb_substr(trim($message), 0, 200),
             ];
         }
         return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);

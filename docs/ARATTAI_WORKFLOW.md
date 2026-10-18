@@ -37,6 +37,8 @@ Approved transactional templates are not required for these conversational messa
 
 Admin: Company Settings -> **Send One Arattai Workflow Preview**.
 
+Arattai's live quick-reply endpoint currently accepts each option as a `label` only, even though one generated OpenAPI table also lists `id`. Approval decisions are therefore resolved from the provider `ack_key`, the queued approval request, the authenticated Arattai admin user, and the selected label. Image notifications use the documented `display/image` shape (`link` plus a caption of at most 200 characters); approval messages use an image header with their full interactive body.
+
 CLI:
 
 `php spark arattai:send-template-preview ARATTAI_USER_ID order_status`

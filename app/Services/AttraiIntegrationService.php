@@ -740,6 +740,25 @@ class AttraiIntegrationService
         $text = is_scalar($entityContent)
             ? trim((string) $entityContent)
             : trim((string) ($content['message'] ?? $content['body'] ?? $entity['message'] ?? ''));
+        $ackKey = trim((string) ($entity['ack_key'] ?? $payload['ack_key'] ?? ''));
+        if ($ackKey !== '' && $text !== '') {
+            $replyContext = db_connect()->table('whatsapp_sender_queue')
+                ->select('event_key, source_type, recipient_number')
+                ->where('provider_key', 'attrai')->where('message_no', $ackKey)
+                ->orderBy('id', 'DESC')->get()->getRowArray();
+            $contextRecipient = preg_replace('/\D+/', '', (string) ($replyContext['recipient_number'] ?? '')) ?? '';
+            if ($contextRecipient !== '' && hash_equals($contextRecipient, $userId)) {
+                if ((string) ($replyContext['event_key'] ?? '') === 'attrai_demo'
+                    && strcasecmp($text, 'Check Order Status') === 0) {
+                    $this->sendConversationMessage('order_status_prompt', $userId, 'Please send your Order ID or Order Number to check its current status.', 'arattai_chat');
+                    return ['status' => 'prompted', 'message' => 'Asked the user for an order ID.'];
+                }
+                if ((string) ($replyContext['source_type'] ?? '') === 'arattai_preview') {
+                    $this->sendConversationMessage('preview_action_reply', $userId, 'This is a design preview only. No ERP data was changed.', 'arattai_preview');
+                    return ['status' => 'preview', 'message' => 'Preview action acknowledged.'];
+                }
+            }
+        }
         if ($text === '') {
             $this->sendConversationMessage('order_status_prompt', $userId, 'Please send your Order ID or Order Number to check its current status.', 'arattai_chat');
             return ['status' => 'prompted', 'message' => 'Asked the user for an order ID.'];
@@ -903,14 +922,11 @@ class AttraiIntegrationService
         if (trim($mediaUrl) !== '') {
             return [
                 'category' => 'display',
-                'type' => 'link',
+                'type' => 'image',
                 'user_id' => $userId,
                 'content' => [
-                    'url' => trim($mediaUrl),
-                    'body' => trim($message),
-                    'label' => 'View Image',
-                    'header' => ['type' => 'image', 'link' => trim($mediaUrl)],
-                    'footer' => ['text' => 'Aabhushan ERP'],
+                    'link' => mb_substr(trim($mediaUrl), 0, 1000),
+                    'caption' => mb_substr(trim($message), 0, 200),
                 ],
             ];
         }
@@ -929,7 +945,6 @@ class AttraiIntegrationService
             'body' => mb_substr(trim($message), 0, 2000),
             'footer' => ['text' => 'Aabhushan ERP'],
             'options' => array_map(static fn(array $option): array => [
-                'id' => (string) $option['id'],
                 'label' => (string) $option['label'],
             ], $options),
         ];
@@ -1027,18 +1042,26 @@ class AttraiIntegrationService
             return '';
         }
         $row = db_connect()->table('whatsapp_sender_queue')
-            ->select('request_payload')->where('provider_key', 'attrai')->where('message_no', $ackKey)
+            ->select('event_key, source_id, recipient_number')
+            ->where('provider_key', 'attrai')->where('message_no', $ackKey)
             ->orderBy('id', 'DESC')->get()->getRowArray();
-        $requestPayload = json_decode((string) ($row['request_payload'] ?? ''), true);
-        foreach ((array) ($requestPayload['content']['options'] ?? []) as $option) {
-            if (! is_array($option)) {
-                continue;
-            }
-            $id = trim((string) ($option['id'] ?? ''));
-            $label = trim((string) ($option['label'] ?? ''));
-            if (str_starts_with($id, 'attrai.') && strcasecmp($selected, $label) === 0) {
-                return $id;
-            }
+        if (! is_array($row) || (string) ($row['event_key'] ?? '') !== 'approval_requested') {
+            return '';
+        }
+        $replyUserId = $this->webhookUserId($payload);
+        $recipientUserId = preg_replace('/\D+/', '', (string) ($row['recipient_number'] ?? '')) ?? '';
+        if ($replyUserId === '' || $recipientUserId === '' || ! hash_equals($recipientUserId, $replyUserId)) {
+            return '';
+        }
+        $decision = match (strtolower($selected)) {
+            'approve' => 'approve',
+            'approve - no point' => 'approve_no_point',
+            'disapprove' => 'reject',
+            default => '',
+        };
+        $requestId = (int) ($row['source_id'] ?? 0);
+        if ($decision !== '' && $requestId > 0) {
+            return $this->signedAction($requestId, $decision, $this->settings());
         }
         return '';
     }
@@ -1067,7 +1090,6 @@ class AttraiIntegrationService
             'footer' => ['text' => 'Aabhushan ERP approval'],
             'options' => array_map(
                 static fn (array $action): array => [
-                    'id' => (string) ($action['id'] ?? ''),
                     'label' => (string) ($action['title'] ?? 'Review'),
                 ],
                 json_decode((string) $variables['actions_json'], true) ?: []
@@ -1186,12 +1208,14 @@ class AttraiIntegrationService
     private function approvalImageUrl(array $request, array $settings): string
     {
         $attachmentUrl = trim((string) ($request['attachment_url'] ?? ''));
-        if ($attachmentUrl !== '' && $this->isImageUrl($attachmentUrl)) {
-            return $attachmentUrl;
+        $url = $this->normalizeImageUrl($attachmentUrl);
+        if ($url !== '') {
+            return $url;
         }
         $attachmentPath = trim((string) ($request['attachment_path'] ?? ''));
-        if ($attachmentPath !== '' && $this->isImageUrl($attachmentPath)) {
-            return base_url(ltrim($attachmentPath, '/'));
+        $url = $this->normalizeImageUrl($attachmentPath);
+        if ($url !== '') {
+            return $url;
         }
         $orderId = $this->orderIdFromApproval($request) ?? 0;
         return $orderId > 0 ? $this->orderImageUrl($orderId, $settings) : $this->companyLogoUrl($settings);
@@ -1201,14 +1225,13 @@ class AttraiIntegrationService
     private function orderImageUrl(int $orderId, array $settings): string
     {
         $images = (new OrderThumbnailService())->map([$orderId], false);
-        return trim((string) ($images[$orderId] ?? '')) ?: $this->companyLogoUrl($settings);
+        return $this->normalizeImageUrl((string) ($images[$orderId] ?? '')) ?: $this->companyLogoUrl($settings);
     }
 
     /** @param array<string,mixed> $settings */
     private function companyLogoUrl(array $settings): string
     {
-        $logo = trim((string) ($settings['logo_path'] ?? ''));
-        return $logo !== '' && $this->isImageUrl($logo) ? base_url(ltrim($logo, '/')) : '';
+        return $this->normalizeImageUrl((string) ($settings['logo_path'] ?? ''));
     }
 
     private function issuementImageUrl(string $voucherNo, int $karigarId): string
@@ -1220,9 +1243,9 @@ class AttraiIntegrationService
             }
             $row = $db->table($table)->select('attachment_path')->where('voucher_no', $voucherNo)
                 ->where('karigar_id', $karigarId)->get()->getRowArray();
-            $path = trim((string) ($row['attachment_path'] ?? ''));
-            if ($path !== '' && $this->isImageUrl($path)) {
-                return base_url(ltrim($path, '/'));
+            $url = $this->normalizeImageUrl((string) ($row['attachment_path'] ?? ''));
+            if ($url !== '') {
+                return $url;
             }
         }
         return $this->companyLogoUrl($this->settings());
@@ -1255,17 +1278,30 @@ class AttraiIntegrationService
             ->where('request_type', 'issuement')->where('attachment_path IS NOT NULL', null, false)
             ->orderBy('id', 'DESC')->limit(30)->get()->getResultArray();
         foreach ($rows as $row) {
-            $path = trim((string) ($row['attachment_path'] ?? ''));
-            if ($path !== '' && $this->isImageUrl($path)) {
-                return base_url(ltrim($path, '/'));
+            $url = $this->normalizeImageUrl((string) ($row['attachment_path'] ?? ''));
+            if ($url !== '') {
+                return $url;
             }
         }
         return '';
     }
 
+    private function normalizeImageUrl(string $url): string
+    {
+        $url = trim($url);
+        if (! $this->isImageUrl($url)) {
+            return '';
+        }
+        $scheme = strtolower((string) (parse_url($url, PHP_URL_SCHEME) ?? ''));
+        if ($scheme !== '') {
+            return in_array($scheme, ['http', 'https'], true) ? $url : '';
+        }
+        return base_url(ltrim($url, '/'));
+    }
+
     private function isImageUrl(string $url): bool
     {
-        if (mb_strlen(trim($url)) > 200) {
+        if ($url === '' || mb_strlen(trim($url)) > 1000) {
             return false;
         }
         $path = (string) (parse_url(trim($url), PHP_URL_PATH) ?? $url);
