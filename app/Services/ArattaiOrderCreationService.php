@@ -13,6 +13,58 @@ use Throwable;
 class ArattaiOrderCreationService
 {
     /**
+     * Copy both compulsory order images to durable approval storage before the
+     * approval request is created. The returned draft can safely remain in the
+     * approval payload until an admin acts on it.
+     *
+     * @param array<string,mixed> $draft
+     * @return array{draft:array<string,mixed>,attachment_name:string,attachment_path:string}
+     */
+    public function prepareForApproval(array $draft): array
+    {
+        $reference = is_array($draft['reference_image'] ?? null) ? $draft['reference_image'] : [];
+        $signed = is_array($draft['signed_order_image'] ?? null) ? $draft['signed_order_image'] : [];
+        if (! $this->validDraftImage($reference) || ! $this->validDraftImage($signed)) {
+            throw new RuntimeException('Reference image and signed order image are required.');
+        }
+
+        $saved = [];
+        try {
+            $saved['reference_image'] = $this->storeApprovalImage($reference, 'reference');
+            $saved['signed_order_image'] = $this->storeApprovalImage($signed, 'signed');
+        } catch (Throwable $e) {
+            foreach ($saved as $image) {
+                $path = (string) ($image['temp_path'] ?? '');
+                if ($path !== '' && is_file($path)) {
+                    @unlink($path);
+                }
+            }
+            throw $e;
+        }
+
+        $draft['reference_image'] = $saved['reference_image'];
+        $draft['signed_order_image'] = $saved['signed_order_image'];
+        return [
+            'draft' => $draft,
+            'attachment_name' => (string) $saved['reference_image']['original_name'],
+            'attachment_path' => (string) $saved['reference_image']['relative_path'],
+        ];
+    }
+
+    /** @param array<string,mixed> $draft */
+    public function discardApprovalDraft(array $draft): void
+    {
+        $root = FCPATH . 'uploads/order-approvals' . DIRECTORY_SEPARATOR;
+        foreach (['reference_image', 'signed_order_image'] as $key) {
+            $image = is_array($draft[$key] ?? null) ? $draft[$key] : [];
+            $path = (string) ($image['temp_path'] ?? '');
+            if ($path !== '' && str_starts_with($path, $root) && is_file($path)) {
+                @unlink($path);
+            }
+        }
+    }
+
+    /**
      * @param array<string,mixed> $draft
      * @return array{order_id:int,order_no:string}
      */
@@ -221,6 +273,34 @@ class ArattaiOrderCreationService
         return [
             'absolute' => $absolute,
             'relative' => 'uploads/orders/' . $name,
+            'original_name' => trim((string) ($image['original_name'] ?? '')) ?: $name,
+        ];
+    }
+
+    /** @param array<string,mixed> $image @return array<string,string> */
+    private function storeApprovalImage(array $image, string $label): array
+    {
+        $source = (string) ($image['temp_path'] ?? '');
+        if (! $this->validDraftImage($image)) {
+            throw new RuntimeException('A required order image is missing.');
+        }
+        $extension = strtolower((string) ($image['extension'] ?? pathinfo($source, PATHINFO_EXTENSION)));
+        if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+            throw new RuntimeException('Only JPG, PNG and WEBP order images are allowed.');
+        }
+        $directory = FCPATH . 'uploads/order-approvals';
+        if (! is_dir($directory) && ! mkdir($directory, 0775, true) && ! is_dir($directory)) {
+            throw new RuntimeException('Unable to create the order approval upload directory.');
+        }
+        $name = 'arattai_' . $label . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(5)) . '.' . $extension;
+        $absolute = $directory . DIRECTORY_SEPARATOR . $name;
+        if (! copy($source, $absolute)) {
+            throw new RuntimeException('Could not store an Arattai order approval image.');
+        }
+        return [
+            'temp_path' => $absolute,
+            'relative_path' => 'uploads/order-approvals/' . $name,
+            'extension' => $extension,
             'original_name' => trim((string) ($image['original_name'] ?? '')) ?: $name,
         ];
     }

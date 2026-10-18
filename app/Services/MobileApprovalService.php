@@ -22,7 +22,7 @@ use Throwable;
 
 class MobileApprovalService
 {
-    public const TYPES = ['customer_create', 'karigar_create', 'issuement', 'followup', 'delivery_challan'];
+    public const TYPES = ['customer_create', 'karigar_create', 'order_create', 'issuement', 'followup', 'delivery_challan'];
 
     public function __construct(private ?BaseConnection $db = null)
     {
@@ -149,6 +149,9 @@ class MobileApprovalService
             $this->db->transRollback();
             throw $e;
         }
+        if (is_array($before) && (string) ($before['request_type'] ?? '') === 'order_create') {
+            (new ArattaiOrderCreationService())->discardApprovalDraft((array) ($before['payload'] ?? []));
+        }
         $request = $this->find($id) ?? [];
         try {
             (new MobileNotificationEventService())->notifyApprovalOutcome($request ?: ($before ?? []), false);
@@ -187,6 +190,7 @@ class MobileApprovalService
             $result = match ((string) $request['request_type']) {
                 'customer_create' => $this->approveCustomer($payload),
                 'karigar_create' => $this->approveKarigar($payload),
+                'order_create' => $this->approveOrder($payload, $request),
                 'issuement' => $this->approveIssuement($payload, $request),
                 'followup' => $this->approveFollowup($payload, $request, $reviewerId, $note, $awardFollowupPoints),
                 'delivery_challan' => $this->approveDeliveryChallan($payload, $request),
@@ -516,6 +520,29 @@ class MobileApprovalService
             'table' => 'delivery_challans',
             'id' => (int) ($challan['id'] ?? 0),
             'reference' => (string) ($challan['challan_no'] ?? ''),
+        ];
+    }
+
+    /** @param array<string,mixed> $payload @param array<string,mixed> $request */
+    private function approveOrder(array $payload, array $request): array
+    {
+        $created = (new ArattaiOrderCreationService())->create(
+            $payload,
+            (int) ($request['requested_by'] ?? 0)
+        );
+        $arattaiUserId = preg_replace('/\D+/', '', (string) ($payload['_arattai_user_id'] ?? '')) ?? '';
+        if ($arattaiUserId !== '' && $this->db->tableExists('arattai_order_conversations')) {
+            $this->db->table('arattai_order_conversations')->where('arattai_user_id', $arattaiUserId)->update([
+                'status' => 'completed',
+                'order_id' => (int) ($created['order_id'] ?? 0),
+                'expires_at' => null,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+        return [
+            'table' => 'orders',
+            'id' => (int) ($created['order_id'] ?? 0),
+            'reference' => (string) ($created['order_no'] ?? ''),
         ];
     }
 

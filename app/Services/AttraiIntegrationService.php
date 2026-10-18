@@ -69,10 +69,11 @@ class AttraiIntegrationService
             : $this->defaultApprovalMessage($variables, $requestType === 'followup');
 
         $queueIds = [];
+        $dispatches = [];
         foreach ($this->approvalUserIds($settings) as $userId) {
             $perRecipient = $variables + ['to' => $userId, 'message' => $message];
             $requestPayload = $this->approvalRequestPayload($settings, $perRecipient, $actions);
-            $queueIds[] = $this->queueService->enqueue([
+            $queueId = $this->queueService->enqueue([
                 'event_key' => 'approval_requested',
                 'provider_key' => 'attrai',
                 'source_type' => 'mobile_approval_requests',
@@ -87,12 +88,23 @@ class AttraiIntegrationService
                 'request_payload' => $requestPayload,
                 'scheduled_at' => date('Y-m-d H:i:s'),
             ]);
+            $queueIds[] = $queueId;
+            // Approval cards are an interactive response path and must not wait
+            // for the notification cron. Failed attempts remain auditable and
+            // can still be retried by the sender queue.
+            $dispatches[] = $this->queueService->dispatchById($queueId);
         }
 
+        $sent = count(array_filter(
+            $dispatches,
+            static fn(array $dispatch): bool => (string) ($dispatch['status'] ?? '') === 'sent'
+        ));
+
         return [
-            'status' => $queueIds === [] ? 'skipped' : 'queued',
-            'message' => $queueIds === [] ? 'No approval admin Arattai user ID is configured.' : 'Arattai approval message queued.',
+            'status' => $queueIds === [] ? 'skipped' : ($sent === count($queueIds) ? 'sent' : 'queued'),
+            'message' => $queueIds === [] ? 'No approval admin Arattai user ID is configured.' : 'Arattai approval message processed immediately.',
             'queue_ids' => $queueIds,
+            'dispatches' => $dispatches,
         ];
     }
 
@@ -402,6 +414,9 @@ class AttraiIntegrationService
         $message = $isRejected
             ? "*{$label} Disapproved*\nYour request was disapproved."
             : "*{$label} Approved Successfully*\nYour request has been approved.";
+        if (! $isRejected && trim((string) ($request['result_reference'] ?? '')) !== '') {
+            $message .= "\nReference: " . trim((string) $request['result_reference']);
+        }
         if ($type === 'followup') {
             $message .= $points > 0
                 ? "\nCongratulations! You received +" . $this->formatPoints($points) . ' points.'
@@ -437,6 +452,23 @@ class AttraiIntegrationService
                     );
                 } catch (Throwable $e) {
                     log_message('error', 'Arattai approved issuement PDF failed: {message}', ['message' => $e->getMessage()]);
+                }
+            }
+        }
+        if (! $isRejected && $type === 'delivery_challan') {
+            $challanId = (int) ($request['result_id'] ?? 0);
+            if ($challanId > 0) {
+                try {
+                    $this->sendConversationDocument(
+                        'delivery_challan_approved_pdf',
+                        $userId,
+                        'Approved Delivery Challan · ' . ((string) ($request['result_reference'] ?? '') ?: ('#' . $challanId)),
+                        base_url('api/documents/delivery-challans/' . $challanId . '?download=1'),
+                        'mobile_approval_requests',
+                        (int) ($request['id'] ?? 0)
+                    );
+                } catch (Throwable $e) {
+                    log_message('error', 'Arattai approved delivery challan PDF failed: {message}', ['message' => $e->getMessage()]);
                 }
             }
         }
@@ -585,6 +617,10 @@ class AttraiIntegrationService
                 $body .= "\nDelay: " . $delayDays . ' day(s)'
                     . "\nPerformance impact: -2 points for this delay tier";
             }
+            $interactive = $this->quickReplyPayload($userId, $body, [
+                ['id' => 'take-follow-up', 'label' => 'Take Follow-up'],
+                ['id' => 'menu', 'label' => 'Menu'],
+            ], $this->orderImageUrl((int) $row['id'], $this->settings()));
             $result = $this->sendConversationMessage(
                 $event,
                 $userId,
@@ -594,7 +630,8 @@ class AttraiIntegrationService
                 (int) $row['id'],
                 $this->orderImageUrl((int) $row['id'], $this->settings()),
                 false,
-                $slot
+                $slot,
+                $interactive
             );
             $queued += ($result['status'] ?? '') === 'queued' ? 1 : 0;
         }
@@ -795,6 +832,13 @@ class AttraiIntegrationService
                 if ((string) ($replyContext['source_type'] ?? '') === 'arattai_preview') {
                     $this->sendConversationMessage('preview_action_reply', $userId, 'This is a design preview only. No ERP data was changed.', 'arattai_preview');
                     return ['status' => 'preview', 'message' => 'Preview action acknowledged.'];
+                }
+                if (in_array((string) ($replyContext['event_key'] ?? ''), ['followup_overdue', 'followup_upcoming'], true)
+                    && ($buttonId !== '' || strcasecmp(trim($text), 'Take Follow-up') === 0)) {
+                    $sourceId = (int) ($replyContext['source_id'] ?? 0);
+                    if ($sourceId > 0 && strcasecmp(trim($text), 'Menu') !== 0) {
+                        $text = 'take follow-up ' . $sourceId;
+                    }
                 }
             }
         }
@@ -1494,6 +1538,19 @@ class AttraiIntegrationService
             if (trim((string) ($previous['stage'] ?? '')) !== '') $lines[] = 'Previous stage: ' . trim((string) $previous['stage']);
             if (trim((string) ($previous['description'] ?? '')) !== '') $lines[] = 'Previous note: ' . trim((string) $previous['description']);
             if (trim((string) ($previous['followup_taken_on'] ?? '')) !== '') $lines[] = 'Previous follow-up: ' . trim((string) $previous['followup_taken_on']);
+        } elseif ($type === 'order_create') {
+            foreach ([
+                'customer_id' => 'Order From ID',
+                'end_customer_name' => 'Customer',
+                'contact_number' => 'Mobile',
+                'sales_executive_name' => 'Sales executive',
+                'material_category' => 'Category',
+                'item_description' => 'Item',
+                'due_date' => 'Delivery date',
+            ] as $key => $label) {
+                $value = trim((string) ($payload[$key] ?? ''));
+                if ($value !== '') $lines[] = $label . ': ' . $value;
+            }
         } elseif ($type === 'issuement') {
             if ($variables['karigar_name'] !== '') $lines[] = 'Karigar: ' . $variables['karigar_name'];
             if ($variables['location_name'] !== '') $lines[] = 'Location: ' . $variables['location_name'];
@@ -1525,6 +1582,7 @@ class AttraiIntegrationService
     {
         return match ($type) {
             'followup' => 'Follow-up',
+            'order_create' => 'Order creation',
             'issuement' => 'Issuement',
             'customer_create' => 'Customer creation',
             'karigar_create' => 'Karigar creation',
@@ -1538,6 +1596,9 @@ class AttraiIntegrationService
     {
         $payload = is_array($request['payload'] ?? null) ? $request['payload'] : [];
         $id = (int) ($payload['order_id'] ?? 0);
+        if ($id <= 0 && (string) ($request['request_type'] ?? '') === 'order_create') {
+            $id = (int) ($request['result_id'] ?? 0);
+        }
         return $id > 0 ? $id : null;
     }
 

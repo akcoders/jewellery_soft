@@ -21,7 +21,7 @@ class ArattaiTransactionConversationService
     private const PREFIX = 'erp_';
     private const MENU_COMMANDS = [
         'follow-up', 'followup', 'issuement', 'return', 'bag creation',
-        'receiving', 'packing list', 'delivery challan',
+        'purchase', 'receiving', 'packing list', 'delivery challan',
     ];
 
     public function __construct(private ?ArattaiOrderConversationModel $model = null)
@@ -75,6 +75,30 @@ class ArattaiTransactionConversationService
             return ['handled' => true, 'status' => 'cancelled', 'message' => 'Arattai ERP transaction cancelled.'];
         }
 
+        if (preg_match('/^take[\s-]*follow[\s-]*up\s+(\d+)$/i', trim($text), $takeMatch) === 1) {
+            $order = db_connect()->table('orders')
+                ->select('id, order_no, order_name, followup_assigned_to, status')
+                ->where('id', (int) $takeMatch[1])->where('deleted_at', null)->get()->getRowArray();
+            if (! is_array($order)
+                || (int) ($order['followup_assigned_to'] ?? 0) !== $actorId
+                || $this->terminalStage((string) ($order['status'] ?? ''))) {
+                $sendText('arattai_followup_unavailable', 'This order is no longer available for your follow-up.');
+                return ['handled' => true, 'status' => 'unavailable', 'message' => 'Follow-up order unavailable.'];
+            }
+            if ($activeTransaction) {
+                $this->cleanupImages($this->data($session));
+                $this->finish($session, 'cancelled');
+            }
+            $session = $this->start($userId, $actorId, 'erp_followup_stage', [
+                'module' => 'follow-up',
+                'order_id' => (int) $order['id'],
+                'order_no' => (string) ($order['order_no'] ?? ''),
+                'order_name' => (string) ($order['order_name'] ?? ''),
+            ]);
+            $this->prompt($session, $sendText, $sendOptions);
+            return ['handled' => true, 'status' => 'started', 'message' => 'Follow-up started for selected order.'];
+        }
+
         if (in_array($command, self::MENU_COMMANDS, true)) {
             if ($activeTransaction) {
                 $this->cleanupImages($this->data($session));
@@ -89,9 +113,10 @@ class ArattaiTransactionConversationService
                 'issuement' => 'erp_issue_karigar',
                 'return' => 'erp_return_bag',
                 'bag creation' => 'erp_bag_order',
+                'purchase' => 'erp_purchase_type',
                 'receiving' => 'erp_receive_order',
                 'packing list' => 'erp_packing_order',
-                'delivery challan' => 'erp_challan_order',
+                'delivery challan' => 'erp_challan_mode',
                 default => '',
             };
             $session = $this->start($userId, $actorId, $step, ['module' => $normalized]);
@@ -151,6 +176,12 @@ class ArattaiTransactionConversationService
         }
         if (str_starts_with($step, 'erp_receive_')) {
             return $this->acceptReceiving($session, $step, $data, $text, $actorId, $sendText, $sendOptions, $sendDocument);
+        }
+        if (str_starts_with($step, 'erp_purchase_')) {
+            return $this->acceptPurchase($payload, $session, $step, $data, $text, $actorId, $sendText, $sendOptions);
+        }
+        if (str_starts_with($step, 'erp_custom_challan_') || $step === 'erp_challan_mode') {
+            return $this->acceptCustomChallan($session, $step, $data, $text, $actorId, $sendText, $sendOptions, $sendDocument);
         }
         if (in_array($step, ['erp_packing_order', 'erp_challan_order'], true)) {
             return $this->acceptDocument($session, $step, $data, $text, $actorId, $sendText, $sendDocument);
@@ -787,6 +818,260 @@ class ArattaiTransactionConversationService
         return ['handled' => true, 'status' => 'document_sent', 'message' => $caption . ' sent.'];
     }
 
+    /** @param array<string,mixed> $payload @param array<string,mixed> $session @param array<string,mixed> $data */
+    private function acceptPurchase(
+        array $payload,
+        array $session,
+        string $step,
+        array $data,
+        string $text,
+        int $actorId,
+        callable $sendText,
+        callable $sendOptions
+    ): array {
+        switch ($step) {
+            case 'erp_purchase_type':
+                $type = ucfirst(strtolower($text));
+                if (! in_array($type, ['Gold', 'Diamond', 'Stone'], true)) throw new RuntimeException('Select Gold, Diamond or Stone.');
+                $data['purchase_type'] = $type;
+                $data['items'] = [];
+                return $this->advance($session, 'erp_purchase_vendor', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_vendor':
+                $row = $this->selected($text, $data, 'vendors', 'id', ['name']);
+                if (! is_array($row)) throw new RuntimeException('Select an active vendor.');
+                $data['vendor_id'] = (int) $row['id'];
+                $data['vendor_name'] = (string) $row['name'];
+                return $this->advance($session, 'erp_purchase_date', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_date':
+                $date = strcasecmp($text, 'Today') === 0 ? date('Y-m-d') : $this->dateOnly($text);
+                if ($date === null) throw new RuntimeException('Enter a valid purchase date, for example 18/10/2026.');
+                $data['purchase_date'] = $date;
+                return $this->advance($session, 'erp_purchase_location', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_location':
+                $row = $this->selected($text, $data, 'inventory_locations', 'id', ['name', 'code']);
+                if (! is_array($row)) throw new RuntimeException('Select an inventory location.');
+                $data['location_id'] = (int) $row['id'];
+                $data['location_name'] = (string) $row['name'];
+                return $this->advance($session, 'erp_purchase_invoice', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_invoice':
+                if ($text === '' || mb_strlen($text) > 80) throw new RuntimeException('Enter an invoice number up to 80 characters.');
+                $data['invoice_no'] = $text;
+                $next = ($data['purchase_type'] ?? '') === 'Gold' ? 'erp_purchase_gst' : 'erp_purchase_due';
+                return $this->advance($session, $next, $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_due':
+                $date = $this->dateOnly($text);
+                if ($date === null) throw new RuntimeException('Enter a valid payment due date.');
+                $data['payment_due_date'] = $date;
+                return $this->advance($session, 'erp_purchase_gst', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_gst':
+                $row = $this->selected($text, $data, 'gst_masters', 'id', ['name']);
+                if (! is_array($row)) throw new RuntimeException('Select an active GST master.');
+                $data['gst_master_id'] = (int) $row['id'];
+                $data['gst_label'] = (string) $row['name'];
+                return $this->advance($session, 'erp_purchase_taxable', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_taxable':
+                $amount = $this->positive($text);
+                if ($amount === null) throw new RuntimeException('Enter taxable invoice amount greater than zero.');
+                $data['taxable_amount'] = round($amount, 2);
+                $data['round_off_amount'] = 0;
+                return $this->advance($session, 'erp_purchase_material', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_material':
+                if ($text === '' || mb_strlen($text) > 120) throw new RuntimeException('Enter material name/shape up to 120 characters.');
+                $data['pending_item'] = ['item_type' => (string) $data['purchase_type'], 'material_name' => $text];
+                $next = match ((string) $data['purchase_type']) {
+                    'Gold' => 'erp_purchase_purity',
+                    'Diamond' => 'erp_purchase_diamond_details',
+                    default => 'erp_purchase_stone_details',
+                };
+                return $this->advance($session, $next, $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_purity':
+                $row = $this->selected($text, $data, 'gold_purities', 'id', ['purity_code']);
+                if (! is_array($row)) throw new RuntimeException('Select a gold purity.');
+                $data['pending_item']['gold_purity_id'] = (int) $row['id'];
+                $data['pending_item']['purity_label'] = (string) $row['purity_code'];
+                return $this->advance($session, 'erp_purchase_weight', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_diamond_details':
+                $parts = array_map('trim', explode(',', $text));
+                $data['pending_item']['diamond_shape'] = (string) ($parts[0] ?? $data['pending_item']['material_name']);
+                $data['pending_item']['diamond_sieve'] = (string) ($parts[1] ?? '');
+                $data['pending_item']['diamond_color'] = (string) ($parts[2] ?? '');
+                $data['pending_item']['diamond_clarity'] = (string) ($parts[3] ?? '');
+                return $this->advance($session, 'erp_purchase_pcs', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_stone_details':
+                $parts = array_map('trim', explode(',', $text));
+                $data['pending_item']['diamond_sieve'] = (string) ($parts[0] ?? '');
+                $data['pending_item']['diamond_color'] = (string) ($parts[1] ?? '');
+                $data['pending_item']['diamond_clarity'] = (string) ($parts[2] ?? '');
+                return $this->advance($session, 'erp_purchase_pcs', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_pcs':
+                $pcs = $this->nonNegative($text);
+                if ($pcs === null || floor($pcs) !== $pcs) throw new RuntimeException('Enter whole PCS, 0 allowed.');
+                $data['pending_item']['pcs'] = (int) $pcs;
+                return $this->advance($session, 'erp_purchase_cts', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_weight':
+            case 'erp_purchase_cts':
+                $weight = $this->positive($text);
+                if ($weight === null) throw new RuntimeException('Enter a weight greater than zero.');
+                if ($step === 'erp_purchase_weight') $data['pending_item']['weight_gm'] = $weight;
+                else $data['pending_item']['cts'] = $weight;
+                $data['items'][] = $data['pending_item'];
+                unset($data['pending_item']);
+                return $this->advance($session, 'erp_purchase_more', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_more':
+                if (strcasecmp($text, 'Add Another Item') === 0) return $this->advance($session, 'erp_purchase_material', $data, $actorId, $sendText, $sendOptions);
+                if (strcasecmp($text, 'Finish Items') !== 0) throw new RuntimeException('Select Add Another Item or Finish Items.');
+                return $this->advance($session, 'erp_purchase_bill', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_bill':
+                $data['purchase_bill'] = (new ArattaiOrderConversationService())->storeIncomingAttachment($payload, 'purchase-bill');
+                return $this->advance($session, 'erp_purchase_notes', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_notes':
+                $data['notes'] = in_array(mb_strtolower($text), ['skip', 'skip notes'], true) ? '' : mb_substr($text, 0, 1000);
+                return $this->advance($session, 'erp_purchase_confirm', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_purchase_confirm':
+                if (strcasecmp($text, 'Confirm Purchase') !== 0) throw new RuntimeException('Tap Confirm Purchase to create it.');
+                if (! $this->claim($session)) {
+                    $sendText('arattai_purchase_duplicate', 'This purchase was already created or is being processed.');
+                    return ['handled' => true, 'status' => 'duplicate', 'message' => 'Purchase already processed.'];
+                }
+                try {
+                    $result = (new ArattaiPurchaseService())->create($data, $actorId);
+                    $data['purchase_id'] = (int) $result['id'];
+                    $data['purchase_no'] = (string) $result['purchase_no'];
+                    $this->complete($session, $data, null);
+                    $sendText('arattai_purchase_created', 'Purchase ' . $data['purchase_no'] . ' created successfully with the attached bill.');
+                    return ['handled' => true, 'status' => 'created', 'message' => 'Purchase created.'];
+                } catch (Throwable $e) {
+                    $this->release($session, $data);
+                    throw $e;
+                }
+        }
+        throw new RuntimeException('Invalid purchase step.');
+    }
+
+    /** @param array<string,mixed> $session @param array<string,mixed> $data */
+    private function acceptCustomChallan(
+        array $session,
+        string $step,
+        array $data,
+        string $text,
+        int $actorId,
+        callable $sendText,
+        callable $sendOptions,
+        callable $sendDocument
+    ): array {
+        switch ($step) {
+            case 'erp_challan_mode':
+                if (strcasecmp($text, 'From Received Order') === 0) return $this->advance($session, 'erp_challan_order', $data, $actorId, $sendText, $sendOptions);
+                if (strcasecmp($text, 'Custom Delivery Challan') !== 0) throw new RuntimeException('Select received order challan or custom delivery challan.');
+                $data['items'] = [];
+                return $this->advance($session, 'erp_custom_challan_customer', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_customer':
+                $row = $this->selected($text, $data, 'customers', 'id', ['name']);
+                if (! is_array($row)) throw new RuntimeException('Select an active customer.');
+                $data['customer_id'] = (int) $row['id'];
+                $data['customer_name'] = (string) $row['name'];
+                return $this->advance($session, 'erp_custom_challan_date', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_date':
+                $date = strcasecmp($text, 'Today') === 0 ? date('Y-m-d') : $this->dateOnly($text);
+                if ($date === null) throw new RuntimeException('Enter a valid challan date.');
+                $data['challan_date'] = $date;
+                return $this->advance($session, 'erp_custom_challan_branch', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_branch':
+                $branch = ucfirst(strtolower($text));
+                if (! in_array($branch, ['Mumbai', 'Hyderabad'], true)) throw new RuntimeException('Select Mumbai or Hyderabad.');
+                $data['dispatch_from'] = $branch;
+                return $this->advance($session, 'erp_custom_challan_type', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_type':
+                $type = match (mb_strtolower($text)) {
+                    'ornament' => 'ornament', 'loose diamond' => 'loose_diamond', 'loose gold' => 'loose_gold', default => '',
+                };
+                if ($type === '') throw new RuntimeException('Select Ornament, Loose Diamond or Loose Gold.');
+                $data['pending_item'] = ['item_type' => $type];
+                return $this->advance($session, 'erp_custom_challan_description', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_description':
+                if ($text === '') throw new RuntimeException('Enter item description.');
+                $data['pending_item']['description'] = mb_substr($text, 0, 255);
+                $next = ($data['pending_item']['item_type'] ?? '') === 'ornament' ? 'erp_custom_challan_purity' : 'erp_custom_challan_pcs';
+                return $this->advance($session, $next, $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_purity':
+                $purity = strtoupper($text);
+                if (! in_array($purity, ['14 KT', '18 KT', '22 KT'], true)) throw new RuntimeException('Select 14 KT, 18 KT or 22 KT.');
+                $data['pending_item']['purity'] = $purity;
+                return $this->advance($session, 'erp_custom_challan_pcs', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_pcs':
+                $pcs = $this->positive($text);
+                if ($pcs === null || floor($pcs) !== $pcs) throw new RuntimeException('Enter whole PCS greater than zero.');
+                $data['pending_item']['pcs'] = (int) $pcs;
+                $next = match ((string) ($data['pending_item']['item_type'] ?? '')) {
+                    'ornament' => 'erp_custom_challan_gross', 'loose_diamond' => 'erp_custom_challan_diamond', default => 'erp_custom_challan_net',
+                };
+                return $this->advance($session, $next, $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_gross':
+                $value = $this->positive($text);
+                if ($value === null) throw new RuntimeException('Enter gross weight greater than zero.');
+                $data['pending_item']['gross_weight_gm'] = $value;
+                return $this->advance($session, 'erp_custom_challan_net', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_net':
+                $value = $this->positive($text);
+                if ($value === null) throw new RuntimeException('Enter net/gold weight greater than zero.');
+                $data['pending_item']['net_weight_gm'] = $value;
+                return $this->advance($session, 'erp_custom_challan_value', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_diamond':
+                $value = $this->positive($text);
+                if ($value === null) throw new RuntimeException('Enter diamond carat weight greater than zero.');
+                $data['pending_item']['diamond_weight_cts'] = $value;
+                return $this->advance($session, 'erp_custom_challan_value', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_value':
+                $value = $this->nonNegative($text);
+                if ($value === null) throw new RuntimeException('Enter a non-negative item value.');
+                $data['pending_item']['value'] = round($value, 2);
+                $data['items'][] = $data['pending_item'];
+                unset($data['pending_item']);
+                return $this->advance($session, 'erp_custom_challan_more', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_more':
+                if (strcasecmp($text, 'Add Another Item') === 0) return $this->advance($session, 'erp_custom_challan_type', $data, $actorId, $sendText, $sendOptions);
+                if (strcasecmp($text, 'Finish Items') !== 0) throw new RuntimeException('Select Add Another Item or Finish Items.');
+                return $this->advance($session, 'erp_custom_challan_gst', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_gst':
+                $rate = (float) str_replace('%', '', trim($text));
+                if (! in_array($rate, [0.0, 3.0, 5.0, 12.0, 18.0], true)) throw new RuntimeException('Select a valid GST rate.');
+                $data['tax_percent'] = $rate;
+                return $this->advance($session, 'erp_custom_challan_notes', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_notes':
+                $data['notes'] = in_array(mb_strtolower($text), ['skip', 'skip notes'], true) ? '' : mb_substr($text, 0, 1000);
+                return $this->advance($session, 'erp_custom_challan_confirm', $data, $actorId, $sendText, $sendOptions);
+            case 'erp_custom_challan_confirm':
+                if (strcasecmp($text, 'Confirm Challan') !== 0) throw new RuntimeException('Tap Confirm Challan to continue.');
+                if (! $this->claim($session)) {
+                    $sendText('arattai_challan_duplicate', 'This challan was already submitted or is being processed.');
+                    return ['handled' => true, 'status' => 'duplicate', 'message' => 'Challan already processed.'];
+                }
+                try {
+                    $validated = (new DeliveryChallanService())->validatedPayload($data);
+                    if ((new MobileUserPolicyService())->requiresApproval($actorId, 'delivery_challan')) {
+                        $request = (new MobileApprovalService())->submit(
+                            'delivery_challan', $validated, $actorId,
+                            'Custom delivery challan for ' . (string) $data['customer_name']
+                        );
+                        $data['approval_request_id'] = (int) ($request['id'] ?? 0);
+                        $this->complete($session, $data, null);
+                        $sendText('arattai_challan_submitted', 'Custom delivery challan sent for approval. Request #' . $data['approval_request_id'] . '. PDF will be sent after approval.');
+                        return ['handled' => true, 'status' => 'submitted', 'message' => 'Challan submitted for approval.'];
+                    }
+                    $challan = (new DeliveryChallanService())->create($validated, $actorId);
+                    $id = (int) ($challan['id'] ?? 0);
+                    $this->complete($session, $data, null);
+                    $sendText('arattai_challan_created', 'Delivery Challan ' . (string) ($challan['challan_no'] ?? ('#' . $id)) . ' created successfully.');
+                    $sendDocument('arattai_challan_pdf', 'Delivery Challan · ' . (string) ($challan['challan_no'] ?? $id), base_url('api/documents/delivery-challans/' . $id . '?download=1'));
+                    return ['handled' => true, 'status' => 'created', 'message' => 'Custom challan created.'];
+                } catch (Throwable $e) {
+                    $this->release($session, $data);
+                    throw $e;
+                }
+        }
+        throw new RuntimeException('Invalid custom delivery challan step.');
+    }
+
     /** @param array<string,mixed> $session */
     private function prompt(array $session, callable $sendText, callable $sendOptions): void
     {
@@ -974,6 +1259,118 @@ class ArattaiTransactionConversationService
                 return;
             case 'erp_receive_confirm':
                 $sendOptions('arattai_receive_confirm', $this->receivingSummary($data), ['Confirm Receiving', 'Cancel Current Process']);
+                return;
+
+            case 'erp_purchase_type':
+                $sendOptions('arattai_purchase_type', 'Select purchase type:', ['Gold', 'Diamond', 'Stone', 'Cancel Current Process']);
+                return;
+            case 'erp_purchase_vendor':
+                $rows = $db->table('vendors')->select('id, name')->where('is_active', 1)->orderBy('name')->limit(8)->get()->getResultArray();
+                $this->sendRows($session, 'vendors', $rows, 'id', ['name'], 'Select purchase vendor:', $sendOptions);
+                return;
+            case 'erp_purchase_date':
+                $sendOptions('arattai_purchase_date', 'Enter purchase date (DD/MM/YYYY) or choose Today:', ['Today', 'Cancel Current Process']);
+                return;
+            case 'erp_purchase_location':
+                $rows = $db->table('inventory_locations')->select('id, name, code')->where('is_active', 1)->orderBy('name')->limit(8)->get()->getResultArray();
+                $this->sendRows($session, 'inventory_locations', $rows, 'id', ['name', 'code'], 'Select inventory location:', $sendOptions);
+                return;
+            case 'erp_purchase_invoice':
+                $sendText('arattai_purchase_invoice', 'Enter vendor invoice number.');
+                return;
+            case 'erp_purchase_due':
+                $sendText('arattai_purchase_due', 'Enter payment due date (DD/MM/YYYY).');
+                return;
+            case 'erp_purchase_gst':
+                $rows = array_slice((new TaxMasterService())->options(), 0, 8);
+                $this->sendRows($session, 'gst_masters', $rows, 'id', ['name', 'total_percentage'], 'Select GST master:', $sendOptions);
+                return;
+            case 'erp_purchase_taxable':
+                $sendText('arattai_purchase_taxable', 'Enter taxable invoice amount before GST.');
+                return;
+            case 'erp_purchase_material':
+                $sendText('arattai_purchase_material', 'Enter material name' . (($data['purchase_type'] ?? '') === 'Diamond' ? '/diamond shape' : '') . '.');
+                return;
+            case 'erp_purchase_purity':
+                $rows = $db->table('gold_purities')->select('id, purity_code, purity_percent')->where('is_active', 1)->orderBy('purity_percent', 'DESC')->limit(8)->get()->getResultArray();
+                $this->sendRows($session, 'gold_purities', $rows, 'id', ['purity_code', 'purity_percent'], 'Select gold purity:', $sendOptions);
+                return;
+            case 'erp_purchase_diamond_details':
+                $sendText('arattai_purchase_diamond_details', 'Enter Shape, Size, Color, Clarity separated by commas. Example: Round, 2.5 mm, EF, VVS.');
+                return;
+            case 'erp_purchase_stone_details':
+                $sendText('arattai_purchase_stone_details', 'Enter Size, Color, Quality separated by commas.');
+                return;
+            case 'erp_purchase_pcs':
+                $sendText('arattai_purchase_pcs', 'Enter item PCS (0 allowed).');
+                return;
+            case 'erp_purchase_weight':
+                $sendText('arattai_purchase_weight', 'Enter gold weight in grams.');
+                return;
+            case 'erp_purchase_cts':
+                $sendText('arattai_purchase_cts', 'Enter item weight in carats.');
+                return;
+            case 'erp_purchase_more':
+                $sendOptions('arattai_purchase_more', $this->purchaseSummary($data), ['Add Another Item', 'Finish Items', 'Cancel Current Process']);
+                return;
+            case 'erp_purchase_bill':
+                $sendText('arattai_purchase_bill', 'Upload the Purchase Bill now (PDF/JPG/PNG/WEBP, maximum 10 MB). Bill is compulsory.');
+                return;
+            case 'erp_purchase_notes':
+                $sendOptions('arattai_purchase_notes', 'Enter purchase notes, or Skip.', ['Skip Notes', 'Cancel Current Process']);
+                return;
+            case 'erp_purchase_confirm':
+                $sendOptions('arattai_purchase_confirm', $this->purchaseSummary($data) . "\nBill: Attached (compulsory)", ['Confirm Purchase', 'Cancel Current Process']);
+                return;
+
+            case 'erp_challan_mode':
+                $sendOptions('arattai_challan_mode', 'Choose Delivery Challan type:', ['From Received Order', 'Custom Delivery Challan', 'Cancel Current Process']);
+                return;
+            case 'erp_custom_challan_customer':
+                $rows = $db->table('customers')->select('id, name')->where('is_active', 1)->where('deleted_at', null)->orderBy('name')->limit(8)->get()->getResultArray();
+                $this->sendRows($session, 'customers', $rows, 'id', ['name'], 'Select customer for custom challan:', $sendOptions);
+                return;
+            case 'erp_custom_challan_date':
+                $sendOptions('arattai_custom_challan_date', 'Enter challan date (DD/MM/YYYY) or choose Today:', ['Today', 'Cancel Current Process']);
+                return;
+            case 'erp_custom_challan_branch':
+                $sendOptions('arattai_custom_challan_branch', 'Select dispatch branch:', ['Mumbai', 'Hyderabad', 'Cancel Current Process']);
+                return;
+            case 'erp_custom_challan_type':
+                $sendOptions('arattai_custom_challan_type', 'Select challan item type:', ['Ornament', 'Loose Diamond', 'Loose Gold', 'Cancel Current Process']);
+                return;
+            case 'erp_custom_challan_description':
+                $sendText('arattai_custom_challan_description', 'Enter item description.');
+                return;
+            case 'erp_custom_challan_purity':
+                $sendOptions('arattai_custom_challan_purity', 'Select ornament purity:', ['14 KT', '18 KT', '22 KT', 'Cancel Current Process']);
+                return;
+            case 'erp_custom_challan_pcs':
+                $sendText('arattai_custom_challan_pcs', 'Enter whole PCS greater than zero.');
+                return;
+            case 'erp_custom_challan_gross':
+                $sendText('arattai_custom_challan_gross', 'Enter gross weight in grams.');
+                return;
+            case 'erp_custom_challan_net':
+                $sendText('arattai_custom_challan_net', 'Enter net/gold weight in grams.');
+                return;
+            case 'erp_custom_challan_diamond':
+                $sendText('arattai_custom_challan_diamond', 'Enter diamond weight in carats.');
+                return;
+            case 'erp_custom_challan_value':
+                $sendText('arattai_custom_challan_value', 'Enter item value (0 allowed).');
+                return;
+            case 'erp_custom_challan_more':
+                $sendOptions('arattai_custom_challan_more', $this->challanSummary($data), ['Add Another Item', 'Finish Items', 'Cancel Current Process']);
+                return;
+            case 'erp_custom_challan_gst':
+                $sendOptions('arattai_custom_challan_gst', 'Select GST rate:', ['0%', '3%', '5%', '12%', '18%', 'Cancel Current Process']);
+                return;
+            case 'erp_custom_challan_notes':
+                $sendOptions('arattai_custom_challan_notes', 'Enter challan notes, or Skip.', ['Skip Notes', 'Cancel Current Process']);
+                return;
+            case 'erp_custom_challan_confirm':
+                $sendOptions('arattai_custom_challan_confirm', $this->challanSummary($data), ['Confirm Challan', 'Cancel Current Process']);
                 return;
 
             case 'erp_packing_order':
@@ -1289,6 +1686,30 @@ class ArattaiTransactionConversationService
             . ($warnings !== [] ? "\n" . implode("\n", $warnings) : '');
     }
 
+    /** @param array<string,mixed> $data */
+    private function purchaseSummary(array $data): string
+    {
+        return "*Purchase Draft*\nType: " . ($data['purchase_type'] ?? '-')
+            . "\nVendor: " . ($data['vendor_name'] ?? '-')
+            . "\nInvoice: " . ($data['invoice_no'] ?? '-')
+            . "\nLocation: " . ($data['location_name'] ?? '-')
+            . "\nTaxable: " . number_format((float) ($data['taxable_amount'] ?? 0), 2)
+            . "\nGST: " . ($data['gst_label'] ?? '-')
+            . "\nItems: " . count((array) ($data['items'] ?? []));
+    }
+
+    /** @param array<string,mixed> $data */
+    private function challanSummary(array $data): string
+    {
+        $value = array_sum(array_map(static fn(array $row): float => (float) ($row['value'] ?? 0), (array) ($data['items'] ?? [])));
+        return "*Custom Delivery Challan*\nCustomer: " . ($data['customer_name'] ?? '-')
+            . "\nDate: " . ($data['challan_date'] ?? '-')
+            . "\nDispatch: " . ($data['dispatch_from'] ?? '-')
+            . "\nItems: " . count((array) ($data['items'] ?? []))
+            . "\nValue: " . number_format($value, 2)
+            . "\nGST: " . number_format((float) ($data['tax_percent'] ?? 0), 2) . '%';
+    }
+
     /** @param list<string> $labels */
     private function matchLabel(string $text, array $labels): string
     {
@@ -1331,6 +1752,16 @@ class ArattaiTransactionConversationService
         }
         $time = strtotime($value);
         return $time === false ? null : date('Y-m-d H:i:s', $time);
+    }
+
+    private function dateOnly(string $value): ?string
+    {
+        $value = trim($value);
+        foreach (['d/m/Y', 'Y-m-d'] as $format) {
+            $date = \DateTimeImmutable::createFromFormat('!' . $format, $value);
+            if ($date instanceof \DateTimeImmutable && $date->format($format) === $value) return $date->format('Y-m-d');
+        }
+        return null;
     }
 
     /** @param array<string,mixed> $data */
@@ -1486,6 +1917,9 @@ class ArattaiTransactionConversationService
         foreach (['image'] as $key) {
             $path = is_array($data[$key] ?? null) ? (string) ($data[$key]['temp_path'] ?? '') : '';
             if ($path !== '' && is_file($path) && str_starts_with($path, WRITEPATH . 'uploads/arattai-order-drafts')) @unlink($path);
+        }
+        if (is_array($data['purchase_bill'] ?? null)) {
+            (new ArattaiPurchaseService())->discardDraftBill($data['purchase_bill']);
         }
     }
 }

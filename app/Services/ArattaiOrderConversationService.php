@@ -100,6 +100,10 @@ class ArattaiOrderConversationService
             );
             return ['handled' => true, 'status' => 'already_created', 'message' => 'Order confirmation was already processed.', 'order_id' => $orderId];
         }
+        if ($command === 'confirm order' && is_array($session) && (string) ($session['status'] ?? '') === 'approval_pending') {
+            $sendText('arattai_order_approval_pending', 'Action already taken: This order is already waiting for admin approval.');
+            return ['handled' => true, 'status' => 'approval_pending', 'message' => 'Order approval was already submitted.'];
+        }
         if (is_array($session) && (string) ($session['status'] ?? '') === 'processing') {
             $sendText('arattai_order_processing', 'Order creation is already being processed. Please wait for the confirmation message.');
             return ['handled' => true, 'status' => 'processing', 'message' => 'Order creation is already in progress.'];
@@ -140,6 +144,7 @@ class ArattaiOrderConversationService
             'Issuement',
             'Return',
             'Bag Creation',
+            'Purchase',
             'Receiving',
             'Packing List',
             'Delivery Challan',
@@ -316,21 +321,36 @@ class ArattaiOrderConversationService
                         $sendText('arattai_order_processing', 'Order creation is already being processed. Please wait for the confirmation message.');
                         return ['handled' => true, 'status' => 'processing', 'message' => 'Order creation is already in progress.'];
                     }
+                    $creation = new ArattaiOrderCreationService();
+                    $prepared = null;
                     try {
-                        $created = (new ArattaiOrderCreationService())->create($data, $actorAdminUserId);
+                        $prepared = $creation->prepareForApproval($data);
+                        $prepared['draft']['_arattai_user_id'] = (string) ($session['arattai_user_id'] ?? '');
+                        $approval = (new MobileApprovalService())->submit(
+                            'order_create',
+                            (array) $prepared['draft'],
+                            $actorAdminUserId,
+                            'Create order for ' . trim((string) ($data['end_customer_name'] ?? 'customer')),
+                            (string) $prepared['attachment_name'],
+                            (string) $prepared['attachment_path']
+                        );
                     } catch (Throwable $e) {
+                        if (is_array($prepared['draft'] ?? null)) {
+                            $creation->discardApprovalDraft((array) $prepared['draft']);
+                        }
                         $this->saveSession($session, 'confirm', $data, $actorAdminUserId);
                         throw $e;
                     }
-                    $this->finishSession($session, 'completed', (int) $created['order_id']);
-                    $sendText('arattai_order_created', "Order successfully created.\nOrder: " . (string) $created['order_no']
+                    $this->cleanupDraftImages($data);
+                    $this->finishSession($session, 'approval_pending');
+                    $sendText('arattai_order_approval_submitted', "Order sent for admin approval successfully.\nRequest: #"
+                        . (int) ($approval['id'] ?? 0)
                         . "\nCustomer: " . (string) ($data['end_customer_name'] ?? '-')
-                        . "\nStatus: Confirmed\nBoth required images have been saved.");
+                        . "\nBoth required images have been saved with the approval request.");
                     return [
                         'handled' => true,
-                        'status' => 'created',
-                        'message' => 'Order created from Arattai.',
-                        'order_id' => (int) $created['order_id'],
+                        'status' => 'approval_pending',
+                        'message' => 'Order creation submitted for approval.',
                     ];
 
                 default:
@@ -583,6 +603,76 @@ class ArattaiOrderConversationService
         ];
     }
 
+    /** @param array<string,mixed> $payload @return array<string,string|int> */
+    public function storeIncomingAttachment(array $payload, string $step): array
+    {
+        $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
+        $content = $entity['content'] ?? ($payload['content'] ?? null);
+        $type = mb_strtolower(trim((string) ($entity['type'] ?? $payload['type'] ?? '')));
+        $mime = mb_strtolower($this->nestedScalar($content, [
+            'type', 'mime_type', 'mimeType', 'content_type', 'contentType',
+        ]));
+        if ($mime !== '' && ! str_contains($mime, '/')) $mime = '';
+        $allowedType = in_array($type, ['image', 'photo', 'media', 'file', 'document'], true);
+        if (! $allowedType) {
+            throw new RuntimeException('Please upload the purchase bill as an image or PDF file.');
+        }
+
+        $base64 = $this->nestedScalar($content, ['base64', 'data', 'file_base64']);
+        $url = $this->nestedScalar($content, ['link', 'url', 'download_url', 'downloadUrl', 'media_url', 'mediaUrl']);
+        if (is_scalar($content) && filter_var(trim((string) $content), FILTER_VALIDATE_URL)) {
+            $url = trim((string) $content);
+        }
+        $originalName = $this->nestedScalar($content, ['file_name', 'fileName', 'name', 'filename']);
+        if ($url === '') $url = $this->nestedScalar($entity, ['link', 'url', 'download_url', 'downloadUrl', 'media_url', 'mediaUrl']);
+        if ($originalName === '') $originalName = $this->nestedScalar($entity, ['file_name', 'fileName', 'name', 'filename']);
+        if ($mime === '') $mime = mb_strtolower($this->nestedScalar($entity, ['mime_type', 'mimeType', 'content_type', 'contentType']));
+
+        $binary = '';
+        if ($base64 !== '' && strlen($base64) > 100) {
+            if (str_contains($base64, ',')) $base64 = substr($base64, strpos($base64, ',') + 1);
+            $decoded = base64_decode(str_replace(' ', '+', $base64), true);
+            $binary = $decoded === false ? '' : $decoded;
+        } elseif ($url !== '') {
+            $binary = $this->downloadAttachment($url, $mime);
+        }
+        if ($binary === '' || strlen($binary) > 10 * 1024 * 1024) {
+            throw new RuntimeException('The purchase bill could not be downloaded or is larger than 10 MB. Please upload it again.');
+        }
+
+        $extension = match ($mime) {
+            'application/pdf' => 'pdf',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/jpeg', 'image/jpg' => 'jpg',
+            default => strtolower(pathinfo((string) (parse_url($url, PHP_URL_PATH) ?: $originalName), PATHINFO_EXTENSION)),
+        };
+        if ($extension === '' && str_starts_with($binary, '%PDF-')) $extension = 'pdf';
+        if (! in_array($extension, ['pdf', 'jpg', 'jpeg', 'png', 'webp'], true)) {
+            throw new RuntimeException('Purchase bill must be a PDF, JPG, PNG or WEBP file.');
+        }
+        if ($mime === '') {
+            $mime = $extension === 'pdf' ? 'application/pdf' : 'image/' . ($extension === 'jpg' ? 'jpeg' : $extension);
+        }
+
+        $directory = WRITEPATH . 'uploads/arattai-purchase-drafts';
+        if (! is_dir($directory) && ! mkdir($directory, 0775, true) && ! is_dir($directory)) {
+            throw new RuntimeException('Could not create temporary purchase bill storage.');
+        }
+        $name = $step . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(5)) . '.' . $extension;
+        $path = $directory . DIRECTORY_SEPARATOR . $name;
+        if (file_put_contents($path, $binary) === false) {
+            throw new RuntimeException('Could not save the uploaded purchase bill.');
+        }
+        return [
+            'temp_path' => $path,
+            'extension' => $extension,
+            'original_name' => $originalName !== '' ? mb_substr($originalName, 0, 255) : $name,
+            'mime_type' => $mime,
+            'file_size' => strlen($binary),
+        ];
+    }
+
     private function downloadImage(string $url, string &$mime): string
     {
         $parts = parse_url(trim($url));
@@ -616,6 +706,41 @@ class ArattaiOrderConversationService
         }
         if ($mime !== '' && ! str_starts_with($mime, 'image/')) {
             throw new RuntimeException('The uploaded Arattai file is not an image.');
+        }
+        return (string) $response->getBody();
+    }
+
+    private function downloadAttachment(string $url, string &$mime): string
+    {
+        $parts = parse_url(trim($url));
+        if (($parts['scheme'] ?? '') !== 'https' || trim((string) ($parts['host'] ?? '')) === '') {
+            throw new RuntimeException('Arattai purchase bill URL is invalid.');
+        }
+        $host = strtolower(trim((string) $parts['host']));
+        if ($host === 'localhost' || str_ends_with($host, '.localhost')
+            || (filter_var($host, FILTER_VALIDATE_IP)
+                && ! filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE))) {
+            throw new RuntimeException('Arattai purchase bill URL host is not allowed.');
+        }
+        $options = ['timeout' => 15, 'connect_timeout' => 5, 'http_errors' => false];
+        $response = service('curlrequest')->get($url, $options);
+        if (in_array($response->getStatusCode(), [401, 403], true)) {
+            $settings = db_connect()->table('company_settings')
+                ->select('attrai_company_id, attrai_business_number_id')->orderBy('id', 'ASC')->get()->getRowArray();
+            $options['headers'] = [
+                'Authorization' => 'Bearer ' . (new ArattaiOAuthService())->accessToken(),
+                'Arattai-CompanyId' => trim((string) ($settings['attrai_company_id'] ?? '')),
+                'Arattai-BusinessNumberId' => trim((string) ($settings['attrai_business_number_id'] ?? '')),
+            ];
+            $response = service('curlrequest')->get($url, $options);
+        }
+        if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            throw new RuntimeException('Arattai purchase bill download failed with HTTP ' . $response->getStatusCode() . '.');
+        }
+        $header = strtolower(trim(explode(';', $response->getHeaderLine('Content-Type'))[0] ?? ''));
+        if ($header !== '') $mime = $header;
+        if ($mime !== '' && $mime !== 'application/pdf' && ! str_starts_with($mime, 'image/')) {
+            throw new RuntimeException('Purchase bill must be an image or PDF file.');
         }
         return (string) $response->getBody();
     }
