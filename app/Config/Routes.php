@@ -443,6 +443,7 @@ $routes->group('api', static function ($routes): void {
     $routes->get('documents/labour-bill/(:num)', 'Api\DocumentsController::labourBill/$1');
     $routes->get('documents/orders/(:num)/packing-list', 'Api\DocumentsController::packingListByOrder/$1');
     $routes->get('documents/orders/(:num)/delivery-challan', 'Api\DocumentsController::deliveryChallan/$1');
+    $routes->get('documents/delivery-challans/(:num)', 'Api\DocumentsController::standaloneDeliveryChallan/$1');
     $routes->get('documents/mobile/diamond/issues/(:num)', 'Api\DocumentsController::mobileDiamondIssue/$1');
     $routes->get('documents/mobile/diamond/returns/(:num)', 'Api\DocumentsController::mobileDiamondReturn/$1');
     $routes->get('documents/mobile/gold/issues/(:num)', 'Api\DocumentsController::mobileGoldIssue/$1');
