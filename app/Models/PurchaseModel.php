@@ -25,6 +25,10 @@ class PurchaseModel extends Model
         'payment_status',
         'location_id',
         'notes',
+        'bill_file_name',
+        'bill_file_path',
+        'bill_mime_type',
+        'bill_file_size',
         'created_by',
     ];
     protected $useTimestamps = true;
