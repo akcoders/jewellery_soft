@@ -9,13 +9,16 @@ class AttraiIntegrationService
 {
     private CompanySettingModel $companySettingModel;
     private WhatsappSenderQueueService $queueService;
+    private ArattaiUserMappingService $userMappingService;
 
     public function __construct(
         ?CompanySettingModel $companySettingModel = null,
-        ?WhatsappSenderQueueService $queueService = null
+        ?WhatsappSenderQueueService $queueService = null,
+        ?ArattaiUserMappingService $userMappingService = null
     ) {
         $this->companySettingModel = $companySettingModel ?? new CompanySettingModel();
         $this->queueService = $queueService ?? new WhatsappSenderQueueService();
+        $this->userMappingService = $userMappingService ?? new ArattaiUserMappingService();
     }
 
     /** @param array<string,mixed> $request @return array<string,mixed> */
@@ -103,7 +106,7 @@ class AttraiIntegrationService
 
         $db = db_connect();
         $row = $db->table('orders o')
-            ->select('o.id, o.order_no, o.order_name, o.priority, o.due_date, o.status, o.order_notes, o.additional_details, k.id AS karigar_id, k.name AS karigar_name, k.phone AS karigar_phone, k.attrai_number AS karigar_attrai_number, c.name AS customer_name, follower.name AS follower_login_name, e.full_name AS follower_name, e.mobile AS follower_mobile, e.attrai_number AS follower_attrai_number')
+            ->select('o.id, o.order_no, o.order_name, o.priority, o.due_date, o.status, o.order_notes, o.additional_details, o.followup_assigned_to, k.id AS karigar_id, k.name AS karigar_name, c.name AS customer_name, follower.name AS follower_login_name, e.full_name AS follower_name')
             ->join('karigars k', 'k.id = o.assigned_karigar_id', 'inner')
             ->join('customers c', 'c.id = o.customer_id', 'left')
             ->join('admin_users follower', 'follower.id = o.followup_assigned_to', 'left')
@@ -131,8 +134,8 @@ class AttraiIntegrationService
                 . ($sizes !== [] ? ' | Size: ' . implode(', ', array_unique($sizes)) : '')
                 . ' | Qty: ' . max(1, (int) ($item['qty'] ?? 1));
         }
-        $karigarPhone = $this->normalizePhone((string) (($row['karigar_attrai_number'] ?? '') ?: ($row['karigar_phone'] ?? '')));
-        $followerPhone = $this->normalizePhone((string) (($row['follower_attrai_number'] ?? '') ?: ($row['follower_mobile'] ?? '')));
+        $karigarPhone = $this->userMappingService->karigarUserId((int) ($row['karigar_id'] ?? 0));
+        $followerPhone = $this->userMappingService->followerUserId((int) ($row['followup_assigned_to'] ?? 0));
         $followerName = trim((string) (($row['follower_name'] ?? '') ?: ($row['follower_login_name'] ?? 'Follower')));
         $mediaUrl = $this->orderImageUrl($orderId, $settings);
 
@@ -427,8 +430,7 @@ class AttraiIntegrationService
     public function notifyIssuementToKarigar(string $voucherNo, int $karigarId, array $context = []): array
     {
         $db = db_connect();
-        $karigar = $db->table('karigars')->select('name, attrai_number')->where('id', $karigarId)->get()->getRowArray();
-        $userId = preg_replace('/\D+/', '', (string) ($karigar['attrai_number'] ?? '')) ?? '';
+        $userId = $this->userMappingService->karigarUserId($karigarId);
         if ($userId === '') {
             return ['status' => 'skipped', 'message' => 'Karigar Arattai user ID is not configured.'];
         }
@@ -472,8 +474,7 @@ class AttraiIntegrationService
 
     public function notifyKarigarPayment(int $karigarId, float $amount, string $paymentNo, string $paymentDate, string $reference = ''): array
     {
-        $karigar = db_connect()->table('karigars')->select('name, attrai_number')->where('id', $karigarId)->get()->getRowArray();
-        $userId = preg_replace('/\D+/', '', (string) ($karigar['attrai_number'] ?? '')) ?? '';
+        $userId = $this->userMappingService->karigarUserId($karigarId);
         if ($userId === '') {
             return ['status' => 'skipped', 'message' => 'Karigar Arattai user ID is not configured.'];
         }
@@ -495,7 +496,7 @@ class AttraiIntegrationService
         if (! is_array($order)) {
             return ['status' => 'skipped', 'message' => 'Order not found.'];
         }
-        $userId = $this->userIdForAdmin((int) ($order['followup_assigned_to'] ?? 0));
+        $userId = $this->userMappingService->followerUserId((int) ($order['followup_assigned_to'] ?? 0));
         if ($userId === '') {
             return ['status' => 'skipped', 'message' => 'Follower Arattai user ID is not configured.'];
         }
@@ -514,8 +515,7 @@ class AttraiIntegrationService
         $now ??= new \DateTimeImmutable('now', new \DateTimeZone('Asia/Kolkata'));
         $db = db_connect();
         $rows = $db->table('orders o')
-            ->select('o.id, o.order_no, o.status, o.followup_due_at, o.followup_assigned_to, e.attrai_number')
-            ->join('employees e', 'e.admin_user_id = o.followup_assigned_to AND e.is_active = 1', 'inner')
+            ->select('o.id, o.order_no, o.status, o.followup_due_at, o.followup_assigned_to')
             ->where('o.followup_due_at IS NOT NULL', null, false)
             ->whereNotIn('o.status', ['Ready', 'Complete', 'Completed', 'Packed', 'Delivered', 'Dispatched', 'Cancelled'])
             ->where('o.followup_due_at <=', $now->modify('+24 hours')->format('Y-m-d H:i:s'))
@@ -523,7 +523,7 @@ class AttraiIntegrationService
             ->get()->getResultArray();
         $queued = 0;
         foreach ($rows as $row) {
-            $userId = preg_replace('/\D+/', '', (string) ($row['attrai_number'] ?? '')) ?? '';
+            $userId = $this->userMappingService->followerUserId((int) ($row['followup_assigned_to'] ?? 0));
             $due = strtotime((string) ($row['followup_due_at'] ?? '')) ?: 0;
             if ($userId === '' || $due <= 0) {
                 continue;
@@ -569,8 +569,7 @@ class AttraiIntegrationService
             return ['scanned' => 0, 'queued' => 0];
         }
         $rows = $db->table('mobile_tasks t')
-            ->select('t.id, t.admin_user_id, t.title, t.scheduled_at, e.attrai_number')
-            ->join('employees e', 'e.admin_user_id = t.admin_user_id AND e.is_active = 1', 'inner')
+            ->select('t.id, t.admin_user_id, t.title, t.scheduled_at')
             ->where('t.counts_for_performance', 1)
             ->where('t.reference_type', null)
             ->where('t.is_done', 0)
@@ -579,7 +578,7 @@ class AttraiIntegrationService
             ->get()->getResultArray();
         $queued = 0;
         foreach ($rows as $row) {
-            $userId = preg_replace('/\D+/', '', (string) ($row['attrai_number'] ?? '')) ?? '';
+            $userId = $this->userMappingService->adminUserId((int) ($row['admin_user_id'] ?? 0));
             if ($userId === '') {
                 continue;
             }
@@ -727,7 +726,6 @@ class AttraiIntegrationService
             return ['status' => 'denied', 'message' => 'Incoming user is not a configured approval admin.'];
         }
         $entityContent = $entity['content'] ?? null;
-        $content = is_array($entityContent) ? $entityContent : [];
         $buttonId = $this->firstNestedScalar($payload, ['button_id', 'buttonId', 'option_id', 'optionId']);
         if ($buttonId === 'preview.order_status') {
             $this->sendConversationMessage('order_status_prompt', $userId, 'Please send your Order ID or Order Number to check its current status.', 'arattai_chat');
@@ -737,9 +735,7 @@ class AttraiIntegrationService
             $this->sendConversationMessage('preview_action_reply', $userId, 'This is a design preview only. No ERP data was changed.', 'arattai_preview');
             return ['status' => 'preview', 'message' => 'Preview action acknowledged.'];
         }
-        $text = is_scalar($entityContent)
-            ? trim((string) $entityContent)
-            : trim((string) ($content['message'] ?? $content['body'] ?? $entity['message'] ?? ''));
+        $text = $this->incomingMessageText($payload, $entity, $entityContent);
         $ackKey = $this->firstNestedScalar($payload, ['ack_key', 'ackKey']);
         $replyTo = $this->firstNestedScalar($payload, ['reply_to', 'replyTo', 'replied_to', 'quoted_message_id', 'parent_message_id']);
         if (($ackKey !== '' || $replyTo !== '') && ($text !== '' || $buttonId !== '')) {
@@ -824,6 +820,37 @@ class AttraiIntegrationService
             return is_array($row) ? $row : null;
         }
         return null;
+    }
+
+    /** @param array<string,mixed> $payload @param array<string,mixed> $entity */
+    private function incomingMessageText(array $payload, array $entity, mixed $entityContent): string
+    {
+        if (is_scalar($entityContent)) {
+            return trim((string) $entityContent);
+        }
+        foreach ([
+            $entityContent,
+            $entity['message'] ?? null,
+            $entity['text'] ?? null,
+            $entity['body'] ?? null,
+            $payload['message'] ?? null,
+            $payload['text'] ?? null,
+            $payload['body'] ?? null,
+        ] as $candidate) {
+            if (is_scalar($candidate)) {
+                $value = trim((string) $candidate);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+            if (is_array($candidate)) {
+                $value = $this->firstNestedScalar($candidate, ['message', 'text', 'body', 'value', 'label', 'title']);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+        return '';
     }
 
     /** @param array<string,mixed> $payload */
@@ -955,12 +982,7 @@ class AttraiIntegrationService
 
     private function userIdForAdmin(int $adminUserId): string
     {
-        if ($adminUserId <= 0) {
-            return '';
-        }
-        $row = db_connect()->table('employees')->select('attrai_number')
-            ->where('admin_user_id', $adminUserId)->where('is_active', 1)->get()->getRowArray();
-        return preg_replace('/\D+/', '', (string) ($row['attrai_number'] ?? '')) ?? '';
+        return $this->userMappingService->adminUserId($adminUserId);
     }
 
     private function formatPoints(float $points): string
@@ -1425,15 +1447,7 @@ class AttraiIntegrationService
     /** @param array<string,mixed> $settings @return list<string> */
     private function approvalUserIds(array $settings): array
     {
-        $parts = preg_split('/[\s,;]+/', trim((string) ($settings['attrai_approval_numbers'] ?? ''))) ?: [];
-        $userIds = [];
-        foreach ($parts as $part) {
-            $userId = preg_replace('/\D+/', '', trim($part)) ?? '';
-            if ($userId !== '') {
-                $userIds[] = $userId;
-            }
-        }
-        return array_values(array_unique($userIds));
+        return $this->userMappingService->approvalAdminUserIds($settings);
     }
 
     private function normalizePhone(string $phone): string

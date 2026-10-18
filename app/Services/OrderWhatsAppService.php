@@ -12,12 +12,14 @@ class OrderWhatsAppService
     private CompanySettingModel $companySettingModel;
     private WhatsappMessageLogModel $logModel;
     private WhatsappSenderQueueService $senderQueueService;
+    private ArattaiUserMappingService $userMappingService;
 
     public function __construct()
     {
         $this->companySettingModel = new CompanySettingModel();
         $this->logModel = new WhatsappMessageLogModel();
         $this->senderQueueService = new WhatsappSenderQueueService();
+        $this->userMappingService = new ArattaiUserMappingService();
     }
 
     /**
@@ -519,7 +521,13 @@ class OrderWhatsAppService
     private function preferredCustomerPhone(array $context, array $settings): ?string
     {
         $arattaiEnabled = (int) ($settings['attrai_enabled'] ?? 0) === 1;
-        $phone = $arattaiEnabled ? trim((string) ($context['attrai_notification_number'] ?? '')) : '';
+        $phone = '';
+        if ($arattaiEnabled) {
+            $phone = $this->userMappingService->customerUserId((int) ($context['customer_id'] ?? 0));
+            if ($phone === '') {
+                $phone = trim((string) ($context['attrai_notification_number'] ?? ''));
+            }
+        }
         if ($arattaiEnabled) {
             return $this->normalizeArattaiUserId($phone);
         }
@@ -542,6 +550,9 @@ class OrderWhatsAppService
      */
     private function alertPhones(array $settings): array
     {
+        if ((int) ($settings['attrai_enabled'] ?? 0) === 1) {
+            return $this->userMappingService->approvalAdminUserIds($settings);
+        }
         $raw = (int) ($settings['attrai_enabled'] ?? 0) === 1
             ? trim((string) ($settings['attrai_approval_numbers'] ?? ''))
             : trim((string) ($settings['whatsapp_alert_numbers'] ?? ''));
