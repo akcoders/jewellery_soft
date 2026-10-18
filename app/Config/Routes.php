@@ -449,6 +449,7 @@ $routes->group('api', static function ($routes): void {
     $routes->get('documents/mobile/gold/returns/(:num)', 'Api\DocumentsController::mobileGoldReturn/$1');
     $routes->get('documents/mobile/stone/issues/(:num)', 'Api\DocumentsController::mobileStoneIssue/$1');
     $routes->get('documents/mobile/stone/returns/(:num)', 'Api\DocumentsController::mobileStoneReturn/$1');
+    $routes->get('documents/issuements/(:segment)', 'Api\DocumentsController::combinedIssuement/$1');
     $routes->get('documents/invoice/(:num)', 'Api\DocumentsController::invoice/$1');
     $routes->get('documents/ledger/(:num)', 'Api\DocumentsController::ledgerStatement/$1');
 
