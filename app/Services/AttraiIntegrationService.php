@@ -728,7 +728,7 @@ class AttraiIntegrationService
         }
         $entityContent = $entity['content'] ?? null;
         $content = is_array($entityContent) ? $entityContent : [];
-        $buttonId = trim((string) ($entity['button_id'] ?? $content['button_id'] ?? ''));
+        $buttonId = $this->firstNestedScalar($payload, ['button_id', 'buttonId', 'option_id', 'optionId']);
         if ($buttonId === 'preview.order_status') {
             $this->sendConversationMessage('order_status_prompt', $userId, 'Please send your Order ID or Order Number to check its current status.', 'arattai_chat');
             return ['status' => 'prompted', 'message' => 'Asked the user for an order ID.'];
@@ -740,12 +740,10 @@ class AttraiIntegrationService
         $text = is_scalar($entityContent)
             ? trim((string) $entityContent)
             : trim((string) ($content['message'] ?? $content['body'] ?? $entity['message'] ?? ''));
-        $ackKey = trim((string) ($entity['ack_key'] ?? $payload['ack_key'] ?? ''));
-        if ($ackKey !== '' && ($text !== '' || $buttonId !== '')) {
-            $replyContext = db_connect()->table('whatsapp_sender_queue')
-                ->select('event_key, source_type, recipient_number')
-                ->where('provider_key', 'attrai')->where('message_no', $ackKey)
-                ->orderBy('id', 'DESC')->get()->getRowArray();
+        $ackKey = $this->firstNestedScalar($payload, ['ack_key', 'ackKey']);
+        $replyTo = $this->firstNestedScalar($payload, ['reply_to', 'replyTo', 'replied_to', 'quoted_message_id', 'parent_message_id']);
+        if (($ackKey !== '' || $replyTo !== '') && ($text !== '' || $buttonId !== '')) {
+            $replyContext = $this->quickReplyQueueContext($ackKey, $replyTo);
             $contextRecipient = preg_replace('/\D+/', '', (string) ($replyContext['recipient_number'] ?? '')) ?? '';
             if ($contextRecipient !== '' && hash_equals($contextRecipient, $userId)) {
                 if ((string) ($replyContext['event_key'] ?? '') === 'attrai_demo'
@@ -1036,20 +1034,18 @@ class AttraiIntegrationService
     private function resolveQuickReplyAction(array $payload): string
     {
         $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
-        $ackKey = trim((string) ($entity['ack_key'] ?? $payload['ack_key'] ?? ''));
+        $ackKey = $this->firstNestedScalar($payload, ['ack_key', 'ackKey']);
+        $replyTo = $this->firstNestedScalar($payload, ['reply_to', 'replyTo', 'replied_to', 'quoted_message_id', 'parent_message_id']);
         $content = $entity['content'] ?? null;
         $contentArray = is_array($content) ? $content : [];
-        $buttonId = trim((string) ($entity['button_id'] ?? $contentArray['button_id'] ?? ''));
+        $buttonId = $this->firstNestedScalar($payload, ['button_id', 'buttonId', 'option_id', 'optionId']);
         $selected = is_scalar($content)
             ? trim((string) $content)
             : trim((string) ($contentArray['label'] ?? $contentArray['title'] ?? ''));
-        if ($ackKey === '' || ($selected === '' && $buttonId === '')) {
+        if (($ackKey === '' && $replyTo === '') || ($selected === '' && $buttonId === '')) {
             return '';
         }
-        $row = db_connect()->table('whatsapp_sender_queue')
-            ->select('event_key, source_id, recipient_number')
-            ->where('provider_key', 'attrai')->where('message_no', $ackKey)
-            ->orderBy('id', 'DESC')->get()->getRowArray();
+        $row = $this->quickReplyQueueContext($ackKey, $replyTo);
         if (! is_array($row) || (string) ($row['event_key'] ?? '') !== 'approval_requested') {
             return '';
         }
@@ -1072,6 +1068,53 @@ class AttraiIntegrationService
         $requestId = (int) ($row['source_id'] ?? 0);
         if ($decision !== '' && $requestId > 0) {
             return $this->signedAction($requestId, $decision, $this->settings());
+        }
+        return '';
+    }
+
+    /** @return array<string,mixed>|null */
+    private function quickReplyQueueContext(string $ackKey, string $replyTo): ?array
+    {
+        $db = db_connect();
+        if ($ackKey !== '') {
+            $row = $db->table('whatsapp_sender_queue')
+                ->select('event_key, source_type, source_id, recipient_number, request_payload')
+                ->where('provider_key', 'attrai')->where('message_no', $ackKey)
+                ->orderBy('id', 'DESC')->get()->getRowArray();
+            if (is_array($row)) {
+                return $row;
+            }
+        }
+        if ($replyTo !== '') {
+            $row = $db->table('whatsapp_sender_queue')
+                ->select('event_key, source_type, source_id, recipient_number, request_payload')
+                ->where('provider_key', 'attrai')->where('provider_message_id', $replyTo)
+                ->orderBy('id', 'DESC')->get()->getRowArray();
+            if (is_array($row)) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    /** @param array<string,mixed> $payload @param list<string> $keys */
+    private function firstNestedScalar(array $payload, array $keys): string
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $payload) && is_scalar($payload[$key])) {
+                $value = trim((string) $payload[$key]);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+        foreach ($payload as $value) {
+            if (is_array($value)) {
+                $found = $this->firstNestedScalar($value, $keys);
+                if ($found !== '') {
+                    return $found;
+                }
+            }
         }
         return '';
     }
