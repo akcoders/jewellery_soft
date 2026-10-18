@@ -49,7 +49,8 @@ final class ArattaiOrderConversationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('Reference image and signed order image are required.', $creation);
         $this->assertStringContainsString("'file_type' => 'reference'", $creation);
         $this->assertStringContainsString("'file_type' => 'signed_order'", $creation);
-        $this->assertStringContainsString("finishSession(\$session, 'completed'", $wizard);
+        $this->assertStringContainsString("finishSession(\$session, 'approval_pending'", $wizard);
+        $this->assertStringContainsString("'order_create'", $wizard);
         $this->assertStringContainsString('claimConfirmation($session)', $wizard);
         $this->assertStringContainsString("'status' => 'processing'", $wizard);
         $this->assertStringContainsString('Action already taken: This order was already created as', $wizard);
@@ -91,7 +92,7 @@ final class ArattaiOrderConversationWorkflowTest extends CIUnitTestCase
         $menu = $this->source('Services/ArattaiOrderConversationService.php');
         $transactions = $this->source('Services/ArattaiTransactionConversationService.php');
 
-        foreach (['Follow-up', 'Issuement', 'Return', 'Bag Creation', 'Receiving', 'Packing List', 'Delivery Challan'] as $label) {
+        foreach (['Follow-up', 'Issuement', 'Return', 'Bag Creation', 'Purchase', 'Receiving', 'Packing List', 'Delivery Challan'] as $label) {
             $this->assertStringContainsString("'{$label}'", $menu, $label);
         }
         $this->assertStringContainsString("['Skip Image', 'Cancel Current Process']", $transactions);
@@ -127,6 +128,24 @@ final class ArattaiOrderConversationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("->where('status', 'active')->update(['status' => 'processing'", $transactions);
         $this->assertStringContainsString('This action was already completed successfully.', $transactions);
         $this->assertStringContainsString('Action already taken or currently processing.', $transactions);
+    }
+
+    public function testPurchaseCustomChallanAndDirectFollowupActionsAreImplemented(): void
+    {
+        $transactions = $this->source('Services/ArattaiTransactionConversationService.php');
+        $integration = $this->source('Services/AttraiIntegrationService.php');
+        $approval = $this->source('Services/MobileApprovalService.php');
+        $purchase = $this->source('Services/ArattaiPurchaseService.php');
+
+        $this->assertStringContainsString("'purchase' => 'erp_purchase_type'", $transactions);
+        $this->assertStringContainsString('Purchase Bill now', $transactions);
+        $this->assertStringContainsString('new ArattaiPurchaseService()', $transactions);
+        $this->assertStringContainsString('Custom Delivery Challan', $transactions);
+        $this->assertStringContainsString("'delivery_challan'", $transactions);
+        $this->assertStringContainsString('Take Follow-up', $integration);
+        $this->assertStringContainsString("'take follow-up ' . \$sourceId", $integration);
+        $this->assertStringContainsString("'order_create'", $approval);
+        $this->assertStringContainsString('Purchase bill is compulsory.', $purchase);
     }
 
     private function source(string $relativePath): string
