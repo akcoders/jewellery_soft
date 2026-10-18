@@ -723,14 +723,15 @@ class AttraiIntegrationService
         if ($userId === '') {
             return ['status' => 'ignored', 'message' => 'Incoming message has no Arattai user ID.'];
         }
-        if (! in_array($userId, $this->approvalUserIds($this->settings()), true)) {
+        $actorAdminUserId = $this->conversationActorAdminUserId($userId, $this->settings());
+        if ($actorAdminUserId <= 0) {
             $this->sendConversationMessage(
                 'order_status_denied',
                 $userId,
-                'This order-status assistant is available only to configured approval admins.',
+                'This ERP assistant is available only to mapped internal Arattai users.',
                 'arattai_chat'
             );
-            return ['status' => 'denied', 'message' => 'Incoming user is not a configured approval admin.'];
+            return ['status' => 'denied', 'message' => 'Incoming user is not mapped to an active internal ERP user.'];
         }
         $entityContent = $entity['content'] ?? null;
         $buttonId = $this->firstNestedScalar($payload, ['button_id', 'buttonId', 'option_id', 'optionId']);
@@ -749,6 +750,9 @@ class AttraiIntegrationService
             $replyContext = $this->quickReplyQueueContext($ackKey, $replyTo);
             $contextRecipient = preg_replace('/\D+/', '', (string) ($replyContext['recipient_number'] ?? '')) ?? '';
             if ($contextRecipient !== '' && hash_equals($contextRecipient, $userId)) {
+                if ($text === '' && $buttonId !== '') {
+                    $text = $this->quickReplyLabel($replyContext, $buttonId);
+                }
                 if ((string) ($replyContext['event_key'] ?? '') === 'attrai_demo'
                     && ($buttonId === '1' || strcasecmp($text, 'Check Order Status') === 0)) {
                     $this->sendConversationMessage('order_status_prompt', $userId, 'Please send your Order ID or Order Number to check its current status.', 'arattai_chat');
@@ -759,6 +763,39 @@ class AttraiIntegrationService
                     return ['status' => 'preview', 'message' => 'Preview action acknowledged.'];
                 }
             }
+        }
+
+        $wizard = (new ArattaiOrderConversationService())->handle(
+            $payload,
+            $userId,
+            $text,
+            $actorAdminUserId,
+            function (string $event, string $message) use ($userId): void {
+                $this->sendConversationMessage($event, $userId, $message, 'arattai_order_conversation');
+            },
+            function (string $event, string $message, array $labels) use ($userId): void {
+                $options = [];
+                foreach (array_slice($labels, 0, 10) as $index => $label) {
+                    $options[] = ['id' => $event . '.' . ($index + 1), 'label' => mb_substr((string) $label, 0, 80)];
+                }
+                $payload = $this->quickReplyPayload($userId, $message, $options);
+                $this->sendConversationMessage(
+                    $event,
+                    $userId,
+                    $message,
+                    'arattai_order_conversation',
+                    null,
+                    null,
+                    '',
+                    true,
+                    '',
+                    $payload
+                );
+            }
+        );
+        if (($wizard['handled'] ?? false) === true) {
+            unset($wizard['handled']);
+            return $wizard;
         }
         if ($text === '') {
             $this->sendConversationMessage('order_status_prompt', $userId, 'Please send your Order ID or Order Number to check its current status.', 'arattai_chat');
@@ -829,6 +866,30 @@ class AttraiIntegrationService
         return null;
     }
 
+    /** @param array<string,mixed> $settings */
+    private function conversationActorAdminUserId(string $arattaiUserId, array $settings): int
+    {
+        $db = db_connect();
+        if ($db->tableExists('arattai_user_mappings')) {
+            $row = $db->table('arattai_user_mappings m')
+                ->select('m.entity_type, m.entity_id')
+                ->join('admin_users a', 'a.id = m.entity_id AND a.is_active = 1', 'inner')
+                ->whereIn('m.entity_type', ['admin', 'follower'])
+                ->where('m.arattai_user_id', $arattaiUserId)
+                ->where('m.is_active', 1)
+                ->orderBy('m.is_approval_admin', 'DESC')
+                ->get()->getRowArray();
+            if (is_array($row) && (int) ($row['entity_id'] ?? 0) > 0) {
+                return (int) $row['entity_id'];
+            }
+        }
+        if (in_array($arattaiUserId, $this->approvalUserIds($settings), true)) {
+            $reviewerId = (int) ($settings['attrai_approval_reviewer_id'] ?? 0);
+            return $this->isActiveReviewer($reviewerId) ? $reviewerId : 0;
+        }
+        return 0;
+    }
+
     /** @param array<string,mixed> $payload @param array<string,mixed> $entity */
     private function incomingMessageText(array $payload, array $entity, mixed $entityContent): string
     {
@@ -883,7 +944,8 @@ class AttraiIntegrationService
         ?int $orderId = null,
         string $mediaUrl = '',
         bool $dispatch = true,
-        string $messageSuffix = ''
+        string $messageSuffix = '',
+        ?array $payload = null
     ): array {
         $settings = $this->settings();
         if (! $this->baseConfigured($settings)) {
@@ -901,7 +963,7 @@ class AttraiIntegrationService
             $sourceId,
             $orderId,
             $mediaUrl,
-            $this->displayRequestPayload($userId, $message, $mediaUrl),
+            $payload ?? $this->displayRequestPayload($userId, $message, $mediaUrl),
             $messageSuffix
         );
         if (! $dispatch) {
@@ -936,7 +998,9 @@ class AttraiIntegrationService
             'sender_number' => $settings['attrai_sender_id'] ?? null,
             'recipient_number' => $userId,
             'recipient_name' => 'Arattai User',
-            'message_type' => $mediaUrl !== '' ? 'image' : 'text',
+            'message_type' => (string) ($payload['category'] ?? '') === 'input'
+                ? 'interactive'
+                : ($mediaUrl !== '' ? 'image' : 'text'),
             'message_text' => $message,
             'media_url' => $mediaUrl !== '' ? $mediaUrl : null,
             'request_payload' => json_encode(
@@ -985,6 +1049,25 @@ class AttraiIntegrationService
             $content['header'] = ['type' => 'image', 'link' => trim($mediaUrl)];
         }
         return ['category' => 'input', 'type' => 'quick_reply', 'user_id' => $userId, 'content' => $content];
+    }
+
+    /** @param array<string,mixed> $queueRow */
+    private function quickReplyLabel(array $queueRow, string $buttonId): string
+    {
+        $request = json_decode((string) ($queueRow['request_payload'] ?? ''), true);
+        $options = is_array($request) && is_array($request['content']['options'] ?? null)
+            ? $request['content']['options']
+            : [];
+        foreach ($options as $index => $option) {
+            if (! is_array($option)) {
+                continue;
+            }
+            $id = trim((string) ($option['id'] ?? ($index + 1)));
+            if ($id === trim($buttonId)) {
+                return trim((string) ($option['label'] ?? ''));
+            }
+        }
+        return '';
     }
 
     private function userIdForAdmin(int $adminUserId): string

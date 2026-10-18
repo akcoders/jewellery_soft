@@ -21,7 +21,8 @@ class OrderNumberService
         int $customerId,
         string $orderCategory,
         int $salesPersonUserId = 0,
-        string $customerFallback = ''
+        string $customerFallback = '',
+        string $salesPersonFallback = ''
     ): string {
         $customer = $customerId > 0
             ? $this->db->table('customers')->select('customer_code, name')->where('id', $customerId)->get()->getRowArray()
@@ -41,7 +42,7 @@ class OrderNumberService
                 ->get()
                 ->getRowArray()
             : null;
-        $salesCode = $this->nameCode((string) ($salesPerson['name'] ?? ''), 'NS');
+        $salesCode = $this->nameCode((string) ($salesPerson['name'] ?? $salesPersonFallback), 'NS');
         $categoryCode = $this->categoryCode($orderCategory);
 
         for ($attempt = 0; $attempt < 128; $attempt++) {
