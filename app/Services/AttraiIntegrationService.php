@@ -308,6 +308,13 @@ class AttraiIntegrationService
             $actionId = $this->resolveQuickReplyAction($payload);
         }
         if ($actionId === '') {
+            if ($this->quickReplyDecision($payload, false) !== '') {
+                $this->replyToWebhookUser(
+                    $payload,
+                    'Approval action could not be matched to its request. Please tap Approve or Disapprove on the latest approval card again.'
+                );
+                return ['status' => 'approval_context_missing', 'message' => 'Approval reply did not contain a usable request reference.'];
+            }
             return $this->handleIncomingConversation($payload);
         }
         $actionUserId = $this->webhookUserId($payload);
@@ -737,7 +744,7 @@ class AttraiIntegrationService
         }
         $text = $this->incomingMessageText($payload, $entity, $entityContent);
         $ackKey = $this->firstNestedScalar($payload, ['ack_key', 'ackKey']);
-        $replyTo = $this->firstNestedScalar($payload, ['reply_to', 'replyTo', 'replied_to', 'quoted_message_id', 'parent_message_id']);
+        $replyTo = $this->firstNestedScalar($payload, $this->replyReferenceKeys());
         if (($ackKey !== '' || $replyTo !== '') && ($text !== '' || $buttonId !== '')) {
             $replyContext = $this->quickReplyQueueContext($ackKey, $replyTo);
             $contextRecipient = preg_replace('/\D+/', '', (string) ($replyContext['recipient_number'] ?? '')) ?? '';
@@ -1055,38 +1062,27 @@ class AttraiIntegrationService
     /** @param array<string,mixed> $payload */
     private function resolveQuickReplyAction(array $payload): string
     {
-        $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
         $ackKey = $this->firstNestedScalar($payload, ['ack_key', 'ackKey']);
-        $replyTo = $this->firstNestedScalar($payload, ['reply_to', 'replyTo', 'replied_to', 'quoted_message_id', 'parent_message_id']);
-        $content = $entity['content'] ?? null;
-        $contentArray = is_array($content) ? $content : [];
-        $buttonId = $this->firstNestedScalar($payload, ['button_id', 'buttonId', 'option_id', 'optionId']);
-        $selected = is_scalar($content)
-            ? trim((string) $content)
-            : trim((string) ($contentArray['label'] ?? $contentArray['title'] ?? ''));
-        if (($ackKey === '' && $replyTo === '') || ($selected === '' && $buttonId === '')) {
-            return '';
-        }
-        $row = $this->quickReplyQueueContext($ackKey, $replyTo);
-        if (! is_array($row) || (string) ($row['event_key'] ?? '') !== 'approval_requested') {
+        $replyTo = $this->firstNestedScalar($payload, $this->replyReferenceKeys());
+        $decision = $this->quickReplyDecision($payload);
+        if ($decision === '') {
             return '';
         }
         $replyUserId = $this->webhookUserId($payload);
+        $row = $this->quickReplyQueueContext($ackKey, $replyTo);
+        if (! is_array($row)) {
+            $requestId = $this->approvalRequestIdFromPayload($payload);
+            if ($requestId > 0 && $replyUserId !== '') {
+                $row = $this->approvalQueueContextForRequest($requestId, $replyUserId);
+            }
+        }
+        if (! is_array($row) || (string) ($row['event_key'] ?? '') !== 'approval_requested') {
+            return '';
+        }
         $recipientUserId = preg_replace('/\D+/', '', (string) ($row['recipient_number'] ?? '')) ?? '';
         if ($replyUserId === '' || $recipientUserId === '' || ! hash_equals($recipientUserId, $replyUserId)) {
             return '';
         }
-        $decision = match (strtolower($selected)) {
-            'approve' => 'approve',
-            'approve - no point' => 'approve_no_point',
-            'disapprove' => 'reject',
-            default => match ($buttonId) {
-                '1' => 'approve',
-                '2' => 'reject',
-                '3' => 'approve_no_point',
-                default => '',
-            },
-        };
         $requestId = (int) ($row['source_id'] ?? 0);
         if ($decision !== '' && $requestId > 0) {
             return $this->signedAction($requestId, $decision, $this->settings());
@@ -1117,6 +1113,76 @@ class AttraiIntegrationService
             }
         }
         return null;
+    }
+
+    /** @return list<string> */
+    private function replyReferenceKeys(): array
+    {
+        return [
+            'reply_to', 'replyTo', 'replied_to', 'repliedTo',
+            'reply_message_id', 'replyMessageId', 'reply_to_message_id', 'replyToMessageId',
+            'replied_message_id', 'repliedMessageId',
+            'quoted_message_id', 'quotedMessageId', 'quoted_message_uid', 'quotedMessageUid',
+            'parent_message_id', 'parentMessageId', 'reference_message_id', 'referenceMessageId',
+        ];
+    }
+
+    /** @param array<string,mixed> $payload */
+    private function quickReplyDecision(array $payload, bool $allowButtonId = true): string
+    {
+        $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
+        $content = $entity['content'] ?? null;
+        $contentArray = is_array($content) ? $content : [];
+        $buttonId = $this->firstNestedScalar($payload, ['button_id', 'buttonId', 'option_id', 'optionId']);
+        $selected = is_scalar($content)
+            ? trim((string) $content)
+            : trim((string) ($contentArray['label'] ?? $contentArray['title'] ?? ''));
+
+        return match (strtolower($selected)) {
+            'approve' => 'approve',
+            'approve - no point' => 'approve_no_point',
+            'disapprove' => 'reject',
+            default => ! $allowButtonId ? '' : match ($buttonId) {
+                '1' => 'approve',
+                '2' => 'reject',
+                '3' => 'approve_no_point',
+                default => '',
+            },
+        };
+    }
+
+    /** @param array<string,mixed> $payload */
+    private function approvalRequestIdFromPayload(array $payload): int
+    {
+        foreach ($payload as $value) {
+            if (is_scalar($value)
+                && preg_match('/\bRequest\s*:\s*#?\s*(\d+)\b/i', (string) $value, $matches) === 1) {
+                return (int) $matches[1];
+            }
+            if (is_array($value)) {
+                $requestId = $this->approvalRequestIdFromPayload($value);
+                if ($requestId > 0) {
+                    return $requestId;
+                }
+            }
+        }
+        return 0;
+    }
+
+    /** @return array<string,mixed>|null */
+    private function approvalQueueContextForRequest(int $requestId, string $recipientUserId): ?array
+    {
+        if ($requestId <= 0 || $recipientUserId === '') {
+            return null;
+        }
+        $row = db_connect()->table('whatsapp_sender_queue')
+            ->select('event_key, source_type, source_id, recipient_number, request_payload')
+            ->where('provider_key', 'attrai')
+            ->where('event_key', 'approval_requested')
+            ->where('source_id', $requestId)
+            ->where('recipient_number', $recipientUserId)
+            ->orderBy('id', 'DESC')->get()->getRowArray();
+        return is_array($row) ? $row : null;
     }
 
     /** @param array<string,mixed> $payload @param list<string> $keys */
