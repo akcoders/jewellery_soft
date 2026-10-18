@@ -376,6 +376,7 @@
             <p class="small text-muted">Save Client ID and Client Secret, connect once, then configure the incoming conversation webhook. Conversational previews do not need approved templates.</p>
             <div class="d-flex flex-wrap gap-2">
                 <a href="<?= site_url('admin/arattai-messages') ?>" class="btn btn-outline-dark">Message Audit &amp; Failure Reasons</a>
+                <a href="<?= site_url('admin/arattai-users') ?>" class="btn btn-outline-dark">Map Arattai Users</a>
                 <a href="<?= site_url('admin/company-settings/arattai/connect') ?>" class="btn btn-outline-primary">Connect Arattai</a>
                 <form method="post" action="<?= site_url('admin/company-settings/arattai/templates') ?>">
                     <?= csrf_field() ?>
