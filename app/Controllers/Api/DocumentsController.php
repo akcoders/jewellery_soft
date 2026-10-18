@@ -5,6 +5,7 @@ namespace App\Controllers\Api;
 use App\Models\CompanySettingModel;
 use App\Models\DeliveryChallanModel;
 use App\Services\PdfService;
+use App\Services\DeliveryChallanService;
 use Exception;
 
 class DocumentsController extends ApiBaseController
@@ -179,6 +180,26 @@ class DocumentsController extends ApiBaseController
 
         return $this->response->setHeader('Content-Type', 'application/pdf')
             ->setHeader('Content-Disposition', $disposition . '; filename="delivery_challan_' . $orderId . '.pdf"')
+            ->setBody($pdf);
+    }
+
+    public function standaloneDeliveryChallan(int $id)
+    {
+        $service = new DeliveryChallanService();
+        try {
+            $challan = $service->find($id);
+        } catch (Exception $e) {
+            return $this->fail($e->getMessage(), 404);
+        }
+        $pdf = $this->pdf->render('pdf/delivery_challan', [
+            'company' => $service->setting(),
+            'challan' => $challan,
+            'items' => $challan['items'] ?? [],
+        ]);
+        $filename = 'delivery_challan_' . preg_replace('/[^A-Za-z0-9_-]/', '_', (string) ($challan['challan_no'] ?? $id)) . '.pdf';
+        $download = (string) ($this->request->getGet('download') ?? '') === '1';
+        return $this->response->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', ($download ? 'attachment' : 'inline') . '; filename="' . $filename . '"')
             ->setBody($pdf);
     }
 
