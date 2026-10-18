@@ -741,7 +741,7 @@ class AttraiIntegrationService
             ? trim((string) $entityContent)
             : trim((string) ($content['message'] ?? $content['body'] ?? $entity['message'] ?? ''));
         $ackKey = trim((string) ($entity['ack_key'] ?? $payload['ack_key'] ?? ''));
-        if ($ackKey !== '' && $text !== '') {
+        if ($ackKey !== '' && ($text !== '' || $buttonId !== '')) {
             $replyContext = db_connect()->table('whatsapp_sender_queue')
                 ->select('event_key, source_type, recipient_number')
                 ->where('provider_key', 'attrai')->where('message_no', $ackKey)
@@ -749,7 +749,7 @@ class AttraiIntegrationService
             $contextRecipient = preg_replace('/\D+/', '', (string) ($replyContext['recipient_number'] ?? '')) ?? '';
             if ($contextRecipient !== '' && hash_equals($contextRecipient, $userId)) {
                 if ((string) ($replyContext['event_key'] ?? '') === 'attrai_demo'
-                    && strcasecmp($text, 'Check Order Status') === 0) {
+                    && ($buttonId === '1' || strcasecmp($text, 'Check Order Status') === 0)) {
                     $this->sendConversationMessage('order_status_prompt', $userId, 'Please send your Order ID or Order Number to check its current status.', 'arattai_chat');
                     return ['status' => 'prompted', 'message' => 'Asked the user for an order ID.'];
                 }
@@ -944,9 +944,10 @@ class AttraiIntegrationService
         $content = [
             'body' => mb_substr(trim($message), 0, 2000),
             'footer' => ['text' => 'Aabhushan ERP'],
-            'options' => array_map(static fn(array $option): array => [
+            'options' => array_map(static fn(int $index, array $option): array => [
+                'id' => (string) ($index + 1),
                 'label' => (string) $option['label'],
-            ], $options),
+            ], array_keys($options), array_values($options)),
         ];
         if (trim($mediaUrl) !== '') {
             $content['header'] = ['type' => 'image', 'link' => trim($mediaUrl)];
@@ -1037,8 +1038,12 @@ class AttraiIntegrationService
         $entity = is_array($payload['entity'] ?? null) ? $payload['entity'] : [];
         $ackKey = trim((string) ($entity['ack_key'] ?? $payload['ack_key'] ?? ''));
         $content = $entity['content'] ?? null;
-        $selected = is_scalar($content) ? trim((string) $content) : '';
-        if ($ackKey === '' || $selected === '') {
+        $contentArray = is_array($content) ? $content : [];
+        $buttonId = trim((string) ($entity['button_id'] ?? $contentArray['button_id'] ?? ''));
+        $selected = is_scalar($content)
+            ? trim((string) $content)
+            : trim((string) ($contentArray['label'] ?? $contentArray['title'] ?? ''));
+        if ($ackKey === '' || ($selected === '' && $buttonId === '')) {
             return '';
         }
         $row = db_connect()->table('whatsapp_sender_queue')
@@ -1057,7 +1062,12 @@ class AttraiIntegrationService
             'approve' => 'approve',
             'approve - no point' => 'approve_no_point',
             'disapprove' => 'reject',
-            default => '',
+            default => match ($buttonId) {
+                '1' => 'approve',
+                '2' => 'reject',
+                '3' => 'approve_no_point',
+                default => '',
+            },
         };
         $requestId = (int) ($row['source_id'] ?? 0);
         if ($decision !== '' && $requestId > 0) {
@@ -1089,10 +1099,12 @@ class AttraiIntegrationService
             'body' => mb_substr((string) ($variables['message'] ?? ''), 0, 2000),
             'footer' => ['text' => 'Aabhushan ERP approval'],
             'options' => array_map(
-                static fn (array $action): array => [
+                static fn (int $index, array $action): array => [
+                    'id' => (string) ($index + 1),
                     'label' => (string) ($action['title'] ?? 'Review'),
                 ],
-                json_decode((string) $variables['actions_json'], true) ?: []
+                array_keys(json_decode((string) $variables['actions_json'], true) ?: []),
+                array_values(json_decode((string) $variables['actions_json'], true) ?: [])
             ),
         ];
         $mediaUrl = trim((string) ($variables['media_url'] ?? ''));
