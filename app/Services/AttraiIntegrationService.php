@@ -323,7 +323,7 @@ class AttraiIntegrationService
             throw new RuntimeException('Approval request not found.');
         }
         if ((string) ($request['status'] ?? '') !== 'pending') {
-            $this->replyToWebhookUser($payload, 'This request was already ' . (string) ($request['status'] ?? 'reviewed') . '.');
+            $this->replyToWebhookUser($payload, 'Action already taken: This request is already ' . (string) ($request['status'] ?? 'reviewed') . '.');
             return [
                 'status' => 'already_reviewed',
                 'approval_request_id' => (int) $action['request_id'],
@@ -344,12 +344,12 @@ class AttraiIntegrationService
 
         $approved = $decision !== 'reject';
         $decisionLabel = $decision === 'approve_no_point'
-            ? 'approved with no points'
+            ? 'approved successfully without points'
             : ($approved ? 'approved successfully' : 'disapproved successfully');
         $this->replyToWebhookUser(
             $payload,
             $this->approvalLabel((string) ($request['request_type'] ?? ''))
-                . ' request #' . (int) $action['request_id'] . ' was ' . $decisionLabel . '.'
+                . ' request #' . (int) $action['request_id'] . ' was ' . $decisionLabel . '. ERP data has been updated.'
         );
 
         return [
