@@ -31,6 +31,7 @@ import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/pwa_install_prompt.dart';
 import 'package:flutkit/jewellery_pwa/screens/mobile_approvals_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/delivery_challans_screen.dart';
+import 'package:flutkit/jewellery_pwa/screens/packing_lists_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 
@@ -414,7 +415,7 @@ class _AppShellState extends State<AppShell> {
     if (!mounted || payload == null) return;
 
     final screen = (payload['screen'] ?? '').toString().toLowerCase();
-    if (screen == 'approvals' && widget.session.isAdmin) {
+    if (screen == 'approvals') {
       _switchSection('mobile_approvals');
       return;
     }
@@ -531,6 +532,8 @@ class _AppShellState extends State<AppShell> {
           key: ValueKey('delivery_challans_$_refreshTick'),
           api: _api,
         );
+      case 'packing_lists':
+        return PackingListsScreen(api: _api);
       case 'diamond_returns':
         return TransactionsScreen(
           key: ValueKey('diamond_returns_$_refreshTick'),
@@ -734,12 +737,13 @@ class _AppShellState extends State<AppShell> {
                           'Order Requests',
                           LucideIcons.badge_check,
                         ),
-                      if (widget.session.isAdmin)
-                        _drawerItem(
-                          'mobile_approvals',
-                          'Approval Desk',
-                          LucideIcons.shield_check,
-                        ),
+                      _drawerItem(
+                        'mobile_approvals',
+                        widget.session.isAdmin
+                            ? 'Approval Desk'
+                            : 'Customer & Karigar',
+                        LucideIcons.shield_check,
+                      ),
                       if (widget.session.isAdmin)
                         _drawerItem(
                           'admin_tasks',
@@ -762,6 +766,11 @@ class _AppShellState extends State<AppShell> {
                         'delivery_challans',
                         'Delivery Challans',
                         LucideIcons.truck,
+                      ),
+                      _drawerItem(
+                        'packing_lists',
+                        'Packing Lists',
+                        LucideIcons.package_check,
                       ),
                       _drawerSection('Diamond'),
                       _drawerItem(
@@ -941,13 +950,15 @@ class _AppShellState extends State<AppShell> {
       case 'order_requests':
         return 'Order Requests';
       case 'mobile_approvals':
-        return 'Approval Desk';
+        return widget.session.isAdmin ? 'Approval Desk' : 'Customer & Karigar';
       case 'admin_tasks':
         return 'Staff Tasks';
       case 'issuements':
         return 'Issuements';
       case 'delivery_challans':
         return 'Delivery Challans';
+      case 'packing_lists':
+        return 'Packing Lists';
       case 'diamond_requirements':
         return 'Diamond Bags';
       case 'diamond_returns':

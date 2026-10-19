@@ -11,6 +11,7 @@ import 'package:flutkit/jewellery_mobile/screens/order_followup_form_screen.dart
 import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_bags_screen.dart';
 import 'package:flutkit/jewellery_mobile/widgets/order_full_details.dart';
+import 'package:flutkit/jewellery_pwa/screens/order_receiving_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -42,6 +43,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   List<dynamic> _diamondBags = [];
   List<dynamic> _stoneIssues = [];
   bool _isReceived = false;
+  bool _canReceiveOrder = false;
+  bool _canRateOrder = false;
+  Map<String, dynamic> _receipt = {};
   List<dynamic> _karigars = [];
   List<dynamic> _assignmentCustomers = [];
   bool _canAssignKarigar = false;
@@ -98,6 +102,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _diamondBags = (data['diamond_bags'] as List?) ?? <dynamic>[];
         _stoneIssues = (data['stone_issues'] as List?) ?? <dynamic>[];
         _isReceived = data['is_received'] == true;
+        _canReceiveOrder =
+            data['can_receive_order'] == true || data['can_receive_order'] == 1;
+        _canRateOrder =
+            data['can_rate_order'] == true || data['can_rate_order'] == 1;
+        _receipt = _stringMap(data['receipt']);
         _karigars = (data['karigars'] as List?) ?? <dynamic>[];
         _assignmentCustomers =
             (data['assignment_customers'] as List?) ?? <dynamic>[];
@@ -150,6 +159,101 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
     if (result == true) {
       _load();
+    }
+  }
+
+  Future<void> _receiveOrder() async {
+    final received = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            OrderReceivingScreen(api: widget.api, orderId: widget.orderId),
+      ),
+    );
+    if (received == true) await _load();
+  }
+
+  Future<void> _rateOrder() async {
+    var rating = int.tryParse('${_order['completion_rating'] ?? ''}') ?? 0;
+    final comment = TextEditingController(
+      text: (_order['rating_comment'] ?? '').toString(),
+    );
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Order completion rating'),
+          content: SizedBox(
+            width: 430,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Rate the completed order from 1 to 5. This rating is included in the assigned follower’s performance.',
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (index) {
+                    final value = index + 1;
+                    return IconButton(
+                      tooltip: '$value star',
+                      onPressed: () => setDialogState(() => rating = value),
+                      icon: Icon(
+                        value <= rating ? Icons.star : Icons.star_border,
+                        color: AppColors.brandGold,
+                        size: 34,
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: comment,
+                  maxLength: 500,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Rating note (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: rating == 0
+                  ? null
+                  : () => Navigator.pop(context, true),
+              child: const Text('Save Rating'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final note = comment.text;
+    comment.dispose();
+    if (saved != true || !mounted) return;
+    try {
+      await widget.api.rateOrder(
+        orderId: widget.orderId,
+        rating: rating,
+        comment: note,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Completion rating saved.')));
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
     }
   }
 
@@ -1475,6 +1579,70 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       ],
                     ),
                   ],
+                  if (_canReceiveOrder) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    FilledButton.icon(
+                      onPressed: _receiveOrder,
+                      icon: const Icon(Icons.inventory_2_outlined),
+                      label: const Text('Receive finished jewellery'),
+                    ),
+                  ],
+                  if (_canRateOrder) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    OutlinedButton.icon(
+                      onPressed: _rateOrder,
+                      icon: const Icon(Icons.star_outline),
+                      label: Text(
+                        _order['completion_rating'] == null
+                            ? 'Rate completed order'
+                            : 'Update rating · ${_order['completion_rating']}/5',
+                      ),
+                    ),
+                  ],
+                  if (_receipt.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                        border: Border.all(
+                          color: AppColors.success.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_outline,
+                                color: AppColors.success,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Receiving posted',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Gross ${_wt(_receipt['gross_weight_gm'])} gm · Net ${_wt(_receipt['net_gold_weight_gm'])} gm · Pure ${_wt(_receipt['pure_gold_weight_gm'])} gm',
+                          ),
+                          Text(
+                            '${(_receipt['wastage_type'] ?? 'normal').toString().toUpperCase()} wastage ${_wt(_receipt['wastage_percent'])}% · Effective purity ${_wt(_receipt['effective_purity_percent'])}% · Total pure deduction ${_wt(_num(_receipt['pure_gold_weight_gm']) + _num(_receipt['pure_wastage_weight_gm']))} gm',
+                          ),
+                          Text(
+                            'Received by ${_receipt['received_by_name'] ?? 'Admin'} · valuation ₹${AppFormatters.amount(_receipt['total_valuation'])}',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   if (canTakeFollowup) ...[
                     const SizedBox(height: AppSpacing.md),
                     OutlinedButton.icon(
@@ -1935,4 +2103,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   int _int(dynamic value) {
     return value is num ? value.toInt() : int.tryParse('$value') ?? 0;
   }
+
+  double _num(dynamic value) {
+    return value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+  }
+
+  String _wt(dynamic value) => _num(value).toStringAsFixed(3);
 }
+
+Map<String, dynamic> _stringMap(dynamic value) => value is Map
+    ? value.map((key, item) => MapEntry(key.toString(), item))
+    : <String, dynamic>{};
