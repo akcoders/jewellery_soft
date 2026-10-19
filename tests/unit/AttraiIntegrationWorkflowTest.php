@@ -144,6 +144,27 @@ final class AttraiIntegrationWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString("_field('attrai_number', 'ATTRAI Number')", $pwaApprovals);
     }
 
+    public function testOrderReceivingSendsStarRatingQuickReplyAndStoresReply(): void
+    {
+        $service = $this->source('Services/AttraiIntegrationService.php');
+        $receiving = $this->source('Services/OrderReceivingService.php');
+
+        $this->assertStringContainsString('requestOrderRating($orderId)', $receiving);
+        $this->assertStringContainsString('Arattai order rating request failed', $receiving);
+        $this->assertStringContainsString('public function requestOrderRating(int $orderId', $service);
+        $this->assertStringContainsString("'order_rating_request'", $service);
+        $this->assertStringContainsString("foreach (range(1, 5) as \$stars)", $service);
+        $this->assertStringContainsString("=== 'order_rating_request'", $service);
+        $this->assertStringContainsString('applyOrderRatingReply(', $service);
+        $this->assertStringContainsString("'completion_rating' => \$rating", $service);
+        $this->assertStringContainsString("'rated_by' => \$actorAdminUserId", $service);
+        $this->assertStringContainsString("userCan(\$actorAdminUserId, 'orders.assign')", $service);
+        $this->assertStringContainsString("['Completed', 'Complete', 'Delivered']", $service);
+        $this->assertStringContainsString('StaffPerformanceService::RATING_POINT_STEP', $service);
+        // A namespaced `catch (Throwable)` without an import never matches; all catches must be fully qualified.
+        $this->assertStringNotContainsString('catch (Throwable', $service);
+    }
+
     private function source(string $relativePath): string
     {
         return (string) file_get_contents(APPPATH . $relativePath);

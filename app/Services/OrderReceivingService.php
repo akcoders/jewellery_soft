@@ -271,6 +271,11 @@ class OrderReceivingService
         } catch (Throwable $e) {
             log_message('error', 'Arattai receiving points notification failed: {message}', ['message' => $e->getMessage()]);
         }
+        try {
+            (new AttraiIntegrationService())->requestOrderRating($orderId);
+        } catch (Throwable $e) {
+            log_message('error', 'Arattai order rating request failed: {message}', ['message' => $e->getMessage()]);
+        }
 
         return [
             'order_id' => $orderId,

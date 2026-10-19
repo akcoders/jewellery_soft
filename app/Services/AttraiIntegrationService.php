@@ -435,7 +435,7 @@ class AttraiIntegrationService
                         (int) ($request['id'] ?? 0),
                         $this->orderIdFromApproval($request)
                     );
-                } catch (Throwable $e) {
+                } catch (\Throwable $e) {
                     log_message('error', 'Arattai approved issuement PDF failed: {message}', ['message' => $e->getMessage()]);
                 }
             }
@@ -465,6 +465,194 @@ class AttraiIntegrationService
             $adminUserId,
             $orderId
         );
+    }
+
+    /**
+     * After finished jewellery is received, ask the approval admins to rate the
+     * completed order with a 1-5 star quick reply. The reply is stored on the
+     * order exactly like the PWA "Rate completed order" action.
+     *
+     * @return array<string,mixed>
+     */
+    public function requestOrderRating(int $orderId, bool $force = false): array
+    {
+        $settings = $this->settings();
+        if (! $this->approvalNotificationsConfigured($settings)) {
+            return ['status' => 'skipped', 'message' => 'Arattai approval notifications are disabled or incomplete.'];
+        }
+        $db = db_connect();
+        $order = $db->table('orders o')
+            ->select('o.id, o.order_no, o.order_name, o.status, o.completion_rating, o.followup_assigned_to, k.name AS karigar_name, follower.name AS follower_name')
+            ->join('karigars k', 'k.id = o.assigned_karigar_id', 'left')
+            ->join('admin_users follower', 'follower.id = o.followup_assigned_to', 'left')
+            ->where('o.id', $orderId)
+            ->get()->getRowArray();
+        if (! is_array($order)) {
+            return ['status' => 'skipped', 'message' => 'Order not found.'];
+        }
+        $receipt = (new OrderReceivingService($db))->receiptSummary($orderId);
+        if ($receipt === []) {
+            return ['status' => 'skipped', 'message' => 'Order has no recorded receiving yet.'];
+        }
+
+        $orderNo = (string) (($order['order_no'] ?? '') ?: ('#' . $orderId));
+        $message = "*Order Received - Rate Completion*"
+            . "\nOrder: " . $orderNo
+            . "\nWork: " . ((string) ($order['order_name'] ?? '') ?: '-')
+            . "\nKarigar: " . ((string) ($order['karigar_name'] ?? '') ?: '-')
+            . "\nFollower: " . ((string) ($order['follower_name'] ?? '') ?: '-')
+            . "\nReceived by: " . ((string) ($receipt['received_by_name'] ?? '') ?: '-')
+            . "\nGross: " . number_format((float) ($receipt['gross_weight_gm'] ?? 0), 3) . ' gm'
+            . ' | Net: ' . number_format((float) ($receipt['net_gold_weight_gm'] ?? 0), 3) . ' gm'
+            . "\n\nTap a star rating for this completed order. It is counted in the follower's performance.";
+        $options = [];
+        foreach (range(1, 5) as $stars) {
+            $options[] = [
+                'id' => (string) $stars,
+                'label' => str_repeat('⭐', $stars) . ' ' . $stars . ($stars === 1 ? ' Star' : ' Stars'),
+            ];
+        }
+        $mediaUrl = $this->finishPhotoUrl($orderId) ?: $this->orderImageUrl($orderId, $settings);
+
+        $results = [];
+        $skipped = 0;
+        foreach ($this->approvalUserIds($settings) as $userId) {
+            if (! $force && $db->table('whatsapp_sender_queue')
+                ->where('provider_key', 'attrai')->where('event_key', 'order_rating_request')
+                ->where('source_type', 'orders')->where('source_id', $orderId)
+                ->where('recipient_number', $userId)->countAllResults() > 0) {
+                $skipped++;
+                continue;
+            }
+            $results[] = $this->sendConversationMessage(
+                'order_rating_request',
+                $userId,
+                $message,
+                'orders',
+                $orderId,
+                $orderId,
+                $mediaUrl,
+                true,
+                '',
+                $this->quickReplyPayload($userId, $message, $options, $mediaUrl)
+            );
+        }
+
+        return [
+            'status' => $results === [] ? ($skipped > 0 ? 'duplicate' : 'skipped') : 'sent',
+            'message' => $results === []
+                ? ($skipped > 0 ? 'Rating request was already sent for this order.' : 'No approval admin Arattai user ID is configured.')
+                : 'Arattai rating request sent to ' . count($results) . ' approval admin(s).',
+            'order_id' => $orderId,
+            'results' => $results,
+        ];
+    }
+
+    /**
+     * Store a star rating chosen on an "order_rating_request" quick reply.
+     *
+     * @param array<string,mixed> $replyContext
+     * @return array<string,mixed>
+     */
+    private function applyOrderRatingReply(
+        array $replyContext,
+        string $userId,
+        int $actorAdminUserId,
+        string $text,
+        string $buttonId
+    ): array {
+        $orderId = (int) ($replyContext['source_id'] ?? 0);
+        $sourceId = $orderId > 0 ? $orderId : null;
+        $rating = $this->ratingFromReply($text, $buttonId);
+        if ($orderId <= 0 || $rating < 1 || $rating > 5) {
+            $this->sendConversationMessage('order_rating_reply', $userId, 'Please tap one of the star options (1 to 5) on the rating card.', 'orders', $sourceId, $sourceId);
+            return ['status' => 'rating_invalid', 'message' => 'Rating reply did not contain a 1-5 star value.'];
+        }
+        $db = db_connect();
+        $order = $db->table('orders')
+            ->select('id, order_no, status, followup_assigned_to, completion_rating')
+            ->where('id', $orderId)->get()->getRowArray();
+        if (! is_array($order)) {
+            $this->sendConversationMessage('order_rating_reply', $userId, 'This order could not be found any more.', 'orders', $sourceId, $sourceId);
+            return ['status' => 'rating_order_missing', 'message' => 'Rated order was not found.', 'order_id' => $orderId];
+        }
+        $orderNo = (string) (($order['order_no'] ?? '') ?: ('#' . $orderId));
+        $receipt = (new OrderReceivingService($db))->receiptSummary($orderId);
+        if ($receipt === [] || ! in_array((string) ($order['status'] ?? ''), ['Completed', 'Complete', 'Delivered'], true)) {
+            $this->sendConversationMessage('order_rating_reply', $userId, 'Order ' . $orderNo . ' can be rated only after finished jewellery is received and the order is completed.', 'orders', $sourceId, $sourceId);
+            return ['status' => 'rating_not_allowed', 'message' => 'Order is not in a ratable state.', 'order_id' => $orderId];
+        }
+        if (! (new RbacService())->userCan($actorAdminUserId, 'orders.assign')) {
+            $this->sendConversationMessage('order_rating_reply', $userId, 'Your ERP user is not allowed to rate orders.', 'orders', $sourceId, $sourceId);
+            return ['status' => 'rating_forbidden', 'message' => 'Mapped ERP user cannot rate orders.', 'order_id' => $orderId];
+        }
+
+        $previous = $order['completion_rating'] !== null ? (int) $order['completion_rating'] : null;
+        $now = date('Y-m-d H:i:s');
+        $db->table('orders')->where('id', $orderId)->update([
+            'completion_rating' => $rating,
+            'rating_comment' => 'Rated from Arattai',
+            'rated_by' => $actorAdminUserId,
+            'rated_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $reply = '*Rating Saved*' . "\nOrder " . $orderNo . ' rated ' . $rating . '/5 ' . str_repeat('⭐', $rating) . '.';
+        if ($previous !== null && $previous !== $rating) {
+            $reply .= "\nPrevious rating " . $previous . '/5 was replaced.';
+        }
+        $reply .= "\nThank you.";
+        $this->sendConversationMessage('order_rating_reply', $userId, $reply, 'orders', $orderId, $orderId);
+
+        $followerId = (int) ($order['followup_assigned_to'] ?? 0);
+        $delta = ($rating - 3) * StaffPerformanceService::RATING_POINT_STEP;
+        if ($followerId > 0 && abs($delta) >= 0.0001) {
+            try {
+                $this->notifyPointChange($followerId, $delta, 'Order completion rating ' . $rating . '/5', $orderNo, $orderId);
+            } catch (\Throwable $e) {
+                log_message('error', 'Arattai rating points notification failed: {message}', ['message' => $e->getMessage()]);
+            }
+        }
+
+        return [
+            'status' => 'rated',
+            'message' => 'Order completion rating saved from Arattai.',
+            'order_id' => $orderId,
+            'rating' => $rating,
+            'previous_rating' => $previous,
+            'rated_by' => $actorAdminUserId,
+        ];
+    }
+
+    /** Extracts a 1-5 star value from a quick-reply button id or its label text. */
+    private function ratingFromReply(string $text, string $buttonId): int
+    {
+        foreach ([$buttonId, $text] as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                continue;
+            }
+            if (preg_match('/(?<!\d)([1-5])(?!\d)/u', $candidate, $match) === 1) {
+                return (int) $match[1];
+            }
+            $stars = mb_substr_count($candidate, '⭐');
+            if ($stars >= 1 && $stars <= 5) {
+                return $stars;
+            }
+        }
+        return 0;
+    }
+
+    private function finishPhotoUrl(int $orderId): string
+    {
+        $db = db_connect();
+        if ($orderId <= 0 || ! $db->tableExists('order_attachments')) {
+            return '';
+        }
+        $row = $db->table('order_attachments')->select('file_path')
+            ->where('order_id', $orderId)->where('file_type', 'finish_photo')
+            ->orderBy('id', 'DESC')->get()->getRowArray();
+        return is_array($row) ? $this->normalizeImageUrl((string) ($row['file_path'] ?? '')) : '';
     }
 
     /** @param array<string,mixed> $context */
@@ -795,6 +983,9 @@ class AttraiIntegrationService
                 if ((string) ($replyContext['source_type'] ?? '') === 'arattai_preview') {
                     $this->sendConversationMessage('preview_action_reply', $userId, 'This is a design preview only. No ERP data was changed.', 'arattai_preview');
                     return ['status' => 'preview', 'message' => 'Preview action acknowledged.'];
+                }
+                if ((string) ($replyContext['event_key'] ?? '') === 'order_rating_request') {
+                    return $this->applyOrderRatingReply($replyContext, $userId, $actorAdminUserId, $text, $buttonId);
                 }
             }
         }

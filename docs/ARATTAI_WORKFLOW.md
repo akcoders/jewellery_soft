@@ -10,6 +10,7 @@
 - Karigar assignment sends order number, work, item size, quantity, description, priority, due date and image. Customer name, budget and advance are intentionally excluded.
 - Material issuement and karigar payment messages are sent after their database transaction succeeds.
 - Employee point credit/deduction messages cover follow-up decisions, task completion, daily overdue tasks, order creation, purchase, issuement, return and receiving.
+- When finished jewellery is received (admin panel, PWA, Android app or the Arattai receiving conversation), every approval admin gets an `order_rating_request` quick-reply card with ⭐ 1-5 options and the finish photo. Tapping a star stores `completion_rating` / `rated_by` / `rated_at` on the order (same as the PWA "Rate completed order" action), confirms back to the admin, and sends the order follower the matching ±points message. The card is sent once per order per admin; the reply requires the mapped ERP user to hold `orders.assign`.
 - Upcoming/overdue follow-up reminders are queued automatically. Approval-pending follow-ups continue to follow the performance exclusion rules in `StaffPerformanceService`.
 - Incoming free-text chat asks for an order ID/number and returns status, priority, due date, latest approved follow-up and image without customer or financial data.
 - Admin and CLI preview tools send one selected workflow design at a time to stay below the conversational API rate limit.
