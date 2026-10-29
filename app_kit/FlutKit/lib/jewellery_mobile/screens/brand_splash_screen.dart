@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
+import 'package:flutkit/jewellery_mobile/widgets/premium_surface.dart';
 import 'package:flutter/material.dart';
 
 class BrandSplashScreen extends StatefulWidget {
   const BrandSplashScreen({super.key, required this.onFinished});
-
   final VoidCallback onFinished;
 
   @override
@@ -17,12 +17,17 @@ class _BrandSplashScreenState extends State<BrandSplashScreen>
   late final AnimationController _entrance = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 850),
-  )..forward();
+  );
   Timer? _finishTimer;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _entrance.value = 1;
+    } else if (_finishTimer == null) {
+      _entrance.forward();
+    }
     _finishTimer ??= Timer(
       MediaQuery.disableAnimationsOf(context)
           ? const Duration(milliseconds: 250)
@@ -42,132 +47,107 @@ class _BrandSplashScreenState extends State<BrandSplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final appear = CurvedAnimation(
-      parent: _entrance,
-      curve: Curves.easeOutCubic,
-    );
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 138,
-          height: 138,
-          padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFFFFFBF4),
-            border: Border.all(color: AppColors.brandGold, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.brandGold.withValues(alpha: 0.23),
-                blurRadius: 42,
-                spreadRadius: 5,
-              ),
-            ],
-          ),
-          child: Image.asset(
-            'assets/images/brand/aabhushan_mark.png',
-            fit: BoxFit.contain,
-            semanticLabel: 'Aabhushan',
-          ),
-        ),
-        const SizedBox(height: 28),
-        const Text(
-          'AABHUSHAN',
-          style: TextStyle(
-            color: Color(0xFFFFFAF0),
-            fontSize: 27,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 4.2,
-          ),
-        ),
-        const SizedBox(height: 9),
-        const Text(
-          'JEWELLERY WORKSPACE',
-          style: TextStyle(
-            color: AppColors.brandGold,
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 3,
-          ),
-        ),
-        const SizedBox(height: 38),
-        SizedBox(
-          width: 92,
-          child: reduceMotion
-              ? Container(height: 2, color: AppColors.brandGold)
-              : LinearProgressIndicator(
-                  minHeight: 2,
-                  backgroundColor: AppColors.brandGold.withValues(alpha: 0.22),
-                  color: AppColors.brandGold,
-                ),
-        ),
-      ],
-    );
-
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF351727), AppColors.plum, Color(0xFF6C2634)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+      body: PremiumBackdrop(
         child: SafeArea(
-          child: Stack(
-            children: [
-              Positioned(top: -190, right: -160, child: _Halo(diameter: 390)),
-              Positioned(bottom: -230, left: -170, child: _Halo(diameter: 430)),
-              Center(
-                child: reduceMotion
-                    ? content
-                    : FadeTransition(
-                        opacity: appear,
-                        child: ScaleTransition(
-                          scale: Tween<double>(
-                            begin: 0.84,
-                            end: 1,
-                          ).animate(appear),
-                          child: content,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(28),
+              child: AnimatedBuilder(
+                animation: _entrance,
+                builder: (context, child) {
+                  final value = Curves.easeOutCubic.transform(_entrance.value);
+                  return Opacity(
+                    opacity: value,
+                    child: Transform.translate(
+                      offset: Offset(0, 14 * (1 - value)),
+                      child: child,
+                    ),
+                  );
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const FacetedDiamond(size: 48, color: AppColors.brandGold),
+                    const SizedBox(height: 28),
+                    Container(
+                      width: 116,
+                      height: 116,
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.card,
+                        border: Border.all(color: AppColors.brandGold),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x0D5364AD),
+                            blurRadius: 36,
+                            offset: Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Image.asset(
+                        'assets/images/brand/aabhushan_mark.png',
+                        fit: BoxFit.contain,
+                        semanticLabel: 'Aabhushan',
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'AABHUSHAN',
+                        style: TextStyle(
+                          fontFamily: 'CormorantGaramond',
+                          color: AppColors.textPrimary,
+                          fontSize: 35,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 3.2,
                         ),
                       ),
-              ),
-              const Positioned(
-                left: 0,
-                right: 0,
-                bottom: 30,
-                child: Text(
-                  'CRAFTED WITH PRECISION',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0x99FFF9ED),
-                    fontSize: 9,
-                    letterSpacing: 2.1,
-                  ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'JEWELLERY WORKSPACE',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 2.4,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    SizedBox(
+                      width: 88,
+                      child: AnimatedBuilder(
+                        animation: _entrance,
+                        builder: (context, child) => LinearProgressIndicator(
+                          value: _entrance.value,
+                          minHeight: 2,
+                          color: AppColors.brandGold,
+                          backgroundColor: AppColors.paleGold,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    const Text(
+                      'CRAFTED WITH PRECISION',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 9,
+                        letterSpacing: 1.8,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
-}
-
-class _Halo extends StatelessWidget {
-  const _Halo({required this.diameter});
-
-  final double diameter;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: diameter,
-    height: diameter,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      border: Border.all(color: AppColors.brandGold.withValues(alpha: 0.13)),
-    ),
-  );
 }

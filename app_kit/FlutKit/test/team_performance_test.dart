@@ -1,6 +1,7 @@
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_pwa/screens/performance_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/team_performance_screen.dart';
+import 'package:flutkit/jewellery_pwa/widgets/performance_target_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -96,6 +97,34 @@ class _TeamApi extends MobileApiService {
 }
 
 void main() {
+  testWidgets(
+    'performance target ring settles immediately with reduced motion',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(disableAnimations: true),
+            child: Scaffold(
+              body: PerformanceTargetCard(
+                score: 100,
+                target: 200,
+                rewardPoints: 0,
+                rewardPerPoint: 1,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final ring = tester.widget<CircularProgressIndicator>(
+        find.byType(CircularProgressIndicator),
+      );
+      expect(ring.value, 0.5);
+      expect(tester.binding.transientCallbackCount, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('team performance ranks staff, shows target and rewards', (
     tester,
   ) async {

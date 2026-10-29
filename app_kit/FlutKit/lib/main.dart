@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutkit/jewellery_mobile/widgets/premium_surface.dart';
 
 import 'package:flutkit/jewellery_mobile/jewellery_mobile_app.dart';
 import 'package:flutkit/jewellery_pwa/jewellery_pwa_app.dart';
@@ -26,9 +27,14 @@ Future<void> main() async {
 Future<void> _loadPwaFonts() async {
   if (!kIsWeb) {
     LicenseRegistry.addLicense(() async* {
-      yield LicenseEntryWithLineBreaks([
-        'Manrope',
-      ], await rootBundle.loadString('assets/fonts/manrope/OFL.txt'));
+      for (final font in const {
+        'Manrope': 'manrope',
+        'Cormorant Garamond': 'cormorant',
+      }.entries) {
+        yield LicenseEntryWithLineBreaks([
+          font.key,
+        ], await rootBundle.loadString('assets/fonts/${font.value}/OFL.txt'));
+      }
     });
     return;
   }
@@ -80,6 +86,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Aabhushan ERP',
+      builder: (context, child) => PremiumBackdrop(child: child!),
       theme: kIsWeb ? pwa.AppTheme.light() : AppTheme.light(),
       home: kIsWeb
           ? JewelleryPwaApp(initialSession: initialSession)

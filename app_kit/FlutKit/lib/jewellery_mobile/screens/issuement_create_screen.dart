@@ -149,10 +149,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
                   DropdownButtonFormField<int>(
                     isExpanded: true,
                     initialValue: bagId,
-                    decoration: const InputDecoration(
-                      labelText: 'Select Bag',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: const InputDecoration(labelText: 'Select Bag'),
                     items: bags.entries.map((entry) {
                       final rows = _diamondItems.where(
                         (row) => _intValue(row['bag_id']) == entry.key,
@@ -248,7 +245,9 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
       if (!mounted) return;
       await Scrollable.ensureVisible(
         invalidFields.first.context,
-        duration: const Duration(milliseconds: 280),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 280),
         alignment: 0.15,
       );
       return;
@@ -651,10 +650,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
     controller: controller,
     maxLines: lines,
     validator: validator,
-    decoration: InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-    ),
+    decoration: InputDecoration(labelText: label),
   );
   Widget _requiredText(TextEditingController controller, String label) => _text(
     controller,
@@ -669,10 +665,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   }) => TextFormField(
     controller: controller,
     keyboardType: TextInputType.numberWithOptions(decimal: !whole),
-    decoration: InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-    ),
+    decoration: InputDecoration(labelText: label),
     validator: (value) {
       final parsed = double.tryParse((value ?? '').trim());
       if (parsed == null || parsed <= 0) return 'Enter a number greater than 0';
@@ -685,10 +678,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
       TextFormField(
         controller: controller,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
+        decoration: InputDecoration(labelText: label),
         validator: (value) {
           if ((value ?? '').trim().isEmpty) return null;
           final parsed = double.tryParse(value!.trim());
@@ -706,10 +696,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   ) => DropdownButtonFormField<int>(
     initialValue: value,
     isExpanded: true,
-    decoration: InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-    ),
+    decoration: InputDecoration(labelText: label),
     items: rows
         .map(
           (row) => DropdownMenuItem<int>(
@@ -736,10 +723,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   ) => DropdownButtonFormField<int>(
     initialValue: value,
     isExpanded: true,
-    decoration: InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-    ),
+    decoration: InputDecoration(labelText: label),
     items: rows
         .map(
           (row) => DropdownMenuItem<int>(
@@ -763,10 +747,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
     key: fieldKey,
     initialValue: value,
     isExpanded: true,
-    decoration: InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-    ),
+    decoration: InputDecoration(labelText: label),
     items: [
       const DropdownMenuItem<int?>(value: null, child: Text('Not allocated')),
       ...rows.map(
@@ -786,7 +767,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 12),
       shape: RoundedRectangleBorder(
         side: const BorderSide(color: AppColors.border),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       title: const Text('Issue Date'),
       subtitle: Text(_date(_issueDate)),

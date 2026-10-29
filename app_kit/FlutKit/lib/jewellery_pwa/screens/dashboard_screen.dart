@@ -1,3 +1,4 @@
+import 'package:flutkit/jewellery_mobile/widgets/premium_surface.dart';
 import 'package:flutkit/jewellery_mobile/services/followup_notification_service.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
@@ -151,94 +152,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ).$1.startsWith('Overdue'),
         )
         .length;
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF321426), AppColors.plum, Color(0xFF623544)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      greeting.toUpperCase(),
-                      style: const TextStyle(
-                        color: AppColors.paleGold,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.8,
-                      ),
+    final compact = MediaQuery.sizeOf(context).width < 360;
+    return PremiumEntrance(
+      child: PremiumSurface(
+        padding: const EdgeInsets.all(24),
+        borderRadius: 28,
+        accent: AppColors.ice,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    greeting.toUpperCase(),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.7,
                     ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'A little clarity.\nA finer working day.',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w600,
-                        height: 1.2,
-                        letterSpacing: -.7,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Your orders, craft and followups, beautifully organised.',
-                      style: TextStyle(
-                        color: Color(0xFFD6C4CE),
-                        fontSize: 12,
-                        height: 1.6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .08),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AppColors.brandGold.withValues(alpha: .45),
                   ),
                 ),
-                child: const Icon(
-                  LucideIcons.gem,
-                  color: AppColors.paleGold,
-                  size: 22,
+                const SizedBox(width: 12),
+                const FacetedDiamond(size: 42, color: AppColors.brandGold),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              compact ? 'Your workspace.' : 'Your workspace, in focus.',
+              style: TextStyle(
+                fontFamily: 'CormorantGaramond',
+                color: AppColors.textPrimary,
+                fontSize: compact ? 28 : 32,
+                fontWeight: FontWeight.w600,
+                height: 1.12,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              compact
+                  ? 'Orders, materials and follow-ups.'
+                  : 'Orders, materials and follow-ups at a glance.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                height: 1.65,
+              ),
+            ),
+            const SizedBox(height: 22),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: 15),
+            Wrap(
+              spacing: 18,
+              runSpacing: 10,
+              children: [
+                _heroDetail(
+                  Icons.calendar_today_outlined,
+                  AppFormatters.date(DateTime.now().toIso8601String()),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 22),
-          Container(height: 1, color: Colors.white.withValues(alpha: .12)),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 20,
-            runSpacing: 12,
-            children: [
-              _heroDetail(
-                LucideIcons.calendar_days,
-                AppFormatters.date(now.toIso8601String()),
-              ),
-              _heroDetail(LucideIcons.calendar_clock, '$todayCount due today'),
-              if (overdue > 0)
-                _heroDetail(LucideIcons.clock_alert, '$overdue overdue'),
-            ],
-          ),
-        ],
+                _heroDetail(
+                  Icons.event_available_outlined,
+                  '$todayCount due today',
+                ),
+                if (overdue > 0)
+                  _heroDetail(Icons.schedule_rounded, '$overdue overdue'),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -246,13 +228,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _heroDetail(IconData icon, String text) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Icon(icon, size: 15, color: AppColors.paleGold),
+      Icon(icon, size: 15, color: AppColors.brandGold),
       const SizedBox(width: 7),
       Flexible(
         child: Text(
           text,
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.textSecondary,
             fontSize: 11,
             fontWeight: FontWeight.w500,
           ),

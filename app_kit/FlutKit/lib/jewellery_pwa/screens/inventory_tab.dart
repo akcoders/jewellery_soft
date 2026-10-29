@@ -201,8 +201,9 @@ class _InventoryTabState extends State<InventoryTab> {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.border),
         gradient: const LinearGradient(
-          colors: [AppColors.plum, Color(0xFF654152)],
+          colors: [AppColors.card, AppColors.paleGold],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -218,12 +219,12 @@ class _InventoryTabState extends State<InventoryTab> {
                   style: TextStyle(
                     fontSize: 10,
                     letterSpacing: 1.5,
-                    color: AppColors.paleGold,
+                    color: AppColors.brandGold,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              Icon(_icons[_material], size: 24, color: AppColors.paleGold),
+              Icon(_icons[_material], size: 24, color: AppColors.brandGold),
             ],
           ),
           const SizedBox(height: 10),
@@ -232,17 +233,20 @@ class _InventoryTabState extends State<InventoryTab> {
             style: const TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: AppColors.textPrimary,
               letterSpacing: -.9,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'Across all ${_names[_material].toLowerCase()} stock',
-            style: const TextStyle(fontSize: 12, color: Color(0xFFD6C4CE)),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 22),
-          Container(height: 1, color: Colors.white.withValues(alpha: .15)),
+          Container(height: 1, color: AppColors.border),
           const SizedBox(height: 16),
           Wrap(
             spacing: 36,
@@ -256,7 +260,7 @@ class _InventoryTabState extends State<InventoryTab> {
                         metric.label,
                         style: const TextStyle(
                           fontSize: 11,
-                          color: Color(0xFFD6C4CE),
+                          color: AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -264,7 +268,7 @@ class _InventoryTabState extends State<InventoryTab> {
                         metric.value,
                         style: const TextStyle(
                           fontSize: 18,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

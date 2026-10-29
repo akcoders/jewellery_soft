@@ -58,13 +58,26 @@ class WorkspaceMetricCard extends StatelessWidget {
   Widget build(BuildContext context) => Material(
     color: Colors.white,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      side: const BorderSide(color: AppColors.border),
+      borderRadius: BorderRadius.circular(AppRadius.xl),
+      side: BorderSide(color: AppColors.brandGold.withValues(alpha: .32)),
     ),
     clipBehavior: Clip.antiAlias,
     child: InkWell(
       onTap: onTap,
-      child: Padding(
+      child: Ink(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white,
+              Color.alphaBlend(
+                color.withValues(alpha: .085),
+                AppColors.background,
+              ),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,8 +147,14 @@ class WorkspaceIconTile extends StatelessWidget {
     width: size,
     height: size,
     decoration: BoxDecoration(
-      color: color.withValues(alpha: .09),
-      borderRadius: BorderRadius.circular(12),
+      gradient: LinearGradient(
+        colors: [
+          Colors.white,
+          Color.alphaBlend(color.withValues(alpha: .12), AppColors.background),
+        ],
+      ),
+      border: Border.all(color: AppColors.border),
+      borderRadius: BorderRadius.circular(14),
     ),
     child: Icon(icon, color: color, size: size * .48),
   );

@@ -218,7 +218,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   maxLines: 3,
                   decoration: const InputDecoration(
                     labelText: 'Rating note (optional)',
-                    border: OutlineInputBorder(),
                   ),
                 ),
               ],
@@ -1161,7 +1160,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     enabled: !saving,
                     decoration: const InputDecoration(
                       labelText: 'Issue note (optional)',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   if (error.isNotEmpty)
@@ -2092,23 +2090,25 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     padding: const EdgeInsets.all(22),
     decoration: BoxDecoration(
       gradient: const LinearGradient(
-        colors: [AppColors.plum, Color(0xFF603047)],
+        colors: [Colors.white, AppColors.paleGold],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
       borderRadius: BorderRadius.circular(AppRadius.xl),
+      border: Border.all(color: AppColors.border),
+      boxShadow: AppShadows.soft,
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Row(
           children: [
-            Icon(LucideIcons.gem, size: 20, color: AppColors.paleGold),
+            Icon(LucideIcons.gem, size: 20, color: AppColors.brandGold),
             SizedBox(width: 10),
             Text(
               'ORDER OVERVIEW',
               style: TextStyle(
-                color: Color(0xFFE9D7DE),
+                color: AppColors.textSecondary,
                 fontSize: 11,
                 letterSpacing: 1.5,
                 fontWeight: FontWeight.w700,
@@ -2120,7 +2120,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         Text(
           '${_order['order_no'] ?? '-'}',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: Colors.white,
+            color: AppColors.textPrimary,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -2151,13 +2151,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     children: [
       Text(
         label,
-        style: const TextStyle(color: Color(0xFFDCC5CF), fontSize: 11),
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
       ),
       const SizedBox(height: 5),
       Text(
         value,
         style: const TextStyle(
-          color: Colors.white,
+          color: AppColors.textPrimary,
           fontWeight: FontWeight.w600,
           fontSize: 13,
         ),

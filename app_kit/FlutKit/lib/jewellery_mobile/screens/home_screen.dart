@@ -76,7 +76,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 220),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 220),
         child: KeyedSubtree(key: ValueKey<int>(_tab), child: pages[_tab]),
       ),
       bottomNavigationBar: NavigationBar(

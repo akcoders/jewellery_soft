@@ -262,9 +262,11 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
       gradient: const LinearGradient(
-        colors: [AppColors.plum, Color(0xFF71455B)],
+        colors: [Colors.white, AppColors.paleGold],
       ),
       borderRadius: BorderRadius.circular(AppRadius.xl),
+      border: Border.all(color: AppColors.border),
+      boxShadow: AppShadows.soft,
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +274,7 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
         const Text(
           'INDEPENDENT RECEIVING',
           style: TextStyle(
-            color: AppColors.brandGold,
+            color: AppColors.textSecondary,
             fontSize: 11,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.4,
@@ -282,19 +284,22 @@ class _OrderReceivingScreenState extends State<OrderReceivingScreen> {
         Text(
           '${_order['order_no'] ?? ''}',
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.textPrimary,
             fontSize: 24,
             fontWeight: FontWeight.w800,
           ),
         ),
         Text(
           '${_order['customer_name'] ?? 'Customer'} · ${_order['karigar_name'] ?? 'Karigar'}',
-          style: const TextStyle(color: Colors.white70),
+          style: const TextStyle(color: AppColors.textSecondary),
         ),
         const SizedBox(height: 12),
         const Text(
           'Completing a follow-up does not receive stock. Post actual weights here.',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     ),

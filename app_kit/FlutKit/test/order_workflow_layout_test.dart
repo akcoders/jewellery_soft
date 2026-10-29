@@ -247,6 +247,8 @@ void main() {
       450,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(find.text('BAG-2026-000001'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('BAG-2026-000001'));
     await tester.pumpAndSettle();
 

@@ -166,9 +166,10 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
       gradient: const LinearGradient(
-        colors: [AppColors.plum, Color(0xFF762D49)],
+        colors: [AppColors.card, AppColors.background, AppColors.paleGold],
       ),
       borderRadius: BorderRadius.circular(AppRadius.xl),
+      border: Border.all(color: AppColors.border),
       boxShadow: AppShadows.soft,
     ),
     child: Row(
@@ -181,7 +182,7 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
           ),
           child: const Icon(
             LucideIcons.package_check,
-            color: AppColors.brandGold,
+            color: AppColors.plum,
             size: 30,
           ),
         ),
@@ -193,7 +194,7 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
               Text(
                 'READY ORDER DISPATCH',
                 style: TextStyle(
-                  color: AppColors.brandGold,
+                  color: AppColors.plum,
                   fontSize: 10,
                   letterSpacing: 1.5,
                   fontWeight: FontWeight.w800,
@@ -203,7 +204,7 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
               Text(
                 'Packing List Generator',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontFamily: 'CormorantGaramond',
                   fontSize: 25,
                   fontWeight: FontWeight.w700,
@@ -212,7 +213,7 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
               SizedBox(height: 3),
               Text(
                 'Select completed & received orders for one A4 landscape PDF.',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
             ],
           ),
@@ -220,7 +221,7 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
         Text(
           '${_orders.length}',
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.textPrimary,
             fontSize: 27,
             fontWeight: FontWeight.w800,
           ),
@@ -319,7 +320,7 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
       child: Container(
         width: 60,
         height: 60,
-        color: const Color(0xFFF4EFF1),
+        color: AppColors.background,
         child: url.isEmpty
             ? const Icon(LucideIcons.image, color: AppColors.textSecondary)
             : Image.network(
@@ -352,9 +353,9 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
   );
 
   Widget _actionBar() => Material(
-    elevation: 12,
+    elevation: 3,
     borderRadius: BorderRadius.circular(18),
-    color: AppColors.plum,
+    color: AppColors.card,
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       child: Row(
@@ -367,13 +368,16 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
                 Text(
                   '${_selected.length} selected',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const Text(
                   'A4 landscape PDF',
-                  style: TextStyle(color: Colors.white60, fontSize: 10),
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10,
+                  ),
                 ),
               ],
             ),
@@ -381,8 +385,8 @@ class _PackingListsScreenState extends State<PackingListsScreen> {
           FilledButton.icon(
             onPressed: _selected.isEmpty || _generating ? null : _generate,
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.brandGold,
-              foregroundColor: AppColors.plum,
+              backgroundColor: AppColors.plum,
+              foregroundColor: Colors.white,
             ),
             icon: _generating
                 ? const SizedBox.square(

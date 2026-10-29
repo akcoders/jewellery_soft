@@ -1,30 +1,38 @@
 import 'package:flutter/material.dart';
+import '../widgets/premium_motion.dart';
 
 class AppColors {
   AppColors._();
 
-  static const Color background = Color(0xFFF7F6F0);
-  static const Color card = Colors.white;
-  static const Color surface = Colors.white;
-  static const Color textPrimary = Color(0xFF183D35);
-  static const Color textSecondary = Color(0xFF626E67);
-  static const Color border = Color(0xFFE3E7DF);
+  static const Color background = Color(0xFFF5F7FF);
+  static const Color card = Color(0xFFFFFFFF);
+  static const Color surface = card;
+  static const Color textPrimary = Color(0xFF252D48);
+  static const Color textSecondary = Color(0xFF515B76);
+  static const Color border = Color(0xFFDDE3F3);
 
-  static const Color emerald = Color(0xFF155A46);
-  // Retained for existing screens that use the original brand token.
-  static const Color brandRed = emerald;
-  static const Color brandGold = Color(0xFFBE9A56);
-  static const Color plum = Color(0xFF143C31);
-  static const Color paleGold = Color(0xFFF7F0DD);
-  static const Color paleEmerald = Color(0xFFECF4EE);
+  static const Color pearl = background;
+  static const Color sapphire = Color(0xFF5364AD);
+  static const Color ice = Color(0xFFD5E6FC);
+  static const Color lavender = Color(0xFFB3A0DF);
+  static const Color champagne = Color(0xFFD5E6FC);
+  static const Color rose = Color(0xFFB3A0DF);
+  static const Color silver = Color(0xFF899AC1);
+  static const Color taupe = Color(0xFF5364AD);
+  // Compatibility tokens keep every workflow on the same luminous palette.
+  static const Color emerald = taupe;
+  static const Color brandRed = taupe;
+  static const Color brandGold = Color(0xFF6274B6);
+  static const Color plum = taupe;
+  static const Color paleGold = Color(0xFFEAF1FD);
+  static const Color paleEmerald = Color(0xFFEFECFA);
 
-  static const Color diamond = Color(0xFF346F9D);
-  static const Color gold = Color(0xFF92651C);
-  static const Color stone = Color(0xFF23776E);
-
-  static const Color success = Color(0xFF23724E);
-  static const Color warning = Color(0xFF94600C);
-  static const Color danger = Color(0xFFBD3E38);
+  static const Color diamond = Color(0xFF4F73B0);
+  static const Color gold = Color(0xFF80612A);
+  static const Color stone = Color(0xFF8564AC);
+  static const Color success = Color(0xFF526FA6);
+  static const Color warning = Color(0xFF96662B);
+  static const Color danger = Color(0xFFAC4C6D);
 }
 
 class AppSpacing {
@@ -51,7 +59,7 @@ class AppShadows {
   AppShadows._();
 
   static const List<BoxShadow> soft = [
-    BoxShadow(color: Color(0x08143C31), blurRadius: 20, offset: Offset(0, 6)),
+    BoxShadow(color: Color(0x0C354D98), blurRadius: 24, offset: Offset(0, 7)),
   ];
 }
 
@@ -73,6 +81,12 @@ class AppTheme {
           primaryContainer: AppColors.paleEmerald,
           onPrimaryContainer: AppColors.emerald,
           error: AppColors.danger,
+          onPrimary: Colors.white,
+          onSecondary: Colors.white,
+          surfaceContainerLowest: Colors.white,
+          surfaceContainerLow: AppColors.background,
+          surfaceContainer: AppColors.paleGold,
+          surfaceTint: Colors.transparent,
         );
 
     final baseTextTheme = ThemeData.light().textTheme.apply(
@@ -87,9 +101,30 @@ class AppTheme {
       fontFamily: 'Manrope',
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
+      splashFactory: InkSparkle.splashFactory,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: PremiumPageTransitionsBuilder(),
+          TargetPlatform.iOS: PremiumPageTransitionsBuilder(),
+          TargetPlatform.macOS: PremiumPageTransitionsBuilder(),
+          TargetPlatform.windows: PremiumPageTransitionsBuilder(),
+          TargetPlatform.linux: PremiumPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: PremiumPageTransitionsBuilder(),
+        },
+      ),
       dividerColor: AppColors.border,
       iconTheme: const IconThemeData(color: AppColors.textPrimary, size: 21),
       textTheme: baseTextTheme.copyWith(
+        displaySmall: baseTextTheme.displaySmall?.copyWith(
+          fontFamily: 'CormorantGaramond',
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.7,
+        ),
+        headlineMedium: baseTextTheme.headlineMedium?.copyWith(
+          fontFamily: 'CormorantGaramond',
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.4,
+        ),
         headlineSmall: baseTextTheme.headlineSmall?.copyWith(
           fontWeight: FontWeight.w700,
           letterSpacing: -0.5,
@@ -130,7 +165,9 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: const Color(0xFFFFFFFF),
+        helperMaxLines: 3,
+        errorMaxLines: 3,
         floatingLabelStyle: const TextStyle(
           color: AppColors.brandRed,
           fontWeight: FontWeight.w600,
@@ -259,15 +296,31 @@ class AppTheme {
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.card,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.xl),
         ),
       ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.card,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+        dragHandleColor: AppColors.border,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      ),
+      tabBarTheme: const TabBarThemeData(
+        labelColor: AppColors.taupe,
+        unselectedLabelColor: AppColors.textSecondary,
+        indicatorColor: AppColors.brandGold,
+        dividerColor: AppColors.border,
+      ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.brandRed,
-        foregroundColor: Colors.white,
-        elevation: 3,
+        backgroundColor: AppColors.paleGold,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 2,
         shape: StadiumBorder(),
       ),
     );

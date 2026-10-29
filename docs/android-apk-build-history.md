@@ -33,6 +33,18 @@ published. Update it for every Android release.
 | 2026-10-19 | 1.0.13 | 14 | `android-v1.0.13-build14` | `73b4bb1bde02496f802c4c83cf0d0a693f215604809368e7afd450238922a539` | Android workspace parity for order receiving, completion ratings, packing lists, delivery challans and work requests |
 | 2026-10-29 | 1.0.14 | 15 | `android-v1.0.14-build15` | `71a47cd7f3bc805e8bb2873dba374d5b11f341d287d550025184dfd1328f6dbd` | Camera/gallery selection outside follow-ups, photo previews and replacement, ivory/emerald/gold UI with offline Manrope, bottom navigation, clearer order/material cards, persistent issuance save action, and completed-order issuance until actual receiving |
 
+| 2026-10-29 | 1.0.15 | 16 | `android-v1.0.15-build16` | `bd61a24ffab320bef3ddd04c9b1eca79dcf2597b5cac34b87936da16bc834d0d` | Ice-blue, lavender and sapphire UI across native/PWA, diamond details and static texture, refined cards/forms/photo controls, accessible motion and contrast, Ready-only follow-ups with completion after receiving |
+
+### 1.0.15 build 16 verification and deployment
+
+- APK size: 68,767,642 bytes (68.8 MB). Package `com.aabhushan.erp`, minimum SDK 24 and target SDK 36 remain unchanged.
+- APK v2 signature verified with certificate SHA-256 `ac5fcc988a3297f42d74e50a9b1a4cd36d323a9acaa58fcaff2cd104de4a5004`, matching the preceding active builds.
+- All 98 Flutter tests pass. Phone layouts at 320 px with enlarged text, standard 390 px, and desktop at 1280 px were rendered and inspected. Contrast and reduced-motion regressions pass. Analyzer reports existing style infos and no errors or warnings.
+- Native/PWA share one palette and theme. Manrope body and Cormorant Garamond display fonts are bundled with their licenses; texture and diamond details use static vector drawing. Entry animations are finite and honor reduced motion.
+- Follow-ups end at Ready; completed status follows receiving. This build includes the already committed server validation and admin correction page at `/admin/orders/ready-stage`. Deploy those PHP changes with the update feed; no new database migration is required for this release.
+- Camera/gallery permissions and follow-up photo policy remain unchanged. Existing required fields, receiving locks and submission behavior are preserved.
+- The matching PWA archive and generated `public/pwa/` staff app accompany this release. Preserve the separate `public/pwa/customer/` portal during deployment.
+
 ### 1.0.14 build 15 verification and deployment
 
 - APK size: 68,340,156 bytes (68.3 MB). Android package remains `com.aabhushan.erp`, version code 15, minimum SDK 24, target SDK 36.

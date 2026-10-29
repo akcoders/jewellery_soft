@@ -187,7 +187,6 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Diamond / Jadau Order *',
-                      border: OutlineInputBorder(),
                     ),
                     items: _orders.map((raw) {
                       final order = _map(raw);
@@ -210,7 +209,6 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Inventory Location *',
-                      border: OutlineInputBorder(),
                     ),
                     items: _locations.map((raw) {
                       final location = _map(raw);
@@ -269,10 +267,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
                   TextFormField(
                     controller: _notes,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Bag Notes',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: const InputDecoration(labelText: 'Bag Notes'),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   FilledButton.icon(
@@ -327,10 +322,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
               key: ValueKey('bag_item_${index}_${line.itemId ?? 0}'),
               initialValue: line.itemId,
               isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Diamond Product *',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Diamond Product *'),
               items: _inventoryItems.map((raw) {
                 final item = _map(raw);
                 final free =
@@ -352,10 +344,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
               key: ValueKey('bag_shape_${index}_${line.shapeId ?? 0}'),
               initialValue: line.shapeId,
               isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Shape *',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Shape *'),
               items: _shapes.map((raw) {
                 final shape = _map(raw);
                 return DropdownMenuItem<int>(
@@ -377,10 +366,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
               ),
               initialValue: line.groupId,
               isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Chalni Group *',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Chalni Group *'),
               items: _groups.map((raw) {
                 final group = _map(raw);
                 final range = (group['range_label'] ?? '').toString().trim();
@@ -413,7 +399,6 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Exact Chalni Size (optional)',
-                border: OutlineInputBorder(),
               ),
               items: sizes.map((raw) {
                 final size = _map(raw);
@@ -444,10 +429,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
                   child: TextFormField(
                     controller: line.pcs,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'PCS *',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: const InputDecoration(labelText: 'PCS *'),
                     validator: (value) {
                       final pcs = int.tryParse(value?.trim() ?? '');
                       return pcs == null || pcs <= 0
@@ -463,10 +445,7 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(
-                      labelText: 'Carats *',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: const InputDecoration(labelText: 'Carats *'),
                     validator: (value) {
                       final cts = double.tryParse(value?.trim() ?? '');
                       return cts == null || cts <= 0 ? 'CTS required' : null;
@@ -504,7 +483,6 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
           decoration: const InputDecoration(
             labelText: 'Exact size / sieve label',
             hintText: 'Example: 1.20 mm',
-            border: OutlineInputBorder(),
           ),
         ),
         actions: [

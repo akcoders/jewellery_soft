@@ -1,3 +1,4 @@
+import 'package:flutkit/jewellery_mobile/widgets/premium_surface.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -157,21 +158,16 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF43143F), Color(0xFFB81D24)],
-              ),
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-            ),
+          PremiumSurface(
+            padding: const EdgeInsets.all(20),
+            accent: AppColors.ice,
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'My Assigned Tasks',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 21,
                     fontWeight: FontWeight.w800,
                   ),
@@ -179,7 +175,7 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
                 SizedBox(height: 5),
                 Text(
                   'Only tasks assigned directly from Staff Tasks appear here: on time +2 · late −2 per started day.',
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
               ],
             ),

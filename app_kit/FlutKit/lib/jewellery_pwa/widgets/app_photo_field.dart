@@ -1,3 +1,4 @@
+import 'package:flutkit/jewellery_mobile/widgets/premium_surface.dart';
 import 'dart:typed_data';
 
 import 'package:flutkit/jewellery_pwa/theme/app_theme.dart';
@@ -99,24 +100,41 @@ class AppPhotoAddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: AppColors.paleGold.withValues(alpha: 0.45),
+    color: AppColors.background,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(18),
-      side: BorderSide(color: AppColors.brandGold.withValues(alpha: 0.25)),
+      borderRadius: BorderRadius.circular(22),
+      side: BorderSide(color: AppColors.brandGold.withValues(alpha: 0.5)),
     ),
     clipBehavior: Clip.antiAlias,
     child: InkWell(
       onTap: onPressed,
-      child: Padding(
+      child: Ink(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.white, AppColors.paleGold],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         padding: const EdgeInsets.all(18),
         child: Row(
           children: [
-            SizedBox(
-              width: 28,
-              height: 28,
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .8),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+              ),
+              alignment: Alignment.center,
               child: busy
-                  ? const AppLoadingIndicator(size: 26)
-                  : const Icon(LucideIcons.image_plus, color: AppColors.plum),
+                  ? const AppLoadingIndicator(size: 23)
+                  : const Icon(
+                      LucideIcons.image_plus,
+                      color: AppColors.brandRed,
+                      size: 21,
+                    ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -138,7 +156,7 @@ class AppPhotoAddButton extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(LucideIcons.plus, size: 18, color: AppColors.plum),
+            const FacetedDiamond(size: 17, color: AppColors.brandGold),
           ],
         ),
       ),
@@ -222,7 +240,7 @@ class AppAttachmentTile extends StatelessWidget {
     padding: const EdgeInsets.all(10),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       border: Border.all(color: AppColors.border),
     ),
     child: Row(

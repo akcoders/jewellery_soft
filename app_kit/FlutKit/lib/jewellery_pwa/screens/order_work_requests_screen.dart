@@ -69,7 +69,8 @@ class _OrderWorkRequestsScreenState extends State<OrderWorkRequestsScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.plum,
+              color: AppColors.paleGold,
+              border: Border.all(color: AppColors.border),
               borderRadius: BorderRadius.circular(AppRadius.xl),
             ),
             child: Column(
@@ -77,21 +78,21 @@ class _OrderWorkRequestsScreenState extends State<OrderWorkRequestsScreen> {
               children: [
                 const Icon(
                   LucideIcons.badge_check,
-                  color: AppColors.paleGold,
+                  color: AppColors.brandGold,
                   size: 27,
                 ),
                 const SizedBox(height: 14),
                 Text(
                   '${pending.length} awaiting approval',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'Review order changes and keep work moving.',
-                  style: TextStyle(color: Color(0xFFE9D7DE), height: 1.5),
+                  style: TextStyle(color: AppColors.textSecondary, height: 1.5),
                 ),
               ],
             ),

@@ -582,7 +582,6 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
                     InputDecorator(
                       decoration: const InputDecoration(
                         labelText: 'Approximate Balance',
-                        border: OutlineInputBorder(),
                         filled: true,
                       ),
                       child: Text(
@@ -783,10 +782,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
     String? Function(String?)? validator,
   }) => TextFormField(
     controller: controller,
-    decoration: InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-    ),
+    decoration: InputDecoration(labelText: label),
     maxLines: lines,
     keyboardType: keyboard,
     validator: validator,
@@ -834,10 +830,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
   }) => DropdownButtonFormField<T>(
     initialValue: value,
     isExpanded: true,
-    decoration: InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-    ),
+    decoration: InputDecoration(labelText: label),
     items: items,
     onChanged: changed,
     validator: (selected) =>
@@ -852,7 +845,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
     shape: RoundedRectangleBorder(
       side: const BorderSide(color: AppColors.border),
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
     ),
     title: Text(label),
     subtitle: Text(_date(value)),
@@ -876,7 +869,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
     shape: RoundedRectangleBorder(
       side: const BorderSide(color: AppColors.border),
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
     ),
     title: Text(label),
     subtitle: Text(value == null ? 'Not selected' : _date(value)),

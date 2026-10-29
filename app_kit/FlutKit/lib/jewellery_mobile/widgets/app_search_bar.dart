@@ -49,12 +49,20 @@ class _AppSearchBarState extends State<AppSearchBar> {
     return Focus(
       onFocusChange: (focused) => setState(() => _focused = focused),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
         decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          gradient: const LinearGradient(
+            colors: [Colors.white, AppColors.background],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: _focused ? AppColors.brandRed : AppColors.border,
+            color: _focused
+                ? AppColors.brandRed.withValues(alpha: .65)
+                : AppColors.border,
             width: _focused ? 1.5 : 1,
           ),
           boxShadow: AppShadows.soft,
@@ -75,7 +83,11 @@ class _AppSearchBarState extends State<AppSearchBar> {
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.md,
             ),
-            prefixIcon: const Icon(LucideIcons.search, size: 20),
+            prefixIcon: const Icon(
+              LucideIcons.search,
+              size: 19,
+              color: AppColors.brandRed,
+            ),
             suffixIcon: widget.controller.text.isEmpty
                 ? null
                 : IconButton(

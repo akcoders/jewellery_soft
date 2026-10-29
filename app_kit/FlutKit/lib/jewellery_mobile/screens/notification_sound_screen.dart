@@ -356,7 +356,9 @@ class _SoundTile extends StatelessWidget {
             child: Row(
               children: [
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 180),
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(

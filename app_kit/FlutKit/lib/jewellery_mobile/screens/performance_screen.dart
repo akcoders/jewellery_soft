@@ -102,14 +102,15 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [
-                  Color(0xFF28103E),
-                  Color(0xFF8E173A),
-                  Color(0xFFC48922),
+                  AppColors.card,
+                  AppColors.background,
+                  AppColors.paleGold,
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(AppRadius.xl),
+              border: Border.all(color: AppColors.border),
               boxShadow: AppShadows.soft,
             ),
             child: Column(
@@ -119,7 +120,11 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                   children: [
                     IconButton(
                       onPressed: () => _changeMonth(-1),
-                      icon: const Icon(Icons.chevron_left, color: Colors.white),
+                      tooltip: 'Previous month',
+                      icon: const Icon(
+                        Icons.chevron_left,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                     Expanded(
                       child: Text(
@@ -128,16 +133,17 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                     IconButton(
+                      tooltip: 'Next month',
                       onPressed: () => _changeMonth(1),
                       icon: const Icon(
                         Icons.chevron_right,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ],
@@ -148,9 +154,9 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: .13),
+                    color: AppColors.card,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: .45),
+                      color: AppColors.brandGold.withValues(alpha: .24),
                       width: 4,
                     ),
                   ),
@@ -164,7 +170,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                           Text(
                             score.toStringAsFixed(1),
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               fontSize: 31,
                               fontWeight: FontWeight.w900,
                             ),
@@ -172,7 +178,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                           const Text(
                             'SCORE',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: AppColors.textSecondary,
                               fontSize: 10,
                               letterSpacing: 1.4,
                             ),
@@ -186,14 +192,17 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                 Text(
                   _scoreHeadline(score),
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
                   ),
                 ),
                 Text(
                   'Monthly score starts at ${_number(_rules['base_score']).toStringAsFixed(0)}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),

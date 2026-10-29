@@ -297,12 +297,12 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: AppColors.paleGold),
+        Icon(icon, size: 18, color: AppColors.plum),
         const SizedBox(height: 8),
         Text(
           value,
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.textPrimary,
             fontSize: 24,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,
@@ -311,7 +311,7 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(color: Color(0xFFD6C4CE), fontSize: 11),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
         ),
       ],
     ),
@@ -329,18 +329,13 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.plum, Color(0xFF6B3A52), Color(0xFF8A5A2B)],
+          colors: [AppColors.card, AppColors.background, AppColors.paleGold],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.plum.withValues(alpha: 0.14),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.soft,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,7 +343,7 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
           const Text(
             'TEAM THIS MONTH',
             style: TextStyle(
-              color: AppColors.paleGold,
+              color: AppColors.plum,
               fontSize: 10,
               letterSpacing: 1.6,
               fontWeight: FontWeight.w700,
@@ -358,7 +353,7 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
           Text(
             '$achievers of $teamSize reached the ${_target.toStringAsFixed(0)}-point target',
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 20,
               height: 1.3,
               fontWeight: FontWeight.w700,
@@ -369,20 +364,25 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
             borderRadius: BorderRadius.circular(99),
             child: TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: progress),
-              duration: const Duration(milliseconds: 900),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 700),
               curve: Curves.easeOutCubic,
               builder: (context, value, _) => LinearProgressIndicator(
                 value: value,
                 minHeight: 10,
-                backgroundColor: Colors.white.withValues(alpha: 0.15),
-                valueColor: const AlwaysStoppedAnimation(Color(0xFFF3D98B)),
+                backgroundColor: AppColors.border,
+                valueColor: const AlwaysStoppedAnimation(AppColors.plum),
               ),
             ),
           ),
           const SizedBox(height: 6),
           Text(
             'Active staff average ${(progress * 100).toStringAsFixed(0)}% of target',
-            style: const TextStyle(color: Color(0xFFD6C4CE), fontSize: 11),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -410,7 +410,7 @@ class _TeamPerformanceScreenState extends State<TeamPerformanceScreen> {
   }
 
   Widget _podium(List<Map<String, dynamic>> podium) {
-    const medals = [Color(0xFFD4AF37), Color(0xFFA8B0BA), Color(0xFFCD7F32)];
+    const medals = [AppColors.gold, AppColors.textSecondary, AppColors.warning];
     return LayoutBuilder(
       builder: (context, constraints) {
         final cards = [

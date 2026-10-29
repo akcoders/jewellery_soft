@@ -37,7 +37,9 @@ class PerformanceTargetCard extends StatelessWidget {
           SizedBox.expand(
             child: TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: progress),
-              duration: const Duration(milliseconds: 900),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 700),
               curve: Curves.easeOutCubic,
               builder: (context, value, _) => CircularProgressIndicator(
                 value: value,

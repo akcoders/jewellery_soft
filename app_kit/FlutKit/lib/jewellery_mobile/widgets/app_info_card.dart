@@ -8,7 +8,7 @@ class AppInfoCard extends StatelessWidget {
     required this.title,
     required this.message,
     this.icon = Icons.info_outline_rounded,
-    this.color = AppColors.emerald,
+    this.color = AppColors.textSecondary,
   });
 
   final String title;
@@ -21,14 +21,31 @@ class AppInfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white,
+            Color.alphaBlend(
+              color.withValues(alpha: .045),
+              AppColors.background,
+            ),
+          ],
+        ),
         border: Border.all(color: color.withValues(alpha: 0.15)),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 21),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Icon(icon, color: AppColors.brandRed, size: 19),
+          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
@@ -36,7 +53,10 @@ class AppInfoCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(color: color, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(

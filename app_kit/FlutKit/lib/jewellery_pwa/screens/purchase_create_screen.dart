@@ -387,7 +387,6 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
     isExpanded: true,
     decoration: InputDecoration(
       labelText: _material == 'gold' ? 'Vendor (optional)' : 'Vendor',
-      border: const OutlineInputBorder(),
     ),
     items: [
       const DropdownMenuItem<int?>(value: null, child: Text('Select vendor')),
@@ -634,10 +633,7 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
     children: [
       DropdownButtonFormField<String>(
         initialValue: _paymentStatus,
-        decoration: const InputDecoration(
-          labelText: 'Payment Status',
-          border: OutlineInputBorder(),
-        ),
+        decoration: const InputDecoration(labelText: 'Payment Status'),
         items: const ['Pending', 'Partial', 'Paid']
             .map((value) => DropdownMenuItem(value: value, child: Text(value)))
             .toList(),
@@ -748,11 +744,7 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
     keyboardType: keyboard,
     validator: validator,
     onChanged: onChanged,
-    decoration: InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-      filled: readOnly,
-    ),
+    decoration: InputDecoration(labelText: label, filled: readOnly),
   );
   Widget _positive(
     TextEditingController controller,
@@ -790,11 +782,7 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
     },
   );
   Widget _readout(String label, double value) => InputDecorator(
-    decoration: InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-      filled: true,
-    ),
+    decoration: InputDecoration(labelText: label, filled: true),
     child: Text(
       '₹${value.toStringAsFixed(2)}',
       style: const TextStyle(fontWeight: FontWeight.w700),
@@ -811,10 +799,7 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
   }) => DropdownButtonFormField<int?>(
     initialValue: value,
     isExpanded: true,
-    decoration: InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-    ),
+    decoration: InputDecoration(labelText: label),
     items: [
       if (!required)
         const DropdownMenuItem<int?>(
@@ -848,7 +833,7 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
     shape: RoundedRectangleBorder(
       side: const BorderSide(color: AppColors.border),
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
     ),
     title: Text(label),
     subtitle: Text(_date(value)),
@@ -871,7 +856,7 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
     shape: RoundedRectangleBorder(
       side: const BorderSide(color: AppColors.border),
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
     ),
     title: Text(label),
     subtitle: Text(value == null ? 'Not selected' : _date(value)),

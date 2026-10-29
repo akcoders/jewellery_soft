@@ -1,3 +1,4 @@
+import 'package:flutkit/jewellery_mobile/widgets/premium_surface.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/services/pwa_install_service.dart';
 import 'package:flutkit/jewellery_pwa/widgets/pwa_install_prompt.dart';
@@ -83,14 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFF7F3ED), Color(0xFFEEE5DC), Color(0xFFF9F7F4)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+      body: PremiumBackdrop(
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -107,46 +101,29 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   child: Center(
-                    child: Container(
-                      constraints: BoxConstraints(maxWidth: wide ? 960 : 440),
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: Colors.white),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x16421D32),
-                            blurRadius: 50,
-                            offset: Offset(0, 18),
-                          ),
-                        ],
-                      ),
-                      child: wide
-                          ? IntrinsicHeight(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: wide ? 980 : 440),
+                      child: PremiumEntrance(
+                        child: wide
+                            ? Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   Expanded(child: _brandPanel(true)),
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(38),
-                                      child: _loginForm(),
-                                    ),
-                                  ),
+                                  const SizedBox(width: 40),
+                                  Expanded(child: _formSurface()),
+                                ],
+                              )
+                            : Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _brandPanel(false),
+                                  const SizedBox(height: 28),
+                                  _formSurface(),
+                                  const SizedBox(height: 24),
+                                  _workspaceNote(),
                                 ],
                               ),
-                            )
-                          : Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _brandPanel(false),
-                                Padding(
-                                  padding: const EdgeInsets.all(24),
-                                  child: _loginForm(),
-                                ),
-                              ],
-                            ),
+                      ),
                     ),
                   ),
                 ),
@@ -158,206 +135,183 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _brandPanel(bool wide) => Container(
-    width: double.infinity,
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        colors: [Color(0xFF2D1424), AppColors.plum, Color(0xFF713443)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
+  Widget _brandPanel(bool wide) => Padding(
+    padding: EdgeInsets.symmetric(
+      horizontal: wide ? 24 : 8,
+      vertical: wide ? 40 : 14,
     ),
-    child: Stack(
-      clipBehavior: Clip.hardEdge,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Positioned(
-          top: -95,
-          right: -90,
-          child: Container(
-            width: 270,
-            height: 270,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.brandGold.withValues(alpha: .2),
+        Container(
+          width: wide ? 94 : 76,
+          height: wide ? 94 : 76,
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.brandGold),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0B5364AD),
+                blurRadius: 24,
+                offset: Offset(0, 8),
               ),
+            ],
+          ),
+          child: Image.asset(
+            'assets/images/brand/aabhushan_mark.png',
+            fit: BoxFit.contain,
+          ),
+        ),
+        const SizedBox(height: 18),
+        const FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            'AABHUSHAN',
+            style: TextStyle(
+              fontFamily: 'CormorantGaramond',
+              color: AppColors.textPrimary,
+              fontSize: 36,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 3,
             ),
           ),
         ),
-        Positioned(
-          bottom: -170,
-          left: -85,
-          child: Container(
-            width: 340,
-            height: 340,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.brandGold.withValues(alpha: .15),
-              ),
-            ),
+        const SizedBox(height: 5),
+        const Text(
+          'JEWELLERY WORKSPACE',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 2.2,
           ),
         ),
-        Center(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 32,
-              vertical: wide ? 60 : 26,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: wide ? 100 : 74,
-                  height: wide ? 100 : 74,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBF4),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.brandGold),
-                  ),
-                  child: Image.asset(
-                    'assets/images/brand/aabhushan_mark.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  'AABHUSHAN',
-                  style: TextStyle(
-                    fontFamily: 'CormorantGaramond',
-                    color: Colors.white,
-                    fontSize: 34,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 2.8,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                const Text(
-                  'JEWELLERY WORKSPACE',
-                  style: TextStyle(
-                    color: AppColors.brandGold,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2.3,
-                  ),
-                ),
-                if (wide) ...[
-                  const SizedBox(height: 40),
-                  const Text(
-                    'Your craft.\nOne workspace.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'CormorantGaramond',
-                      color: Color(0xFFFFF6E8),
-                      fontSize: 38,
-                      height: 1.15,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'ORDERS  ·  INVENTORY  ·  TEAM',
-                    style: TextStyle(
-                      color: Colors.white60,
-                      fontSize: 9,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                ],
-              ],
+        if (wide) ...[
+          const SizedBox(height: 38),
+          const FacetedDiamond(size: 72, color: AppColors.brandGold),
+          const SizedBox(height: 26),
+          const Text(
+            'Every detail.\nBeautifully in place.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'CormorantGaramond',
+              color: AppColors.textPrimary,
+              fontSize: 39,
+              height: 1.15,
             ),
           ),
-        ),
+          const SizedBox(height: 18),
+          _workspaceNote(),
+        ],
       ],
     ),
   );
 
-  Widget _loginForm() => AutofillGroup(
-    child: Form(
-      key: _formKey,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'WELCOME BACK',
-            style: TextStyle(
-              color: AppColors.gold,
-              fontSize: 10,
-              letterSpacing: 1.6,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Aabhushan ERP',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 7),
-          const Text(
-            'Sign in to your workspace.',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 28),
-          TextFormField(
-            controller: _emailCtrl,
-            readOnly: _loading,
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            autofillHints: const [AutofillHints.email],
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(LucideIcons.mail, size: 20),
-            ),
-            validator: (value) => value == null || value.trim().isEmpty
-                ? 'Email is required'
-                : null,
-          ),
-          const SizedBox(height: 18),
-          TextFormField(
-            controller: _passwordCtrl,
-            readOnly: _loading,
-            obscureText: _obscure,
-            textInputAction: TextInputAction.done,
-            onFieldSubmitted: (_) => _login(),
-            autofillHints: const [AutofillHints.password],
-            decoration: InputDecoration(
-              labelText: 'Password',
-              prefixIcon: const Icon(LucideIcons.lock_keyhole, size: 20),
-              suffixIcon: IconButton(
-                tooltip: _obscure ? 'Show password' : 'Hide password',
-                onPressed: () => setState(() => _obscure = !_obscure),
-                icon: Icon(
-                  _obscure ? LucideIcons.eye : LucideIcons.eye_off,
-                  size: 20,
-                ),
+  Widget _workspaceNote() => const Text(
+    'ORDERS  ·  MATERIALS  ·  CRAFT',
+    textAlign: TextAlign.center,
+    style: TextStyle(
+      color: AppColors.textSecondary,
+      fontSize: 9,
+      letterSpacing: 1.4,
+    ),
+  );
+
+  Widget _formSurface() => PremiumSurface(
+    padding: const EdgeInsets.all(24),
+    borderRadius: 28,
+    accent: AppColors.lavender,
+    child: AutofillGroup(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'WELCOME BACK',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 9,
+                letterSpacing: 1.8,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            validator: (value) =>
-                value == null || value.isEmpty ? 'Password is required' : null,
-          ),
-          const SizedBox(height: 26),
-          FilledButton.icon(
-            onPressed: _loading ? null : _login,
-            icon: _loading
-                ? const AppLoadingIndicator(size: 20, light: true)
-                : const Icon(LucideIcons.arrow_right, size: 19),
-            label: Text(_loading ? 'Signing in...' : 'Sign In'),
-          ),
-          ValueListenableBuilder<bool>(
-            valueListenable: PwaInstallService.available,
-            builder: (context, available, _) => !available
-                ? const SizedBox.shrink()
-                : Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: OutlinedButton.icon(
-                      onPressed: () => showPwaInstallPrompt(context),
-                      icon: const Icon(LucideIcons.download, size: 18),
-                      label: const Text('Install Aabhushan ERP'),
-                    ),
+            const SizedBox(height: 8),
+            Text(
+              'Aabhushan ERP',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 7),
+            const Text(
+              'Sign in to your workspace.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 28),
+            TextFormField(
+              controller: _emailCtrl,
+              readOnly: _loading,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.email],
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(LucideIcons.mail, size: 19),
+              ),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'Email is required'
+                  : null,
+            ),
+            const SizedBox(height: 18),
+            TextFormField(
+              controller: _passwordCtrl,
+              readOnly: _loading,
+              obscureText: _obscure,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _login(),
+              autofillHints: const [AutofillHints.password],
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(LucideIcons.lock_keyhole, size: 19),
+                suffixIcon: IconButton(
+                  tooltip: _obscure ? 'Show password' : 'Hide password',
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                  icon: Icon(
+                    _obscure ? LucideIcons.eye : LucideIcons.eye_off,
+                    size: 19,
                   ),
-          ),
-        ],
+                ),
+              ),
+              validator: (value) => value == null || value.isEmpty
+                  ? 'Password is required'
+                  : null,
+            ),
+            const SizedBox(height: 26),
+            FilledButton.icon(
+              onPressed: _loading ? null : _login,
+              icon: _loading
+                  ? const AppLoadingIndicator(size: 20, light: true)
+                  : const Icon(LucideIcons.arrow_right, size: 19),
+              label: Text(_loading ? 'Signing in...' : 'Sign In'),
+            ),
+            ValueListenableBuilder<bool>(
+              valueListenable: PwaInstallService.available,
+              builder: (context, available, _) => !available
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: OutlinedButton.icon(
+                        onPressed: () => showPwaInstallPrompt(context),
+                        icon: const Icon(LucideIcons.download, size: 18),
+                        label: const Text('Install Aabhushan ERP'),
+                      ),
+                    ),
+            ),
+          ],
+        ),
       ),
     ),
   );

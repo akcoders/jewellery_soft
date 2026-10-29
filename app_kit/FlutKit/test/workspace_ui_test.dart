@@ -6,10 +6,47 @@ import 'package:flutkit/jewellery_pwa/screens/performance_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/team_performance_screen.dart';
 import 'package:flutkit/jewellery_pwa/screens/transactions_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
+import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'approval filters retain readable resolved typography when selected',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: Scaffold(body: MobileApprovalsScreen(api: _WorkspaceApi())),
+        ),
+      );
+      await tester.pumpAndSettle();
+      TextStyle labelStyle(Finder chip) {
+        final label = find
+            .descendant(of: chip, matching: find.byType(Text))
+            .first;
+        return tester.renderObject<RenderParagraph>(label).text.style!;
+      }
+
+      final selected = find.byWidgetPredicate(
+        (widget) => widget is FilterChip && widget.selected,
+      );
+      final unselected = find.byWidgetPredicate(
+        (widget) => widget is FilterChip && !widget.selected,
+      );
+      expect(labelStyle(selected).fontFamily, 'Manrope');
+      expect(labelStyle(selected).color, Colors.white);
+      expect(labelStyle(unselected).fontFamily, 'Manrope');
+      expect(labelStyle(unselected).color, AppColors.textSecondary);
+      await tester.tap(unselected);
+      await tester.pumpAndSettle();
+      expect(labelStyle(selected).color, Colors.white);
+      expect(labelStyle(unselected).color, AppColors.textSecondary);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final size in [const Size(320, 740), const Size(1280, 900)]) {
     testWidgets('workspace pages fit ${size.width}px and enlarged text', (
       tester,

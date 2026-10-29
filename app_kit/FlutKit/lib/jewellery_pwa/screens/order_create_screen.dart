@@ -235,7 +235,9 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
       if (!mounted) return;
       await Scrollable.ensureVisible(
         invalidFields.first.context,
-        duration: const Duration(milliseconds: 280),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 280),
         alignment: 0.15,
       );
       return;
@@ -389,23 +391,18 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
                         _receivedDate,
                         (value) => setState(() => _receivedDate = value),
                       ),
-                      _dropdown<int>(
-                        'Jewellery / Sub Category',
-                        _categoryId,
-                        [
-                          ..._categories.map(
-                            (row) => DropdownMenuItem(
-                              value: _id(row),
-                              child: Text('${row['name']} (${row['code']})'),
-                            ),
+                      _dropdown<int>('Jewellery / Sub Category', _categoryId, [
+                        ..._categories.map(
+                          (row) => DropdownMenuItem(
+                            value: _id(row),
+                            child: Text('${row['name']} (${row['code']})'),
                           ),
-                          const DropdownMenuItem(
-                            value: 0,
-                            child: Text('+ Add New Category'),
-                          ),
-                        ],
-                        (value) => setState(() => _categoryId = value),
-                      ),
+                        ),
+                        const DropdownMenuItem(
+                          value: 0,
+                          child: Text('+ Add New Category'),
+                        ),
+                      ], (value) => setState(() => _categoryId = value)),
                       if (_categoryId == 0)
                         _requiredText(_newCategory, 'New Jewellery Category'),
                       _dropdown<String>(
@@ -632,7 +629,6 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
                       InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Approximate Balance',
-                          border: OutlineInputBorder(),
                           filled: true,
                         ),
                         child: Text(
@@ -722,11 +718,13 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
     padding: const EdgeInsets.all(AppSpacing.xl),
     decoration: BoxDecoration(
       gradient: const LinearGradient(
-        colors: [AppColors.plum, Color(0xFF6A354E)],
+        colors: [Colors.white, AppColors.paleGold],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
       borderRadius: BorderRadius.circular(AppRadius.xl),
+      border: Border.all(color: AppColors.border),
+      boxShadow: AppShadows.soft,
     ),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -738,7 +736,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
               const Text(
                 'NEW CREATION',
                 style: TextStyle(
-                  color: Color(0xFFE5C480),
+                  color: AppColors.textSecondary,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 2,
@@ -748,14 +746,14 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
               Text(
                 'A little detail.\nA beautiful result.',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   height: 1.25,
                 ),
               ),
               const SizedBox(height: 12),
               const Text(
                 'Customer, design and delivery — all in one place.',
-                style: TextStyle(color: Color(0xFFE5D9DF), height: 1.5),
+                style: TextStyle(color: AppColors.textSecondary, height: 1.5),
               ),
             ],
           ),
@@ -772,7 +770,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
           ),
           child: const Icon(
             LucideIcons.gem,
-            color: Color(0xFFE5C480),
+            color: AppColors.textSecondary,
             size: 28,
           ),
         ),

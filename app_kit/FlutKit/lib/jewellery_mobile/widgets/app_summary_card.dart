@@ -23,20 +23,28 @@ class AppSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.card,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
+      borderRadius: BorderRadius.circular(AppRadius.xl),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
         child: Ink(
           padding: const EdgeInsets.all(AppSpacing.lg),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
             gradient: LinearGradient(
-              colors: [Colors.white, color.withValues(alpha: 0.07)],
+              colors: [
+                Colors.white,
+                Color.alphaBlend(
+                  color.withValues(alpha: .085),
+                  AppColors.background,
+                ),
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
+            border: Border.all(
+              color: AppColors.brandGold.withValues(alpha: .32),
+            ),
             boxShadow: AppShadows.soft,
           ),
           child: Column(
@@ -48,10 +56,19 @@ class AppSummaryCard extends StatelessWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.11),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white,
+                          Color.alphaBlend(
+                            color.withValues(alpha: .12),
+                            AppColors.background,
+                          ),
+                        ],
+                      ),
+                      border: Border.all(color: AppColors.border),
                       borderRadius: BorderRadius.circular(AppRadius.md),
                     ),
-                    child: Icon(icon, color: color, size: 20),
+                    child: Icon(icon, color: color, size: 19),
                   ),
                   const Spacer(),
                   if (onTap != null)
@@ -63,17 +80,20 @@ class AppSummaryCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 29,
-                  height: 1.2,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.plum,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 29,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
+              const SizedBox(height: 4),
               Text(
                 title,
                 style: const TextStyle(

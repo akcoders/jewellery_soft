@@ -250,11 +250,12 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
       gradient: const LinearGradient(
-        colors: [AppColors.plum, Color(0xFF674050)],
+        colors: [AppColors.card, AppColors.background, AppColors.paleGold],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
       borderRadius: BorderRadius.circular(AppRadius.xl),
+      border: Border.all(color: AppColors.border),
     ),
     child: LayoutBuilder(
       builder: (context, constraints) {
@@ -264,7 +265,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             const Text(
               'MONTHLY SCORE',
               style: TextStyle(
-                color: AppColors.paleGold,
+                color: AppColors.plum,
                 letterSpacing: 1.6,
                 fontWeight: FontWeight.w600,
                 fontSize: 10,
@@ -274,7 +275,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             Text(
               score.toStringAsFixed(1),
               style: const TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 52,
                 height: 1.1,
                 letterSpacing: -2,
@@ -288,17 +289,13 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           children: [
             Row(
               children: [
-                const Icon(
-                  LucideIcons.award,
-                  color: AppColors.paleGold,
-                  size: 22,
-                ),
+                const Icon(LucideIcons.award, color: AppColors.plum, size: 22),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     _scoreHeadline(score),
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
                     ),
@@ -309,13 +306,16 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             const SizedBox(height: 10),
             Text(
               'Starts at ${_number(_rules['base_score']).toStringAsFixed(0)} points each month.',
-              style: const TextStyle(color: Color(0xFFD6C4CE), fontSize: 12),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 6),
             const Text(
               'Points include orders, approved follow-ups, issuements, returns, receivings, purchases, manually assigned Staff Tasks and completion ratings.',
               style: TextStyle(
-                color: Color(0xFFD6C4CE),
+                color: AppColors.textSecondary,
                 fontSize: 12,
                 height: 1.5,
               ),
@@ -324,7 +324,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             const Text(
               'Only a submitted follow-up awaiting admin approval is excluded. An unsubmitted follow-up still becomes overdue after its due time.',
               style: TextStyle(
-                color: Color(0xFFD6C4CE),
+                color: AppColors.textSecondary,
                 fontSize: 12,
                 height: 1.5,
               ),
@@ -426,7 +426,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           'Issuements',
           _integer(_summary['issuements']),
           _ruleLabel('issuement'),
-          AppColors.gold,
+          AppColors.plum,
           LucideIcons.send,
         ),
         _breakdownRow(

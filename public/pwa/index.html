@@ -19,7 +19,7 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Aabhushan ERP for orders, follow-ups, tasks and jewellery inventory.">
-  <meta name="theme-color" content="#421D32">
+  <meta name="theme-color" content="#F5F7FF">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 
   <!-- iOS meta tags & icons -->
@@ -35,63 +35,63 @@
   <link rel="manifest" href="manifest.json">
   <style>
     @font-face { font-family: "Aabhushan Serif"; src: url("fonts/cormorant/CormorantGaramond.ttf") format("truetype"); font-weight: 300 700; font-display: swap; }
-    html, body { margin: 0; min-height: 100%; background: #421d32; }
+    html, body { margin: 0; min-height: 100%; background: #f5f7ff; }
     #pwa-splash {
       position: fixed; inset: 0; z-index: 10000; display: flex;
       flex-direction: column; align-items: center; justify-content: center;
-      overflow: hidden; color: #fffaf0; font-family: "Aabhushan Serif", Georgia, serif;
-      background: linear-gradient(145deg, #351727 0%, #421d32 55%, #6c2634 100%);
+      overflow: hidden; color: #252d48; font-family: "Aabhushan Serif", Georgia, serif;
+      background: radial-gradient(ellipse at 15% 0%, #fdfefe, transparent 70%), linear-gradient(145deg, #f5f7ff, #efecfa);
       transition: opacity .45s ease, visibility .45s ease;
     }
     #pwa-splash::before, #pwa-splash::after {
-      content: ""; position: absolute; width: 420px; height: 420px;
-      border: 1px solid rgba(198,154,66,.18); border-radius: 50%;
-      pointer-events: none;
+      content: ""; position: absolute; width: 310px; height: 310px;
+      border: 1px solid #b3a0df55; transform: rotate(45deg); pointer-events: none;
     }
     #pwa-splash::before { top: -210px; right: -160px; }
     #pwa-splash::after { bottom: -240px; left: -180px; }
     #pwa-splash.done { opacity: 0; visibility: hidden; }
     .pwa-splash-mark {
-      width: 132px; height: 132px; border-radius: 50%;
-      box-shadow: 0 0 70px rgba(198,154,66,.24);
-      animation: pwa-mark-enter .9s cubic-bezier(.2,.8,.2,1) both,
-                 pwa-mark-breathe 2.4s ease-in-out 1s infinite;
+      width: 100px; height: 100px; border-radius: 50%;
+      box-shadow: 0 12px 40px #5364ad18;
+      animation: pwa-mark-enter .9s cubic-bezier(.2,.8,.2,1) both;
     }
-    .pwa-splash-name { margin-top: 24px; font-size: 26px; letter-spacing: 5px; animation: pwa-reveal .8s .25s both; }
-    .pwa-splash-caption { margin-top: 8px; color: #c69a42; font: 600 10px Arial, sans-serif; letter-spacing: 3px; animation: pwa-reveal .8s .42s both; }
-    .pwa-splash-rule { width: 84px; height: 2px; margin-top: 38px; background: rgba(198,154,66,.25); overflow: hidden; }
-    .pwa-splash-rule::after { content: ""; display: block; width: 40%; height: 100%; background: #c69a42; animation: pwa-progress 1.4s ease-in-out infinite alternate; }
+    .pwa-splash-name { margin-top: 24px; font-size: 28px; letter-spacing: 5px; animation: pwa-reveal .8s .25s both; }
+    .pwa-splash-caption { margin-top: 8px; color: #515b76; font: 600 10px Arial, sans-serif; letter-spacing: 3px; animation: pwa-reveal .8s .42s both; }
+    .pwa-splash-rule { width: 84px; height: 2px; margin-top: 38px; background: #dde3f3; overflow: hidden; }
+    .pwa-splash-rule::after { content: ""; display: block; width: 40%; height: 100%; background: #6274b6; animation: pwa-progress 1.4s ease-in-out infinite alternate; }
     #android-pwa-pause {
       position: fixed; inset: 0; z-index: 20000; display: flex; align-items: center;
       justify-content: center; box-sizing: border-box; padding: 24px; overflow: auto;
-      color: #fffaf0; font-family: Arial, sans-serif;
-      background: radial-gradient(circle at top right, #7a3244 0, #421d32 42%, #24101b 100%);
+      color: #252d48; font-family: Arial, sans-serif;
+      background: linear-gradient(145deg, #f5f7ff, #efecfa);
     }
     #android-pwa-pause[hidden] { display: none; }
     .android-pause-card {
       width: min(100%, 430px); padding: 30px 24px; box-sizing: border-box; text-align: center;
-      border: 1px solid rgba(198,154,66,.38); border-radius: 28px;
-      background: rgba(45,18,31,.88); box-shadow: 0 24px 70px rgba(0,0,0,.36);
-      backdrop-filter: blur(16px);
+      border: 1px solid #dde3f3; border-radius: 28px;
+      background: #fff; box-shadow: 0 24px 70px #5364ad18;
     }
-    .android-pause-mark { width: 90px; height: 90px; border-radius: 50%; box-shadow: 0 0 48px rgba(198,154,66,.25); }
-    .android-pause-kicker { margin-top: 20px; color: #d7b66d; font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+    .android-pause-mark { width: 90px; height: 90px; border-radius: 50%; }
+    .android-pause-kicker { margin-top: 20px; color: #515b76; font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
     .android-pause-card h1 { margin: 10px 0 12px; font: 600 30px/1.12 "Aabhushan Serif", Georgia, serif; }
-    .android-pause-copy { margin: 0 auto; max-width: 340px; color: #eadde5; font-size: 14px; line-height: 1.6; }
-    .android-pause-countdown { margin: 22px 0 7px; color: #fff; font-size: 25px; font-weight: 800; letter-spacing: 1px; }
-    .android-pause-until { color: #cdbac5; font-size: 12px; }
+    .android-pause-copy { margin: 0 auto; max-width: 340px; color: #515b76; font-size: 14px; line-height: 1.6; }
+    .android-pause-countdown { margin: 22px 0 7px; color: #252d48; font-size: 25px; font-weight: 800; letter-spacing: 1px; }
+    .android-pause-until { color: #515b76; font-size: 12px; }
     .android-pause-download {
       display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 24px;
-      min-height: 52px; border-radius: 15px; color: #2e1823; font-size: 15px;
-      font-weight: 800; text-decoration: none; background: linear-gradient(135deg, #f4d98b, #c69a42);
-      box-shadow: 0 10px 28px rgba(198,154,66,.2);
+      min-height: 52px; border-radius: 16px; color: #fff; font-size: 15px;
+      font-weight: 700; text-decoration: none; background: #5364ad;
+      transition: background .18s ease, transform .18s ease;
     }
-    .android-pause-note { margin-top: 15px; color: #bdaab5; font-size: 11px; line-height: 1.5; }
-    @keyframes pwa-mark-enter { from { opacity: 0; transform: translateY(15px) scale(.83); } to { opacity: 1; transform: translateY(0) scale(1); } }
-    @keyframes pwa-mark-breathe { 50% { box-shadow: 0 0 95px rgba(198,154,66,.38); transform: scale(1.035); } }
+    .android-pause-download:hover { background: #46569b; transform: translateY(-1px); }
+    .android-pause-download:focus-visible { outline: 2px solid #5364ad; outline-offset: 4px; }
+    .android-pause-note { margin-top: 15px; color: #515b76; font-size: 11px; line-height: 1.5; }
+    @keyframes pwa-mark-enter { from { opacity: 0; transform: translateY(12px) scale(.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
     @keyframes pwa-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes pwa-progress { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
-    @media (prefers-reduced-motion: reduce) { #pwa-splash *, #pwa-splash *::after { animation: none !important; } }
+    @media (prefers-reduced-motion: reduce) {
+      #pwa-splash, #pwa-splash *, #pwa-splash *::after, .android-pause-download { animation: none !important; transition: none !important; }
+    }
   </style>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
@@ -104,7 +104,7 @@
       <p class="android-pause-copy">For a smoother and more reliable experience, please use the latest Aabhushan Android app while the Android PWA is temporarily unavailable.</p>
       <div id="android-pause-countdown" class="android-pause-countdown" aria-live="polite">Loading…</div>
       <div class="android-pause-until">PWA resumes automatically at 12:00 AM IST</div>
-      <a class="android-pause-download" href="https://github.com/akcoders/jewellery_soft/releases/download/android-v1.0.14-build15/aabhushan-erp-1.0.14-build15.apk">Download Android APK</a>
+      <a class="android-pause-download" href="https://github.com/akcoders/jewellery_soft/releases/download/android-v1.0.15-build16/aabhushan-erp-1.0.15-build16.apk">Download Android APK</a>
       <div class="android-pause-note">iPhone, iPad and desktop PWA access remains available. This screen will reopen the PWA automatically at midnight.</div>
     </div>
   </section>

@@ -1,8 +1,14 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutkit/jewellery_mobile/screens/issuement_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/issuements_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _IssuementApi extends MobileApiService {
@@ -70,23 +76,72 @@ class _IssuementApi extends MobileApiService {
 }
 
 void main() {
-  Future<void> mount(WidgetTester tester, Widget screen) async {
-    tester.view.physicalSize = const Size(320, 740);
+  setUpAll(() async {
+    await (FontLoader(
+      'Manrope',
+    )..addFont(rootBundle.load('assets/fonts/manrope/Manrope.ttf'))).load();
+    await (FontLoader(
+      'MaterialIcons',
+    )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+    await (FontLoader('packages/flutter_lucide/lucide')..addFont(
+          rootBundle.load('packages/flutter_lucide/lib/fonts/lucide.ttf'),
+        ))
+        .load();
+  });
+  Future<void> mount(
+    WidgetTester tester,
+    Widget screen, {
+    Size size = const Size(320, 740),
+    double textScale = 1.5,
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    final captureKey = GlobalKey();
     await tester.pumpWidget(
       MaterialApp(
+        theme: AppTheme.light(),
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(
             context,
-          ).copyWith(textScaler: TextScaler.linear(1.5)),
+          ).copyWith(textScaler: TextScaler.linear(textScale)),
           child: child!,
         ),
-        home: screen,
+        home: RepaintBoundary(key: captureKey, child: screen),
       ),
     );
     await tester.pumpAndSettle();
+    final captureDir = Platform.environment['FORM_UI_CAPTURE_DIR'];
+    if (captureDir != null &&
+        screen is IssuementCreateScreen &&
+        size.width == 390) {
+      await tester.ensureVisible(find.text('Issuement Details'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        final boundary =
+            captureKey.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        final picture = await boundary.toImage(pixelRatio: 2);
+        final bytes = await picture.toByteData(format: ui.ImageByteFormat.png);
+        final file = File('$captureDir/issuement-form.png');
+        await file.create(recursive: true);
+        await file.writeAsBytes(bytes!.buffer.asUint8List());
+        picture.dispose();
+      });
+    }
+  }
+
+  if (Platform.environment['FORM_UI_CAPTURE_DIR'] != null) {
+    testWidgets('capture native form at phone size', (tester) async {
+      await mount(
+        tester,
+        IssuementCreateScreen(api: _IssuementApi()),
+        size: const Size(390, 844),
+        textScale: 1,
+      );
+      expect(tester.takeException(), isNull);
+    });
   }
 
   testWidgets(
@@ -137,7 +192,10 @@ void main() {
         for (var index = 0; index < 4; index++) {
           expect(tester.takeException(), isNull);
           if (!received &&
-              find.text('Completed · receiving pending').evaluate().isNotEmpty) {
+              find
+                  .text('Completed · receiving pending')
+                  .evaluate()
+                  .isNotEmpty) {
             break;
           }
           await tester.drag(find.byType(ListView).first, const Offset(0, -260));

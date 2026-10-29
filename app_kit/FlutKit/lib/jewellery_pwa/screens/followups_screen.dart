@@ -142,32 +142,37 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppColors.plum, Color(0xFF613047)],
+                colors: [
+                  AppColors.card,
+                  AppColors.background,
+                  AppColors.paleGold,
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(AppRadius.xl),
+              border: Border.all(color: AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Icon(
                   LucideIcons.calendar_check_2,
-                  color: AppColors.paleGold,
+                  color: AppColors.plum,
                   size: 25,
                 ),
                 const SizedBox(height: 14),
                 Text(
                   'Keep every order moving',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'Your next conversations, all in one place.',
-                  style: TextStyle(color: Color(0xFFE9D7DE), height: 1.5),
+                  style: TextStyle(color: AppColors.textSecondary, height: 1.5),
                 ),
                 const SizedBox(height: 18),
                 Wrap(
@@ -207,14 +212,14 @@ class _FollowupsScreenState extends State<FollowupsScreen> {
   Widget _summary(String value, String label) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: .09),
-      border: Border.all(color: Colors.white.withValues(alpha: .14)),
+      color: AppColors.card,
+      border: Border.all(color: AppColors.border),
       borderRadius: BorderRadius.circular(12),
     ),
     child: Text(
       '$value  $label',
       style: const TextStyle(
-        color: Colors.white,
+        color: AppColors.textPrimary,
         fontWeight: FontWeight.w600,
         fontSize: 13,
       ),

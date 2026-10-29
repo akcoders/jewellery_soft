@@ -200,17 +200,33 @@ class _SourceOption extends StatelessWidget {
     clipBehavior: Clip.antiAlias,
     child: InkWell(
       onTap: onTap,
-      child: Padding(
+      child: Ink(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.white, AppColors.background],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         padding: const EdgeInsets.all(18),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(13),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.08),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white,
+                    Color.alphaBlend(
+                      color.withValues(alpha: .07),
+                      AppColors.background,
+                    ),
+                  ],
+                ),
+                border: Border.all(color: AppColors.border),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(icon, color: color, size: 25),
+              child: Icon(icon, color: color, size: 23),
             ),
             const SizedBox(width: 16),
             Expanded(

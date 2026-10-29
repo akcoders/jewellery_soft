@@ -81,9 +81,14 @@ class _DeliveryChallansScreenState extends State<DeliveryChallansScreen> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppColors.plum, Color(0xFF762D49)],
+                colors: [
+                  AppColors.card,
+                  AppColors.background,
+                  AppColors.paleGold,
+                ],
               ),
               borderRadius: BorderRadius.circular(AppRadius.xl),
+              border: Border.all(color: AppColors.border),
               boxShadow: AppShadows.soft,
             ),
             child: Row(
@@ -96,7 +101,7 @@ class _DeliveryChallansScreenState extends State<DeliveryChallansScreen> {
                   ),
                   child: const Icon(
                     LucideIcons.scroll_text,
-                    color: AppColors.brandGold,
+                    color: AppColors.plum,
                     size: 30,
                   ),
                 ),
@@ -108,7 +113,7 @@ class _DeliveryChallansScreenState extends State<DeliveryChallansScreen> {
                       Text(
                         'DELIVERY REGISTER',
                         style: TextStyle(
-                          color: AppColors.brandGold,
+                          color: AppColors.plum,
                           fontSize: 11,
                           letterSpacing: 1.6,
                           fontWeight: FontWeight.w800,
@@ -118,7 +123,7 @@ class _DeliveryChallansScreenState extends State<DeliveryChallansScreen> {
                       Text(
                         'Delivery Challans',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontFamily: 'CormorantGaramond',
                           fontSize: 25,
                           fontWeight: FontWeight.w700,
@@ -130,7 +135,7 @@ class _DeliveryChallansScreenState extends State<DeliveryChallansScreen> {
                 Text(
                   '${_rows.length}',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
                   ),
@@ -246,7 +251,7 @@ class _DeliveryChallansScreenState extends State<DeliveryChallansScreen> {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: gold ? AppColors.gold : AppColors.textPrimary,
+          color: gold ? AppColors.plum : AppColors.textPrimary,
           fontWeight: FontWeight.w800,
           fontSize: 13,
         ),
@@ -389,15 +394,20 @@ class _DeliveryChallanCreateScreenState
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [AppColors.plum, Color(0xFF7B2947)],
+                        colors: [
+                          AppColors.card,
+                          AppColors.background,
+                          AppColors.paleGold,
+                        ],
                       ),
                       borderRadius: BorderRadius.circular(AppRadius.xl),
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: Row(
                       children: [
                         const Icon(
                           LucideIcons.crown,
-                          color: AppColors.brandGold,
+                          color: AppColors.plum,
                           size: 30,
                         ),
                         const SizedBox(width: 14),
@@ -405,7 +415,7 @@ class _DeliveryChallanCreateScreenState
                           child: Text(
                             'DELIVERY CHALLAN',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.2,
                             ),
@@ -414,7 +424,7 @@ class _DeliveryChallanCreateScreenState
                         Text(
                           _nextNumber,
                           style: const TextStyle(
-                            color: AppColors.brandGold,
+                            color: AppColors.plum,
                             fontWeight: FontWeight.w900,
                             fontSize: 20,
                           ),
@@ -433,7 +443,6 @@ class _DeliveryChallanCreateScreenState
                           isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Dispatch From *',
-                            border: OutlineInputBorder(),
                           ),
                           items: _branches.map((raw) {
                             final row = _map(raw);
@@ -456,7 +465,6 @@ class _DeliveryChallanCreateScreenState
                           isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Customer *',
-                            border: OutlineInputBorder(),
                           ),
                           items: _customers.map((raw) {
                             final row = _map(raw);
@@ -520,7 +528,6 @@ class _DeliveryChallanCreateScreenState
                           initialValue: _gst,
                           decoration: const InputDecoration(
                             labelText: 'GST Rate',
-                            border: OutlineInputBorder(),
                           ),
                           items: _gstRates.map((raw) {
                             final rate = _double(raw);
@@ -538,21 +545,21 @@ class _DeliveryChallanCreateScreenState
                           maxLines: 3,
                           decoration: const InputDecoration(
                             labelText: 'Notes / Purpose',
-                            border: OutlineInputBorder(),
                           ),
                         ),
                         const SizedBox(height: 14),
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: AppColors.plum,
+                            color: AppColors.paleGold,
                             borderRadius: BorderRadius.circular(AppRadius.lg),
+                            border: Border.all(color: AppColors.border),
                           ),
                           child: Column(
                             children: [
                               _totalRow('Item Value', _taxable),
                               _totalRow('GST', _taxable * _gst / 100),
-                              const Divider(color: Colors.white24),
+                              const Divider(color: AppColors.border),
                               _totalRow(
                                 'GROSS TOTAL',
                                 _taxable * (1 + _gst / 100),
@@ -586,7 +593,7 @@ class _DeliveryChallanCreateScreenState
     final line = _lines[index];
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
-      color: const Color(0xFFFFFCF6),
+      color: AppColors.background,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -610,10 +617,7 @@ class _DeliveryChallanCreateScreenState
             ),
             DropdownButtonFormField<String>(
               initialValue: line.type,
-              decoration: const InputDecoration(
-                labelText: 'Item Type *',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Item Type *'),
               items: const [
                 DropdownMenuItem(value: 'ornament', child: Text('Ornament')),
                 DropdownMenuItem(
@@ -630,19 +634,13 @@ class _DeliveryChallanCreateScreenState
             const SizedBox(height: 10),
             TextFormField(
               controller: line.description,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Description'),
             ),
             const SizedBox(height: 10),
             if (line.type != 'loose_diamond') ...[
               DropdownButtonFormField<String>(
                 initialValue: line.purity,
-                decoration: const InputDecoration(
-                  labelText: 'Purity *',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Purity *'),
                 items: const [
                   DropdownMenuItem(value: '14 KT', child: Text('14 KT')),
                   DropdownMenuItem(value: '18 KT', child: Text('18 KT')),
@@ -686,10 +684,7 @@ class _DeliveryChallanCreateScreenState
     child: TextFormField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
+      decoration: InputDecoration(labelText: label),
       validator: (value) {
         final number = double.tryParse(value?.trim() ?? '') ?? 0;
         if (label.endsWith('*') && number <= 0) return 'Enter positive value';
@@ -714,7 +709,7 @@ class _DeliveryChallanCreateScreenState
       children: [
         Row(
           children: [
-            Icon(icon, color: AppColors.gold, size: 20),
+            Icon(icon, color: AppColors.plum, size: 20),
             const SizedBox(width: 9),
             Text(title, style: Theme.of(context).textTheme.titleMedium),
           ],
@@ -731,12 +726,15 @@ class _DeliveryChallanCreateScreenState
         child: Row(
           children: [
             Expanded(
-              child: Text(label, style: const TextStyle(color: Colors.white)),
+              child: Text(
+                label,
+                style: const TextStyle(color: AppColors.textPrimary),
+              ),
             ),
             Text(
               '₹${AppFormatters.amount(amount)}',
               style: TextStyle(
-                color: grand ? AppColors.brandGold : Colors.white,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.w900,
                 fontSize: grand ? 20 : 14,
               ),

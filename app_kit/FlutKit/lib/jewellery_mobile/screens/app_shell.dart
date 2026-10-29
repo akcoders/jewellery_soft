@@ -1,3 +1,4 @@
+import 'package:flutkit/jewellery_mobile/widgets/premium_surface.dart';
 import 'dart:async';
 
 import 'package:flutkit/jewellery_mobile/screens/admin_tasks_screen.dart';
@@ -629,7 +630,25 @@ class _AppShellState extends State<AppShell> {
         key: _scaffoldKey,
         onDrawerChanged: (isOpened) => _drawerOpen = isOpened,
         appBar: AppBar(
-          title: Text(_title()),
+          toolbarHeight: 72,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'AABHUSHAN',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 9,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.8,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(_title(), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ],
+          ),
           bottom: const PreferredSize(
             preferredSize: Size.fromHeight(1),
             child: Divider(height: 1),
@@ -714,7 +733,24 @@ class _AppShellState extends State<AppShell> {
                   ),
                 ),
               ],
-              icon: const Icon(Icons.account_circle_outlined),
+              icon: CircleAvatar(
+                radius: 17,
+                backgroundColor: AppColors.paleGold,
+                foregroundColor: AppColors.textPrimary,
+                child: Text(
+                  widget.session.userName.trim().isEmpty
+                      ? 'A'
+                      : widget.session.userName
+                            .trim()
+                            .characters
+                            .first
+                            .toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -840,7 +876,9 @@ class _AppShellState extends State<AppShell> {
           ),
         ),
         body: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
           child: KeyedSubtree(key: ValueKey(_section), child: _body()),
         ),
         bottomNavigationBar: DecoratedBox(
@@ -1055,6 +1093,7 @@ class _AppShellState extends State<AppShell> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       child: ListTile(
         dense: true,
+        minTileHeight: 52,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
@@ -1231,33 +1270,27 @@ class _NotificationBell extends StatelessWidget {
 
 class _DrawerHeader extends StatelessWidget {
   const _DrawerHeader({required this.session});
-
   final MobileSession session;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.plum, AppColors.emerald, Color(0xFF25735B)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    child: PremiumSurface(
+      borderRadius: 0,
+      accent: AppColors.ice,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 44,
+                height: 44,
                 padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFFFFFBF4),
+                  color: AppColors.card,
                   border: Border.all(color: AppColors.brandGold),
                 ),
                 child: Image.asset(
@@ -1273,18 +1306,19 @@ class _DrawerHeader extends StatelessWidget {
                     Text(
                       'AABHUSHAN',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        letterSpacing: 1.3,
+                        fontFamily: 'CormorantGaramond',
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 22,
+                        letterSpacing: 1,
                       ),
                     ),
                     Text(
                       'JEWELLERY WORKSPACE',
                       style: TextStyle(
-                        color: AppColors.brandGold,
+                        color: AppColors.textSecondary,
                         fontSize: 8,
-                        letterSpacing: 1.5,
+                        letterSpacing: 1.3,
                       ),
                     ),
                   ],
@@ -1292,14 +1326,14 @@ class _DrawerHeader extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.13)),
+              color: Colors.white.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1307,21 +1341,26 @@ class _DrawerHeader extends StatelessWidget {
                 Text(
                   session.userName,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w700,
+                    fontSize: 13,
                   ),
                 ),
+                const SizedBox(height: 3),
                 Text(
                   session.userEmail,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
 }

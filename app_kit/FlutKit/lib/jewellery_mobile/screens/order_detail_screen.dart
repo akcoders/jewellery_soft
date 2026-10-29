@@ -215,7 +215,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   maxLines: 3,
                   decoration: const InputDecoration(
                     labelText: 'Rating note (optional)',
-                    border: OutlineInputBorder(),
                   ),
                 ),
               ],
@@ -1146,7 +1145,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   enabled: !saving,
                   decoration: const InputDecoration(
                     labelText: 'Issue note (optional)',
-                    border: OutlineInputBorder(),
                   ),
                 ),
                 if (error.isNotEmpty)

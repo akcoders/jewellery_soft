@@ -113,9 +113,13 @@ void main() {
       findsNothing,
     );
 
-    await tester.tap(
-      find.descendant(of: drawer, matching: find.text('Packing Lists')),
+    final packingLists = find.descendant(
+      of: drawer,
+      matching: find.text('Packing Lists'),
     );
+    await tester.ensureVisible(packingLists);
+    await tester.pumpAndSettle();
+    await tester.tap(packingLists);
     await tester.pumpAndSettle();
     expect(
       find.descendant(

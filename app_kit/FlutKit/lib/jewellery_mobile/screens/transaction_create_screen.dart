@@ -527,7 +527,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                     helperText:
                         'PCS is not required. Added to Broken inventory; issue usage closes by CTS.',
                     filled: true,
-                    fillColor: Colors.amber.withValues(alpha: 0.08),
+                    fillColor: AppColors.paleGold,
                   ),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,

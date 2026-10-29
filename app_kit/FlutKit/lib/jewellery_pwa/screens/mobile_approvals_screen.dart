@@ -81,8 +81,8 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
         icon: Icon(
           isApproval ? LucideIcons.badge_check : LucideIcons.circle_x,
           color: isNoPoint
-              ? Colors.orange
-              : (isApproval ? Colors.green : Colors.red),
+              ? AppColors.warning
+              : (isApproval ? AppColors.success : AppColors.danger),
           size: 36,
         ),
         title: Text(
@@ -106,7 +106,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFAF7F9),
+                      color: AppColors.background,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: AppColors.border),
                     ),
@@ -151,8 +151,10 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                     decoration: BoxDecoration(
                       color:
                           (isNoPoint
-                                  ? Colors.orange
-                                  : (isApproval ? Colors.green : Colors.red))
+                                  ? AppColors.warning
+                                  : (isApproval
+                                        ? AppColors.success
+                                        : AppColors.danger))
                               .withValues(alpha: .08),
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -164,10 +166,10 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                           : 'Score impact: −2 only. The update remains visible in the order chain.',
                       style: TextStyle(
                         color: isNoPoint
-                            ? Colors.orange.shade900
+                            ? AppColors.warning
                             : isApproval
-                            ? Colors.green.shade800
-                            : Colors.red.shade800,
+                            ? AppColors.success
+                            : AppColors.danger,
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
@@ -186,7 +188,6 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                     hintText: isApproval
                         ? 'Add any instruction for the follower'
                         : 'Explain what must be corrected',
-                    border: const OutlineInputBorder(),
                   ),
                 ),
               ],
@@ -201,10 +202,10 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: isNoPoint
-                  ? Colors.orange.shade800
+                  ? AppColors.warning
                   : isApproval
-                  ? Colors.green.shade700
-                  : Colors.red.shade700,
+                  ? AppColors.success
+                  : AppColors.danger,
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text(
@@ -295,21 +296,16 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [
-                  Color(0xFF32142D),
-                  Color(0xFF76224F),
-                  Color(0xFFC19636),
+                  AppColors.card,
+                  AppColors.background,
+                  AppColors.paleGold,
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(22),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x332E1028),
-                  blurRadius: 26,
-                  offset: Offset(0, 12),
-                ),
-              ],
+              border: Border.all(color: AppColors.border),
+              boxShadow: AppShadows.soft,
             ),
             child: Row(
               children: [
@@ -320,7 +316,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                       Text(
                         _canReview ? 'ADMIN APPROVAL DESK' : 'MASTER REQUESTS',
                         style: const TextStyle(
-                          color: Color(0xFFF5D98A),
+                          color: AppColors.plum,
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1.3,
@@ -332,7 +328,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                             ? '$pending pending approval${pending == 1 ? '' : 's'}'
                             : 'Create masters with admin approval',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                         ),
@@ -342,7 +338,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                 ),
                 const Icon(
                   LucideIcons.shield_check,
-                  color: Color(0xFFF5D98A),
+                  color: AppColors.plum,
                   size: 42,
                 ),
               ],
@@ -447,7 +443,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
       ),
@@ -467,7 +463,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
               '${followups.length}',
               'Follow-ups',
               LucideIcons.git_branch,
-              AppColors.gold,
+              AppColors.plum,
             ),
           ),
           Container(width: 1, height: 44, color: AppColors.border),
@@ -654,7 +650,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF3C1737), Color(0xFF70224F)],
+                colors: [AppColors.card, AppColors.background],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -668,12 +664,12 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: .12),
+                        color: AppColors.card,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
                         LucideIcons.git_branch,
-                        color: Color(0xFFF5D98A),
+                        color: AppColors.plum,
                       ),
                     ),
                     const SizedBox(width: 11),
@@ -684,7 +680,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                           Text(
                             orderNo,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.w900,
                             ),
@@ -692,7 +688,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                           Text(
                             '${timeline.length} update${timeline.length == 1 ? '' : 's'} in chain · ${requests.length} pending',
                             style: const TextStyle(
-                              color: Color(0xFFDCC9D7),
+                              color: AppColors.textSecondary,
                               fontSize: 11,
                             ),
                           ),
@@ -705,13 +701,13 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF5D98A),
+                        color: AppColors.paleGold,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         '${requests.length} PENDING',
                         style: const TextStyle(
-                          color: Color(0xFF4A3210),
+                          color: AppColors.textPrimary,
                           fontSize: 9,
                           fontWeight: FontWeight.w900,
                         ),
@@ -725,8 +721,8 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 5,
-                    color: const Color(0xFFF5D98A),
-                    backgroundColor: Colors.white.withValues(alpha: .15),
+                    color: AppColors.plum,
+                    backgroundColor: AppColors.border,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -735,14 +731,17 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                   children: [
                     const Text(
                       'Review top to bottom to preserve the stage story.',
-                      style: TextStyle(color: Colors.white70, fontSize: 10),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 10,
+                      ),
                     ),
                     if (latestNext.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         'Next ${AppFormatters.dateTime(latestNext)}',
                         style: const TextStyle(
-                          color: Color(0xFFF5D98A),
+                          color: AppColors.plum,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
@@ -757,7 +756,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-              color: const Color(0xFFF8F3E7),
+              color: AppColors.background,
               child: Text(
                 '$hiddenCount earlier reviewed update${hiddenCount == 1 ? '' : 's'} hidden · latest context shown',
                 style: const TextStyle(
@@ -798,10 +797,10 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
     final status = (row['approval_status'] ?? request?['status'] ?? 'approved')
         .toString()
         .toLowerCase();
-    final MaterialColor color = switch (status) {
-      'approved' => Colors.green,
-      'rejected' => Colors.red,
-      _ => Colors.orange,
+    final Color color = switch (status) {
+      'approved' => AppColors.success,
+      'rejected' => AppColors.danger,
+      _ => AppColors.warning,
     };
     final statusLabel = switch (status) {
       'rejected' => 'DISAPPROVED',
@@ -838,7 +837,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                       : Text(
                           '$position',
                           style: TextStyle(
-                            color: color.shade800,
+                            color: color,
                             fontSize: 11,
                             fontWeight: FontWeight.w900,
                           ),
@@ -862,12 +861,12 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
               padding: const EdgeInsets.all(13),
               decoration: BoxDecoration(
                 color: status == 'pending'
-                    ? const Color(0xFFFFFBEE)
-                    : const Color(0xFFFAF7F9),
+                    ? AppColors.paleGold
+                    : AppColors.background,
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
                   color: status == 'pending'
-                      ? Colors.orange.withValues(alpha: .42)
+                      ? AppColors.warning.withValues(alpha: .42)
                       : AppColors.border,
                 ),
               ),
@@ -897,7 +896,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                         child: Text(
                           statusLabel,
                           style: TextStyle(
-                            color: color.shade800,
+                            color: color,
                             fontSize: 8,
                             fontWeight: FontWeight.w900,
                           ),
@@ -944,7 +943,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                     Text(
                       'Admin: ${row['review_note']}',
                       style: TextStyle(
-                        color: color.shade800,
+                        color: color,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -999,7 +998,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
   Widget _miniFact(IconData icon, String text) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: AppColors.card,
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: AppColors.border),
     ),
@@ -1025,7 +1024,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          headingRowColor: WidgetStateProperty.all(const Color(0xFFF8F3E7)),
+          headingRowColor: WidgetStateProperty.all(AppColors.background),
           columns: const [
             DataColumn(label: Text('Request')),
             DataColumn(label: Text('Type')),
@@ -1048,8 +1047,8 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                     status == 'rejected' ? 'Disapproved' : 'Approved',
                     style: TextStyle(
                       color: status == 'approved'
-                          ? Colors.green.shade700
-                          : Colors.red.shade700,
+                          ? AppColors.success
+                          : AppColors.danger,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1124,9 +1123,9 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
         ? 'DISAPPROVED'
         : status.toUpperCase();
     final statusColor = switch (status) {
-      'approved' => Colors.green,
-      'rejected' => Colors.red,
-      _ => Colors.orange,
+      'approved' => AppColors.success,
+      'rejected' => AppColors.danger,
+      _ => AppColors.warning,
     };
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1139,7 +1138,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: const Color(0xFFF6EBCB),
+                  backgroundColor: AppColors.paleGold,
                   foregroundColor: AppColors.plum,
                   child: Icon(
                     isIssue
@@ -1188,7 +1187,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                   child: Text(
                     statusLabel,
                     style: TextStyle(
-                      color: statusColor.shade700,
+                      color: statusColor,
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
                     ),
@@ -1305,7 +1304,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(11),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFAF7F9),
+                        color: AppColors.background,
                         border: Border.all(color: AppColors.border),
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1377,12 +1376,25 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
 
   Widget _deskFilter(String value, String label) => FilterChip(
     selected: _statusFilter == value,
+    labelStyle: TextStyle(
+      fontFamily: 'Manrope',
+      fontWeight: FontWeight.w600,
+      color: _statusFilter == value ? Colors.white : AppColors.textSecondary,
+    ),
     label: Text(label),
     onSelected: (_) => setState(() => _statusFilter = value),
   );
 
   Widget _typeFilter(String value, String label) => ChoiceChip(
     selected: _pendingTypeFilter == value,
+    showCheckmark: false,
+    labelStyle: TextStyle(
+      fontFamily: 'Manrope',
+      fontWeight: FontWeight.w600,
+      color: _pendingTypeFilter == value
+          ? Colors.white
+          : AppColors.textSecondary,
+    ),
     label: Text(label),
     avatar: Icon(
       value == 'followups'
@@ -1391,6 +1403,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
           ? LucideIcons.inbox
           : LucideIcons.layout_list,
       size: 15,
+      color: _pendingTypeFilter == value ? Colors.white : AppColors.plum,
     ),
     onSelected: (_) => setState(() => _pendingTypeFilter = value),
   );
@@ -1405,7 +1418,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAF7F9),
+        color: AppColors.background,
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -1472,7 +1485,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAF7F9),
+        color: AppColors.background,
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -1499,7 +1512,7 @@ class _MobileApprovalsScreenState extends State<MobileApprovalsScreen> {
   Widget _chip(IconData icon, dynamic value) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
     decoration: BoxDecoration(
-      color: const Color(0xFFF8F3E7),
+      color: AppColors.background,
       borderRadius: BorderRadius.circular(20),
     ),
     child: Row(
@@ -1861,10 +1874,7 @@ class _MasterRequestDialogState extends State<_MasterRequestDialog> {
       controller: _c(key),
       keyboardType: type,
       maxLines: lines,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
+      decoration: InputDecoration(labelText: label),
       validator: required
           ? (value) => (value ?? '').trim().length < 2 ? 'Required' : null
           : null,

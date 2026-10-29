@@ -1,3 +1,4 @@
+import 'package:flutkit/jewellery_mobile/widgets/premium_surface.dart';
 import 'dart:async';
 
 import 'package:flutkit/jewellery_pwa/screens/admin_tasks_screen.dart';
@@ -702,7 +703,7 @@ class _AppShellState extends State<AppShell> {
             setState(() => _refreshTick++);
             final pending =
                 created is Map && created['approval_required'] == true;
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(
                 content: Text(
                   pending
@@ -860,8 +861,8 @@ class _AppShellState extends State<AppShell> {
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         selected: selected,
-        selectedColor: Colors.white,
-        selectedTileColor: AppColors.plum,
+        selectedColor: AppColors.textPrimary,
+        selectedTileColor: AppColors.paleGold,
         leading: IconTheme(
           data: IconThemeData(
             color: selected ? AppColors.brandGold : AppColors.textSecondary,
@@ -1005,33 +1006,27 @@ class _NotificationBell extends StatelessWidget {
 
 class _DrawerHeader extends StatelessWidget {
   const _DrawerHeader({required this.session});
-
   final MobileSession session;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF351727), AppColors.plum, Color(0xFF702A37)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    child: PremiumSurface(
+      borderRadius: 0,
+      accent: AppColors.ice,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 44,
+                height: 44,
                 padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFFFFFBF4),
+                  color: AppColors.card,
                   border: Border.all(color: AppColors.brandGold),
                 ),
                 child: Image.asset(
@@ -1047,18 +1042,19 @@ class _DrawerHeader extends StatelessWidget {
                     Text(
                       'AABHUSHAN',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        letterSpacing: 1.3,
+                        fontFamily: 'CormorantGaramond',
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 22,
+                        letterSpacing: 1,
                       ),
                     ),
                     Text(
                       'JEWELLERY WORKSPACE',
                       style: TextStyle(
-                        color: AppColors.brandGold,
+                        color: AppColors.textSecondary,
                         fontSize: 8,
-                        letterSpacing: 1.5,
+                        letterSpacing: 1.3,
                       ),
                     ),
                   ],
@@ -1066,14 +1062,14 @@ class _DrawerHeader extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.13)),
+              color: Colors.white.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1081,21 +1077,26 @@ class _DrawerHeader extends StatelessWidget {
                 Text(
                   session.userName,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w700,
+                    fontSize: 13,
                   ),
                 ),
+                const SizedBox(height: 3),
                 Text(
                   session.userEmail,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
 }
