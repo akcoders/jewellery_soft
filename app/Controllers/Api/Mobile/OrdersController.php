@@ -17,6 +17,7 @@ use App\Services\OrderFollowupService;
 use App\Services\OrderFamilyService;
 use App\Services\OrderNumberService;
 use App\Services\OrderReceivingService;
+use App\Services\OrderWorkflowService;
 use App\Services\OrderWhatsAppService;
 use App\Services\RbacService;
 use App\Services\StaffPerformanceService;
@@ -153,7 +154,7 @@ class OrdersController extends MobileBaseController
             'order_categories' => (new OrderCategoryService($db))->options(),
             'parent_orders' => (new OrderFamilyService($db))->options(),
             'priorities' => $this->jewelleryConfig->orderPriorities,
-            'statuses' => $this->jewelleryConfig->orderStatuses,
+            'statuses' => $this->jewelleryConfig->followupStages,
             'material_categories' => ['Gold', 'Diamond', 'Jadau', 'Silver'],
             'certificate_requirements' => ['', 'IGI', 'Kalasha', 'IGI / Kalasha', 'Other'],
         ]);
@@ -195,8 +196,8 @@ class OrdersController extends MobileBaseController
         if (! in_array($priority, $this->jewelleryConfig->orderPriorities, true)) {
             return $this->fail('Select a valid priority.', 422);
         }
-        if (! in_array($status, $this->jewelleryConfig->orderStatuses, true)) {
-            return $this->fail('Select a valid order status.', 422);
+        if (! in_array($status, $this->jewelleryConfig->followupStages, true)) {
+            return $this->fail('Select a production stage up to Ready. Completion is recorded after receiving.', 422);
         }
 
         $dueDate = $this->validOptionalDate($payload['due_date'] ?? null);
@@ -502,7 +503,7 @@ class OrdersController extends MobileBaseController
                 $mobileUserId,
                 $this->rbacService->userCan($mobileUserId, 'diamond.inventory.manage')
             ),
-            'allowed_stages' => $this->jewelleryConfig->orderStatuses,
+            'allowed_stages' => $this->jewelleryConfig->followupStages,
         ]);
     }
 
@@ -539,8 +540,9 @@ class OrdersController extends MobileBaseController
         $stage = trim((string) ($payload['stage'] ?? ''));
         $description = trim((string) ($payload['description'] ?? ''));
         $nextFollowupDate = trim((string) ($payload['next_followup_date'] ?? ''));
-        if ($stage === '' || ! in_array($stage, $this->jewelleryConfig->orderStatuses, true)) {
-            return $this->fail('Invalid stage.', 422);
+        $stageError = (new OrderWorkflowService())->followupStageError($stage);
+        if ($stageError !== null) {
+            return $this->fail($stageError, 422);
         }
         if ($description === '') return $this->fail('description is required.', 422);
 
@@ -561,7 +563,7 @@ class OrdersController extends MobileBaseController
             return $this->fail('Only the assigned order follower can submit this follow-up.', 403);
         }
 
-        $terminalStage = in_array($stage, ['Ready', 'Packed', 'Dispatched', 'Completed', 'Cancelled'], true);
+        $terminalStage = $stage === 'Ready';
         if (! $terminalStage && $nextFollowupDate === '') {
             return $this->fail('next_followup_date is required while the order remains open.', 422);
         }
@@ -625,10 +627,10 @@ class OrdersController extends MobileBaseController
                     $childDescription = trim((string) ($child['description'] ?? ''));
                     $childStage = trim((string) ($child['stage'] ?? $stage));
                     $childNext = trim((string) ($child['next_followup_date'] ?? ''));
-                    if (! is_array($childOrder) || $childDescription === '' || ! in_array($childStage, $this->jewelleryConfig->orderStatuses, true)) {
+                    if (! is_array($childOrder) || $childDescription === '' || ! in_array($childStage, $this->jewelleryConfig->followupStages, true)) {
                         throw new \RuntimeException('Enter a valid follow-up for every related order.');
                     }
-                    $childTerminal = in_array($childStage, ['Ready', 'Packed', 'Dispatched', 'Completed', 'Cancelled'], true);
+                    $childTerminal = $childStage === 'Ready';
                     $childTs = $childNext !== '' ? strtotime($childNext) : false;
                     if (! $childTerminal && ($childTs === false || $childTs <= time())) {
                         throw new \RuntimeException('Enter a future next follow-up for every open related order.');

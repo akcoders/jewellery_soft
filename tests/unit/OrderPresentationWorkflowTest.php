@@ -107,7 +107,7 @@ final class OrderPresentationWorkflowTest extends CIUnitTestCase
         $dashboard = $this->source('Views/admin/dashboard/index.php');
 
         $this->assertStringContainsString("!== 'Ready'", $controller);
-        $this->assertStringContainsString("['Packed', 'Dispatched', 'Completed']", $controller);
+        $this->assertStringContainsString('->statusError($newStatus, $id)', $controller);
         $this->assertStringContainsString('assertReadyForReceiving($order)', $receivingService);
         $this->assertStringContainsString("=== 'Ready'", $mobileController);
         $this->assertStringContainsString("\$status === 'Ready'", $orderDetail);

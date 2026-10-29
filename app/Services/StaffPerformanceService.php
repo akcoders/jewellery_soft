@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\OrderFollowupScheduleModel;
+use CodeIgniter\Database\BaseConnection;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
@@ -252,16 +253,18 @@ class StaffPerformanceService
         ]);
     }
 
-    public function closeOrderFollowupSchedules(int $orderId): void
+    public function closeOrderFollowupSchedules(int $orderId, ?BaseConnection $connection = null): void
     {
-        $db = db_connect();
+        $db = $connection ?? db_connect();
         if (! $db->tableExists('order_followup_schedules')) {
             return;
         }
 
         $now = $this->now();
         foreach ($db->table('order_followup_schedules')->select('id')->where('order_id', $orderId)->where('status', 'pending')->get()->getResultArray() as $row) {
-            (new WorkflowTaskService())->cancel('order_followup', (int) $row['id']);
+            if ($db->tableExists('mobile_tasks')) {
+                (new WorkflowTaskService($db))->cancel('order_followup', (int) $row['id']);
+            }
         }
         $db->table('order_followup_schedules')
             ->where('order_id', $orderId)

@@ -4,6 +4,7 @@ namespace App\Controllers\Api;
 
 use App\Services\OrderNumberService;
 use App\Services\OrderCategoryService;
+use App\Services\OrderWorkflowService;
 
 class OrdersController extends ApiBaseController
 {
@@ -35,6 +36,10 @@ class OrdersController extends ApiBaseController
         }
 
         $status = trim((string) ($payload['status'] ?? 'Draft'));
+        $statusError = (new OrderWorkflowService($db))->statusError($status);
+        if ($statusError !== null) {
+            return $this->fail($statusError, 422);
+        }
         $dueDate = trim((string) ($payload['due_date'] ?? date('Y-m-d')));
         $priority = (string) ($payload['priority'] ?? 'Normal');
         $orderType = (string) ($payload['order_type'] ?? 'Sales');
@@ -118,6 +123,10 @@ class OrdersController extends ApiBaseController
             return $this->fail('Order not found.', 404);
         }
 
+        $statusError = (new OrderWorkflowService($db))->statusError($status, $id);
+        if ($statusError !== null) {
+            return $this->fail($statusError, 422);
+        }
         $db->table('orders')->where('id', $id)->update(['status' => $status]);
         $db->table('order_status_history')->insert([
             'order_id' => $id,

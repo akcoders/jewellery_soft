@@ -179,7 +179,7 @@ class ArattaiTransactionConversationService
                 return $this->advance($session, 'erp_followup_stage', $data, $actorId, $sendText, $sendOptions);
 
             case 'erp_followup_stage':
-                $statuses = array_values(array_map('strval', config(Jewellery::class)->orderStatuses));
+                $statuses = array_values(array_map('strval', config(Jewellery::class)->followupStages));
                 $stage = $this->matchLabel($text, $statuses);
                 if ($stage === '') throw new RuntimeException('Select a valid order stage.');
                 $data['stage'] = $stage;
@@ -804,7 +804,7 @@ class ArattaiTransactionConversationService
                 $this->sendRows($session, 'orders', $rows, 'id', ['order_no', 'order_name'], 'Select order for follow-up:', $sendOptions);
                 return;
             case 'erp_followup_stage':
-                $sendOptions('arattai_followup_stage', 'Select current order stage:', array_slice(array_values(config(Jewellery::class)->orderStatuses), 0, 9));
+                $sendOptions('arattai_followup_stage', 'Select current order stage. Ready is the final follow-up:', array_values(config(Jewellery::class)->followupStages));
                 return;
             case 'erp_followup_description':
                 $sendText('arattai_followup_note', 'Enter the follow-up/update note.');
@@ -1306,7 +1306,7 @@ class ArattaiTransactionConversationService
 
     private function terminalStage(string $stage): bool
     {
-        return in_array($stage, ['Ready', 'Packed', 'Dispatched', 'Completed', 'Complete', 'Cancelled'], true);
+        return $stage === 'Ready';
     }
 
     private function positive(string $value): ?float

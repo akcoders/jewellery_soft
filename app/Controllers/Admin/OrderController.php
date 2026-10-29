@@ -43,6 +43,7 @@ use App\Services\OrderFollowupService;
 use App\Services\OrderFamilyService;
 use App\Services\OrderNumberService;
 use App\Services\OrderReceivingService;
+use App\Services\OrderWorkflowService;
 use App\Services\OrderReceiveReversalService;
 use App\Services\OrderThumbnailService;
 use App\Services\PdfService;
@@ -530,7 +531,7 @@ class OrderController extends BaseController
         return view('admin/orders/followups', [
             'title' => 'Order Followups',
             'orders' => $orders,
-            'statuses' => $this->jewelleryConfig->orderStatuses,
+            'statuses' => $this->jewelleryConfig->followupStages,
             'staffFollowers' => $canManageFollowers ? $this->staffPerformanceService->staffOptions() : [],
         ]);
     }
@@ -615,7 +616,7 @@ class OrderController extends BaseController
             'orderCategories' => $this->orderCategoryService->options(),
             'parentOrders' => (new OrderFamilyService())->options(),
             'priorities'  => $this->jewelleryConfig->orderPriorities,
-            'statuses'    => $this->jewelleryConfig->orderStatuses,
+            'statuses'    => $this->jewelleryConfig->followupStages,
             'repairMode'  => $repairMode,
         ]);
     }
@@ -690,8 +691,8 @@ class OrderController extends BaseController
         }
 
         $status = (string) $this->request->getPost('status');
-        if (! in_array($status, $this->jewelleryConfig->orderStatuses, true)) {
-            return redirect()->back()->withInput()->with('error', 'Invalid order status.');
+        if (! in_array($status, $this->jewelleryConfig->followupStages, true)) {
+            return redirect()->back()->withInput()->with('error', 'Select a production stage up to Ready. Completion is recorded after receiving.');
         }
 
         $priority = (string) $this->request->getPost('priority');
@@ -1432,9 +1433,9 @@ class OrderController extends BaseController
             return redirect()->back()->with('error', 'Invalid status transition.');
         }
 
-        if (in_array($newStatus, ['Packed', 'Dispatched', 'Completed'], true)
-            && ! (new OrderReceivingService())->hasRecordedReceipt($id)) {
-            return redirect()->back()->with('error', 'Receive finished jewellery before changing the order to Packed, Dispatched, or Completed.');
+        $statusError = (new OrderWorkflowService())->statusError($newStatus, $id);
+        if ($statusError !== null) {
+            return redirect()->back()->with('error', $statusError);
         }
 
         $imageRules = [
@@ -1640,11 +1641,12 @@ class OrderController extends BaseController
         }
 
         $stage = trim((string) $this->request->getPost('stage'));
-        if (! in_array($stage, $this->jewelleryConfig->orderStatuses, true)) {
-            return redirect()->back()->withInput()->with('error', 'Invalid followup stage.');
+        $stageError = (new OrderWorkflowService())->followupStageError($stage);
+        if ($stageError !== null) {
+            return redirect()->back()->withInput()->with('error', $stageError);
         }
         $nextFollowupDate = trim((string) $this->request->getPost('next_followup_date'));
-        $terminalStage = in_array($stage, ['Ready', 'Packed', 'Dispatched', 'Completed', 'Cancelled'], true);
+        $terminalStage = $stage === 'Ready';
         if (! $terminalStage && $nextFollowupDate === '') {
             return redirect()->back()->withInput()->with('error', 'Next follow-up date and time is required while the order remains open.');
         }
@@ -1693,12 +1695,13 @@ class OrderController extends BaseController
                     $childOrder = $this->orderModel->find($childId);
                     $childDescription = trim((string) ($childDescriptions[$childId] ?? ''));
                     $childDate = trim((string) ($childDates[$childId] ?? ''));
-                    if (! is_array($childOrder) || $childDescription === '' || strtotime($childDate) === false || strtotime($childDate) <= time()) {
-                        throw new \RuntimeException('Enter a follow-up and future next date for every related order.');
+                    if (! is_array($childOrder) || $childDescription === ''
+                        || (! $terminalStage && (strtotime($childDate) === false || strtotime($childDate) <= time()))) {
+                        throw new \RuntimeException('Enter a follow-up and future next date for every open related order.');
                     }
                     $submissions[] = ['order' => $childOrder, 'payload' => [
                         'order_id' => $childId, 'order_no' => (string) $childOrder['order_no'], 'stage' => $stage,
-                        'description' => $childDescription, 'next_followup_date' => $this->nullableDateTime($childDate),
+                        'description' => $childDescription, 'next_followup_date' => $terminalStage ? null : $this->nullableDateTime($childDate),
                         'followup_taken_on' => date('Y-m-d H:i:s'), 'followup_scope' => 'order',
                     ]];
                 }

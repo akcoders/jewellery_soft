@@ -1860,10 +1860,20 @@ class ProductionDataImportService
 
     private function completeAllProductionOrders(): void
     {
-        $orders = $this->db->table('orders')->select('id, status')->get()->getResultArray();
+        $builder = $this->db->table('orders')->select('id, status')->where('status !=', 'Cancelled');
+        if ($this->db->fieldExists('deleted_at', 'orders')) {
+            $builder->where('deleted_at', null);
+        }
+        $orders = $builder->get()->getResultArray();
+        $receivedIds = array_fill_keys((new OrderReceivingService($this->db))->recordedReceiptOrderIds(
+            array_map(static fn(array $order): int => (int) $order['id'], $orders)
+        ), true);
         $now = date('Y-m-d H:i:s');
         foreach ($orders as $order) {
             $orderId = (int) $order['id'];
+            if (! isset($receivedIds[$orderId])) {
+                continue;
+            }
             $fromStatus = (string) $order['status'];
             $this->db->table('orders')->where('id', $orderId)->update(['status' => 'Completed', 'updated_at' => $now]);
             $this->db->table('order_items')->where('order_id', $orderId)->update(['item_status' => 'Completed', 'updated_at' => $now]);

@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use CodeIgniter\Database\BaseConnection;
-use Config\Jewellery;
 use RuntimeException;
 use Throwable;
 
@@ -82,6 +81,20 @@ class OrderFollowupService
     /** @return array<string,mixed> */
     public function reviewPending(int $followupId, bool $approved, int $reviewerId, string $note = '', bool $awardPoints = true): array
     {
+        $this->db->transException(true)->transStart();
+        try {
+            $result = $this->reviewPendingWithinTransaction($followupId, $approved, $reviewerId, $note, $awardPoints);
+            $this->db->transComplete();
+            return $result;
+        } catch (Throwable $e) {
+            $this->db->transRollback();
+            throw $e;
+        }
+    }
+
+    /** @return array<string,mixed> */
+    private function reviewPendingWithinTransaction(int $followupId, bool $approved, int $reviewerId, string $note, bool $awardPoints): array
+    {
         $followup = $this->db->table('order_followups')->where('id', $followupId)->get()->getRowArray();
         if (! is_array($followup)) {
             throw new RuntimeException('Pending follow-up was not found.');
@@ -91,11 +104,12 @@ class OrderFollowupService
         }
 
         if ($approved) {
-            $order = $this->db->table('orders')->where('id', (int) $followup['order_id'])->get()->getRowArray();
+            (new OrderWorkflowService($this->db))->assertFollowupStage((string) ($followup['stage'] ?? ''));
+            $order = $this->lockedOrder((int) $followup['order_id']);
             if (! is_array($order)) {
                 throw new RuntimeException('Order not found.');
             }
-            $laterApproved = $this->db->table('order_followups')
+            $laterApprovedQuery = $this->db->table('order_followups')
                 ->select('id')
                 ->where('order_id', (int) $followup['order_id'])
                 ->where('approval_status', 'approved')
@@ -105,11 +119,15 @@ class OrderFollowupService
                         ->where('followup_taken_on', (string) ($followup['followup_taken_on'] ?? ''))
                         ->where('id >', $followupId)
                     ->groupEnd()
-                ->groupEnd()
-                ->get()->getRowArray();
+                ->groupEnd();
+            // A reviewer may have committed a newer approval while this
+            // transaction waited for the order lock. Use a current read.
+            $lock = in_array($this->db->DBDriver, ['MySQLi', 'Postgre'], true) ? ' FOR UPDATE' : '';
+            $laterApproved = $this->db->query($laterApprovedQuery->getCompiledSelect() . $lock)->getRowArray();
             if (! is_array($laterApproved)) {
                 $this->applyApprovedStage($order, $followup, (int) ($followup['followup_taken_by'] ?? 0));
             }
+            $appliedStatus = (string) ($this->lockedOrder((int) $followup['order_id'])['status'] ?? '');
         }
 
         $status = $approved ? 'approved' : 'rejected';
@@ -129,7 +147,7 @@ class OrderFollowupService
             'order_id' => (int) $followup['order_id'],
             'approval_status' => $status,
             'from_status' => $approved ? (string) ($order['status'] ?? '') : '',
-            'to_status' => $approved ? (string) ($followup['stage'] ?? '') : '',
+            'to_status' => $approved ? $appliedStatus : '',
         ];
     }
 
@@ -154,23 +172,34 @@ class OrderFollowupService
         $stage = trim((string) ($payload['stage'] ?? ''));
         $description = trim((string) ($payload['description'] ?? ''));
         $nextFollowup = trim((string) ($payload['next_followup_date'] ?? ''));
-        if (! in_array($stage, config(Jewellery::class)->orderStatuses, true)) {
-            throw new RuntimeException('Invalid follow-up stage.');
-        }
+        $workflow = new OrderWorkflowService($this->db);
+        $workflow->assertFollowupStage($stage);
         if ($description === '') {
             throw new RuntimeException('Follow-up description is required.');
         }
-        $order = $this->db->table('orders')->where('id', $orderId)->get()->getRowArray();
+        $order = $this->lockedOrder($orderId);
         if (! is_array($order)) {
             throw new RuntimeException('Order not found.');
         }
-        if (in_array((string) ($order['status'] ?? ''), ['Cancelled', 'Completed', 'Complete', 'Ready', 'Packed', 'Delivered', 'Dispatched'], true)) {
+        if (! $workflow->canApplyFollowup($order)) {
             throw new RuntimeException('Follow-up is not allowed for this order status.');
         }
         if ((int) ($order['followup_assigned_to'] ?? 0) !== $submittedBy) {
             throw new RuntimeException('Only the assigned order follower can submit this follow-up.');
         }
-        $terminal = in_array($stage, ['Ready', 'Packed', 'Dispatched', 'Completed', 'Cancelled'], true);
+        $familyReminderIds = [];
+        if ($scope === 'family') {
+            $familyIds = $family->ids($orderId);
+            sort($familyIds, SORT_NUMERIC);
+            foreach ($familyIds as $childId) {
+                if ($childId === $orderId) continue;
+                $child = $this->lockedOrder($childId);
+                if (is_array($child) && $workflow->canApplyFollowup($child)) {
+                    $familyReminderIds[] = $childId;
+                }
+            }
+        }
+        $terminal = $stage === 'Ready';
         if (! $terminal && $nextFollowup === '') {
             throw new RuntimeException('Next follow-up date is required while the order remains open.');
         }
@@ -228,14 +257,10 @@ class OrderFollowupService
             $nextAt,
             $takenOn
         );
-        if ($scope === 'family') {
-            $familyIds = (new OrderFamilyService($this->db))->ids($taskOrderId);
-            $childIds = array_values(array_filter($familyIds, static fn(int $id): bool => $id !== $taskOrderId));
-            if ($childIds !== []) {
-                $this->db->table('orders')->whereIn('id', $childIds)->update([
-                    'followup_due_at' => $nextAt, 'updated_at' => date('Y-m-d H:i:s'),
-                ]);
-            }
+        if ($familyReminderIds !== []) {
+            $this->db->table('orders')->whereIn('id', $familyReminderIds)->update([
+                'followup_due_at' => $nextAt, 'updated_at' => date('Y-m-d H:i:s'),
+            ]);
         }
 
         return [
@@ -256,18 +281,18 @@ class OrderFollowupService
     private function applyApprovedStage(array $order, array $followup, int $changedBy): void
     {
         $stage = (string) ($followup['stage'] ?? '');
-        $oldStatus = (string) ($order['status'] ?? '');
-        if ($stage === '') {
-            return;
-        }
+        $workflow = new OrderWorkflowService($this->db);
+        $workflow->assertFollowupStage($stage);
         $now = date('Y-m-d H:i:s');
         $orderId = (int) ($order['id'] ?? $followup['order_id'] ?? 0);
         $ids = (string) ($followup['followup_scope'] ?? 'order') === 'family'
             ? (new OrderFamilyService($this->db))->ids($orderId)
             : [$orderId];
+        sort($ids, SORT_NUMERIC);
         foreach ($ids as $targetId) {
-            $target = $targetId === $orderId ? $order : $this->db->table('orders')->where('id', $targetId)->get()->getRowArray();
-            if (! is_array($target) || (string) ($target['status'] ?? '') === $stage) continue;
+            $target = $this->lockedOrder($targetId);
+            if (! is_array($target) || ! $workflow->canApplyFollowup($target)
+                || (string) ($target['status'] ?? '') === $stage) continue;
             $this->db->table('orders')->where('id', $targetId)->update(['status' => $stage, 'updated_at' => $now]);
             $this->db->table('order_items')->where('order_id', $targetId)->update(['item_status' => $stage, 'updated_at' => $now]);
             $this->db->table('order_status_history')->insert([
@@ -280,6 +305,20 @@ class OrderFollowupService
                 'updated_at' => $now,
             ]);
         }
+    }
+
+    /**
+     * Receiving updates this same row before committing. A locking read sees
+     * its current status under MySQL repeatable-read and holds it through the
+     * follow-up's stage, item and reminder writes.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function lockedOrder(int $orderId): ?array
+    {
+        $builder = $this->db->table('orders')->where('id', $orderId);
+        $lock = in_array($this->db->DBDriver, ['MySQLi', 'Postgre'], true) ? ' FOR UPDATE' : '';
+        return $this->db->query($builder->getCompiledSelect() . $lock)->getRowArray();
     }
 
     private function notifyCreated(int $orderId, int $followupId): void

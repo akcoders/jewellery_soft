@@ -178,6 +178,7 @@
                                     <option value="<?= esc((string) $status) ?>"><?= esc((string) $status) ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <div class="form-text">Ready is the final follow-up. Receiving records Completed.</div>
                         </div>
                         <div class="col-md-5">
                             <label class="form-label mb-1">Description</label>
@@ -238,6 +239,23 @@
         const childFollowups = document.getElementById('separate-child-followups');
         let activeOrderId = '';
 
+        function syncFollowupDates() {
+            const ready = stageSelect?.value === 'Ready';
+            const nextDate = form?.querySelector('[name="next_followup_date"]');
+            if (nextDate) {
+                nextDate.required = !ready;
+                nextDate.disabled = ready;
+                if (ready) nextDate.value = '';
+            }
+            const separate = sameForSubOrders && !sameForSubOrders.checked;
+            childFollowups?.querySelectorAll('input:not([type=hidden])').forEach(input => {
+                const date = input.type === 'datetime-local';
+                input.required = Boolean(separate && (!date || !ready));
+                input.disabled = Boolean(date && ready);
+                if (date && ready) input.value = '';
+            });
+        }
+
         function renderChildFollowups(family) {
             if (!childFollowups) return;
             childFollowups.innerHTML = '';
@@ -252,8 +270,9 @@
         }
         if (sameForSubOrders) sameForSubOrders.addEventListener('change', function () {
             if (childFollowups) childFollowups.classList.toggle('d-none', this.checked);
-            childFollowups?.querySelectorAll('input:not([type=hidden])').forEach(input => input.required = !this.checked);
+            syncFollowupDates();
         });
+        stageSelect?.addEventListener('change', syncFollowupDates);
 
         document.addEventListener('click', function (event) {
             const target = event.target;
@@ -274,6 +293,7 @@
                 if (form && orderId) form.setAttribute('action', base + '/' + orderId + '/followups');
                 if (orderLabel) orderLabel.textContent = orderNo;
                 if (stageSelect && orderStatus) stageSelect.value = orderStatus;
+                syncFollowupDates();
                 return;
             }
 

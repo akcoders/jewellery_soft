@@ -36,6 +36,14 @@ class Jewellery extends BaseConfig
         'Completed',
     ];
 
+    /** Production updates end at Ready; receiving records completion. @var list<string> */
+    public array $followupStages = [
+        'Confirmed',
+        'In Production',
+        'QC',
+        'Ready',
+    ];
+
     /**
      * Order priority list.
      *
