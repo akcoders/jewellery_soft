@@ -5,6 +5,8 @@ import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_form_section.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
+import 'package:flutkit/jewellery_pwa/services/app_image_picker.dart';
+import 'package:flutkit/jewellery_pwa/widgets/app_photo_field.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -34,6 +36,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   int? _locationId;
   bool _loading = true;
   bool _saving = false;
+  bool _pickingPhoto = false;
   String _error = '';
   List<dynamic> _karigars = [];
   List<dynamic> _locations = [];
@@ -67,6 +70,10 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   }
 
   Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
     try {
       final data = await Future.wait([
         widget.api.fetchKarigars(),
@@ -96,14 +103,17 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   }
 
   Future<void> _pickAttachment() async {
-    final image = await ImagePicker().pickImage(
-      source: ImageSource.camera,
-      imageQuality: 85,
-      maxWidth: 1800,
-      requestFullMetadata: false,
-    );
-    if (!mounted || image == null) return;
-    setState(() => _attachment = image);
+    if (_pickingPhoto || _saving) return;
+    setState(() => _pickingPhoto = true);
+    try {
+      final image = await AppImagePicker().pickImage(
+        context,
+        title: 'Issuement attachment',
+      );
+      if (mounted && image != null) setState(() => _attachment = image);
+    } finally {
+      if (mounted) setState(() => _pickingPhoto = false);
+    }
   }
 
   Future<void> _addCompleteDiamondBag() async {
@@ -229,7 +239,20 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false) || _saving) return;
+    if (_saving || _pickingPhoto) return;
+    FocusScope.of(context).unfocus();
+    final invalidFields = _formKey.currentState?.validateGranularly();
+    if (invalidFields == null) return;
+    if (invalidFields.isNotEmpty) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      await Scrollable.ensureVisible(
+        invalidFields.first.context,
+        duration: const Duration(milliseconds: 280),
+        alignment: 0.15,
+      );
+      return;
+    }
     if (_karigarId == null || _locationId == null) {
       _show('Karigar and warehouse are required.');
       return;
@@ -303,98 +326,144 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Combined Issuement')),
+      appBar: AppBar(title: const Text('Create Issuement')),
+      bottomNavigationBar: _loading || _error.isNotEmpty
+          ? null
+          : SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                decoration: const BoxDecoration(
+                  color: AppColors.card,
+                  border: Border(top: BorderSide(color: AppColors.border)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '${_goldLines.length + _diamondLines.length + _stoneLines.length} material line(s) added',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    FilledButton.icon(
+                      onPressed: _saving || _pickingPhoto ? null : _submit,
+                      icon: _saving
+                          ? const AppLoadingIndicator(size: 18, light: true)
+                          : const Icon(Icons.check_circle_outline),
+                      label: Text(
+                        _saving
+                            ? 'Saving issuement…'
+                            : 'Save Combined Issuement',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
       body: _loading
           ? const FullScreenLoader()
           : _error.isNotEmpty
           ? AppErrorState(message: _error, onRetry: _load)
           : Form(
               key: _formKey,
-              child: ListView(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.all(AppSpacing.lg),
-                children: [
-                  if (widget.workRequestId != null) ...[
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Text(
-                          'Gold request #${widget.workRequestId} · save a gold issuement to complete your assigned task.',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _section('Issue materials with confidence', [
+                      const Text(
+                        '1. Choose the karigar and warehouse.\n'
+                        '2. Add Gold, Diamond or Stone lines.\n'
+                        '3. Attach a photo and save for processing.',
+                      ),
+                      const Text(
+                        'Completed orders remain available until receiving is recorded. Gold can be issued without an order; stone requires an order.',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ]),
+                    if (widget.workRequestId != null) ...[
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          child: Text(
+                            'Gold request #${widget.workRequestId} · save a gold issuement to complete your assigned task.',
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
-                  _section('Issuement Details', [
-                    _text(_voucher, 'Voucher No (leave blank for automatic)'),
-                    _dateField(),
-                    _dropdown(
-                      'Karigar',
-                      _karigarId,
-                      _karigars,
-                      (row) => '${row['name']}',
-                    ),
-                    _dropdown(
-                      'Warehouse',
-                      _locationId,
-                      _locations,
-                      (row) => '${row['name']}',
-                    ),
-                    _requiredText(_purpose, 'Purpose'),
-                    _text(_notes, 'Notes', lines: 3),
-                    OutlinedButton.icon(
-                      onPressed: _pickAttachment,
-                      icon: const Icon(Icons.camera_alt_outlined),
-                      label: Text(
-                        _attachment?.name ?? 'Take required attachment photo',
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                    _section('Issuement Details', [
+                      _text(_voucher, 'Voucher No (leave blank for automatic)'),
+                      _dateField(),
+                      _dropdown(
+                        'Karigar',
+                        _karigarId,
+                        _karigars,
+                        (row) => '${row['name']}',
                       ),
+                      _dropdown(
+                        'Warehouse',
+                        _locationId,
+                        _locations,
+                        (row) => '${row['name']}',
+                      ),
+                      _requiredText(_purpose, 'Purpose'),
+                      _text(_notes, 'Notes', lines: 3),
+                      AppPhotoField(
+                        file: _attachment,
+                        title: 'Add issuement attachment',
+                        subtitle: 'Required · camera or gallery',
+                        busy: _pickingPhoto,
+                        enabled: !_saving,
+                        onPick: _pickAttachment,
+                        onRemove: () => setState(() => _attachment = null),
+                      ),
+                    ]),
+                    _materialSection(
+                      title: 'Gold',
+                      color: AppColors.gold,
+                      icon: Icons.workspace_premium_outlined,
+                      lines: _goldLines,
+                      add: () => setState(() => _goldLines.add(_IssueLine())),
+                      builder: _goldLine,
                     ),
-                  ]),
-                  _materialSection(
-                    title: 'Gold',
-                    color: AppColors.gold,
-                    icon: Icons.workspace_premium_outlined,
-                    lines: _goldLines,
-                    add: () => setState(() => _goldLines.add(_IssueLine())),
-                    builder: _goldLine,
-                  ),
-                  _materialSection(
-                    title: 'Diamond',
-                    color: AppColors.diamond,
-                    icon: Icons.diamond_outlined,
-                    lines: _diamondLines,
-                    add: () => setState(() => _diamondLines.add(_IssueLine())),
-                    addComplete: _addCompleteDiamondBag,
-                    builder: _diamondLine,
-                  ),
-                  _materialSection(
-                    title: 'Stone',
-                    color: AppColors.stone,
-                    icon: Icons.scatter_plot_outlined,
-                    lines: _stoneLines,
-                    add: () => setState(() => _stoneLines.add(_IssueLine())),
-                    header: _stoneLines.isEmpty
-                        ? null
-                        : _itemDropdown(
-                            'Stone issued for order',
-                            _stoneOrderId,
-                            _orders,
-                            (row) => [
-                              '${row['order_no'] ?? ''}',
-                              '${row['order_name'] ?? ''}'.trim(),
-                            ].where((part) => part.isNotEmpty).join(' · '),
-                            (value) => setState(() => _stoneOrderId = value),
-                          ),
-                    builder: _stoneLine,
-                  ),
-                  FilledButton.icon(
-                    onPressed: _saving ? null : _submit,
-                    icon: _saving
-                        ? const AppLoadingIndicator(size: 18, light: true)
-                        : const Icon(Icons.check_circle_outline),
-                    label: const Text('Save Combined Issuement'),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                ],
+                    _materialSection(
+                      title: 'Diamond',
+                      color: AppColors.diamond,
+                      icon: Icons.diamond_outlined,
+                      lines: _diamondLines,
+                      add: () =>
+                          setState(() => _diamondLines.add(_IssueLine())),
+                      addComplete: _addCompleteDiamondBag,
+                      builder: _diamondLine,
+                    ),
+                    _materialSection(
+                      title: 'Stone',
+                      color: AppColors.stone,
+                      icon: Icons.scatter_plot_outlined,
+                      lines: _stoneLines,
+                      add: () => setState(() => _stoneLines.add(_IssueLine())),
+                      header: _stoneLines.isEmpty
+                          ? null
+                          : _itemDropdown(
+                              'Stone issued for order',
+                              _stoneOrderId,
+                              _orders,
+                              (row) => [
+                                '${row['order_no'] ?? ''}',
+                                '${row['order_name'] ?? ''}'.trim(),
+                              ].where((part) => part.isNotEmpty).join(' · '),
+                              (value) => setState(() => _stoneOrderId = value),
+                            ),
+                      builder: _stoneLine,
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                  ],
+                ),
               ),
             ),
     );
@@ -506,6 +575,15 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
         ),
         const SizedBox(height: AppSpacing.md),
         if (header != null) ...[header, const SizedBox(height: AppSpacing.md)],
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(switch (title) {
+            'Gold' => 'Issue by weight in grams. Order allocation is optional.',
+            'Diamond' =>
+              'Choose individual bag lines, or issue an entire available bag.',
+            _ => 'Select an order, then add the stone items and quantities.',
+          }, style: const TextStyle(color: AppColors.textSecondary)),
+        ),
         if (lines.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -530,6 +608,7 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
                         ),
                       ),
                       IconButton(
+                        tooltip: 'Remove $title line ${entry.key + 1}',
                         icon: const Icon(Icons.delete_outline),
                         onPressed: () => setState(() {
                           lines.removeAt(entry.key).dispose();
@@ -700,24 +779,28 @@ class _IssuementCreateScreenState extends State<IssuementCreateScreen> {
     onChanged: changed,
   );
 
-  Widget _dateField() => ListTile(
-    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-    shape: RoundedRectangleBorder(
-      side: const BorderSide(color: AppColors.border),
-      borderRadius: BorderRadius.circular(4),
+  Widget _dateField() => Material(
+    color: Colors.transparent,
+    borderRadius: BorderRadius.circular(AppRadius.md),
+    child: ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      title: const Text('Issue Date'),
+      subtitle: Text(_date(_issueDate)),
+      trailing: const Icon(Icons.calendar_today_outlined),
+      onTap: () async {
+        final value = await showDatePicker(
+          context: context,
+          initialDate: _issueDate,
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+        );
+        if (value != null) setState(() => _issueDate = value);
+      },
     ),
-    title: const Text('Issue Date'),
-    subtitle: Text(_date(_issueDate)),
-    trailing: const Icon(Icons.calendar_today_outlined),
-    onTap: () async {
-      final value = await showDatePicker(
-        context: context,
-        initialDate: _issueDate,
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2100),
-      );
-      if (value != null) setState(() => _issueDate = value);
-    },
   );
 
   int _id(dynamic row) => row['id'] is num

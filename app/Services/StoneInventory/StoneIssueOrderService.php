@@ -13,8 +13,8 @@ use App\Services\OrderReceivingService;
  */
 class StoneIssueOrderService
 {
-    /** Orders in these states can no longer receive stone. */
-    private const CLOSED_STATUSES = ['Cancelled', 'Completed'];
+    /** Completion alone does not close issuance; recorded receiving does. */
+    private const CLOSED_STATUSES = ['Cancelled'];
 
     private BaseConnection $db;
 
@@ -34,39 +34,36 @@ class StoneIssueOrderService
         $builder = $this->db->table('orders o')
             ->select('o.id, o.order_no, o.status, c.name as customer_name')
             ->join('customers c', 'c.id = o.customer_id', 'left')
-            ->orderBy('o.id', 'DESC')
-            ->limit(1000);
+            ->orderBy('o.id', 'DESC');
         if ($this->db->fieldExists('order_name', 'orders')) {
             $builder->select('o.order_name');
         }
         if ($this->db->fieldExists('deleted_at', 'orders')) {
             $builder->where('o.deleted_at', null);
         }
-        $builder->groupStart()->whereNotIn('o.status', self::CLOSED_STATUSES);
-        if ($includeOrderId > 0) {
-            $builder->orWhere('o.id', $includeOrderId);
+        $includedOrder = $includeOrderId > 0
+            ? (clone $builder)->where('o.id', $includeOrderId)->get()->getRowArray()
+            : null;
+        $builder->whereNotIn('o.status', self::CLOSED_STATUSES);
+        (new OrderReceivingService($this->db))->excludeRecordedReceipts($builder, 'o.id');
+        if ($includedOrder !== null) {
+            $builder->where('o.id !=', $includeOrderId);
         }
-        $builder->groupEnd();
+        $orders = $builder->limit($includedOrder !== null ? 999 : 1000)->get()->getResultArray();
+        if ($includedOrder !== null) {
+            // Reserve a place for the existing allocation even when it is older
+            // than every eligible order in a full picker.
+            $orders[] = $includedOrder;
+            usort($orders, static fn(array $left, array $right): int => (int) $right['id'] <=> (int) $left['id']);
+        }
 
-        $orders = array_map(static fn(array $row): array => [
+        return array_map(static fn(array $row): array => [
             'id' => (int) $row['id'],
             'order_no' => (string) ($row['order_no'] ?? ''),
             'order_name' => (string) ($row['order_name'] ?? ''),
             'customer_name' => (string) ($row['customer_name'] ?? ''),
             'status' => (string) ($row['status'] ?? ''),
-        ], $builder->get()->getResultArray());
-        $receivedIds = array_fill_keys(
-            (new OrderReceivingService($this->db))->recordedReceiptOrderIds(
-                array_map(static fn(array $order): int => (int) $order['id'], $orders)
-            ),
-            true
-        );
-
-        return array_values(array_filter(
-            $orders,
-            static fn(array $order): bool => $order['id'] === $includeOrderId
-                || ! isset($receivedIds[$order['id']])
-        ));
+        ], $orders);
     }
 
     /**

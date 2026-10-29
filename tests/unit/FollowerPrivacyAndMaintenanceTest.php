@@ -59,13 +59,15 @@ final class FollowerPrivacyAndMaintenanceTest extends CIUnitTestCase
     {
         $source = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/web/index.html');
         $deployed = (string) file_get_contents(ROOTPATH . 'public/pwa/index.html');
+        $pubspec = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/pubspec.yaml');
+        $this->assertSame(1, preg_match('/^version: ([0-9.]+)\+([0-9]+)$/m', $pubspec, $version));
 
         foreach ([$source, $deployed] as $index) {
             $this->assertStringContainsString('/Android/i.test', $index);
             $this->assertStringContainsString('isAndroid && Date.now() < resumeAt', $index);
             $this->assertStringContainsString('2026-10-14T00:00:00+05:30', $index);
             $this->assertStringContainsString('Download Android APK', $index);
-            $this->assertStringContainsString('aabhushan-erp-1.0.12-build13.apk', $index);
+            $this->assertStringContainsString('aabhushan-erp-' . $version[1] . '-build' . $version[2] . '.apk', $index);
             $this->assertStringContainsString('if (!window.aabhushanAndroidPwaPaused)', $index);
             $this->assertStringContainsString('android-pwa-resumed', $index);
         }
@@ -88,9 +90,11 @@ final class FollowerPrivacyAndMaintenanceTest extends CIUnitTestCase
             ROOTPATH . 'app_kit/FlutKit/android/app/src/main/AndroidManifest.xml'
         );
 
-        $this->assertStringContainsString("androidVersion = '1.0.12'", $release);
-        $this->assertStringContainsString('androidVersionCode = 13', $release);
-        $this->assertStringContainsString('releases/download/android-v1.0.12-build13/', $release);
+        $pubspec = (string) file_get_contents(ROOTPATH . 'app_kit/FlutKit/pubspec.yaml');
+        $this->assertSame(1, preg_match('/^version: ([0-9.]+)\+([0-9]+)$/m', $pubspec, $version));
+        $this->assertStringContainsString("androidVersion = '{$version[1]}'", $release);
+        $this->assertStringContainsString('androidVersionCode = ' . $version[2] . ';', $release);
+        $this->assertStringContainsString('releases/download/android-v' . $version[1] . '-build' . $version[2] . '/', $release);
         $this->assertStringContainsString("\$platform === 'android'", $endpoint);
         $this->assertStringContainsString("'version_code' => \$release->androidVersionCode", $endpoint);
         $this->assertStringContainsString('A new update is ready', $shell);

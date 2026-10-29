@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutkit/jewellery_mobile/screens/diamond_requirements_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart';
@@ -12,7 +13,7 @@ import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutkit/jewellery_pwa/services/app_image_picker.dart';
 
 class TaskSchedulerScreen extends StatefulWidget {
   const TaskSchedulerScreen({super.key, required this.api});
@@ -66,71 +67,29 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
   }
 
   Future<void> _completeTask(TaskItem task) async {
-    final image = await ImagePicker().pickImage(
-      source: ImageSource.camera,
-      imageQuality: 82,
-      maxWidth: 1800,
-      requestFullMetadata: false,
-    );
-    if (image == null || !mounted) return;
-    final imageBytes = await image.readAsBytes();
-    if (!mounted) return;
-
-    final noteController = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Complete task?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.memory(
-                imageBytes,
-                height: 150,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: noteController,
-              minLines: 2,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Completion note (optional)',
-                alignLabelWithHint: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Submit Proof'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) {
-      noteController.dispose();
-      return;
-    }
-
+    if (_submitting) return;
     setState(() => _submitting = true);
     try {
-      final encoded = base64Encode(imageBytes);
+      final image = await AppImagePicker().pickImage(
+        context,
+        title: 'Task completion proof',
+        imageQuality: 82,
+      );
+      if (image == null || !mounted) return;
+      final imageBytes = await image.readAsBytes();
+      if (!mounted) return;
+
+      final note = await showDialog<String>(
+        context: context,
+        builder: (context) => _TaskProofDialog(imageBytes: imageBytes),
+      );
+      if (note == null || !mounted) return;
       await _repo.complete(
         id: task.id,
-        proofBase64: encoded,
-        proofNote: noteController.text.trim(),
+        proofBase64: base64Encode(imageBytes),
+        proofNote: note,
       );
+      if (!mounted) return;
       await _load();
       TaskRefreshBus.notify();
       if (mounted) {
@@ -145,12 +104,12 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
         );
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
+      }
     } finally {
-      noteController.dispose();
       if (mounted) setState(() => _submitting = false);
     }
   }
@@ -384,4 +343,69 @@ class _TaskSchedulerScreenState extends State<TaskSchedulerScreen> {
       ),
     );
   }
+}
+
+class _TaskProofDialog extends StatefulWidget {
+  const _TaskProofDialog({required this.imageBytes});
+
+  final Uint8List imageBytes;
+
+  @override
+  State<_TaskProofDialog> createState() => _TaskProofDialogState();
+}
+
+class _TaskProofDialogState extends State<_TaskProofDialog> {
+  final _note = TextEditingController();
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Complete task?'),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.memory(
+              widget.imageBytes,
+              height: 160,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Photo selected. Preview is unavailable.'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _note,
+            minLines: 2,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Completion note (optional)',
+              alignLabelWithHint: true,
+            ),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _note.text.trim()),
+        child: const Text('Submit Proof'),
+      ),
+    ],
+  );
 }

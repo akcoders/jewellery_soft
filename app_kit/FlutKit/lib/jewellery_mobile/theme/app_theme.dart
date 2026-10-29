@@ -1,28 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
   AppColors._();
 
-  static const Color background = Color(0xFFFAF7F3);
+  static const Color background = Color(0xFFF7F6F0);
   static const Color card = Colors.white;
   static const Color surface = Colors.white;
-  static const Color textPrimary = Color(0xFF30232C);
-  static const Color textSecondary = Color(0xFF756B71);
-  static const Color border = Color(0xFFECE3DF);
+  static const Color textPrimary = Color(0xFF183D35);
+  static const Color textSecondary = Color(0xFF626E67);
+  static const Color border = Color(0xFFE3E7DF);
 
-  static const Color brandRed = Color(0xFFB81D24);
-  static const Color brandGold = Color(0xFFC69A42);
-  static const Color plum = Color(0xFF421D32);
-  static const Color paleGold = Color(0xFFFFF4DC);
+  static const Color emerald = Color(0xFF155A46);
+  // Retained for existing screens that use the original brand token.
+  static const Color brandRed = emerald;
+  static const Color brandGold = Color(0xFFBE9A56);
+  static const Color plum = Color(0xFF143C31);
+  static const Color paleGold = Color(0xFFF7F0DD);
+  static const Color paleEmerald = Color(0xFFECF4EE);
 
-  static const Color diamond = Color(0xFF6FB7FF);
-  static const Color gold = Color(0xFFF0B429);
-  static const Color stone = Color(0xFF22B8A0);
+  static const Color diamond = Color(0xFF346F9D);
+  static const Color gold = Color(0xFF92651C);
+  static const Color stone = Color(0xFF23776E);
 
-  static const Color success = Color(0xFF22C55E);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color danger = Color(0xFFEF4444);
+  static const Color success = Color(0xFF23724E);
+  static const Color warning = Color(0xFF94600C);
+  static const Color danger = Color(0xFFBD3E38);
 }
 
 class AppSpacing {
@@ -49,7 +51,7 @@ class AppShadows {
   AppShadows._();
 
   static const List<BoxShadow> soft = [
-    BoxShadow(color: Color(0x0D421D32), blurRadius: 22, offset: Offset(0, 9)),
+    BoxShadow(color: Color(0x08143C31), blurRadius: 20, offset: Offset(0, 6)),
   ];
 }
 
@@ -57,20 +59,32 @@ class AppTheme {
   AppTheme._();
 
   static ThemeData light() {
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.brandRed,
-      primary: AppColors.brandRed,
-      secondary: AppColors.brandGold,
-      surface: AppColors.card,
-    ).copyWith(outline: AppColors.border, outlineVariant: AppColors.border);
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: AppColors.brandRed,
+          primary: AppColors.brandRed,
+          secondary: AppColors.brandGold,
+          surface: AppColors.card,
+        ).copyWith(
+          outline: AppColors.border,
+          outlineVariant: AppColors.border,
+          onSurface: AppColors.textPrimary,
+          onSurfaceVariant: AppColors.textSecondary,
+          primaryContainer: AppColors.paleEmerald,
+          onPrimaryContainer: AppColors.emerald,
+          error: AppColors.danger,
+        );
 
-    final baseTextTheme = GoogleFonts.poppinsTextTheme().apply(
+    final baseTextTheme = ThemeData.light().textTheme.apply(
+      fontFamily: 'Manrope',
       bodyColor: AppColors.textPrimary,
       displayColor: AppColors.textPrimary,
     );
 
     return ThemeData(
       useMaterial3: true,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      fontFamily: 'Manrope',
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
       dividerColor: AppColors.border,
@@ -91,6 +105,7 @@ class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
+          fontFamily: 'Manrope',
           color: AppColors.textPrimary,
           fontSize: 18,
           fontWeight: FontWeight.w700,
@@ -157,14 +172,41 @@ class AppTheme {
         shape: const StadiumBorder(),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         labelStyle: const TextStyle(
+          fontFamily: 'Manrope',
           color: AppColors.textSecondary,
           fontWeight: FontWeight.w600,
         ),
         secondaryLabelStyle: const TextStyle(
+          fontFamily: 'Manrope',
           color: Colors.white,
           fontWeight: FontWeight.w600,
         ),
         checkmarkColor: Colors.white,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.card,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: AppColors.paleEmerald,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          return TextStyle(
+            fontFamily: 'Manrope',
+            fontSize: 11,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
+            color: states.contains(WidgetState.selected)
+                ? AppColors.emerald
+                : AppColors.textSecondary,
+          );
+        }),
+      ),
+      tooltipTheme: TooltipThemeData(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        textStyle: baseTextTheme.bodySmall?.copyWith(color: Colors.white),
+        decoration: BoxDecoration(
+          color: AppColors.plum,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
@@ -172,7 +214,10 @@ class AppTheme {
           side: const BorderSide(color: AppColors.border),
           minimumSize: const Size(0, 48),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(
+            fontFamily: 'Manrope',
+            fontWeight: FontWeight.w700,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
@@ -184,7 +229,10 @@ class AppTheme {
           foregroundColor: Colors.white,
           minimumSize: const Size(0, 48),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(
+            fontFamily: 'Manrope',
+            fontWeight: FontWeight.w700,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
@@ -193,7 +241,11 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.brandRed,
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          minimumSize: const Size(48, 48),
+          textStyle: const TextStyle(
+            fontFamily: 'Manrope',
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -215,6 +267,7 @@ class AppTheme {
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.brandRed,
         foregroundColor: Colors.white,
+        elevation: 3,
         shape: StadiumBorder(),
       ),
     );

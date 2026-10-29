@@ -4,6 +4,8 @@ import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
+import 'package:flutkit/jewellery_pwa/services/app_image_picker.dart';
+import 'package:flutkit/jewellery_pwa/widgets/app_photo_field.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -89,40 +91,25 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
 
   Future<void> _pickPhoto() async {
     if (_pickingPhoto || _saving) return;
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Take photo'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from gallery'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (source == null || !mounted) return;
     setState(() => _pickingPhoto = true);
     try {
-      final photo = await ImagePicker().pickImage(
-        source: source,
+      final photo = await AppImagePicker().pickImage(
+        context,
+        title: 'Diamond bag photo',
         imageQuality: 82,
-        maxWidth: 1800,
-        requestFullMetadata: false,
       );
       if (photo == null || !mounted) return;
-      if (await photo.length() > 4 * 1024 * 1024) {
+      final size = await photo.length();
+      if (!mounted) return;
+      if (size > 4 * 1024 * 1024) {
         _message('Bag photo must be smaller than 4 MB.');
         return;
       }
       setState(() => _photo = photo);
+    } catch (_) {
+      if (mounted) {
+        _message('Could not read this photo. Please choose it again.');
+      }
     } finally {
       if (mounted) setState(() => _pickingPhoto = false);
     }
@@ -253,19 +240,14 @@ class _DiamondBagCreateScreenState extends State<DiamondBagCreateScreen> {
                     label: Text('Prepared on ${_date(_preparedDate)}'),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  OutlinedButton.icon(
-                    onPressed: _saving || _pickingPhoto ? null : _pickPhoto,
-                    icon: _pickingPhoto
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.add_a_photo_outlined),
-                    label: Text(
-                      _photo == null ? 'Add optional bag photo' : _photo!.name,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  AppPhotoField(
+                    file: _photo,
+                    title: 'Add a bag photo',
+                    subtitle: 'Optional · camera or gallery · up to 4 MB',
+                    busy: _pickingPhoto,
+                    enabled: !_saving,
+                    onPick: _pickPhoto,
+                    onRemove: () => setState(() => _photo = null),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   const Text(

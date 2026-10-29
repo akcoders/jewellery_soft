@@ -6,37 +6,43 @@ use CodeIgniter\Test\CIUnitTestCase;
 
 final class PwaAttachmentCaptureWorkflowTest extends CIUnitTestCase
 {
-    public function testOrderPhotosUseTheGalleryWhileDocumentsKeepTheirPicker(): void
+    public function testOrderPhotosOfferCameraAndGalleryWhileDocumentsKeepTheirPicker(): void
     {
-        $screen = $this->screen('order_create_screen.dart');
+        foreach (['jewellery_mobile', 'jewellery_pwa'] as $app) {
+            $screen = $this->screen('order_create_screen.dart', $app);
 
-        $this->assertStringContainsString('pickMultiImage(', $screen);
-        $this->assertStringContainsString('FilePicker.platform.pickFiles(', $screen);
-        $this->assertStringContainsString("allowedExtensions: ['pdf', 'dwg', 'dxf']", $screen);
-        $this->assertStringContainsString("const Text('Choose photos')", $screen);
-        $this->assertStringContainsString("const Text('Choose PDF / CAD file')", $screen);
+            $this->assertStringContainsString('AppImagePicker().pickImages(', $screen);
+            $this->assertStringContainsString('FilePicker.platform.pickFiles(', $screen);
+            $this->assertStringContainsString("allowedExtensions: ['pdf', 'dwg', 'dxf']", $screen);
+            $this->assertStringContainsString("title: 'Add reference photos'", $screen);
+            $this->assertStringContainsString("const Text('Choose PDF / CAD file')", $screen);
+        }
     }
 
-    public function testEveryNonOrderPhotoAttachmentOpensTheCameraDirectly(): void
+    public function testNonFollowupAttachmentsUseTheSharedCameraAndGalleryChooser(): void
     {
-        foreach ([
-            'task_scheduler_screen.dart',
-            'diamond_requirements_screen.dart',
-            'transaction_create_screen.dart',
-            'issuement_create_screen.dart',
-            'purchase_create_screen.dart',
-        ] as $file) {
-            $screen = $this->screen($file);
-            $this->assertStringContainsString(
-                'source: ImageSource.camera',
-                $screen,
-                $file . ' must launch the camera'
-            );
-            $this->assertStringNotContainsString(
-                'ImageSource.gallery',
-                $screen,
-                $file . ' must not offer gallery upload'
-            );
+        foreach (['jewellery_mobile', 'jewellery_pwa'] as $app) {
+            $files = [
+                'task_scheduler_screen.dart',
+                'diamond_requirements_screen.dart',
+                'transaction_create_screen.dart',
+                'issuement_create_screen.dart',
+                'purchase_create_screen.dart',
+                'order_detail_screen.dart',
+                $app === 'jewellery_mobile'
+                    ? 'diamond_bag_create_screen.dart'
+                    : 'order_receiving_screen.dart',
+            ];
+            foreach ($files as $file) {
+                $screen = $this->screen($file, $app);
+                $this->assertStringContainsString(
+                    'AppImagePicker().pickImage',
+                    $screen,
+                    $app . '/' . $file . ' must use the shared photo chooser'
+                );
+                $this->assertStringNotContainsString('source: ImageSource.camera', $screen);
+                $this->assertStringNotContainsString('allowGallery: false', $screen);
+            }
         }
     }
 
@@ -52,10 +58,10 @@ final class PwaAttachmentCaptureWorkflowTest extends CIUnitTestCase
         $this->assertStringContainsString('Camera-only evidence is enabled for your account.', $form);
     }
 
-    private function screen(string $file): string
+    private function screen(string $file, string $app = 'jewellery_mobile'): string
     {
         return (string) file_get_contents(
-            ROOTPATH . 'app_kit/FlutKit/lib/jewellery_mobile/screens/' . $file
+            ROOTPATH . 'app_kit/FlutKit/lib/' . $app . '/screens/' . $file
         );
     }
 }

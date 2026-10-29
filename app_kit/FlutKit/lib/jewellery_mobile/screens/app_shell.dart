@@ -630,6 +630,10 @@ class _AppShellState extends State<AppShell> {
         onDrawerChanged: (isOpened) => _drawerOpen = isOpened,
         appBar: AppBar(
           title: Text(_title()),
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(1),
+            child: Divider(height: 1),
+          ),
           actions: [
             ValueListenableBuilder<bool>(
               valueListenable: PwaInstallService.available,
@@ -643,6 +647,9 @@ class _AppShellState extends State<AppShell> {
               },
             ),
             IconButton(
+              tooltip: _notificationCount > 0
+                  ? 'Notifications · $_notificationCount unread'
+                  : 'Notifications',
               onPressed: () async {
                 await Navigator.of(context).push(
                   MaterialPageRoute(
@@ -656,6 +663,7 @@ class _AppShellState extends State<AppShell> {
               icon: _NotificationBell(count: _notificationCount),
             ),
             PopupMenuButton<String>(
+              tooltip: 'Account and settings',
               onSelected: (value) async {
                 if (value == 'notification_sound') {
                   await Navigator.of(context).push(
@@ -835,6 +843,52 @@ class _AppShellState extends State<AppShell> {
           duration: const Duration(milliseconds: 220),
           child: KeyedSubtree(key: ValueKey(_section), child: _body()),
         ),
+        bottomNavigationBar: DecoratedBox(
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.border)),
+          ),
+          child: NavigationBar(
+            selectedIndex: switch (_section) {
+              'dashboard' => 0,
+              'orders' => 1,
+              'issuements' => 2,
+              _ => 3,
+            },
+            onDestinationSelected: (index) {
+              if (index == 3) {
+                _scaffoldKey.currentState?.openDrawer();
+                return;
+              }
+              _switchSection(['dashboard', 'orders', 'issuements'][index]);
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+                tooltip: 'Dashboard and quick actions',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.assignment_outlined),
+                selectedIcon: Icon(Icons.assignment_rounded),
+                label: 'Orders',
+                tooltip: 'Search orders and view progress',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.outbox_outlined),
+                selectedIcon: Icon(Icons.outbox_rounded),
+                label: 'Issue',
+                tooltip: 'Material issuements',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.grid_view_outlined),
+                selectedIcon: Icon(Icons.grid_view_rounded),
+                label: 'Menu',
+                tooltip: 'Followups, inventory and all tools',
+              ),
+            ],
+          ),
+        ),
         floatingActionButton: _fab(context),
       ),
     );
@@ -843,6 +897,7 @@ class _AppShellState extends State<AppShell> {
   Widget? _fab(BuildContext context) {
     if (_section == 'orders') {
       return FloatingActionButton.extended(
+        tooltip: 'Create a customer order with design and photos',
         onPressed: () async {
           final created = await Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => OrderCreateScreen(api: _api)),
@@ -850,11 +905,12 @@ class _AppShellState extends State<AppShell> {
           if (created != null && mounted) setState(() => _refreshTick++);
         },
         icon: const Icon(Icons.add),
-        label: const Text('Create'),
+        label: const Text('New order'),
       );
     }
     if (_section == 'issuements') {
       return FloatingActionButton.extended(
+        tooltip: 'Issue gold, diamonds or stones to a karigar',
         onPressed: () async {
           final created = await Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => IssuementCreateScreen(api: _api)),
@@ -862,7 +918,7 @@ class _AppShellState extends State<AppShell> {
           if (created != null && mounted) setState(() => _refreshTick++);
         },
         icon: const Icon(Icons.add),
-        label: const Text('Create'),
+        label: const Text('New issuement'),
       );
     }
     if (_section == 'delivery_challans') {
@@ -876,7 +932,7 @@ class _AppShellState extends State<AppShell> {
           if (created == true && mounted) setState(() => _refreshTick++);
         },
         icon: const Icon(Icons.add),
-        label: const Text('Create'),
+        label: const Text('New challan'),
       );
     }
     final config = _transactionConfig();
@@ -901,7 +957,9 @@ class _AppShellState extends State<AppShell> {
         }
       },
       icon: const Icon(Icons.add),
-      label: const Text('Create'),
+      label: Text(
+        config['action'] == 'purchase' ? 'Record purchase' : 'Record return',
+      ),
     );
   }
 
@@ -1183,7 +1241,7 @@ class _DrawerHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF351727), AppColors.plum, Color(0xFF702A37)],
+          colors: [AppColors.plum, AppColors.emerald, Color(0xFF25735B)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

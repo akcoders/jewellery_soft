@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\BaseBuilder;
 use RuntimeException;
 use Throwable;
 
@@ -297,6 +298,23 @@ class OrderReceivingService
             ->join('gold_purities gp', 'gp.id = rs.gold_purity_id', 'left')
             ->join('admin_users au', 'au.id = rs.created_by', 'left')
             ->where('rs.order_id', $orderId)->orderBy('rs.id', 'DESC')->get()->getRowArray() ?? [];
+    }
+
+    /** Remove received orders before a picker applies its result limit. */
+    public function excludeRecordedReceipts(BaseBuilder $orders, string $orderIdColumn): void
+    {
+        foreach (['order_receive_summaries' => null, 'order_material_movements' => 'receive'] as $table => $movementType) {
+            if (! $this->db->tableExists($table)) {
+                continue;
+            }
+            $orders->whereNotIn($orderIdColumn, static function (BaseBuilder $receipts) use ($table, $movementType): BaseBuilder {
+                $receipts->select('order_id')->from($table)->where('order_id !=', null);
+                if ($movementType !== null) {
+                    $receipts->where('movement_type', $movementType);
+                }
+                return $receipts;
+            });
+        }
     }
 
     public function hasRecordedReceipt(int $orderId): bool

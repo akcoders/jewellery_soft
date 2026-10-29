@@ -4,6 +4,9 @@ import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:flutkit/jewellery_mobile/widgets/app_search_bar.dart';
+import 'package:flutkit/jewellery_mobile/widgets/app_section_title.dart';
 
 class IssuementsScreen extends StatefulWidget {
   const IssuementsScreen({super.key, required this.api});
@@ -70,18 +73,23 @@ class _IssuementsScreenState extends State<IssuementsScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          TextField(
+          AppSearchBar(
             controller: _search,
-            decoration: const InputDecoration(
-              labelText: 'Search voucher, karigar or material',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
-            ),
+            hintText: 'Search voucher, karigar or material',
             onChanged: (_) => setState(() {}),
           ),
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: 24),
+          AppSectionTitle(
+            'Material issuements',
+            trailing: Text(
+              '${rows.length}',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          const SizedBox(height: 16),
           if (rows.isEmpty)
             const AppEmptyState(
               title: 'No issuements found',
@@ -93,40 +101,110 @@ class _IssuementsScreenState extends State<IssuementsScreen> {
               final row = raw as Map;
               final materials = (row['materials'] as List? ?? []).join(' + ');
               return Card(
-                margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(AppSpacing.md),
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.brandRed.withValues(alpha: 0.1),
-                    child: const Icon(
-                      Icons.outbox_outlined,
-                      color: AppColors.brandRed,
-                    ),
-                  ),
-                  title: Text(
-                    '${row['voucher_no'] ?? '-'}',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      [
-                        materials.isEmpty
-                            ? '${row['material_type'] ?? '-'}'
-                            : materials,
-                        '${row['karigar_name'] ?? row['issue_to'] ?? '-'}',
-                        AppFormatters.date(row['issue_date']),
-                        '${row['total_lines'] ?? 0} line(s) · ₹${AppFormatters.amount(row['total_value'])}',
-                      ].join('\n'),
-                    ),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
+                margin: const EdgeInsets.only(bottom: 14),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => IssuementDetailScreen(
                         api: widget.api,
                         voucherNo: '${row['voucher_no'] ?? ''}',
                       ),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(11),
+                              decoration: BoxDecoration(
+                                color: AppColors.paleGold,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(
+                                LucideIcons.package_open,
+                                size: 22,
+                                color: AppColors.plum,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${row['voucher_no'] ?? '-'}',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    AppFormatters.date(row['issue_date']),
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              LucideIcons.chevron_right,
+                              size: 19,
+                              color: AppColors.textSecondary,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          materials.isEmpty
+                              ? '${row['material_type'] ?? '-'}'
+                              : materials,
+                          style: const TextStyle(
+                            color: AppColors.plum,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              LucideIcons.user_round,
+                              size: 16,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${row['karigar_name'] ?? row['issue_to'] ?? '-'}',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 28),
+                        Wrap(
+                          spacing: 20,
+                          runSpacing: 12,
+                          children: [
+                            _metric(
+                              'Total value',
+                              '₹${AppFormatters.amount(row['total_value'])}',
+                            ),
+                            _metric(
+                              'Material lines',
+                              '${row['total_lines'] ?? 0}',
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -136,6 +214,21 @@ class _IssuementsScreenState extends State<IssuementsScreen> {
       ),
     );
   }
+
+  Widget _metric(String label, String value) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+      ),
+    ],
+  );
 }
 
 class IssuementDetailScreen extends StatefulWidget {

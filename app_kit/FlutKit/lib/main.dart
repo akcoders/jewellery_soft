@@ -24,7 +24,14 @@ Future<void> main() async {
 }
 
 Future<void> _loadPwaFonts() async {
-  if (!kIsWeb) return;
+  if (!kIsWeb) {
+    LicenseRegistry.addLicense(() async* {
+      yield LicenseEntryWithLineBreaks([
+        'Manrope',
+      ], await rootBundle.loadString('assets/fonts/manrope/OFL.txt'));
+    });
+    return;
+  }
   try {
     final loaders = [
       FontLoader('Manrope')..addFont(_loadPwaFont('fonts/manrope/Manrope.ttf')),

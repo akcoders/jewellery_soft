@@ -365,6 +365,36 @@ class MobileApprovalService
     /** @param array<string,mixed> $payload @param array<string,mixed> $request */
     private function approveIssuement(array $payload, array $request): array
     {
+        $gold = is_array($payload['gold_lines'] ?? null) ? $payload['gold_lines'] : [];
+        $diamond = is_array($payload['diamond_lines'] ?? null) ? $payload['diamond_lines'] : [];
+        $stone = is_array($payload['stone_lines'] ?? null) ? $payload['stone_lines'] : [];
+        // Receiving may have been recorded while this issuement waited for approval.
+        // Check every linked order before creating any material or voucher records.
+        if ($diamond !== []) {
+            $diamondOrderIds = array_values(array_unique(array_filter(array_map(
+                static fn(array $line): int => (int) ($line['allocation_order_id'] ?? 0),
+                $diamond
+            ), static fn(int $id): bool => $id > 0)));
+            $linkedOrderId = (int) ($payload['order_id'] ?? 0);
+            if ($linkedOrderId > 0) {
+                $diamondOrderIds[] = $linkedOrderId;
+            }
+            $diamondOrderValidator = new DiamondIssueOrderService($this->db);
+            foreach (array_unique($diamondOrderIds) as $orderId) {
+                $orderError = $diamondOrderValidator->validate($orderId);
+                if ($orderError !== null) {
+                    throw new RuntimeException($orderError);
+                }
+            }
+        }
+        $stoneOrderId = (int) ($payload['stone_order_id'] ?? 0);
+        if ($stone !== []) {
+            $stoneOrderError = (new StoneIssueOrderService($this->db))->validate($stoneOrderId);
+            if ($stoneOrderError !== null) {
+                throw new RuntimeException($stoneOrderError);
+            }
+        }
+
         $issueDate = (string) ($payload['issue_date'] ?? '');
         $karigarId = (int) ($payload['karigar_id'] ?? 0);
         $locationId = (int) ($payload['location_id'] ?? 0);
@@ -386,7 +416,6 @@ class MobileApprovalService
             'created_by' => (int) ($request['requested_by'] ?? 0),
         ];
         $created = [];
-        $gold = is_array($payload['gold_lines'] ?? null) ? $payload['gold_lines'] : [];
         if ($gold !== []) {
             // Gold is free-flow stock: never tied to an order.
             $issueId = (int) (new GoldInventoryIssueHeaderModel())->insert(array_merge($common, ['order_id' => null]), true);
@@ -406,23 +435,7 @@ class MobileApprovalService
             (new KarigarMaterialAccountingService($this->db))->postInventoryHeader('gold', 'issue', $issueId);
             $created['gold_issue_id'] = $issueId;
         }
-        $diamond = is_array($payload['diamond_lines'] ?? null) ? $payload['diamond_lines'] : [];
         if ($diamond !== []) {
-            $diamondOrderIds = array_values(array_unique(array_filter(array_map(
-                static fn(array $line): int => (int) ($line['allocation_order_id'] ?? 0),
-                $diamond
-            ), static fn(int $id): bool => $id > 0)));
-            $linkedOrderId = (int) ($payload['order_id'] ?? 0);
-            if ($linkedOrderId > 0) {
-                $diamondOrderIds[] = $linkedOrderId;
-            }
-            $diamondOrderValidator = new DiamondIssueOrderService($this->db);
-            foreach (array_unique($diamondOrderIds) as $orderId) {
-                $orderError = $diamondOrderValidator->validate($orderId);
-                if ($orderError !== null) {
-                    throw new RuntimeException($orderError);
-                }
-            }
             $issueId = (int) (new IssueHeaderModel())->insert($common, true);
             $lineModel = new IssueLineModel();
             foreach ($diamond as $line) {
@@ -439,14 +452,7 @@ class MobileApprovalService
             (new KarigarMaterialAccountingService($this->db))->postInventoryHeader('diamond', 'issue', $issueId);
             $created['diamond_issue_id'] = $issueId;
         }
-        $stone = is_array($payload['stone_lines'] ?? null) ? $payload['stone_lines'] : [];
         if ($stone !== []) {
-            // Stone is order-wise; re-check the order at approval time.
-            $stoneOrderId = (int) ($payload['stone_order_id'] ?? 0);
-            $stoneOrderError = (new StoneIssueOrderService($this->db))->validate($stoneOrderId);
-            if ($stoneOrderError !== null) {
-                throw new RuntimeException($stoneOrderError);
-            }
             $issueId = (int) (new StoneInventoryIssueHeaderModel())->insert(array_merge($common, ['order_id' => $stoneOrderId]), true);
             $lineModel = new StoneInventoryIssueLineModel();
             foreach ($stone as $line) {

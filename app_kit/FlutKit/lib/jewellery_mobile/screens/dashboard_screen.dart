@@ -3,6 +3,7 @@ import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/services/task_refresh_bus.dart';
 import 'package:flutkit/jewellery_mobile/screens/issuement_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/order_create_screen.dart';
+import 'package:flutkit/jewellery_mobile/screens/order_detail_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/purchase_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/screens/transaction_create_screen.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
@@ -10,6 +11,7 @@ import 'package:flutkit/jewellery_mobile/utils/formatters.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_section_title.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_summary_card.dart';
+import 'package:flutkit/jewellery_mobile/widgets/app_status_badge.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
 import 'package:flutter/material.dart';
 
@@ -80,27 +82,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final stats = _computeStats();
     final followupGroups = _followupGroups();
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
-          _welcomeCard(),
-          const SizedBox(height: AppSpacing.xl),
-          const AppSectionTitle('Order Overview'),
-          const SizedBox(height: AppSpacing.md),
-          _statsHeader(stats),
-          const SizedBox(height: AppSpacing.xl),
-          _quickActions(),
-          const SizedBox(height: AppSpacing.lg),
-          const AppSectionTitle('Today Followups'),
-          const SizedBox(height: AppSpacing.md),
-          _followupList(followupGroups['today'] ?? []),
-          const SizedBox(height: AppSpacing.lg),
-          const AppSectionTitle('Upcoming / Overdue Followups'),
-          const SizedBox(height: AppSpacing.md),
-          _followupList(followupGroups['other'] ?? []),
-        ],
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1120),
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: [
+              _welcomeCard(),
+              const SizedBox(height: AppSpacing.xl),
+              const AppSectionTitle('Order overview'),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                '${_orders.length} recent orders · Tap a card to view orders',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _statsHeader(stats),
+              const SizedBox(height: AppSpacing.xl),
+              _quickActions(),
+              if ((followupGroups['overdue'] ?? []).isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xl),
+                _followupHeading(
+                  'Overdue followups',
+                  followupGroups['overdue']!,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _followupList(followupGroups['overdue']!),
+              ],
+              const SizedBox(height: AppSpacing.xl),
+              _followupHeading(
+                "Today's followups",
+                followupGroups['today'] ?? [],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _followupList(followupGroups['today'] ?? []),
+              const SizedBox(height: AppSpacing.lg),
+              _followupHeading(
+                'Upcoming followups',
+                followupGroups['upcoming'] ?? [],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _followupList(followupGroups['upcoming'] ?? []),
+              const SizedBox(height: AppSpacing.xl),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _followupHeading(String title, List<Map<String, dynamic>> rows) {
+    return AppSectionTitle(
+      title,
+      trailing: Text(
+        '${rows.length}',
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -117,7 +162,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.xl),
         gradient: const LinearGradient(
-          colors: [Color(0xFF351727), AppColors.plum, Color(0xFF762C39)],
+          colors: [AppColors.plum, AppColors.emerald, Color(0xFF25735B)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -139,7 +184,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 7),
                 const Text(
-                  'Your workspace',
+                  'Aabhushan workspace',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 21,
@@ -148,7 +193,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Orders, followups and craft in one place',
+                  'Keep every order, material and next step in view.',
                   style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
@@ -178,14 +223,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _statsHeader(Map<String, int> stats) {
     final cards = [
       _clickableStatCard(
-        title: 'Pending',
+        title: 'Open orders',
         value: (stats['pending'] ?? 0).toString(),
         color: AppColors.brandRed,
         icon: Icons.pending_actions,
         targetStatus: 'Pending',
       ),
       _clickableStatCard(
-        title: 'Completed',
+        title: 'Ready & completed',
         value: (stats['completed'] ?? 0).toString(),
         color: AppColors.success,
         icon: Icons.check_circle_outline,
@@ -207,14 +252,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     ];
 
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisExtent: 156,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      children: cards,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 720 ? 4 : 2;
+        final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: cards
+              .map((card) => SizedBox(width: width, child: card))
+              .toList(),
+        );
+      },
     );
   }
 
@@ -225,18 +274,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required IconData icon,
     required String targetStatus,
   }) {
-    return InkWell(
+    return AppSummaryCard(
+      title: title,
+      value: value,
+      color: color,
+      icon: icon,
       onTap: widget.onOpenOrdersByStatus == null
           ? null
           : () => widget.onOpenOrdersByStatus!(targetStatus),
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: AppSummaryCard(
-        title: title,
-        value: value,
-        color: color,
-        icon: icon,
-        subtitle: widget.onOpenOrdersByStatus == null ? null : 'Tap to open',
-      ),
     );
   }
 
@@ -251,117 +296,144 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       children: rows.map((row) {
         final status = _followupStatus(row['next_followup_date']);
-        return Container(
-          margin: const EdgeInsets.only(bottom: AppSpacing.md),
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: Material(
             color: AppColors.card,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.border),
-            boxShadow: AppShadows.soft,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: status.$2.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: Icon(Icons.event_available_outlined, color: status.$2),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              side: const BorderSide(color: AppColors.border),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => _openFollowupOrder(row),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Wrap(
+                      spacing: AppSpacing.md,
+                      runSpacing: AppSpacing.sm,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          (row['order_no'] ?? '-').toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        AppStatusBadge(label: status.$1, color: status.$2),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
                     Text(
-                      (row['order_no'] ?? '-').toString(),
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      (row['customer_name'] ?? 'Customer not set').toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'Customer: ${row['customer_name'] ?? '-'}',
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                    Text(
                       'Stage: ${row['last_followup_stage'] ?? row['status'] ?? '-'}',
-                      style: const TextStyle(color: AppColors.textSecondary),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Wrap(
+                      spacing: AppSpacing.lg,
+                      runSpacing: AppSpacing.sm,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          AppFormatters.dateTime(row['next_followup_date']),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const Text(
+                          'View order →',
+                          style: TextStyle(
+                            color: AppColors.emerald,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    status.$1,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: status.$2,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    AppFormatters.date(row['next_followup_date']),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         );
       }).toList(),
     );
   }
 
+  Future<void> _openFollowupOrder(Map<String, dynamic> row) async {
+    final id =
+        int.tryParse((row['id'] ?? row['order_id'] ?? '').toString()) ?? 0;
+    if (id <= 0) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            OrderDetailScreen(api: widget.api, orderId: id, initialOrder: row),
+      ),
+    );
+    if (mounted) await _load();
+  }
+
   Widget _quickActions() {
+    final actions = [
+      _actionCard(
+        label: 'New order',
+        description: 'Customer, design & photos',
+        icon: Icons.add_box_outlined,
+        color: AppColors.emerald,
+        onTap: _openOrder,
+      ),
+      _actionCard(
+        label: 'New issuement',
+        description: 'Issue materials to a karigar',
+        icon: Icons.outbox_outlined,
+        color: AppColors.emerald,
+        onTap: _openIssuement,
+      ),
+      for (final material in ['diamond', 'gold', 'stone'])
+        _actionCard(
+          label:
+              '${material[0].toUpperCase()}${material.substring(1)} purchase',
+          description: 'Record incoming stock',
+          icon: material == 'diamond'
+              ? Icons.diamond_outlined
+              : material == 'gold'
+              ? Icons.workspace_premium_outlined
+              : Icons.scatter_plot_outlined,
+          color: _accentFor(material),
+          onTap: () => _openTransaction(material, 'purchase'),
+        ),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const AppSectionTitle('Quick Actions'),
+        const AppSectionTitle('Quick actions'),
         const SizedBox(height: AppSpacing.md),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            _actionChip(
-              label: 'Add Order',
-              icon: Icons.add_box_outlined,
-              color: AppColors.brandRed,
-              onTap: _openOrder,
-            ),
-            _actionChip(
-              label: 'Combined Issuement',
-              icon: Icons.outbox_outlined,
-              color: AppColors.brandRed,
-              onTap: _openIssuement,
-            ),
-            _actionChip(
-              label: 'Diamond Purchase',
-              icon: Icons.diamond_outlined,
-              color: AppColors.diamond,
-              onTap: () => _openTransaction('diamond', 'purchase'),
-            ),
-            _actionChip(
-              label: 'Gold Purchase',
-              icon: Icons.workspace_premium_outlined,
-              color: AppColors.gold,
-              onTap: () => _openTransaction('gold', 'purchase'),
-            ),
-            _actionChip(
-              label: 'Stone Purchase',
-              icon: Icons.scatter_plot_outlined,
-              color: AppColors.stone,
-              onTap: () => _openTransaction('stone', 'purchase'),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 900
+                ? 3
+                : constraints.maxWidth >= 560
+                ? 2
+                : 1;
+            final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: actions
+                  .map((action) => SizedBox(width: width, child: action))
+                  .toList(),
+            );
+          },
         ),
       ],
     );
@@ -398,47 +470,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _actionChip({
+  Widget _actionCard({
     required String label,
+    required String description,
     required IconData icon,
     required Color color,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: 10,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(9),
+    return Material(
+      color: AppColors.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.09),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Icon(icon, color: color, size: 22),
               ),
-              child: Icon(icon, color: color, size: 17),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: AppSpacing.sm),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textSecondary,
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -474,7 +565,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final today = DateTime.now();
     final todayKey = DateTime(today.year, today.month, today.day);
     final todayRows = <Map<String, dynamic>>[];
-    final otherRows = <Map<String, dynamic>>[];
+    final overdueRows = <Map<String, dynamic>>[];
+    final upcomingRows = <Map<String, dynamic>>[];
     const blockedStatuses = {
       'Completed',
       'Complete',
@@ -498,8 +590,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final dateKey = DateTime(parsed.year, parsed.month, parsed.day);
       if (dateKey == todayKey) {
         todayRows.add(row);
+      } else if (dateKey.isBefore(todayKey)) {
+        overdueRows.add(row);
       } else {
-        otherRows.add(row);
+        upcomingRows.add(row);
       }
     }
 
@@ -518,9 +612,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     todayRows.sort(sortByFollowup);
-    otherRows.sort(sortByFollowup);
+    overdueRows.sort(sortByFollowup);
+    upcomingRows.sort(sortByFollowup);
 
-    return {'today': todayRows, 'other': otherRows};
+    return {
+      'today': todayRows,
+      'overdue': overdueRows,
+      'upcoming': upcomingRows,
+    };
   }
 
   (String, Color) _followupStatus(dynamic nextFollowupDate) {

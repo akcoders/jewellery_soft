@@ -5,6 +5,8 @@ import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_form_section.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
+import 'package:flutkit/jewellery_pwa/services/app_image_picker.dart';
+import 'package:flutkit/jewellery_pwa/widgets/app_photo_field.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -45,6 +47,7 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
   String _paymentStatus = 'Pending';
   bool _loading = true;
   bool _saving = false;
+  bool _pickingPhoto = false;
   String _error = '';
   List<dynamic> _vendors = [];
   List<dynamic> _locations = [];
@@ -149,18 +152,27 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
   }
 
   Future<void> _takePhoto() async {
-    final image = await ImagePicker().pickImage(
-      source: ImageSource.camera,
-      imageQuality: 85,
-      maxWidth: 1800,
-      requestFullMetadata: false,
-    );
-    if (!mounted || image == null) return;
-    setState(() => _files = [..._files, image]);
+    if (_pickingPhoto || _saving) return;
+    setState(() => _pickingPhoto = true);
+    try {
+      final images = await AppImagePicker().pickImages(
+        context,
+        title: 'Purchase attachments',
+      );
+      if (mounted && images.isNotEmpty) {
+        setState(() => _files = [..._files, ...images]);
+      }
+    } finally {
+      if (mounted) setState(() => _pickingPhoto = false);
+    }
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false) || _saving) return;
+    if (!(_formKey.currentState?.validate() ?? false) ||
+        _saving ||
+        _pickingPhoto) {
+      return;
+    }
     if (_gstMasterId == null) {
       _show('GST master is required.');
       return;
@@ -357,7 +369,7 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
                   _taxSection(),
                   if (_material != 'gold') _attachmentSection(),
                   FilledButton.icon(
-                    onPressed: _saving ? null : _submit,
+                    onPressed: _saving || _pickingPhoto ? null : _submit,
                     icon: _saving
                         ? const AppLoadingIndicator(size: 18, light: true)
                         : const Icon(Icons.check_circle_outline),
@@ -657,23 +669,25 @@ class _PurchaseCreateScreenState extends State<PurchaseCreateScreen> {
   );
 
   Widget _attachmentSection() => _section('Attachments', [
-    OutlinedButton.icon(
-      onPressed: _takePhoto,
-      icon: const Icon(Icons.camera_alt_outlined),
-      label: Text(
-        _files.isEmpty ? 'Take attachment photo' : 'Take another photo',
-      ),
+    AppPhotoAddButton(
+      onPressed: _saving || _pickingPhoto ? null : _takePhoto,
+      title: _files.isEmpty ? 'Add attachment photos' : 'Add more photos',
+      busy: _pickingPhoto,
     ),
-    if (_files.isNotEmpty) Text('${_files.length} photo(s) captured'),
+    if (_files.isNotEmpty)
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Text('${_files.length} photo(s) selected'),
+      ),
     ..._files.map(
-      (file) => ListTile(
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.photo_camera_back_outlined),
-        title: Text(file.name),
-        trailing: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => setState(() => _files.remove(file)),
+      (file) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: AppPhotoPreview(
+          key: ObjectKey(file),
+          file: file,
+          onRemove: _saving || _pickingPhoto
+              ? null
+              : () => setState(() => _files.remove(file)),
         ),
       ),
     ),

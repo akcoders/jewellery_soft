@@ -30,6 +30,18 @@ published. Update it for every Android release.
 | 2026-10-13 | 1.0.10 | 11 | `android-v1.0.10-build11` | `26c42a7b0aa409dbedc6daae3fbd5d3e96ccff3321756a0967d044480a9b84b2` | Fractional performance points, organized Android PDF folders, parent order mapping, and unified child follow-up approvals |
 | 2026-10-14 | 1.0.11 | 12 | `android-v1.0.11-build12` | `c3c99e6b53d88c8d085c029502838d803a4159e3c7804268e27fbc3bf7c1023a` | Order-wise stone issuement (gold stays free-flow), complete order details in collapsible sections, stone issued per order. Signed with this workstation's `~/.android/debug.keystore` (certificate SHA-256 `ac5fcc988a3297f42d74e50a9b1a4cd36d323a9acaa58fcaff2cd104de4a5004`), which differs from the `key.md` identity. **Withdrawn 2026-10-14:** cannot update 1.0.9/1.0.10 installs (signer mismatch); the update feed was rolled back to 1.0.10 build 11. Rebuild with the original `04524F…` keystore before the next release |
 | 2026-10-14 | 1.0.12 | 13 | `android-v1.0.12-build13` | `9ae9f2427d72ef3a18fce82263cafd9df2fd11da0ab90a071ae2424410db09b7` | Team performance for admins, 200-point monthly target and reward points, small-phone layout fixes. Signed with the new active identity `AC5FCC…` (see `key.md`); 1.0.9/1.0.10 installs must uninstall once, 1.0.11 updates normally |
+| 2026-10-19 | 1.0.13 | 14 | `android-v1.0.13-build14` | `73b4bb1bde02496f802c4c83cf0d0a693f215604809368e7afd450238922a539` | Android workspace parity for order receiving, completion ratings, packing lists, delivery challans and work requests |
+| 2026-10-29 | 1.0.14 | 15 | `android-v1.0.14-build15` | `4eb90b72f3c9b464e21b6c6b87be4f7545c70a2809c60b582b14804b96c4922c` | Camera/gallery selection outside follow-ups, photo previews and replacement, ivory/emerald/gold UI with offline Manrope, bottom navigation, clearer order/material cards, persistent issuance save action, and completed-order issuance until actual receiving |
+
+### 1.0.14 build 15 verification and deployment
+
+- APK size: 107,390,815 bytes (107.4 MB). Android package remains `com.aabhushan.erp`, version code 15, minimum SDK 24, target SDK 36.
+- APK v2 signature verified. Signing certificate SHA-256 remains `ac5fcc988a3297f42d74e50a9b1a4cd36d323a9acaa58fcaff2cd104de4a5004`, matching builds 13 and 14.
+- All 75 Flutter tests pass, including narrow-phone/enlarged-text layout, photo chooser, required-field navigation and completed/received order cases. Analyzer reports existing style infos and no errors or warnings. Dashboard and order screenshots were rendered and inspected.
+- The completed-order rule requires deploying the updated PHP API/services. No new database migration is needed. Receiving is checked again before an approved mixed-material voucher writes any material records; gold remains free-flow.
+- Follow-up camera/gallery permissions keep their existing policy.
+- A fresh PWA build and upload archive accompany this release. Keep the separate `public/pwa/customer/` portal icons when deploying the staff PWA.
+- The PHP unit suite has one pre-existing failure in `ArattaiRuntimeDiagnosticsTest::testConversationalPayloadsFollowLiveArattaiFieldRules`: its expected quick replies omit the IDs already emitted by the unchanged service. Issuance, photo-flow and release-feed regression tests pass.
 
 ## Prerequisites
 

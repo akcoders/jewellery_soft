@@ -151,8 +151,12 @@ class DiamondBagService
             ->orderBy('b.id', 'DESC')
             ->get()->getResultArray();
 
+        if ($rows === []) {
+            return [];
+        }
+
         $pendingByBag = [];
-        if ($rows !== [] && $this->db->tableExists('mobile_approval_requests')) {
+        if ($this->db->tableExists('mobile_approval_requests')) {
             $bagIds = array_map(static fn(array $row): int => (int) $row['id'], $rows);
             $pending = $this->db->table('mobile_approval_requests')
                 ->select('id, subject_id')
@@ -168,6 +172,7 @@ class DiamondBagService
 
         $order = $this->db->table('orders')->select('assigned_karigar_id')->where('id', $orderId)->get()->getRowArray() ?? [];
         $hasAssignedKarigar = (int) ($order['assigned_karigar_id'] ?? 0) > 0;
+        $orderIssueError = (new DiamondIssueOrderService($this->db))->validate($orderId);
         foreach ($rows as &$row) {
             $issueCount = (int) ($row['issue_line_count'] ?? 0);
             $pendingApprovalId = $pendingByBag[(int) $row['id']] ?? 0;
@@ -175,11 +180,12 @@ class DiamondBagService
             $row['can_issue'] = $issueCount === 0
                 && $pendingApprovalId === 0
                 && (float) ($row['cts_balance'] ?? 0) > .0005
+                && $orderIssueError === null
                 && $hasAssignedKarigar
                 && (int) ($row['inventory_location_id'] ?? 0) > 0;
             $row['issue_blocked_reason'] = $row['can_issue'] ? null
-                : (! $hasAssignedKarigar ? 'Assign a karigar before issuing.'
-                    : ((int) ($row['inventory_location_id'] ?? 0) <= 0 ? 'Save the bag inventory location before issuing.' : null));
+                : ($orderIssueError ?? (! $hasAssignedKarigar ? 'Assign a karigar before issuing.'
+                    : ((int) ($row['inventory_location_id'] ?? 0) <= 0 ? 'Save the bag inventory location before issuing.' : null)));
             $row['pending_approval_id'] = $pendingApprovalId ?: null;
             $row['audit_image_url'] = ! empty($row['audit_image_path'])
                 ? base_url(ltrim((string) $row['audit_image_path'], '/'))
@@ -210,6 +216,10 @@ class DiamondBagService
             ->where('b.id', $bagId)->get()->getRowArray();
         if (! is_array($bag) || (int) ($bag['order_id'] ?? 0) <= 0) {
             throw new RuntimeException('This diamond bag is not linked to an order.');
+        }
+        $orderIssueError = (new DiamondIssueOrderService($this->db))->validate((int) $bag['order_id']);
+        if ($orderIssueError !== null) {
+            throw new RuntimeException($orderIssueError);
         }
         if ((int) ($bag['assigned_karigar_id'] ?? 0) <= 0) {
             throw new RuntimeException('Assign a karigar to the order before issuing this bag.');

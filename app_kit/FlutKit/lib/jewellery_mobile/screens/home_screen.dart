@@ -36,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text(_tab == 0 ? 'Orders & Followups' : 'Inventory'),
         actions: [
           PopupMenuButton<String>(
+            tooltip: 'Account and settings',
             onSelected: (value) async {
               if (value == 'logout') {
                 await widget.onLogout();

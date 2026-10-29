@@ -38,6 +38,12 @@ class _AppSearchBarState extends State<AppSearchBar> {
     });
   }
 
+  void _submit(String value) {
+    _debounce?.cancel();
+    widget.onChanged(value);
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Focus(
@@ -56,6 +62,9 @@ class _AppSearchBarState extends State<AppSearchBar> {
         child: TextField(
           controller: widget.controller,
           onChanged: _handleChanged,
+          onSubmitted: _submit,
+          textInputAction: TextInputAction.search,
+          autocorrect: false,
           decoration: InputDecoration(
             hintText: widget.hintText,
             filled: false,

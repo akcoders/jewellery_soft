@@ -41,7 +41,9 @@ void main() {
     final scaffold = tester.state<ScaffoldState>(find.byType(Scaffold).first);
     scaffold.openDrawer();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Orders'));
+    await tester.tap(
+      find.descendant(of: find.byType(Drawer), matching: find.text('Orders')),
+    );
     await tester.pumpAndSettle();
 
     expect(

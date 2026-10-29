@@ -158,6 +158,65 @@ class AppAttachmentTile extends StatelessWidget {
   final Uint8List? imageBytes;
   final VoidCallback? onRemove;
 
+  void _preview(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog.fullscreen(
+        backgroundColor: AppColors.plum,
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close photo preview',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(LucideIcons.x, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 5,
+                  child: Center(
+                    child: Image.memory(
+                      imageBytes!,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => const Text(
+                        'This photo could not be previewed. Please choose it again.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Pinch to zoom and check details',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(10),
@@ -203,6 +262,12 @@ class AppAttachmentTile extends StatelessWidget {
             ],
           ),
         ),
+        if (imageBytes != null)
+          IconButton(
+            tooltip: 'View $name',
+            onPressed: () => _preview(context),
+            icon: const Icon(LucideIcons.expand, size: 18),
+          ),
         if (onRemove != null)
           IconButton(
             tooltip: 'Remove $name',

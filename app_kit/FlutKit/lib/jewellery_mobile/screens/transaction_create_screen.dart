@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
+import 'package:flutkit/jewellery_pwa/services/app_image_picker.dart';
+import 'package:flutkit/jewellery_pwa/widgets/app_photo_field.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
@@ -33,6 +35,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = true;
   bool _saving = false;
+  bool _pickingPhoto = false;
   String _error = '';
 
   DateTime _txnDate = DateTime.now();
@@ -142,15 +145,17 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   }
 
   Future<void> _pickAttachment() async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 85,
-      maxWidth: 1800,
-      requestFullMetadata: false,
-    );
-    if (!mounted) return;
-    setState(() => _attachment = file);
+    if (_pickingPhoto || _saving) return;
+    setState(() => _pickingPhoto = true);
+    try {
+      final image = await AppImagePicker().pickImage(
+        context,
+        title: 'Transaction attachment',
+      );
+      if (mounted && image != null) setState(() => _attachment = image);
+    } finally {
+      if (mounted) setState(() => _pickingPhoto = false);
+    }
   }
 
   Future<String> _attachmentBase64() async {
@@ -161,7 +166,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
 
   Future<void> _submit() async {
     final valid = _formKey.currentState?.validate() ?? false;
-    if (!valid || _saving) return;
+    if (!valid || _saving || _pickingPhoto) return;
 
     if (widget.action != 'purchase') {
       if (_locationId == null ||
@@ -329,7 +334,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                           style: FilledButton.styleFrom(
                             backgroundColor: widget.accentColor,
                           ),
-                          onPressed: _saving ? null : _submit,
+                          onPressed: _saving || _pickingPhoto ? null : _submit,
                           icon: _saving
                               ? const AppLoadingIndicator(size: 18, light: true)
                               : const Icon(Icons.save),
@@ -721,21 +726,15 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         children: [
           const AppSectionTitle('Attachment'),
           const SizedBox(height: AppSpacing.md),
-          OutlinedButton.icon(
-            onPressed: _pickAttachment,
-            icon: const Icon(Icons.camera_alt_outlined),
-            label: Text(
-              _attachment == null ? 'Take attachment photo' : 'Photo captured',
-            ),
+          AppPhotoField(
+            file: _attachment,
+            title: 'Add attachment photo',
+            subtitle: 'Required for issue / return · camera or gallery',
+            busy: _pickingPhoto,
+            enabled: !_saving,
+            onPick: _pickAttachment,
+            onRemove: () => setState(() => _attachment = null),
           ),
-          if (_attachment == null)
-            const Padding(
-              padding: EdgeInsets.only(top: AppSpacing.sm),
-              child: Text(
-                'Attachment is required for issue/return.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
         ],
       ),
     );

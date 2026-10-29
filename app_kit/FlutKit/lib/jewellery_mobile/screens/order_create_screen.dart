@@ -6,8 +6,9 @@ import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_form_section.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
+import 'package:flutkit/jewellery_pwa/services/app_image_picker.dart';
+import 'package:flutkit/jewellery_pwa/widgets/app_photo_field.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 class OrderCreateScreen extends StatefulWidget {
   const OrderCreateScreen({super.key, required this.api});
@@ -39,6 +40,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
 
   bool _loading = true;
   bool _saving = false;
+  bool _pickingAttachment = false;
   String _error = '';
   DateTime _receivedDate = DateTime.now();
   DateTime? _dueDate;
@@ -156,6 +158,8 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
   }
 
   Future<void> _pickFiles() async {
+    if (_pickingAttachment || _saving) return;
+    setState(() => _pickingAttachment = true);
     try {
       final result = await FilePicker.platform.pickFiles(
         allowMultiple: true,
@@ -172,15 +176,18 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
       setState(() => _files = [..._files, ...files]);
     } catch (e) {
       if (mounted) _show(_message(e));
+    } finally {
+      if (mounted) setState(() => _pickingAttachment = false);
     }
   }
 
   Future<void> _pickPhotos() async {
+    if (_pickingAttachment || _saving) return;
+    setState(() => _pickingAttachment = true);
     try {
-      final images = await ImagePicker().pickMultiImage(
-        imageQuality: 85,
-        maxWidth: 1800,
-        requestFullMetadata: false,
+      final images = await AppImagePicker().pickImages(
+        context,
+        title: 'Order reference photos',
       );
       if (images.isEmpty) return;
 
@@ -209,11 +216,17 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
       });
     } catch (e) {
       if (mounted) _show(_message(e));
+    } finally {
+      if (mounted) setState(() => _pickingAttachment = false);
     }
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false) || _saving) return;
+    if (!(_formKey.currentState?.validate() ?? false) ||
+        _saving ||
+        _pickingAttachment) {
+      return;
+    }
     if (_categoryId == null) {
       _show('Select an order category.');
       return;
@@ -351,23 +364,18 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
                       _receivedDate,
                       (value) => setState(() => _receivedDate = value),
                     ),
-                    _dropdown<int>(
-                      'Jewellery / Sub Category',
-                      _categoryId,
-                      [
-                        ..._categories.map(
-                          (row) => DropdownMenuItem(
-                            value: _id(row),
-                            child: Text('${row['name']} (${row['code']})'),
-                          ),
+                    _dropdown<int>('Jewellery / Sub Category', _categoryId, [
+                      ..._categories.map(
+                        (row) => DropdownMenuItem(
+                          value: _id(row),
+                          child: Text('${row['name']} (${row['code']})'),
                         ),
-                        const DropdownMenuItem(
-                          value: 0,
-                          child: Text('+ Add New Category'),
-                        ),
-                      ],
-                      (value) => setState(() => _categoryId = value),
-                    ),
+                      ),
+                      const DropdownMenuItem(
+                        value: 0,
+                        child: Text('+ Add New Category'),
+                      ),
+                    ], (value) => setState(() => _categoryId = value)),
                     if (_categoryId == 0)
                       _requiredText(_newCategory, 'New Jewellery Category'),
                     _dropdown<String>(
@@ -594,32 +602,41 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
                     ),
                   ]),
                   _section('Reference Images & Files', [
-                    OutlinedButton.icon(
-                      onPressed: _pickPhotos,
-                      icon: const Icon(Icons.photo_library_outlined),
-                      label: const Text('Choose photos'),
+                    AppPhotoAddButton(
+                      onPressed: _saving || _pickingAttachment
+                          ? null
+                          : _pickPhotos,
+                      title: 'Add reference photos',
+                      subtitle:
+                          'Camera or gallery · JPG, PNG, WebP · up to 10 MB',
+                      busy: _pickingAttachment,
                     ),
                     OutlinedButton.icon(
-                      onPressed: _pickFiles,
+                      onPressed: _saving || _pickingAttachment
+                          ? null
+                          : _pickFiles,
                       icon: const Icon(Icons.attach_file),
                       label: const Text('Choose PDF / CAD file'),
                     ),
                     if (_files.isNotEmpty)
                       Text('${_files.length} file(s) selected'),
-                    if (_files.isNotEmpty)
-                      ..._files.map(
-                        (file) => ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.insert_drive_file_outlined),
-                          title: Text(file.name),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () =>
-                                setState(() => _files.remove(file)),
-                          ),
-                        ),
+                    ..._files.map(
+                      (file) => AppAttachmentTile(
+                        name: file.name,
+                        imageBytes:
+                            const [
+                              'jpg',
+                              'jpeg',
+                              'png',
+                              'webp',
+                            ].contains(file.extension?.toLowerCase())
+                            ? file.bytes
+                            : null,
+                        onRemove: _saving || _pickingAttachment
+                            ? null
+                            : () => setState(() => _files.remove(file)),
                       ),
+                    ),
                     _dropdown<String>(
                       'Attachment Type',
                       _fileType,
@@ -640,7 +657,7 @@ class _OrderCreateScreenState extends State<OrderCreateScreen> {
                     ),
                   ]),
                   FilledButton.icon(
-                    onPressed: _saving ? null : _submit,
+                    onPressed: _saving || _pickingAttachment ? null : _submit,
                     icon: _saving
                         ? const AppLoadingIndicator(size: 18, light: true)
                         : const Icon(Icons.check_circle_outline),

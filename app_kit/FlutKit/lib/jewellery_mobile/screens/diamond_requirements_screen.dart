@@ -5,8 +5,9 @@ import 'package:flutkit/jewellery_mobile/services/mobile_api_service.dart';
 import 'package:flutkit/jewellery_mobile/theme/app_theme.dart';
 import 'package:flutkit/jewellery_mobile/widgets/app_state_widgets.dart';
 import 'package:flutkit/jewellery_mobile/widgets/full_screen_loader.dart';
+import 'package:flutkit/jewellery_pwa/services/app_image_picker.dart';
+import 'package:flutkit/jewellery_pwa/widgets/app_photo_field.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 class DiamondRequirementsScreen extends StatefulWidget {
   const DiamondRequirementsScreen({super.key, required this.api});
@@ -216,6 +217,7 @@ class _DiamondRequirementDetailScreenState
   final _notes = TextEditingController();
   bool _loading = true;
   bool _saving = false;
+  bool _pickingPhoto = false;
   String _error = '';
   Map<String, dynamic> _requirement = {};
   List<dynamic> _bagItems = [];
@@ -278,7 +280,7 @@ class _DiamondRequirementDetailScreenState
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_saving || _pickingPhoto || !_formKey.currentState!.validate()) return;
     if (_locationId == null || _locationId! <= 0) {
       _message('Select an inventory location.');
       return;
@@ -322,19 +324,21 @@ class _DiamondRequirementDetailScreenState
   }
 
   Future<void> _pickBagPhoto() async {
-    final image = await ImagePicker().pickImage(
-      source: ImageSource.camera,
-      imageQuality: 82,
-      maxWidth: 1800,
-      requestFullMetadata: false,
-    );
-    if (image == null) return;
-    final bytes = await image.readAsBytes();
-    if (bytes.length > 4 * 1024 * 1024) {
-      _message('Bag photo must be smaller than 4 MB.');
-      return;
-    }
-    if (mounted) {
+    if (_pickingPhoto || _saving) return;
+    setState(() => _pickingPhoto = true);
+    try {
+      final image = await AppImagePicker().pickImage(
+        context,
+        title: 'Diamond bag photo',
+        imageQuality: 82,
+      );
+      if (image == null || !mounted) return;
+      final bytes = await image.readAsBytes();
+      if (!mounted) return;
+      if (bytes.length > 4 * 1024 * 1024) {
+        _message('Bag photo must be smaller than 4 MB.');
+        return;
+      }
       setState(() {
         _auditImage = bytes;
         _auditImageName = image.name;
@@ -347,6 +351,12 @@ class _DiamondRequirementDetailScreenState
                 ? 'image/webp'
                 : 'image/jpeg');
       });
+    } catch (_) {
+      if (mounted) {
+        _message('Could not read this photo. Please choose it again.');
+      }
+    } finally {
+      if (mounted) setState(() => _pickingPhoto = false);
     }
   }
 
@@ -524,26 +534,25 @@ class _DiamondRequirementDetailScreenState
             label: Text('Prepared on ${_date(_preparedDate)}'),
           ),
           const SizedBox(height: AppSpacing.md),
-          OutlinedButton.icon(
-            onPressed: _saving ? null : _pickBagPhoto,
-            icon: const Icon(Icons.add_a_photo_outlined),
-            label: Text(
-              _auditImage == null
-                  ? 'Add Bag Photo (optional)'
-                  : 'Photo: $_auditImageName',
-              overflow: TextOverflow.ellipsis,
-            ),
+          AppPhotoAddButton(
+            onPressed: _saving || _pickingPhoto ? null : _pickBagPhoto,
+            title: _auditImage == null
+                ? 'Add a bag photo'
+                : 'Replace bag photo',
+            subtitle: 'Optional · camera or gallery · up to 4 MB',
+            busy: _pickingPhoto,
           ),
           if (_auditImage != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              child: Image.memory(
-                _auditImage!,
-                height: 160,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
+            const SizedBox(height: AppSpacing.md),
+            AppAttachmentTile(
+              name: _auditImageName,
+              imageBytes: _auditImage,
+              onRemove: _saving || _pickingPhoto
+                  ? null
+                  : () => setState(() {
+                      _auditImage = null;
+                      _auditImageName = '';
+                    }),
             ),
           ],
           const SizedBox(height: AppSpacing.md),
@@ -561,7 +570,7 @@ class _DiamondRequirementDetailScreenState
           ),
           const SizedBox(height: AppSpacing.lg),
           FilledButton.icon(
-            onPressed: _saving ? null : _submit,
+            onPressed: _saving || _pickingPhoto ? null : _submit,
             icon: _saving
                 ? const SizedBox(
                     width: 18,

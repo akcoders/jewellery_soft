@@ -14,32 +14,29 @@ class DiamondIssueOrderService
     }
 
     /**
-     * @return list<array{id:int,order_no:string,order_name:string}>
+     * Completed production can still need material before finished jewellery is received.
+     *
+     * @return list<array{id:int,order_no:string,order_name:string,status:string}>
      */
     public function orderOptions(): array
     {
-        $orders = $this->db->table('orders')
-            ->select('id, order_no, order_name')
-            ->whereNotIn('status', ['Cancelled', 'Completed'])
+        $builder = $this->db->table('orders')
+            ->select('id, order_no, order_name, status')
+            ->where('status !=', 'Cancelled')
             ->orderBy('id', 'DESC')
-            ->limit(1000)
-            ->get()
-            ->getResultArray();
-        $receivedIds = array_fill_keys(
-            (new OrderReceivingService($this->db))->recordedReceiptOrderIds(
-                array_map(static fn(array $order): int => (int) ($order['id'] ?? 0), $orders)
-            ),
-            true
-        );
+            ->limit(1000);
+        if ($this->db->fieldExists('deleted_at', 'orders')) {
+            $builder->where('deleted_at', null);
+        }
+        (new OrderReceivingService($this->db))->excludeRecordedReceipts($builder, 'orders.id');
+        $orders = $builder->get()->getResultArray();
 
-        return array_values(array_filter(
-            array_map(static fn(array $order): array => [
-                'id' => (int) ($order['id'] ?? 0),
-                'order_no' => (string) ($order['order_no'] ?? ''),
-                'order_name' => (string) ($order['order_name'] ?? ''),
-            ], $orders),
-            static fn(array $order): bool => ! isset($receivedIds[$order['id']])
-        ));
+        return array_map(static fn(array $order): array => [
+            'id' => (int) ($order['id'] ?? 0),
+            'order_no' => (string) ($order['order_no'] ?? ''),
+            'order_name' => (string) ($order['order_name'] ?? ''),
+            'status' => (string) ($order['status'] ?? ''),
+        ], $orders);
     }
 
     public function validate(int $orderId, int $currentOrderId = 0): ?string
@@ -64,7 +61,7 @@ class DiamondIssueOrderService
             return 'Ornament already received; diamond or stone issuance for this order is not possible.';
         }
         if ($orderId !== $currentOrderId
-            && in_array((string) ($order['status'] ?? ''), ['Cancelled', 'Completed'], true)) {
+            && (string) ($order['status'] ?? '') === 'Cancelled') {
             return 'Diamond cannot be issued against a ' . strtolower((string) $order['status']) . ' order.';
         }
 

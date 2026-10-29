@@ -4,6 +4,7 @@ namespace App\Controllers\Api\Mobile;
 
 use App\Services\TaxMasterService;
 use App\Services\DiamondBagTraceService;
+use App\Services\DiamondIssueOrderService;
 
 class LookupsController extends MobileBaseController
 {
@@ -103,15 +104,7 @@ class LookupsController extends MobileBaseController
             return $authFail;
         }
 
-        $rows = db_connect()->table('orders')
-            ->select('id, order_no, order_name, status')
-            ->whereNotIn('status', ['Cancelled', 'Completed'])
-            ->orderBy('id', 'DESC')
-            ->limit(1000)
-            ->get()
-            ->getResultArray();
-
-        return $this->ok($rows);
+        return $this->ok((new DiamondIssueOrderService())->orderOptions());
     }
 
     public function goldItems()

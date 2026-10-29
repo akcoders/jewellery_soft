@@ -12,6 +12,8 @@ import 'package:flutkit/jewellery_mobile/screens/diamond_bag_create_screen.dart'
 import 'package:flutkit/jewellery_mobile/screens/diamond_bags_screen.dart';
 import 'package:flutkit/jewellery_mobile/widgets/order_full_details.dart';
 import 'package:flutkit/jewellery_pwa/screens/order_receiving_screen.dart';
+import 'package:flutkit/jewellery_pwa/services/app_image_picker.dart';
+import 'package:flutkit/jewellery_pwa/widgets/app_photo_field.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1115,48 +1117,27 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                OutlinedButton.icon(
-                  onPressed: picking || saving
-                      ? null
-                      : () async {
-                          update(() => picking = true);
-                          final file = await ImagePicker().pickImage(
-                            source: ImageSource.camera,
-                            imageQuality: 85,
-                            maxWidth: 1800,
-                            requestFullMetadata: false,
-                          );
-                          if (dialogContext.mounted) {
-                            update(() {
-                              evidence = file ?? evidence;
-                              picking = false;
-                            });
-                          }
-                        },
-                  icon: picking
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add_a_photo_outlined),
-                  label: Text(
-                    evidence == null
-                        ? 'Take Evidence Photo *'
-                        : 'Replace ${evidence!.name}',
-                  ),
+                AppPhotoField(
+                  file: evidence,
+                  busy: picking,
+                  enabled: !saving,
+                  title: 'Add issue evidence',
+                  subtitle: 'Required · take a photo or choose from gallery',
+                  onPick: () async {
+                    update(() => picking = true);
+                    final file = await AppImagePicker().pickImage(
+                      dialogContext,
+                      title: 'Issue evidence',
+                    );
+                    if (dialogContext.mounted) {
+                      update(() {
+                        evidence = file ?? evidence;
+                        picking = false;
+                      });
+                    }
+                  },
+                  onRemove: () => update(() => evidence = null),
                 ),
-                if (evidence != null)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      'Evidence attached and ready to upload.',
-                      style: TextStyle(
-                        color: AppColors.success,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
                 const SizedBox(height: AppSpacing.md),
                 TextField(
                   controller: notes,
@@ -1181,7 +1162,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton.icon(
-              onPressed: saving || evidence == null
+              onPressed: saving || picking || evidence == null
                   ? null
                   : () async {
                       update(() {
@@ -1422,6 +1403,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         actions: [
           IconButton(
             onPressed: _loading ? null : _load,
+            tooltip: 'Refresh order details',
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -1498,15 +1480,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Wrap(
+                          spacing: AppSpacing.md,
+                          runSpacing: AppSpacing.sm,
                           children: [
-                            Expanded(
-                              child: Text(
-                                (_order['order_no'] ?? '-').toString(),
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                            Text(
+                              (_order['order_no'] ?? '-').toString(),
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                             AppStatusBadge(
@@ -1523,33 +1505,74 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             _metaChip('Type', _order['order_type'] ?? '-'),
                             _metaChip('Priority', _order['priority'] ?? '-'),
                             _metaChip('Due', _order['due_date'] ?? '-'),
+                            _metaChip(
+                              'Receiving',
+                              _isReceived ? 'Recorded' : 'Pending',
+                            ),
                           ],
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _infoCard(
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cards = [
+                        _infoCard(
                           title: 'Customer',
                           value: _order['customer_name'] ?? '-',
                           subtitle: _order['customer_phone'] ?? '',
                           icon: Icons.person_outline,
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: _infoCard(
+                        _infoCard(
                           title: 'Karigar',
                           value: _order['karigar_name'] ?? 'Not Assigned',
                           subtitle: _order['karigar_phone'] ?? '',
                           icon: Icons.badge_outlined,
                         ),
-                      ),
-                    ],
+                      ];
+                      if (constraints.maxWidth < 420 ||
+                          MediaQuery.textScalerOf(context).scale(14) > 18) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            cards[0],
+                            const SizedBox(height: AppSpacing.md),
+                            cards[1],
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: cards[0]),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(child: cards[1]),
+                        ],
+                      );
+                    },
                   ),
+                  if (status == 'Completed' && !_isReceived) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Completed · receiving pending',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            const Text(
+                              'Material issuement is still available for this order. Record receiving when the finished jewellery arrives; further order issuement will then close.',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   _infoCard(
                     title: 'Order Follower',
