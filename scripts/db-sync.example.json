@@ -1,0 +1,16 @@
+{
+    "ssh": {
+        "destination": "deploy@your-production-server",
+        "port": 22,
+        "identity_file": ""
+    },
+    "remote": {
+        "project_path": "/home/deploy/jewellery_soft",
+        "php_binary": "php",
+        "dump_binary": "mysqldump"
+    },
+    "local": {
+        "mysql_binary": "mysql",
+        "dump_binary": "mysqldump"
+    }
+}

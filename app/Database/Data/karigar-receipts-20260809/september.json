@@ -1,0 +1,211 @@
+{
+  "source_description": "Visually transcribed from invoice and its associated item detail page; weights grams unless stone weights explicitly in carats. All three invoice dates are September 2026.",
+  "bills": [
+    {
+      "source_pdf": "SCAN_20261030_114627444.pdf",
+      "karigar": "UTTAM MAL",
+      "invoice_no": "12/2026-2027",
+      "invoice_date": "2026-09-09",
+      "invoice_totals": {
+        "gross_weight_g": 8.38,
+        "net_weight_g": 6.994,
+        "diamond_weight_ct": 0.58,
+        "color_stone_weight_ct": 6.35,
+        "labour_amount_inr": 2448,
+        "cgst_inr": 61.2,
+        "sgst_inr": 61.2,
+        "round_off_inr": -0.4,
+        "invoice_total_inr": 2570
+      },
+      "items": [
+        {
+          "line_no": 1,
+          "description": "TOPS",
+          "karat": 18,
+          "gross_weight_g": 8.38,
+          "net_weight_g": 6.994,
+          "pure_weight_g": 5.63,
+          "quantity": null,
+          "quantity_note": "Detail page has a photograph of a pair of tops; no separate item quantity stated.",
+          "studs": [
+            {
+              "type": "VVS/EF diamond",
+              "pieces": 176,
+              "weight_ct": 0.55,
+              "rate_inr_per_ct": 40000,
+              "amount_inr": 22000
+            },
+            {
+              "type": "VVS/EF diamond",
+              "pieces": 4,
+              "weight_ct": 0.03,
+              "rate_inr_per_ct": 40000,
+              "amount_inr": 1200
+            },
+            {
+              "type": "GREEN",
+              "pieces": 2,
+              "weight_ct": 0.85,
+              "rate_inr_per_ct": 150,
+              "amount_inr": 128
+            },
+            {
+              "type": "PE",
+              "pieces": 2,
+              "weight_ct": 5.5,
+              "rate_inr_per_ct": 150,
+              "amount_inr": 825
+            }
+          ],
+          "gold_amount_inr": 81637,
+          "labour_amount_inr": 2448,
+          "total_value_inr": 108238
+        }
+      ],
+      "notes": [
+        "PE is printed literally on detail page; full stone name is not stated.",
+        "Page 2 printed item date 09.09.26."
+      ]
+    },
+    {
+      "source_pdf": "SCAN_20261030_114503210.pdf",
+      "karigar": "RHEAA JEWELS",
+      "invoice_no": "JW008/26-27",
+      "invoice_date": "2026-09-17",
+      "invoice_totals": {
+        "gross_weight_g": 54.3,
+        "net_weight_g": 52.792,
+        "diamond_weight_ct": 2.82,
+        "lab_grown_diamond_weight_ct": 4.72,
+        "wastage_weight_g": 2.64,
+        "wastage_percent": 5,
+        "labour_rate_inr_per_g": 940,
+        "labour_amount_inr": 49625,
+        "igst_inr": 2481,
+        "invoice_total_inr": 52106
+      },
+      "items": [
+        {
+          "line_no": 1,
+          "description": "BANGLE",
+          "karat": 18,
+          "gross_weight_g": 41.05,
+          "net_weight_g": 40.106,
+          "pure_weight_g": 32.005,
+          "quantity": null,
+          "quantity_note": "Page 2 photo appears to show a pair of bangles; no separate quantity stated.",
+          "studs": [
+            {
+              "type": "CVD lab-grown diamond",
+              "pieces": 20,
+              "weight_ct": 4.72,
+              "rate_inr_per_ct": 7000,
+              "amount_inr": 33040
+            }
+          ],
+          "gold_amount_inr": 452769,
+          "labour_amount_inr": 37700,
+          "total_value_inr": 523509
+        },
+        {
+          "line_no": 2,
+          "description": "Bangle (inferred from photograph; label blank on detail page)",
+          "karat": 18,
+          "gross_weight_g": 13.25,
+          "net_weight_g": 12.686,
+          "pure_weight_g": 10.123,
+          "quantity": null,
+          "studs": [
+            {
+              "type": "VVS/EF diamond",
+              "pieces": 44,
+              "weight_ct": 2.82,
+              "rate_inr_per_ct": 40000,
+              "amount_inr": 112800
+            }
+          ],
+          "gold_amount_inr": 143216,
+          "labour_amount_inr": 11925,
+          "total_value_inr": 267941
+        }
+      ],
+      "notes": [
+        "Invoice gives total labour 49,625; item detail page total prints 49,624, while its two item figures sum to 49,625. Invoice has 2.640 g wastage as a bill total; no per-item allocation is printed.",
+        "Page 2 total value is 791450."
+      ],
+      "karigar_master_name": "RHEEA JEWELS"
+    },
+    {
+      "source_pdf": "SCAN_20261030_114424970.pdf",
+      "karigar": "ANANDI JEWELS",
+      "invoice_no": "AJ-5/26-27",
+      "invoice_date": "2026-09-18",
+      "invoice_totals": {
+        "gross_weight_g": 115.018,
+        "net_weight_22kt_g": 107.054,
+        "net_weight_18kt_g": 6.04,
+        "diamond_weight_ct": 9.62,
+        "labour_amount_inr": 10895,
+        "cgst_inr": 272.38,
+        "sgst_inr": 272.38,
+        "round_off_inr": 0.24,
+        "invoice_total_inr": 11440
+      },
+      "items": [
+        {
+          "line_no": 1,
+          "description": "Jewellery (description blank; small ring-like item shown in photograph)",
+          "karat": 22,
+          "gross_weight_g": 27.238,
+          "net_weight_g": 27.238,
+          "pure_weight_g": 26.312,
+          "quantity": null,
+          "studs": [],
+          "gold_amount_inr": 372235,
+          "labour_amount_inr": 10895,
+          "total_value_inr": 383130
+        },
+        {
+          "line_no": 3,
+          "description": "Bangles (inferred from photograph; label blank)",
+          "karat": 22,
+          "gross_weight_g": 81.74,
+          "net_weight_g": 79.816,
+          "pure_weight_g": 73.431,
+          "quantity": null,
+          "quantity_note": "Photo shows four oval bangles, no quantity stated.",
+          "studs": [
+            {
+              "type": "VVS/EF diamond",
+              "pieces": 168,
+              "weight_ct": 9.62,
+              "rate_inr_per_ct": 37000,
+              "amount_inr": 355940
+            }
+          ],
+          "gold_amount_inr": 1038824,
+          "labour_amount_inr": null,
+          "total_value_inr": 1394764
+        },
+        {
+          "line_no": 2,
+          "description": "Jewellery (description blank, photograph unclear)",
+          "karat": 18,
+          "gross_weight_g": 6.04,
+          "net_weight_g": 6.04,
+          "pure_weight_g": 5.074,
+          "quantity": null,
+          "studs": [],
+          "gold_amount_inr": 71776,
+          "labour_amount_inr": null,
+          "total_value_inr": 71776
+        }
+      ],
+      "notes": [
+        "Invoice date is 18-Sep-26; detail page is dated 17.09.26. Line numbering is 1, 3, 2 as printed.",
+        "Pure weight 26.312 g for first 22KT item is transcribed exactly even though ratio appears unusual; do not recalculate it silently.",
+        "Only the first item has labour listed on the item sheet; bill total labour is 10895."
+      ]
+    }
+  ]
+}

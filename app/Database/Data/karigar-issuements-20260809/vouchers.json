@@ -1,0 +1,180 @@
+{
+  "description": "Visually checked issue voucher data; grams and carats as printed. Voucher value is aggregate and no material-wise value, lot, stone variety, or diamond pieces are supplied. Loose diamond and lab grown are preserved separately. Issue dates are independent of receipt dates.",
+  "notes": [
+    "Voucher 033 appears in two photographs; count once.",
+    "Anandi 045 issue pure gold is 104.816 g; related receipt sheets sum to 104.817 g; preserve issue amount as printed.",
+    "Uttam 033 lists only 125.602 g pure gold even though related receipt totals may be higher; do not infer difference as additional issue."
+  ],
+  "vouchers": [
+    {
+      "voucher_no": "SMGAJ-J/26-27/033",
+      "date": "2026-08-01",
+      "karigar_master_name": "UTTAM MAL",
+      "pure_gold_g": 125.602,
+      "loose_diamond_ct": 64.09,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 182.49,
+      "declared_goods_value_inr": 4429586,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.12.jpeg",
+        "WhatsApp Image 2026-10-29 at 18.12.11 (3).jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/034",
+      "date": "2026-08-03",
+      "karigar_master_name": "SHREE GOURANGO",
+      "pure_gold_g": 16.627,
+      "loose_diamond_ct": 0.56,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 0.33,
+      "declared_goods_value_inr": 262431,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.11 (2).jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/035",
+      "date": "2026-08-03",
+      "karigar_master_name": "RHEEA JEWELS",
+      "pure_gold_g": 40.815,
+      "loose_diamond_ct": 3.79,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 0,
+      "declared_goods_value_inr": 734648,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.11 (1).jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/036",
+      "date": "2026-08-11",
+      "karigar_master_name": "UTTAM MAL",
+      "pure_gold_g": 76.305,
+      "loose_diamond_ct": 0,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 0,
+      "declared_goods_value_inr": 1106422,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.11.jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/037",
+      "date": "2026-08-11",
+      "karigar_master_name": "SAFWAN JEWELLERY",
+      "pure_gold_g": 22.802,
+      "loose_diamond_ct": 0,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 5.65,
+      "declared_goods_value_inr": 342574,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.10 (3).jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/038",
+      "date": "2026-08-19",
+      "karigar_master_name": "RHEEA JEWELS",
+      "pure_gold_g": 36.737,
+      "loose_diamond_ct": 0,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 12.25,
+      "declared_goods_value_inr": 564893,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.10 (2).jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/039",
+      "date": "2026-08-20",
+      "karigar_master_name": "SHREE GOURANGO",
+      "pure_gold_g": 16.897,
+      "loose_diamond_ct": 0,
+      "lab_grown_diamond_ct": 13.3,
+      "semi_precious_stone_ct": 0,
+      "declared_goods_value_inr": 371311,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.10 (1).jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/040",
+      "date": "2026-08-22",
+      "karigar_master_name": "RHEEA JEWELS",
+      "pure_gold_g": 50.145,
+      "loose_diamond_ct": 6.55,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 0,
+      "declared_goods_value_inr": 1020332,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.10.jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/041",
+      "date": "2026-08-23",
+      "karigar_master_name": "JGD DIAMONDS",
+      "pure_gold_g": 5.735,
+      "loose_diamond_ct": 0.87,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 1.16,
+      "declared_goods_value_inr": 253623,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.09 (2).jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/042",
+      "date": "2026-09-01",
+      "karigar_master_name": "SHREE GOURANGO",
+      "pure_gold_g": 59.825,
+      "loose_diamond_ct": 6.14,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 1.4,
+      "declared_goods_value_inr": 1098572,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.09 (1).jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/043",
+      "date": "2026-09-01",
+      "karigar_master_name": "UTTAM MAL",
+      "pure_gold_g": 5.63,
+      "loose_diamond_ct": 0.58,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 6.35,
+      "declared_goods_value_inr": 105790,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.09.jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/044",
+      "date": "2026-09-08",
+      "karigar_master_name": "RHEEA JEWELS",
+      "pure_gold_g": 42.128,
+      "loose_diamond_ct": 2.82,
+      "lab_grown_diamond_ct": 4.72,
+      "semi_precious_stone_ct": 0,
+      "declared_goods_value_inr": 751265,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.08 (1).jpeg"
+      ]
+    },
+    {
+      "voucher_no": "SMGAJ-J/26-27/045",
+      "date": "2026-09-09",
+      "karigar_master_name": "ANANDI JEWELS",
+      "pure_gold_g": 104.816,
+      "loose_diamond_ct": 9.62,
+      "lab_grown_diamond_ct": 0,
+      "semi_precious_stone_ct": 0,
+      "declared_goods_value_inr": 1838775,
+      "source_images": [
+        "WhatsApp Image 2026-10-29 at 18.12.08.jpeg"
+      ]
+    }
+  ]
+}
