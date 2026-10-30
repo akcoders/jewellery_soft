@@ -173,6 +173,9 @@ $routes->group('admin', ['filter' => 'adminAuth'], static function ($routes): vo
     $routes->post('arattai-users/(:num)/toggle', 'Admin\ArattaiUserMappingController::toggle/$1', ['filter' => ['permission:company-settings.manage', 'csrf']]);
     $routes->get('system/database-update', 'Admin\DatabaseUpdateController::index', ['filter' => 'permission:company-settings.manage']);
     $routes->post('system/database-update', 'Admin\DatabaseUpdateController::run', ['filter' => 'permission:company-settings.manage']);
+    $routes->get('mcp-keys', 'Admin\McpApiKeyController::index', ['filter' => 'permission:company-settings.manage']);
+    $routes->post('mcp-keys', 'Admin\McpApiKeyController::store', ['filter' => ['permission:company-settings.manage', 'csrf']]);
+    $routes->post('mcp-keys/(:num)/revoke', 'Admin\McpApiKeyController::revoke/$1', ['filter' => ['permission:company-settings.manage', 'csrf']]);
     $routes->get('system/maintenance', 'Admin\SystemMaintenanceController::index', ['filter' => 'permission:company-settings.manage']);
     $routes->post('system/maintenance/pwa-update', 'Admin\SystemMaintenanceController::publishPwaUpdate', ['filter' => 'permission:company-settings.manage']);
     $routes->post('system/maintenance/monthly-cleanup', 'Admin\SystemMaintenanceController::cleanupMonth', ['filter' => 'permission:company-settings.manage']);
@@ -456,6 +459,10 @@ $routes->group('api', static function ($routes): void {
     $routes->get('documents/ledger/(:num)', 'Api\DocumentsController::ledgerStatement/$1');
 
     $routes->post('demo/full-flow', 'Api\DemoController::run');
+
+    // Server-to-server session for the MCP server (mcp-server/). Guarded by mcp.sharedSecret.
+    $routes->post('mcp/session', 'Api\McpSessionController::create');
+    $routes->post('mcp/verify-key', 'Api\McpSessionController::verifyKey');
 
     $routes->group('mobile', static function ($routes): void {
         $routes->post('login', 'Api\Mobile\AuthController::login');

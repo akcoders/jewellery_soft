@@ -67,6 +67,8 @@ npm run create-key -- --name "Claude" --user 1 --scopes read,write --expires-day
 
 `--user` is the `admin_users.id` the key acts as; the ERP role of that user decides what the key can see and do. Add `sql` to `--scopes` only for keys that may run read-only SQL.
 
+**Keys from the ERP admin panel.** Admins can also issue per-user keys at *Admin → MCP API Keys* (`/admin/mcp-keys`, permission `company-settings.manage`). Those keys live hashed in the ERP database; when a bearer key is not found in `mcp_api_keys` of the state DB, the MCP server checks it with `POST /api/mcp/verify-key` (same `X-MCP-Secret`) and caches the answer for 60 s, so a key revoked in the ERP stops working within a minute.
+
 ### 3. Deploy on Vercel from GitHub
 
 1. Push this repository to GitHub.

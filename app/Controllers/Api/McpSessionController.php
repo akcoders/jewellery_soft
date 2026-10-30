@@ -4,12 +4,15 @@ namespace App\Controllers\Api;
 
 use App\Models\AdminUserModel;
 use App\Models\MobileApiTokenModel;
+use App\Services\McpApiKeyService;
 
 /**
  * Server-to-server endpoint used by the MCP server (mcp-server/) to obtain a
  * short-lived mobile API token for the ERP user an MCP API key is mapped to.
  * Protected by the shared secret `mcp.sharedSecret` from .env; nothing else in
  * the ERP changes, and the MCP server then uses the regular /api/mobile routes.
+ * POST /api/mcp/verify-key lets the MCP server check API keys issued from
+ * /admin/mcp-keys (it sends only the key's SHA-256 hash).
  */
 class McpSessionController extends ApiBaseController
 {
@@ -17,11 +20,7 @@ class McpSessionController extends ApiBaseController
 
     public function create()
     {
-        $secret = trim((string) env('mcp.sharedSecret', ''));
-        $given = trim((string) $this->request->getHeaderLine('X-MCP-Secret'));
-        if ($secret === '' || $given === '' || ! hash_equals($secret, $given)) {
-            log_message('warning', 'MCP session request rejected from {ip}', ['ip' => $this->request->getIPAddress()]);
-
+        if (! $this->hasValidSecret('session')) {
             return $this->fail('Unauthorized.', 401);
         }
 
@@ -71,5 +70,33 @@ class McpSessionController extends ApiBaseController
                 'email' => (string) ($admin['email'] ?? ''),
             ],
         ], 'MCP session created.');
+    }
+
+    public function verifyKey()
+    {
+        if (! $this->hasValidSecret('key verification')) {
+            return $this->fail('Unauthorized.', 401);
+        }
+
+        $keyHash = strtolower(trim((string) ($this->payload()['key_hash'] ?? '')));
+        $result = (new McpApiKeyService())->verifyHash($keyHash);
+        if (is_string($result)) {
+            return $this->fail($result, 404);
+        }
+
+        return $this->ok($result, 'API key is valid.');
+    }
+
+    private function hasValidSecret(string $purpose): bool
+    {
+        $secret = trim((string) env('mcp.sharedSecret', ''));
+        $given = trim((string) $this->request->getHeaderLine('X-MCP-Secret'));
+        if ($secret === '' || $given === '' || ! hash_equals($secret, $given)) {
+            log_message('warning', 'MCP {purpose} request rejected from {ip}', ['purpose' => $purpose, 'ip' => $this->request->getIPAddress()]);
+
+            return false;
+        }
+
+        return true;
     }
 }

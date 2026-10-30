@@ -11,6 +11,7 @@ import { OAuthError, OAuthErrorCode, type AuthInfo, type OAuthTokenVerifier } fr
 import { ALL_SCOPES, isScope, loadConfig, type Scope } from "./config.js";
 import { safeEqual, sha256Hex } from "./crypto.js";
 import { execute, queryRows, stateDb, type Row } from "./db.js";
+import { ERP_KEY_ID_OFFSET, ErpKeyRejected, erpKeysEnabled, verifyErpKey, type ErpKey } from "./erpKeys.js";
 import { parseUtcSql, utcNowSql } from "./time.js";
 
 export interface Principal {
@@ -50,6 +51,27 @@ function toAuthInfo(token: string, principal: Principal, expiresAtMs: number): A
   };
 }
 
+async function verifyThroughErp(token: string, keyHash: string, now: number): Promise<AuthInfo> {
+  let key: ErpKey;
+  try {
+    key = await verifyErpKey(keyHash);
+  } catch (error) {
+    if (error instanceof ErpKeyRejected) throw new OAuthError(OAuthErrorCode.InvalidToken, error.message);
+    console.error("ERP key check failed:", error);
+    throw new OAuthError(OAuthErrorCode.ServerError, "The ERP could not verify this key. Try again shortly.");
+  }
+
+  if (key.expiresAt && key.expiresAt.getTime() <= now) throw new OAuthError(OAuthErrorCode.InvalidToken, "This API key has expired.");
+  const scopes = parseScopes(key.scopes.join(","));
+  if (scopes.length === 0) {
+    throw new OAuthError(OAuthErrorCode.InvalidToken, "This API key has no scopes. Re-issue it with at least the 'read' scope.");
+  }
+
+  const principal: Principal = { keyId: ERP_KEY_ID_OFFSET + key.id, keyName: key.name, adminUserId: key.adminUserId, scopes };
+  const expiresAtMs = key.expiresAt ? Math.min(key.expiresAt.getTime(), now + 3_600_000) : now + 3_600_000;
+  return toAuthInfo(token, principal, expiresAtMs);
+}
+
 export function createVerifier(): OAuthTokenVerifier {
   return {
     async verifyAccessToken(token: string): Promise<AuthInfo> {
@@ -67,25 +89,28 @@ export function createVerifier(): OAuthTokenVerifier {
         );
       }
 
+      const keyHash = sha256Hex(token);
       const pool = stateDb();
-      if (!pool) {
-        throw new OAuthError(OAuthErrorCode.InvalidToken, "Unknown API key (no key store is configured).");
+      let row: ApiKeyRow | undefined;
+      if (pool) {
+        try {
+          const rows = await queryRows<ApiKeyRow>(
+            pool,
+            "SELECT id, name, admin_user_id, scopes, expires_at, revoked_at FROM mcp_api_keys WHERE key_hash = ? LIMIT 1",
+            [keyHash]
+          );
+          row = rows[0];
+        } catch (error) {
+          console.error("API key lookup failed:", error);
+          throw new OAuthError(OAuthErrorCode.ServerError, "The key store is unavailable. Try again shortly.");
+        }
       }
 
-      let rows: ApiKeyRow[];
-      try {
-        rows = await queryRows<ApiKeyRow>(
-          pool,
-          "SELECT id, name, admin_user_id, scopes, expires_at, revoked_at FROM mcp_api_keys WHERE key_hash = ? LIMIT 1",
-          [sha256Hex(token)]
-        );
-      } catch (error) {
-        console.error("API key lookup failed:", error);
-        throw new OAuthError(OAuthErrorCode.ServerError, "The key store is unavailable. Try again shortly.");
+      if (!pool || !row) {
+        // Not a state-DB key: try keys issued from the ERP admin page.
+        if (erpKeysEnabled()) return verifyThroughErp(token, keyHash, now);
+        throw new OAuthError(OAuthErrorCode.InvalidToken, pool ? "Unknown API key." : "Unknown API key (no key store is configured).");
       }
-
-      const row = rows[0];
-      if (!row) throw new OAuthError(OAuthErrorCode.InvalidToken, "Unknown API key.");
       if (row.revoked_at) throw new OAuthError(OAuthErrorCode.InvalidToken, "This API key has been revoked.");
       const expires = parseUtcSql(row.expires_at);
       if (expires && expires.getTime() <= now) throw new OAuthError(OAuthErrorCode.InvalidToken, "This API key has expired.");

@@ -65,7 +65,9 @@ try {
     headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", Authorization: "Bearer nope" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "smoke", version: "1" } } })
   });
-  assert.equal(wrong.status, 401, "unknown token must be rejected");
+  // The key is not in the (absent) state DB, so the ERP is asked to vouch for it; the ERP is
+  // unreachable here, so the request fails closed with a server error instead of being accepted.
+  assert.equal(wrong.status, 500, "unknown token must be rejected when the ERP cannot verify it");
 
   // Resource metadata document
   const metadata = (await (await fetch(`${BASE}/.well-known/oauth-protected-resource`)).json()) as { resource: string };

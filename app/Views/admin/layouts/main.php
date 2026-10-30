@@ -71,6 +71,7 @@ $isCompanySettings = $segment2 === 'company-settings';
 $isArattaiUsers = $segment2 === 'arattai-users';
 $isDatabaseUpdate = $segment2 === 'system' && $segment3 === 'database-update';
 $isSystemMaintenance = $segment2 === 'system' && $segment3 === 'maintenance';
+$isMcpKeys = $segment2 === 'mcp-keys';
 $isInventory= $segment2 === 'inventory';
 $isInventoryStock = $isInventory && ($segment3 === '' || $segment3 === 'stock');
 $isInventoryWarehouses = $isInventory && $segment3 === 'warehouses';
@@ -1962,6 +1963,9 @@ $showAdminAlertCenter = $isDash && (bool) session()->getFlashdata('show_admin_al
                         </li>
                         <li class="<?= $isSystemMaintenance ? 'active' : '' ?>">
                             <a href="<?= site_url('admin/system/maintenance') ?>"><i class="fe fe-tool"></i> <span>System Maintenance</span></a>
+                        </li>
+                        <li class="<?= $isMcpKeys ? 'active' : '' ?>">
+                            <a href="<?= site_url('admin/mcp-keys') ?>"><i class="fe fe-key"></i> <span>MCP API Keys</span></a>
                         </li>
                         <?php endif; ?>
                         <?php if ($canAccessControl): ?>

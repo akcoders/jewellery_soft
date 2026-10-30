@@ -70,3 +70,14 @@
 #--------------------------------------------------------------------
 
 # logger.threshold = 4
+
+#--------------------------------------------------------------------
+# MCP SERVER (mcp-server/, POST /api/mcp/session)
+#--------------------------------------------------------------------
+# Shared secret the Node MCP server sends in X-MCP-Secret to open a session.
+# Must equal MCP_ERP_SHARED_SECRET on the MCP server. Leave empty to disable.
+
+# mcp.sharedSecret = ''
+
+# Public MCP endpoint, shown on Admin > MCP API Keys next to a new key (optional).
+# mcp.publicUrl = 'https://mcp.example.com/mcp'
