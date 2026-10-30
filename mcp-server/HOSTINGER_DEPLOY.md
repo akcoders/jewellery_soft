@@ -96,6 +96,15 @@ curl -s https://aabhushan-mcp.thomsontnt.com/mcp \
 - URL: `https://aabhushan-mcp.thomsontnt.com/mcp`
 - Header: `Authorization: Bearer <key>`
 
+## 9. ChatGPT / claude.ai (OAuth)
+
+Key ki zaroorat nahi. Connector mein sirf URL do:
+
+- URL: `https://aabhushan-mcp.thomsontnt.com/mcp`
+- Authentication: **OAuth** (Client ID/Secret khaali chhodo, app khud register ho jaata hai)
+
+Connect dabane par ERP ka "Connect …" page khulega → ERP login → **Allow**. Connection ERP → **MCP API Keys** mein "OAuth connection" ke roop mein dikhega; wahan se Revoke.
+
 ## Update kaise karein
 
 Step 5 se naya zip banao → hPanel mein upload → app restart.

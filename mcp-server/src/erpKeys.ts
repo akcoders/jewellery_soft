@@ -30,9 +30,14 @@ type CacheEntry = { until: number; key: ErpKey } | { until: number; rejected: st
 const cache = new Map<string, CacheEntry>();
 const CACHE_MAX_ENTRIES = 1000;
 
-function remember(keyHash: string, entry: CacheEntry): void {
+function remember(cacheKey: string, entry: CacheEntry): void {
   if (cache.size >= CACHE_MAX_ENTRIES) cache.clear();
-  cache.set(keyHash, entry);
+  cache.set(cacheKey, entry);
+}
+
+/** Drops a cached grant so the next check asks the ERP again (used after consent). */
+export function forgetErpGrant(grantId: number): void {
+  cache.delete(`grant:${grantId}`);
 }
 
 export function erpKeysEnabled(): boolean {
@@ -44,9 +49,22 @@ export function erpKeysEnabled(): boolean {
  * Resolves a key hash through the ERP. Throws ErpKeyRejected for unusable keys
  * and a plain Error when the ERP cannot be reached or answers unexpectedly.
  */
-export async function verifyErpKey(keyHash: string): Promise<ErpKey> {
+export function verifyErpKey(keyHash: string): Promise<ErpKey> {
+  return lookup(keyHash, { key_hash: keyHash });
+}
+
+/**
+ * Resolves an OAuth grant (an ERP key row created by the consent page) by id,
+ * with the same caching, so revoking the connection in the ERP takes effect
+ * within ERP_KEY_CACHE_MS.
+ */
+export function verifyErpGrant(grantId: number, options: { fresh?: boolean } = {}): Promise<ErpKey> {
+  return lookup(`grant:${grantId}`, { key_id: grantId }, options.fresh === true);
+}
+
+async function lookup(cacheKey: string, body: Record<string, string | number>, fresh = false): Promise<ErpKey> {
   const now = Date.now();
-  const cached = cache.get(keyHash);
+  const cached = fresh ? undefined : cache.get(cacheKey);
   if (cached && cached.until > now) {
     if ("rejected" in cached) throw new ErpKeyRejected(cached.rejected);
     return cached.key;
@@ -58,7 +76,7 @@ export async function verifyErpKey(keyHash: string): Promise<ErpKey> {
     response = await fetch(`${config.erpBaseUrl}/api/mcp/verify-key`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "X-MCP-Secret": config.erpSharedSecret },
-      body: JSON.stringify({ key_hash: keyHash }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS)
     });
   } catch (error) {
@@ -74,7 +92,7 @@ export async function verifyErpKey(keyHash: string): Promise<ErpKey> {
 
   if (response.status === 404) {
     const reason = envelope.message ?? "Unknown API key.";
-    remember(keyHash, { until: now + ERP_KEY_MISS_CACHE_MS, rejected: reason });
+    remember(cacheKey, { until: now + ERP_KEY_MISS_CACHE_MS, rejected: reason });
     throw new ErpKeyRejected(reason);
   }
   if (!response.ok || envelope.success === false || !envelope.data) {
@@ -92,6 +110,6 @@ export async function verifyErpKey(keyHash: string): Promise<ErpKey> {
   if (!Number.isInteger(key.id) || key.id <= 0 || !Number.isInteger(key.adminUserId) || key.adminUserId <= 0) {
     throw new Error("ERP key check returned an invalid key record.");
   }
-  remember(keyHash, { until: now + ERP_KEY_CACHE_MS, key });
+  remember(cacheKey, { until: now + ERP_KEY_CACHE_MS, key });
   return key;
 }

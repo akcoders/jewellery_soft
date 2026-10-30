@@ -97,8 +97,71 @@ export const STATE_SCHEMA_SQL: readonly string[] = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
 ];
 
+/** OAuth 2.1 state: registered clients, pending authorizations (+ their codes) and issued tokens. */
+export const OAUTH_SCHEMA_SQL: readonly string[] = [
+  `CREATE TABLE IF NOT EXISTS mcp_oauth_clients (
+    client_id VARCHAR(64) NOT NULL,
+    client_secret_hash CHAR(64) NULL,
+    client_name VARCHAR(100) NOT NULL,
+    redirect_uris TEXT NOT NULL,
+    token_endpoint_auth_method VARCHAR(30) NOT NULL DEFAULT 'none',
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (client_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS mcp_oauth_requests (
+    id CHAR(48) NOT NULL,
+    client_id VARCHAR(64) NOT NULL,
+    redirect_uri VARCHAR(500) NOT NULL,
+    code_challenge VARCHAR(128) NOT NULL,
+    scope VARCHAR(100) NOT NULL,
+    state TEXT NULL,
+    resource VARCHAR(300) NULL,
+    expires_at DATETIME NOT NULL,
+    decided_at DATETIME NULL,
+    code_hash CHAR(64) NULL,
+    code_expires_at DATETIME NULL,
+    code_used_at DATETIME NULL,
+    grant_id INT UNSIGNED NULL,
+    admin_user_id INT UNSIGNED NULL,
+    granted_scope VARCHAR(100) NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_mcp_oauth_requests_code (code_hash),
+    KEY idx_mcp_oauth_requests_expires (expires_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS mcp_oauth_tokens (
+    token_hash CHAR(64) NOT NULL,
+    kind VARCHAR(10) NOT NULL,
+    client_id VARCHAR(64) NOT NULL,
+    grant_id INT UNSIGNED NOT NULL,
+    admin_user_id INT UNSIGNED NOT NULL,
+    scope VARCHAR(100) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    revoked_at DATETIME NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (token_hash),
+    KEY idx_mcp_oauth_tokens_grant (grant_id, client_id),
+    KEY idx_mcp_oauth_tokens_expires (expires_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+];
+
 export async function ensureStateSchema(pool: Pool): Promise<void> {
-  for (const statement of STATE_SCHEMA_SQL) await pool.query(statement);
+  for (const statement of [...STATE_SCHEMA_SQL, ...OAUTH_SCHEMA_SQL]) await pool.query(statement);
+}
+
+let oauthSchemaReady: Promise<void> | undefined;
+
+/** Creates the OAuth tables once per process, so hosts that set up tables by hand keep working. */
+export function ensureOAuthSchema(pool: Pool): Promise<void> {
+  if (!oauthSchemaReady) {
+    oauthSchemaReady = (async () => {
+      for (const statement of OAUTH_SCHEMA_SQL) await pool.query(statement);
+    })().catch(error => {
+      oauthSchemaReady = undefined;
+      throw error;
+    });
+  }
+  return oauthSchemaReady;
 }
 
 export async function queryRows<T extends Row = Row>(pool: Pool, sql: string, params: SqlParam[] = []): Promise<T[]> {

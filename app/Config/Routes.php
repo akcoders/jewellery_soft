@@ -19,6 +19,10 @@ $routes->group('customer', ['filter' => 'customerAuth'], static function ($route
     $routes->get('logout', 'Customer\AuthController::logout');
 });
 
+// OAuth consent for MCP clients (ChatGPT, claude.ai). Checks login itself so it can resume after the login page.
+$routes->get('admin/mcp-authorize', 'Admin\McpAuthorizeController::index');
+$routes->post('admin/mcp-authorize', 'Admin\McpAuthorizeController::decide', ['filter' => 'csrf']);
+
 $routes->group('admin', ['filter' => 'adminGuest'], static function ($routes): void {
     $routes->get('login', 'Admin\AuthController::login');
     $routes->post('login', 'Admin\AuthController::attemptLogin');

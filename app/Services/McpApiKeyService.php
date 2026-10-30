@@ -22,6 +22,9 @@ class McpApiKeyService
     /** Allowed expiry choices in days; 0 = never expires. */
     public const EXPIRY_DAYS = [30, 90, 180, 365, 0];
 
+    /** key_prefix of rows created by the OAuth consent page (ChatGPT, claude.ai connectors). */
+    public const OAUTH_PREFIX = 'oauth';
+
     private BaseConnection $db;
 
     public function __construct(?BaseConnection $db = null)
@@ -209,13 +212,113 @@ class McpApiKeyService
             return 'Unknown API key.';
         }
 
-        $row = $this->db->table(self::TABLE . ' k')
+        return $this->usableKey($this->db->table(self::TABLE . ' k')
             ->select('k.*, u.is_active AS user_active')
             ->join('admin_users u', 'u.id = k.admin_user_id', 'left')
             ->where('k.key_hash', $keyHash)
             ->get(1)
-            ->getRowArray();
+            ->getRowArray());
+    }
 
+    /**
+     * Looks up an OAuth connection (grant) by id for the MCP server. Only
+     * rows created by the consent page qualify, so admin keys cannot be
+     * used by id.
+     *
+     * @return array<string,mixed>|string
+     */
+    public function verifyGrant(int $id)
+    {
+        if ($id <= 0 || ! $this->tableReady()) {
+            return 'Unknown connection.';
+        }
+
+        return $this->usableKey($this->db->table(self::TABLE . ' k')
+            ->select('k.*, u.is_active AS user_active')
+            ->join('admin_users u', 'u.id = k.admin_user_id', 'left')
+            ->where('k.id', $id)
+            ->where('k.key_prefix', self::OAUTH_PREFIX)
+            ->get(1)
+            ->getRowArray());
+    }
+
+    /**
+     * Records the user's consent for an OAuth client. The row's key hash is
+     * random and never revealed, so it can only be used through OAuth tokens.
+     *
+     * @param list<string> $scopes
+     */
+    public function createOAuthGrant(int $adminUserId, string $clientName, array $scopes): int
+    {
+        $this->ensureTable();
+
+        $scopes = self::normalizeScopes($scopes);
+        if ($adminUserId <= 0 || $scopes === []) {
+            throw new InvalidArgumentException('A user and at least one scope are required.');
+        }
+
+        $label = trim((string) preg_replace('/[^A-Za-z0-9 _.\-]/', '', $clientName)) ?: 'MCP client';
+        $name = mb_substr('OAuth ' . $label, 0, 33) . ' ' . bin2hex(random_bytes(3));
+
+        $this->db->table(self::TABLE)->insert([
+            'name' => $name,
+            'key_prefix' => self::OAUTH_PREFIX,
+            'key_hash' => self::hashKey(bin2hex(random_bytes(32))),
+            'admin_user_id' => $adminUserId,
+            'scopes' => implode(',', $scopes),
+            'expires_at' => null,
+            'revoked_at' => null,
+            'last_used_at' => null,
+            'created_by' => $adminUserId,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return (int) $this->db->insertID();
+    }
+
+    /**
+     * HMAC-signed JSON for the browser hand-off with the MCP server. Matches
+     * signPayload/verifySignedPayload in mcp-server/src/crypto.ts:
+     * data = base64url(JSON), sig = base64url(HMAC-SHA256(data)).
+     *
+     * @param array<string,mixed> $payload
+     * @return array{data:string,sig:string}
+     */
+    public static function signPayload(array $payload, string $secret): array
+    {
+        $data = self::base64UrlEncode((string) json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+        return ['data' => $data, 'sig' => self::base64UrlEncode(hash_hmac('sha256', $data, $secret, true))];
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    public static function verifySignedPayload(string $data, string $sig, string $secret): ?array
+    {
+        if ($secret === '' || $data === '' || $sig === '') {
+            return null;
+        }
+        $expected = self::base64UrlEncode(hash_hmac('sha256', $data, $secret, true));
+        if (! hash_equals($expected, $sig)) {
+            return null;
+        }
+        $decoded = json_decode((string) base64_decode(strtr($data, '-_', '+/'), true), true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private static function base64UrlEncode(string $raw): string
+    {
+        return rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
+    }
+
+    /**
+     * @param array<string,mixed>|null $row
+     * @return array<string,mixed>|string
+     */
+    private function usableKey(?array $row)
+    {
         if (! is_array($row)) {
             return 'Unknown API key.';
         }

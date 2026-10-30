@@ -87,8 +87,27 @@ curl -s https://mcp.yourdomain.com/mcp -H "Authorization: Bearer mcp_..." \
 
 ### 4. Connect a client
 
-* **Claude** (custom connector / MCP settings): URL `https://mcp.yourdomain.com/mcp`, header `Authorization: Bearer <key>`.
-* **MCP Inspector**: `npx @modelcontextprotocol/inspector`, transport *Streamable HTTP*, same URL and header.
+* **Claude Code / clients with custom headers**: URL `https://mcp.yourdomain.com/mcp`, header `Authorization: Bearer <key>`.
+* **ChatGPT, claude.ai / Claude Desktop connectors (OAuth)**: just the URL `https://mcp.yourdomain.com/mcp`, authentication *OAuth*. The user logs in to the ERP and allows access (see below).
+* **MCP Inspector**: `npx @modelcontextprotocol/inspector`, transport *Streamable HTTP*, same URL and either the header or its OAuth flow.
+
+### 5. OAuth 2.1 (ChatGPT / claude.ai connectors)
+
+Enabled automatically when `MCP_PUBLIC_URL`, `MCP_DATABASE_URL`, `ERP_BASE_URL` and `MCP_ERP_SHARED_SECRET` are set. The MCP server is the authorization server (issuer = origin of `MCP_PUBLIC_URL`):
+
+| Endpoint | Purpose |
+|---|---|
+| `/.well-known/oauth-protected-resource` | lists the issuer in `authorization_servers` |
+| `/.well-known/oauth-authorization-server` | RFC 8414 metadata (also served at `/.well-known/openid-configuration`) |
+| `POST /register` | dynamic client registration (RFC 7591); https redirect URIs, or http only for localhost |
+| `GET /authorize` | PKCE S256 required; sends the browser to the ERP consent page `/admin/mcp-authorize` with an HMAC-signed request |
+| `GET /oauth/callback` | receives the ERP's signed decision and redirects to the client with a one-time code (2 min) |
+| `POST /token` | `authorization_code` and `refresh_token`; access tokens 1 h, refresh tokens 30 days, rotated with reuse detection |
+| `POST /revoke` | RFC 7009 |
+
+Any active ERP user can connect their own account; the AI client gets exactly that user's ERP permissions and the scopes ticked on the consent page (`sql` is offered only while `ERP_DATABASE_URL` is set). Each approval is stored in the ERP as an *OAuth connection* row in `mcp_api_keys` and appears on *Admin → MCP API Keys*; revoking it there blocks new tokens immediately and existing access tokens within 60 s. Tables `mcp_oauth_clients`, `mcp_oauth_requests` and `mcp_oauth_tokens` are created on first use (or by `npm run migrate`).
+
+OAuth is tested with the self-hosted Node entry (`npm start`); `vercel.json` has no rewrites for the OAuth paths yet.
 
 ## Local development
 

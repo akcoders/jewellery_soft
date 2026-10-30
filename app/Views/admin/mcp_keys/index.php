@@ -16,7 +16,7 @@ $mcpUrl = (string) ($mcpUrl ?? '');
     <div>
         <span class="erp-eyebrow">Integrations</span>
         <h4 class="mb-1">MCP API Keys</h4>
-        <p class="mb-0">Give each user a separate key for Claude and other AI clients. A key works with the same permissions as its ERP user.</p>
+        <p class="mb-0">Give each user a separate key for Claude and other AI clients. A key works with the same permissions as its ERP user. Apps that connect with OAuth (ChatGPT, claude.ai) appear here as OAuth connections after the user allows them.</p>
     </div>
 </div>
 
@@ -131,7 +131,11 @@ $mcpUrl = (string) ($mcpUrl ?? '');
                                         </td>
                                         <td>
                                             <div><?= esc((string) $key['name']) ?></div>
-                                            <code class="small"><?= esc((string) $key['key_prefix']) ?>…</code>
+                                            <?php if ((string) $key['key_prefix'] === \App\Services\McpApiKeyService::OAUTH_PREFIX): ?>
+                                                <span class="badge bg-info text-dark">OAuth connection</span>
+                                            <?php else: ?>
+                                                <code class="small"><?= esc((string) $key['key_prefix']) ?>…</code>
+                                            <?php endif; ?>
                                         </td>
                                         <td><?= esc(str_replace(',', ', ', (string) $key['scopes'])) ?></td>
                                         <td class="small"><?= empty($key['expires_at']) ? 'Never' : esc(date('d M Y', strtotime((string) $key['expires_at']))) ?></td>

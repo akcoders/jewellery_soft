@@ -47,6 +47,46 @@ final class McpApiKeyTest extends CIUnitTestCase
         $this->assertStringContainsString("return 'The ERP user for this API key is inactive.';", $service);
     }
 
+    public function testSignedPayloadRoundTripsAndRejectsTampering(): void
+    {
+        $signed = McpApiKeyService::signPayload(['v' => 1, 'rid' => 'abc', 'client' => 'ChatGPT', 'scopes' => ['read']], 'secret');
+
+        $this->assertSame(
+            ['v' => 1, 'rid' => 'abc', 'client' => 'ChatGPT', 'scopes' => ['read']],
+            McpApiKeyService::verifySignedPayload($signed['data'], $signed['sig'], 'secret')
+        );
+        $this->assertNull(McpApiKeyService::verifySignedPayload($signed['data'], $signed['sig'], 'other-secret'));
+        $this->assertNull(McpApiKeyService::verifySignedPayload($signed['data'] . 'x', $signed['sig'], 'secret'));
+        $this->assertNull(McpApiKeyService::verifySignedPayload($signed['data'], $signed['sig'], ''));
+        // Same wire format as mcp-server/src/crypto.ts (base64url, no padding).
+        $this->assertDoesNotMatchRegularExpression('/[+\/=]/', $signed['data'] . $signed['sig']);
+    }
+
+    public function testOAuthConsentRoutesAndGrantLookupAreRestricted(): void
+    {
+        $routes = (string) file_get_contents(APPPATH . 'Config/Routes.php');
+        $service = (string) file_get_contents(APPPATH . 'Services/McpApiKeyService.php');
+        $controller = (string) file_get_contents(APPPATH . 'Controllers/Api/McpSessionController.php');
+
+        $this->assertStringContainsString("\$routes->get('admin/mcp-authorize', 'Admin\\McpAuthorizeController::index');", $routes);
+        $this->assertStringContainsString("\$routes->post('admin/mcp-authorize', 'Admin\\McpAuthorizeController::decide', ['filter' => 'csrf']);", $routes);
+        // Grants are looked up by id only for consent-created rows, never admin keys.
+        $this->assertStringContainsString("->where('k.key_prefix', self::OAUTH_PREFIX)", $service);
+        $this->assertStringContainsString("? \$service->verifyGrant((int) \$payload['key_id'])", $controller);
+    }
+
+    public function testConsentPageVerifiesSignatureAndLoginOnlyResumesToIt(): void
+    {
+        $consent = (string) file_get_contents(APPPATH . 'Controllers/Admin/McpAuthorizeController.php');
+        $login = (string) file_get_contents(APPPATH . 'Controllers/Admin/AuthController.php');
+
+        $this->assertStringContainsString('McpApiKeyService::verifySignedPayload(', $consent);
+        $this->assertStringContainsString("(int) (\$payload['exp'] ?? 0) < time()", $consent);
+        $this->assertStringContainsString('array_intersect(', $consent);
+        $this->assertStringContainsString("redirect()->to(\$this->postLoginTarget())", $login);
+        $this->assertStringContainsString("return str_starts_with(\$target, \$consentUrl) ? \$target : site_url('admin/dashboard');", $login);
+    }
+
     public function testSidebarLinksToTheKeyPage(): void
     {
         $layout = (string) file_get_contents(APPPATH . 'Views/admin/layouts/main.php');

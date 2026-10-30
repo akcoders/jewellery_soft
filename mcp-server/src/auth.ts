@@ -11,7 +11,8 @@ import { OAuthError, OAuthErrorCode, type AuthInfo, type OAuthTokenVerifier } fr
 import { ALL_SCOPES, isScope, loadConfig, type Scope } from "./config.js";
 import { safeEqual, sha256Hex } from "./crypto.js";
 import { execute, queryRows, stateDb, type Row } from "./db.js";
-import { ERP_KEY_ID_OFFSET, ErpKeyRejected, erpKeysEnabled, verifyErpKey, type ErpKey } from "./erpKeys.js";
+import { ERP_KEY_ID_OFFSET, ErpKeyRejected, erpKeysEnabled, verifyErpGrant, verifyErpKey, type ErpKey } from "./erpKeys.js";
+import { isOAuthAccessToken, lookupAccessToken } from "./oauth.js";
 import { parseUtcSql, utcNowSql } from "./time.js";
 
 export interface Principal {
@@ -72,6 +73,34 @@ async function verifyThroughErp(token: string, keyHash: string, now: number): Pr
   return toAuthInfo(token, principal, expiresAtMs);
 }
 
+/** Access tokens issued by our OAuth endpoints (ChatGPT / claude.ai connectors). */
+async function verifyOAuthToken(token: string, now: number): Promise<AuthInfo> {
+  let access: Awaited<ReturnType<typeof lookupAccessToken>>;
+  try {
+    access = await lookupAccessToken(token);
+  } catch (error) {
+    console.error("OAuth token lookup failed:", error);
+    throw new OAuthError(OAuthErrorCode.ServerError, "The token store is unavailable. Try again shortly.");
+  }
+  if (typeof access === "string") throw new OAuthError(OAuthErrorCode.InvalidToken, access);
+
+  let grant: ErpKey;
+  try {
+    grant = await verifyErpGrant(access.grantId);
+  } catch (error) {
+    if (error instanceof ErpKeyRejected) throw new OAuthError(OAuthErrorCode.InvalidToken, error.message);
+    console.error("ERP grant check failed:", error);
+    throw new OAuthError(OAuthErrorCode.ServerError, "The ERP could not verify this connection. Try again shortly.");
+  }
+  if (grant.adminUserId !== access.adminUserId) throw new OAuthError(OAuthErrorCode.InvalidToken, "This connection belongs to a different ERP user.");
+
+  const scopes = access.scopes.filter(scope => grant.scopes.includes(scope));
+  if (scopes.length === 0) throw new OAuthError(OAuthErrorCode.InvalidToken, "This connection no longer allows any scope. Connect again.");
+
+  const principal: Principal = { keyId: ERP_KEY_ID_OFFSET + access.grantId, keyName: grant.name, adminUserId: grant.adminUserId, scopes };
+  return toAuthInfo(token, principal, Math.min(access.expiresAt.getTime(), now + 3_600_000));
+}
+
 export function createVerifier(): OAuthTokenVerifier {
   return {
     async verifyAccessToken(token: string): Promise<AuthInfo> {
@@ -88,6 +117,8 @@ export function createVerifier(): OAuthTokenVerifier {
           now + 3_600_000
         );
       }
+
+      if (isOAuthAccessToken(token)) return verifyOAuthToken(token, now);
 
       const keyHash = sha256Hex(token);
       const pool = stateDb();

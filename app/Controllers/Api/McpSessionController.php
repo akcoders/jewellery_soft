@@ -12,7 +12,8 @@ use App\Services\McpApiKeyService;
  * Protected by the shared secret `mcp.sharedSecret` from .env; nothing else in
  * the ERP changes, and the MCP server then uses the regular /api/mobile routes.
  * POST /api/mcp/verify-key lets the MCP server check API keys issued from
- * /admin/mcp-keys (it sends only the key's SHA-256 hash).
+ * /admin/mcp-keys (it sends only the key's SHA-256 hash) and OAuth
+ * connections approved at /admin/mcp-authorize (by id).
  */
 class McpSessionController extends ApiBaseController
 {
@@ -78,8 +79,12 @@ class McpSessionController extends ApiBaseController
             return $this->fail('Unauthorized.', 401);
         }
 
-        $keyHash = strtolower(trim((string) ($this->payload()['key_hash'] ?? '')));
-        $result = (new McpApiKeyService())->verifyHash($keyHash);
+        $payload = $this->payload();
+        $service = new McpApiKeyService();
+        // key_id = OAuth connection created by /admin/mcp-authorize; key_hash = admin-issued key.
+        $result = isset($payload['key_id'])
+            ? $service->verifyGrant((int) $payload['key_id'])
+            : $service->verifyHash(strtolower(trim((string) ($payload['key_hash'] ?? ''))));
         if (is_string($result)) {
             return $this->fail($result, 404);
         }

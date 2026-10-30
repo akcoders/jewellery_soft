@@ -5,8 +5,9 @@
  */
 import { getOAuthProtectedResourceMetadataUrl, hostHeaderValidationResponse, requireBearerAuth } from "@modelcontextprotocol/server";
 import { createVerifier } from "./auth.js";
-import { ALL_SCOPES, loadConfig, SERVER_NAME, SERVER_VERSION } from "./config.js";
+import { loadConfig, SERVER_NAME, SERVER_VERSION } from "./config.js";
 import { stateDb } from "./db.js";
+import { authorizationServerMetadata, availableScopes, handleAuthorize, handleCallback, handleRegister, handleRevoke, handleToken, issuerUrl, oauthEnabled } from "./oauth.js";
 import { mcpHandler } from "./server.js";
 import { sqlEnabled } from "./sql.js";
 
@@ -78,11 +79,39 @@ function resourceMetadata(requestUrl: URL): Response {
   const resource = publicUrl !== "" ? publicUrl : new URL("/mcp", requestUrl.origin).href;
   return json({
     resource,
+    ...(oauthEnabled() ? { authorization_servers: [issuerUrl()] } : {}),
     bearer_methods_supported: ["header"],
-    scopes_supported: [...ALL_SCOPES],
+    scopes_supported: availableScopes(),
     resource_name: "Aabhushan ERP MCP",
     resource_documentation: new URL("/", requestUrl.origin).href
   });
+}
+
+const AS_METADATA_PATHS = [
+  "/.well-known/oauth-authorization-server",
+  "/.well-known/oauth-authorization-server/mcp",
+  "/.well-known/openid-configuration",
+  "/.well-known/openid-configuration/mcp"
+];
+
+/** OAuth 2.1 endpoints; null when the path is not an OAuth route or OAuth is not configured. */
+async function oauthRoute(path: string, request: Request): Promise<Response | null> {
+  const isOAuthPath = AS_METADATA_PATHS.includes(path) || ["/register", "/authorize", "/token", "/revoke", "/oauth/callback"].includes(path);
+  if (!isOAuthPath) return null;
+  if (!oauthEnabled()) {
+    return json({ error: "not_found", message: "OAuth is not enabled on this server (needs MCP_PUBLIC_URL, MCP_DATABASE_URL, ERP_BASE_URL and MCP_ERP_SHARED_SECRET)." }, 404);
+  }
+  try {
+    if (AS_METADATA_PATHS.includes(path)) return authorizationServerMetadata();
+    if (path === "/register") return await handleRegister(request);
+    if (path === "/authorize") return await handleAuthorize(request);
+    if (path === "/oauth/callback") return await handleCallback(request);
+    if (path === "/token") return await handleToken(request);
+    return await handleRevoke(request);
+  } catch (error) {
+    console.error(`[oauth] ${path} failed`, error);
+    return json({ error: "server_error", error_description: "The authorization server hit an internal error. Try again shortly." }, 500);
+  }
 }
 
 export const app = {
@@ -102,6 +131,9 @@ export const app = {
     if (path === "/.well-known/oauth-protected-resource" || path === "/.well-known/oauth-protected-resource/mcp" || path === "/resource-metadata") {
       return withCors(resourceMetadata(url));
     }
+
+    const oauthResponse = await oauthRoute(path, request);
+    if (oauthResponse) return withCors(oauthResponse);
 
     if (path === "/mcp" || path.startsWith("/mcp/")) {
       const auth = await buildGate(url)(request);

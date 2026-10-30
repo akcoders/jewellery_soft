@@ -55,7 +55,7 @@ class AuthController extends BaseController
         ]);
         session()->setFlashdata('show_admin_alert_center', true);
 
-        $response = redirect()->to(site_url('admin/dashboard'));
+        $response = redirect()->to($this->postLoginTarget());
         $remember = new AdminRememberMeService();
         if ((string) $this->request->getPost('remember') === '1') {
             $remember->issue((int) $admin['id'], $this->request, $response);
@@ -64,6 +64,19 @@ class AuthController extends BaseController
         }
 
         return $response;
+    }
+
+    /**
+     * Dashboard, unless the login was started from the MCP connection consent
+     * page, which then resumes (only that page is accepted as a return target).
+     */
+    private function postLoginTarget(): string
+    {
+        $target = (string) session(McpAuthorizeController::RETURN_SESSION_KEY);
+        session()->remove(McpAuthorizeController::RETURN_SESSION_KEY);
+        $consentUrl = site_url('admin/mcp-authorize') . '?';
+
+        return str_starts_with($target, $consentUrl) ? $target : site_url('admin/dashboard');
     }
 
     public function dashboard(): string
