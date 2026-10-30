@@ -1,0 +1,1 @@
+Aabhushan ERP MCP server. The MCP endpoint is POST /mcp (bearer token required).
