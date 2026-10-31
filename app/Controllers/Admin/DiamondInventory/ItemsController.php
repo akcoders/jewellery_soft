@@ -128,7 +128,7 @@ class ItemsController extends BaseController
         }
 
         $stock = db_connect()->table('stock')->where('item_id', $id)->get()->getRowArray();
-        if ($stock && ((float) $stock['pcs_balance'] > 0 || (float) $stock['carat_balance'] > 0)) {
+        if ($stock && ((float) $stock['pcs_balance'] != 0.0 || (float) $stock['carat_balance'] != 0.0)) {
             return redirect()->to(site_url('admin/diamond-inventory/items'))
                 ->with('error', 'Cannot delete item with non-zero stock.');
         }

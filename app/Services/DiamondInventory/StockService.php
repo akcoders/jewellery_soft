@@ -126,17 +126,24 @@ class StockService
 
             $newPcs = $oldPcs + $addPcs;
             $newCarat = $oldCarat + $addCarat;
-            if ($newPcs < -0.0005 || $newCarat < -0.0005) {
+            if ($newPcs < -0.0005 || ($oldCarat >= -0.0005 && $newCarat < -0.0005)) {
                 throw new RuntimeException('Stock cannot go negative while applying purchase.');
             }
 
-            $oldValue = $oldCarat * $oldAvg;
-            $newValue = $oldValue + $addValue;
-            $newAvg = $newCarat > 0 ? ($newValue / $newCarat) : 0.0;
+            // A documented historical shortage has no known cost. Incoming
+            // purchases first cover that shortage; only any remaining stock
+            // receives the purchase's unit cost.
+            if ($oldCarat < -0.0005) {
+                $newAvg = $newCarat > 0 && $addCarat > 0 ? ($addValue / $addCarat) : 0.0;
+            } else {
+                $oldValue = $oldCarat * $oldAvg;
+                $newValue = $oldValue + $addValue;
+                $newAvg = $newCarat > 0 ? ($newValue / $newCarat) : 0.0;
+            }
             if ($newAvg < 0) {
                 $newAvg = 0;
             }
-            $stockValue = $newCarat * $newAvg;
+            $stockValue = max(0, $newCarat) * $newAvg;
 
             $this->updateStock($itemId, $newPcs, $newCarat, $newAvg, $stockValue);
         }
@@ -162,8 +169,8 @@ class StockService
 
             $newPcs = $oldPcs - $removePcs;
             $newCarat = $oldCarat - $removeCarat;
-            if ($newCarat < -0.0005) {
-                throw new RuntimeException('Cannot reverse purchase; stock would become negative.');
+            if ($newCarat < -0.0005 && $oldCarat >= -0.0005) {
+                throw new RuntimeException('Cannot reverse purchase; stock would become negative. Reconcile any historical shortage before reversing this purchase.');
             }
 
             $oldValue = $oldCarat * $oldAvg;
@@ -181,7 +188,7 @@ class StockService
         }
     }
 
-    public function applyIssue(int $issueId): void
+    public function applyIssue(int $issueId, bool $allowNegative = false): void
     {
         $rows = $this->groupedIssueLines($issueId);
         if ($rows === []) {
@@ -200,12 +207,14 @@ class StockService
 
             $newPcs = $oldPcs - $issuePcs;
             $newCarat = $oldCarat - $issueCarat;
-            if ($newCarat < -0.0005) {
+            if ($newCarat < -0.0005 && ! $allowNegative) {
                 throw new RuntimeException('Insufficient stock.');
             }
 
-            $stockValue = $newCarat * $oldAvg;
-            $this->updateStock($itemId, $newPcs, $newCarat, $oldAvg, $stockValue);
+            // The shortage is unvalued until actual stock is received.
+            $newAvg = $newCarat < -0.0005 ? 0.0 : $oldAvg;
+            $stockValue = max(0, $newCarat) * $newAvg;
+            $this->updateStock($itemId, $newPcs, $newCarat, $newAvg, $stockValue);
         }
     }
 
@@ -228,8 +237,11 @@ class StockService
 
             $newPcs = $oldPcs + $addPcs;
             $newCarat = $oldCarat + $addCarat;
-            if ($newCarat < -0.0005) {
+            if ($newCarat < -0.0005 && $oldCarat >= -0.0005) {
                 throw new RuntimeException('Stock cannot go negative while reversing issue.');
+            }
+            if ($oldCarat < -0.0005 && $newCarat > 0.0005) {
+                throw new RuntimeException('Reconcile diamond shortage costs before reversing an issue into positive stock.');
             }
 
             $stockValue = $newCarat * $oldAvg;
@@ -257,8 +269,11 @@ class StockService
 
             $newPcs = $oldPcs + $addPcs;
             $newCarat = $oldCarat + $addCarat;
-            if ($newCarat < -0.0005) {
+            if ($newCarat < -0.0005 && $oldCarat >= -0.0005) {
                 throw new RuntimeException('Stock cannot go negative while applying return.');
+            }
+            if ($oldCarat < -0.0005 && $newCarat > 0.0005) {
+                throw new RuntimeException('Reconcile diamond shortage costs before returning into positive stock.');
             }
 
             $stockValue = $newCarat * $oldAvg;
@@ -409,7 +424,7 @@ class StockService
 
             $newPcs = $oldPcs - $removePcs;
             $newCarat = $oldCarat - $removeCarat;
-            if ($newCarat < -0.0005) {
+            if ($newCarat < -0.0005 && $oldCarat >= -0.0005) {
                 throw new RuntimeException('Cannot reverse return; stock would become negative.');
             }
 
@@ -444,17 +459,21 @@ class StockService
             if ($type === 'add') {
                 $newPcs = $oldPcs + $deltaPcs;
                 $newCarat = $oldCarat + $deltaCarat;
-                if ($newCarat < -0.0005) {
+                if ($newCarat < -0.0005 && $oldCarat >= -0.0005) {
                     throw new RuntimeException('Stock cannot go negative while applying adjustment.');
                 }
 
-                $oldValue = $oldCarat * $oldAvg;
-                $newValue = $oldValue + $deltaValue;
-                $newAvg = $newCarat > 0 ? ($newValue / $newCarat) : 0.0;
+                if ($oldCarat < -0.0005) {
+                    $newAvg = $newCarat > 0 && $deltaCarat > 0 ? ($deltaValue / $deltaCarat) : 0.0;
+                } else {
+                    $oldValue = $oldCarat * $oldAvg;
+                    $newValue = $oldValue + $deltaValue;
+                    $newAvg = $newCarat > 0 ? ($newValue / $newCarat) : 0.0;
+                }
                 if ($newAvg < 0) {
                     $newAvg = 0;
                 }
-                $stockValue = $newCarat * $newAvg;
+                $stockValue = max(0, $newCarat) * $newAvg;
                 $this->updateStock($itemId, $newPcs, $newCarat, $newAvg, $stockValue);
                 continue;
             }
@@ -496,7 +515,7 @@ class StockService
             if ($type === 'add') {
                 $newPcs = $oldPcs - $deltaPcs;
                 $newCarat = $oldCarat - $deltaCarat;
-                if ($newCarat < -0.0005) {
+                if ($newCarat < -0.0005 && $oldCarat >= -0.0005) {
                     throw new RuntimeException('Cannot reverse add adjustment; stock would go negative.');
                 }
 
@@ -516,8 +535,11 @@ class StockService
 
             $newPcs = $oldPcs + $deltaPcs;
             $newCarat = $oldCarat + $deltaCarat;
-            if ($newCarat < -0.0005) {
+            if ($newCarat < -0.0005 && $oldCarat >= -0.0005) {
                 throw new RuntimeException('Cannot reverse subtract adjustment; stock would go negative.');
+            }
+            if ($oldCarat < -0.0005 && $newCarat > 0.0005) {
+                throw new RuntimeException('Reconcile diamond shortage costs before reversing an adjustment into positive stock.');
             }
 
             $stockValue = $newCarat * $oldAvg;
@@ -622,7 +644,9 @@ class StockService
     private function updateStock(int $itemId, float $pcs, float $carat, float $avg, float $stockValue): void
     {
         $pcs = round(max(0, $pcs), 3);
-        $carat = round(max(0, $carat), 3);
+        // Negative carats can only originate from an explicitly authorised
+        // historical issue. Preserve them until incoming stock covers them.
+        $carat = round($carat, 3);
         $avg = round(max(0, $avg), 2);
         $stockValue = round(max(0, $stockValue), 2);
 
