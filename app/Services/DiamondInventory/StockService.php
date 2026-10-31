@@ -188,6 +188,7 @@ class StockService
         }
     }
 
+    /** Allow a shortage only for an explicitly authorised historical issue. */
     public function applyIssue(int $issueId, bool $allowNegative = false): void
     {
         $rows = $this->groupedIssueLines($issueId);
