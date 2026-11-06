@@ -11,6 +11,12 @@ Options -Indexes
 	Options +FollowSymlinks
 	RewriteEngine On
 
+	# Run before file/directory exceptions; END prevents nested PWA/analytics
+	# .htaccess rules from serving a cached app shell or public uploads.
+	RewriteCond %{DOCUMENT_ROOT}/service-suspended.flag -f [OR]
+	RewriteCond %{DOCUMENT_ROOT}/public/service-suspended.flag -f
+	RewriteRule ^ service-suspended.php [END]
+
 	# If you installed CodeIgniter in a subfolder, you will need to
 	# change the following line to match the subfolder you need.
 	# http://httpd.apache.org/docs/current/mod/mod_rewrite.html#rewritebase

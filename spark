@@ -1,6 +1,14 @@
 #!/usr/bin/env php
 <?php
 
+// Suspend CLI cron/notification dispatch too, before opening the database.
+// The independent scripts/service-access.php remains available for resume.
+require_once __DIR__ . '/app/Support/service_suspension.php';
+if (PHP_SAPI === 'cli' && aabhushan_service_is_suspended()) {
+    fwrite(STDERR, "Service suspended. CLI jobs are paused. Use php scripts/service-access.php resume to restore access.\n");
+    exit(1);
+}
+
 /**
  * This file is part of CodeIgniter 4 framework.
  *

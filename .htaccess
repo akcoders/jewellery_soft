@@ -3,6 +3,12 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Suspension also covers existing files and nested PWA rewrite rules.
+    # Supports both project-root and public-root domain document roots.
+    RewriteCond %{DOCUMENT_ROOT}/public/service-suspended.flag -f [OR]
+    RewriteCond %{DOCUMENT_ROOT}/service-suspended.flag -f
+    RewriteRule ^ public/service-suspended.php [END]
+
     # Deny direct access to internal folders when project root is web root.
     RewriteRule ^(app|vendor|writable|tests|docs)/ - [F,L,NC]
 
