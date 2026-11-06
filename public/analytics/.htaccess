@@ -12,6 +12,13 @@ DirectoryIndex index.html
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
+
+  # Gate nested static apps before their own file/directory exceptions.
+  # Use the correct response URL for either supported document root.
+  RewriteCond %{DOCUMENT_ROOT}/service-suspended.flag -f
+  RewriteRule ^ /service-suspended.php [END]
+  RewriteCond %{DOCUMENT_ROOT}/public/service-suspended.flag -f
+  RewriteRule ^ /public/service-suspended.php [END]
   RewriteBase /analytics/
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
